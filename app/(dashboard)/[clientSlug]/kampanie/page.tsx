@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 
-import { KpiCards } from "@/components/dashboard/kpi-cards";
-import { TrendChart } from "@/components/dashboard/trend-chart";
+import { CampaignsTable } from "@/components/dashboard/campaigns-table";
 import { getDashboardData } from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function OverviewPage({
+export default async function CampaignsPage({
   params,
 }: {
   params: { clientSlug: string };
@@ -24,13 +23,12 @@ export default async function OverviewPage({
     redirect("/login");
   }
 
-  const { kpis, trend } = await getDashboardData(client.id);
+  const { campaigns } = await getDashboardData(client.id);
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Przegląd — {client.name}</h1>
-      <KpiCards kpis={kpis} />
-      <TrendChart trend={trend} />
+      <h1 className="text-xl font-semibold">Kampanie — {client.name}</h1>
+      <CampaignsTable campaigns={campaigns} />
     </div>
   );
 }
