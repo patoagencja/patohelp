@@ -24,6 +24,21 @@ export function formatMoneyPLN(minorUnits: number | bigint): string {
   return PLN_FORMATTER.format(major);
 }
 
+const NUMBER_FORMATTER = new Intl.NumberFormat("pl-PL");
+
+/** Format an integer-ish number with Polish grouping (e.g. 12 345). */
+export function formatNumberPL(value: number): string {
+  return NUMBER_FORMATTER.format(Math.round(value));
+}
+
+/** Format a percentage value (already in percent units), e.g. 2.4 -> "2,40%". */
+export function formatPercent(value: number, fractionDigits = 2): string {
+  return `${value.toLocaleString("pl-PL", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}%`;
+}
+
 /**
  * Format a UTC date/timestamp into an Europe/Warsaw string. Timestamps are
  * always UTC in the DB; formatting to Warsaw happens only in the UI.
