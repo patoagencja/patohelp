@@ -41,11 +41,11 @@ export default async function ClientDashboardLayout({
   return (
     <div className="flex min-h-screen bg-muted/20">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
-        <div className="flex h-14 items-center gap-2 border-b border-border px-5">
-          <LayoutDashboard className="h-5 w-5 text-primary" />
-          <span className="font-semibold">
-            {client?.name ?? "Pato"}
+        <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <LayoutDashboard className="h-4 w-4" />
           </span>
+          <span className="font-semibold">{client?.name ?? "Pato"}</span>
         </div>
         <DashboardSidebar
           clientSlug={params.clientSlug}
@@ -54,9 +54,16 @@ export default async function ClientDashboardLayout({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end gap-4 border-b border-border bg-card px-6">
+        <header className="flex h-14 items-center justify-end gap-3 border-b border-border bg-card px-6">
           {user?.email ? (
-            <span className="text-sm text-muted-foreground">{user.email}</span>
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-medium text-accent-foreground">
+                {user.email.charAt(0).toUpperCase()}
+              </span>
+              <span className="hidden text-sm text-muted-foreground sm:inline">
+                {user.email}
+              </span>
+            </div>
           ) : null}
           <form action={signOut}>
             <Button type="submit" variant="outline" size="sm">

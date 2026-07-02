@@ -46,6 +46,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("[ai/chat] ANTHROPIC_API_KEY is not set");
+    return NextResponse.json(
+      { error: "AI nie jest skonfigurowane (brak ANTHROPIC_API_KEY)" },
+      { status: 500 }
+    );
+  }
+
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
@@ -55,11 +63,13 @@ export async function POST(request: Request) {
   const context = buildDashboardContext(client.name as string, data);
 
   const anthropic = new Anthropic();
+  // Thinking disabled for snappy chat replies; instruct final-answer-only so
+  // Opus 4.8 doesn't leak reasoning into the visible response.
   const stream = anthropic.messages.stream({
     model: "claude-opus-4-8",
-    max_tokens: 1500,
-    thinking: { type: "adaptive" },
-    system: `${CHAT_SYSTEM_PROMPT}\n\n--- DANE KAMPANII ---\n${context}`,
+    max_tokens: 1024,
+    thinking: { type: "disabled" },
+    system: `${CHAT_SYSTEM_PROMPT}\n\nOdpowiadaj wyłącznie finalną odpowiedzią po polsku — bez rozpisywania toku rozumowania.\n\n--- DANE KAMPANII ---\n${context}`,
     messages: parsed.data.messages,
   });
 

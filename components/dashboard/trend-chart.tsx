@@ -26,7 +26,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
         data={data}
         index="date"
         categories={hasSessions ? ["Wydatki", "Sesje"] : ["Wydatki"]}
-        colors={hasSessions ? ["blue", "emerald"] : ["blue"]}
+        colors={hasSessions ? ["indigo", "emerald"] : ["indigo"]}
         valueFormatter={(value) => formatMoneyPLN(value * 100)}
         showLegend={hasSessions}
         yAxisWidth={72}

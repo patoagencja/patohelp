@@ -14,6 +14,10 @@ export default async function OverviewPage({
 }) {
   const supabase = createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: client } = await supabase
     .from("clients")
     .select("id, name")
@@ -28,7 +32,15 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Przegląd — {client.name}</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Cześć 👋
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Przegląd kampanii {client.name}
+          {user?.email ? ` · ${user.email}` : ""}
+        </p>
+      </div>
       <KpiCards kpis={kpis} />
       <TrendChart trend={trend} />
     </div>
