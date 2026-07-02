@@ -3,6 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { decrypt } from "@/lib/integrations/encryption";
+import { describeError } from "@/lib/integrations/errors";
 import { getCampaignMetrics } from "@/lib/integrations/google-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -16,6 +17,7 @@ const WARSAW_TZ = "Europe/Warsaw";
 
 interface GoogleAccount {
   id: string;
+  selected?: boolean;
 }
 
 export async function GET(request: Request) {
@@ -26,8 +28,6 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-
-  // Opportunistic cleanup of expired OAuth state rows.
   await admin.rpc("cleanup_expired_oauth_states");
 
   const now = new Date();
@@ -41,6 +41,7 @@ export async function GET(request: Request) {
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
+  let accountsFailed = 0;
 
   for (const integration of integrations ?? []) {
     const { data: run } = await admin
@@ -57,39 +58,55 @@ export async function GET(request: Request) {
       const { refresh_token } = JSON.parse(
         decrypt(integration.credentials_encrypted as string)
       );
-      const accounts = (integration.account_ids ?? []) as GoogleAccount[];
+      // Only accounts explicitly selected for this client.
+      const accounts = (
+        (integration.account_ids ?? []) as GoogleAccount[]
+      ).filter((a) => a.selected === true);
 
       const rows: Record<string, unknown>[] = [];
+      const accountErrors: string[] = [];
+
+      // One bad account (manager account, no access, etc.) must not sink the
+      // whole sync — isolate each account.
       for (const account of accounts) {
-        const metrics = await getCampaignMetrics(
-          refresh_token,
-          account.id,
-          since,
-          until
-        );
-        for (const metric of metrics) {
-          rows.push({
-            client_id: integration.client_id,
-            provider: "google_ads",
-            campaign_id: metric.campaign_id,
-            campaign_name: metric.campaign_name,
-            date: metric.date,
-            spend_minor_units: Math.round(metric.cost_micros / 10_000),
-            impressions: metric.impressions,
-            clicks: metric.clicks,
-            ctr: metric.ctr,
-            cpc_minor_units:
-              metric.average_cpc != null
-                ? Math.round(metric.average_cpc / 10_000)
-                : null,
-            reach: null,
-            frequency: null,
-            conversions:
-              metric.conversions != null
-                ? Math.round(metric.conversions)
-                : null,
-            raw_data: { status: metric.status } as Record<string, unknown>,
-          });
+        try {
+          const metrics = await getCampaignMetrics(
+            refresh_token,
+            account.id,
+            since,
+            until
+          );
+          for (const metric of metrics) {
+            rows.push({
+              client_id: integration.client_id,
+              provider: "google_ads",
+              campaign_id: metric.campaign_id,
+              campaign_name: metric.campaign_name,
+              date: metric.date,
+              spend_minor_units: Math.round(metric.cost_micros / 10_000),
+              impressions: metric.impressions,
+              clicks: metric.clicks,
+              ctr: metric.ctr,
+              cpc_minor_units:
+                metric.average_cpc != null
+                  ? Math.round(metric.average_cpc / 10_000)
+                  : null,
+              reach: null,
+              frequency: null,
+              conversions:
+                metric.conversions != null
+                  ? Math.round(metric.conversions)
+                  : null,
+              raw_data: { status: metric.status } as Record<string, unknown>,
+            });
+          }
+        } catch (accErr) {
+          accountsFailed += 1;
+          accountErrors.push(`${account.id}: ${describeError(accErr)}`);
+          console.error(
+            `[cron/refresh-ads-google] account ${account.id} failed`,
+            describeError(accErr)
+          );
         }
       }
 
@@ -103,11 +120,17 @@ export async function GET(request: Request) {
 
       await admin
         .from("sync_runs")
-        .update({ status: "success", finished_at: new Date().toISOString() })
+        .update({
+          status: "success",
+          finished_at: new Date().toISOString(),
+          error_message: accountErrors.length
+            ? accountErrors.slice(0, 5).join(" | ")
+            : null,
+        })
         .eq("id", run?.id);
       integrationsProcessed += 1;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = describeError(err);
       console.error("[cron/refresh-ads-google] integration failed", message);
       await admin
         .from("sync_runs")
@@ -124,5 +147,6 @@ export async function GET(request: Request) {
     ok: true,
     integrations_processed: integrationsProcessed,
     campaigns_upserted: campaignsUpserted,
+    accounts_failed: accountsFailed,
   });
 }

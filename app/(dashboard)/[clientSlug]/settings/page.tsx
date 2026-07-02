@@ -17,6 +17,12 @@ import type { IntegrationProvider } from "@/lib/types";
 import { ConnectedToast } from "./connected-toast";
 import { TestConnectionButton } from "./test-connection-button";
 
+interface Account {
+  id: string;
+  name?: string;
+  selected?: boolean;
+}
+
 const PROVIDERS: Array<{
   key: Extract<IntegrationProvider, "meta_ads" | "google_ads">;
   routeSlug: "meta" | "google-ads";
@@ -37,7 +43,7 @@ const PROVIDERS: Array<{
   },
 ];
 
-// Server Action: disconnect an integration (delete the stored credentials).
+// Server Action: disconnect an integration.
 async function disconnectIntegration(formData: FormData) {
   "use server";
   const clientSlug = String(formData.get("client"));
@@ -52,8 +58,47 @@ async function disconnectIntegration(formData: FormData) {
     .delete()
     .eq("client_id", access.clientId)
     .eq("provider", provider);
-
   redirect(`/${clientSlug}/settings`);
+}
+
+// Server Action: save which accounts belong to this client. Everything not
+// ticked is ignored by the sync. Also purges existing metrics for the provider
+// so rows from deselected accounts disappear (the cron repopulates the rest).
+async function saveAccounts(formData: FormData) {
+  "use server";
+  const clientSlug = String(formData.get("client"));
+  const provider = String(formData.get("provider")) as IntegrationProvider;
+  const selectedIds = formData.getAll("account").map(String);
+
+  const access = await requireAgencyClientAccess(clientSlug);
+  if (!access.ok) return;
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("integrations")
+    .select("account_ids")
+    .eq("client_id", access.clientId)
+    .eq("provider", provider)
+    .single();
+
+  const accounts = ((data?.account_ids ?? []) as Account[]).map((a) => ({
+    ...a,
+    selected: selectedIds.includes(String(a.id)),
+  }));
+
+  await admin
+    .from("integrations")
+    .update({ account_ids: accounts })
+    .eq("client_id", access.clientId)
+    .eq("provider", provider);
+
+  await admin
+    .from("ads_daily")
+    .delete()
+    .eq("client_id", access.clientId)
+    .eq("provider", provider);
+
+  redirect(`/${clientSlug}/settings?saved=${provider}`);
 }
 
 export default async function SettingsPage({
@@ -61,11 +106,10 @@ export default async function SettingsPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { connected?: string; error?: string };
+  searchParams: { connected?: string; error?: string; saved?: string };
 }) {
   const access = await requireAgencyClientAccess(params.clientSlug);
   if (!access.ok) {
-    // Clients (and anyone without agency access) don't see settings.
     redirect(access.status === 401 ? "/login" : `/${params.clientSlug}`);
   }
 
@@ -84,20 +128,26 @@ export default async function SettingsPage({
       <ConnectedToast
         connected={searchParams.connected}
         error={searchParams.error}
+        saved={searchParams.saved}
       />
 
       <h1 className="text-lg font-semibold">Integracje</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Połącz konta reklamowe klienta, aby zasilić dashboard danymi.
+        Połącz konta reklamowe i zaznacz, które należą do tego klienta.
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         {PROVIDERS.map((provider) => {
           const integration = byProvider.get(provider.key);
-          const accountIds = Array.isArray(integration?.account_ids)
-            ? (integration!.account_ids as unknown[])
-            : [];
+          const accounts = (
+            Array.isArray(integration?.account_ids)
+              ? (integration!.account_ids as Account[])
+              : []
+          )
+            .slice()
+            .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
           const connected = Boolean(integration);
+          const selectedCount = accounts.filter((a) => a.selected).length;
 
           return (
             <Card key={provider.key}>
@@ -114,9 +164,48 @@ export default async function SettingsPage({
                 {connected ? (
                   <>
                     <p className="text-sm text-foreground">
-                      ✅ Połączono, {accountIds.length}{" "}
-                      {accountIds.length === 1 ? "konto" : "konta/kont"}
+                      ✅ Połączono · {selectedCount} z {accounts.length} kont
+                      wybranych
                     </p>
+
+                    <form action={saveAccounts} className="flex flex-col gap-3">
+                      <input
+                        type="hidden"
+                        name="client"
+                        value={params.clientSlug}
+                      />
+                      <input
+                        type="hidden"
+                        name="provider"
+                        value={provider.key}
+                      />
+                      <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                        {accounts.map((account) => (
+                          <label
+                            key={account.id}
+                            className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted"
+                          >
+                            <input
+                              type="checkbox"
+                              name="account"
+                              value={account.id}
+                              defaultChecked={account.selected}
+                              className="h-4 w-4 rounded border-input"
+                            />
+                            <span className="truncate">
+                              {account.name || account.id}
+                            </span>
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                              {account.id}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <Button type="submit" size="sm" className="w-fit">
+                        Zapisz wybór kont
+                      </Button>
+                    </form>
+
                     <div className="flex gap-2">
                       <TestConnectionButton
                         provider={provider.routeSlug}

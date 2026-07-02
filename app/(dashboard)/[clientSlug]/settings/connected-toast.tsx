@@ -15,9 +15,11 @@ const PROVIDER_LABELS: Record<string, string> = {
 export function ConnectedToast({
   connected,
   error,
+  saved,
 }: {
   connected?: string;
   error?: string;
+  saved?: string;
 }) {
   const fired = useRef(false);
 
@@ -26,15 +28,17 @@ export function ConnectedToast({
     fired.current = true;
 
     if (connected) {
-      toast.success(
-        `Połączono z ${PROVIDER_LABELS[connected] ?? connected}`
-      );
+      toast.success(`Połączono z ${PROVIDER_LABELS[connected] ?? connected}`);
     } else if (error) {
       toast.error(
         `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
       );
+    } else if (saved) {
+      toast.success(
+        `Zapisano wybór kont dla ${PROVIDER_LABELS[saved] ?? saved}`
+      );
     }
-  }, [connected, error]);
+  }, [connected, error, saved]);
 
   return null;
 }
