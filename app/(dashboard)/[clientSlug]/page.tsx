@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { AiChat } from "@/components/dashboard/ai-chat";
 import { CampaignsTable } from "@/components/dashboard/campaigns-table";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { TrendChart } from "@/components/dashboard/trend-chart";
@@ -34,6 +35,8 @@ export default async function ClientDashboardPage({
       <KpiCards kpis={kpis} />
 
       <TrendChart trend={trend} />
+
+      <AiChat clientSlug={params.clientSlug} />
 
       <CampaignsTable campaigns={campaigns} />
     </div>

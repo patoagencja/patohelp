@@ -10,7 +10,7 @@
     "types:generate": "supabase gen types typescript --local > types/database.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/sdk": "^0.109.1",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-slot": "^1.1.1",
     "@supabase/ssr": "^0.5.2",
