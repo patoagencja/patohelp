@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
@@ -16,6 +17,9 @@ import type { IntegrationProvider } from "@/lib/types";
 
 import { ConnectedToast } from "./connected-toast";
 import { TestConnectionButton } from "./test-connection-button";
+
+// Always render fresh so the account selection reflects the latest save.
+export const dynamic = "force-dynamic";
 
 interface Account {
   id: string;
@@ -58,6 +62,8 @@ async function disconnectIntegration(formData: FormData) {
     .delete()
     .eq("client_id", access.clientId)
     .eq("provider", provider);
+
+  revalidatePath(`/${clientSlug}/settings`);
   redirect(`/${clientSlug}/settings`);
 }
 
@@ -98,6 +104,8 @@ async function saveAccounts(formData: FormData) {
     .eq("client_id", access.clientId)
     .eq("provider", provider);
 
+  revalidatePath(`/${clientSlug}/settings`);
+  revalidatePath(`/${clientSlug}`);
   redirect(`/${clientSlug}/settings?saved=${provider}`);
 }
 
