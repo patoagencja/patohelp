@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
+import { Toaster } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
@@ -47,6 +48,8 @@ export default async function DashboardLayout({
 
         <main className="flex-1">{children}</main>
       </div>
+
+      <Toaster richColors position="top-right" />
     </div>
   );
 }
