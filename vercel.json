@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/refresh-ads",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-ga4",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/generate-summary",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}
