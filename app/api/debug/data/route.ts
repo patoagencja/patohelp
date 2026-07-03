@@ -20,12 +20,38 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const { data: rows } = await admin
     .from("ads_daily")
-    .select("date, provider, spend_minor_units")
+    .select("date, provider, campaign_name, spend_minor_units")
     .eq("client_id", access.clientId)
     .order("date", { ascending: true });
 
   const dates = new Set((rows ?? []).map((r) => r.date as string));
   const sorted = Array.from(dates).sort();
+
+  // Per-provider total + top campaigns by spend (whole dataset).
+  let metaTotal = 0;
+  let googleTotal = 0;
+  const byCampaign = new Map<string, { name: string; provider: string; spend: number }>();
+  for (const r of rows ?? []) {
+    const spend = Number(r.spend_minor_units);
+    if (r.provider === "meta_ads") metaTotal += spend;
+    else googleTotal += spend;
+    const key = `${r.provider}:${r.campaign_name}`;
+    const c = byCampaign.get(key) ?? {
+      name: (r.campaign_name as string) ?? "(bez nazwy)",
+      provider: r.provider as string,
+      spend: 0,
+    };
+    c.spend += spend;
+    byCampaign.set(key, c);
+  }
+  const topCampaigns = Array.from(byCampaign.values())
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 15)
+    .map((c) => ({
+      name: c.name,
+      provider: c.provider,
+      spendPln: c.spend / 100,
+    }));
 
   const [d7, d30, d90] = await Promise.all([
     getDashboardData(access.clientId, "7d"),
@@ -39,6 +65,11 @@ export async function GET(request: Request) {
     distinctDates: dates.size,
     minDate: sorted[0] ?? null,
     maxDate: sorted[sorted.length - 1] ?? null,
+    totalSpendByProvider: {
+      meta: metaTotal / 100,
+      google: googleTotal / 100,
+    },
+    topCampaigns,
     spendByRange: {
       "7d": d7.kpis.spendMinorUnits.value / 100,
       "30d": d30.kpis.spendMinorUnits.value / 100,
