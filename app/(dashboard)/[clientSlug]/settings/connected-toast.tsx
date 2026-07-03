@@ -6,6 +6,7 @@ import { toast } from "sonner";
 const PROVIDER_LABELS: Record<string, string> = {
   meta_ads: "Meta Ads",
   google_ads: "Google Ads",
+  ga4: "Google Analytics 4",
 };
 
 /**

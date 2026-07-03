@@ -255,6 +255,85 @@ export default async function SettingsPage({
           );
         })}
       </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        {(() => {
+          const ga4 = byProvider.get("ga4");
+          const ga4Ids = (ga4?.account_ids ?? {}) as {
+            propertyId?: string | null;
+            properties?: Array<{ propertyId: string; displayName: string }>;
+          };
+          const connected = Boolean(ga4);
+          const propName = ga4Ids.properties?.find(
+            (p) => p.propertyId === ga4Ids.propertyId
+          )?.displayName;
+          const multi = (ga4Ids.properties?.length ?? 0) > 1;
+
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  Google Analytics 4
+                  {connected ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  ) : null}
+                </CardTitle>
+                <CardDescription>
+                  Ruch na stronie: źródła, urządzenia, podstrony.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {connected ? (
+                  <>
+                    <p className="text-sm text-foreground">
+                      {ga4Ids.propertyId
+                        ? `✅ Połączono · property ${propName ?? ga4Ids.propertyId}`
+                        : "⚠️ Połączono, ale nie wybrano property"}
+                    </p>
+                    <div className="flex gap-2">
+                      <TestConnectionButton
+                        provider="ga4"
+                        clientSlug={params.clientSlug}
+                      />
+                      {multi ? (
+                        <Button asChild variant="outline" size="sm">
+                          <a href={`/${params.clientSlug}/settings/ga4-select`}>
+                            Zmień property
+                          </a>
+                        </Button>
+                      ) : null}
+                      <form action={disconnectIntegration}>
+                        <input
+                          type="hidden"
+                          name="client"
+                          value={params.clientSlug}
+                        />
+                        <input type="hidden" name="provider" value="ga4" />
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                        >
+                          Rozłącz
+                        </Button>
+                      </form>
+                    </div>
+                  </>
+                ) : (
+                  <Button asChild className="w-fit">
+                    <a
+                      href={`/api/integrations/ga4/connect?client=${params.clientSlug}`}
+                    >
+                      Połącz GA4
+                    </a>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
+      </div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ export function TestConnectionButton({
   provider,
   clientSlug,
 }: {
-  provider: "meta" | "google-ads";
+  provider: "meta" | "google-ads" | "ga4";
   clientSlug: string;
 }) {
   const [loading, setLoading] = useState(false);
