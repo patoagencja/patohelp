@@ -10,10 +10,19 @@ Zasady:
 - Kwoty podawaj w PLN. Unikaj marketingowego bełkotu i ogólników.
 - Gdy to pomocne, wskaż konkretne kampanie po nazwie.`;
 
+export interface DailyBreakdownRow {
+  date: string;
+  metaSpendMinorUnits: number;
+  googleSpendMinorUnits: number;
+  clicks: number;
+  sessions: number;
+}
+
 /** Compact, model-readable snapshot of the client's current ad data. */
 export function buildDashboardContext(
   clientName: string,
-  data: DashboardData
+  data: DashboardData,
+  daily?: DailyBreakdownRow[]
 ): string {
   const k = data.kpis;
   const statusPl: Record<string, string> = {
@@ -43,6 +52,19 @@ export function buildDashboardContext(
         `wydatki ${formatMoneyPLN(c.spendMinorUnits)}, ` +
         `kliknięcia ${formatNumberPL(c.clicks)}, CTR ${formatPercent(c.ctr)}`
     );
+  }
+
+  if (daily?.length) {
+    lines.push("");
+    lines.push(
+      "ROZBICIE DZIENNE (ostatnie 30 dni) — użyj do pytań o dowolne okna (np. ostatnie 14 dni, konkretny tydzień):"
+    );
+    lines.push("data | wydatki Meta | wydatki Google | kliknięcia | sesje");
+    for (const d of daily) {
+      lines.push(
+        `${d.date} | ${formatMoneyPLN(d.metaSpendMinorUnits)} | ${formatMoneyPLN(d.googleSpendMinorUnits)} | ${formatNumberPL(d.clicks)} | ${d.sessions > 0 ? formatNumberPL(d.sessions) : "—"}`
+      );
+    }
   }
 
   return lines.join("\n");

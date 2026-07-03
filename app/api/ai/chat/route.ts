@@ -2,9 +2,77 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { buildDashboardContext, CHAT_SYSTEM_PROMPT } from "@/lib/ai/chat";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { subDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+
+import {
+  buildDashboardContext,
+  CHAT_SYSTEM_PROMPT,
+  type DailyBreakdownRow,
+} from "@/lib/ai/chat";
 import { getDashboardData } from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
+
+// Per-day, per-provider spend/clicks (+ GA4 sessions) for the last 30 days,
+// so the assistant can answer arbitrary date-window questions.
+async function getDailyBreakdown(
+  supabase: SupabaseClient,
+  clientId: string
+): Promise<DailyBreakdownRow[]> {
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const start = formatInTimeZone(
+    subDays(new Date(`${today}T00:00:00`), 29),
+    "Europe/Warsaw",
+    "yyyy-MM-dd"
+  );
+
+  const [adsRes, ga4Res] = await Promise.all([
+    supabase
+      .from("ads_daily")
+      .select("date, provider, spend_minor_units, clicks")
+      .eq("client_id", clientId)
+      .gte("date", start)
+      .lte("date", today),
+    supabase
+      .from("ga4_daily")
+      .select("date, sessions")
+      .eq("client_id", clientId)
+      .is("source_medium", null)
+      .is("device_category", null)
+      .is("page_path", null)
+      .gte("date", start)
+      .lte("date", today),
+  ]);
+
+  const byDate = new Map<string, DailyBreakdownRow>();
+  const get = (date: string) =>
+    byDate.get(date) ??
+    byDate
+      .set(date, {
+        date,
+        metaSpendMinorUnits: 0,
+        googleSpendMinorUnits: 0,
+        clicks: 0,
+        sessions: 0,
+      })
+      .get(date)!;
+
+  for (const r of adsRes.data ?? []) {
+    const row = get(r.date as string);
+    const spend = Number(r.spend_minor_units);
+    if (r.provider === "meta_ads") row.metaSpendMinorUnits += spend;
+    else row.googleSpendMinorUnits += spend;
+    row.clicks += Number(r.clicks);
+  }
+  for (const r of ga4Res.data ?? []) {
+    get(r.date as string).sessions += Number(r.sessions);
+  }
+
+  return Array.from(byDate.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -59,8 +127,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const data = await getDashboardData(client.id);
-  const context = buildDashboardContext(client.name as string, data);
+  const data = await getDashboardData(client.id, "30d");
+  const daily = await getDailyBreakdown(supabase, client.id);
+  const context = buildDashboardContext(client.name as string, data, daily);
 
   const anthropic = new Anthropic();
   // Thinking disabled for snappy chat replies; instruct final-answer-only so
