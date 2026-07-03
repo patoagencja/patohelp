@@ -1,4 +1,6 @@
 import {
+  addDays,
+  differenceInCalendarDays,
   endOfMonth,
   format,
   startOfMonth,
@@ -7,15 +9,53 @@ import {
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
+import { RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
 import { createClient } from "@/lib/supabase/server";
 
+export { RANGE_KEYS, RANGE_LABELS, normalizeRange } from "@/lib/dashboard/ranges";
+export type { RangeKey } from "@/lib/dashboard/ranges";
+
 const WARSAW_TZ = "Europe/Warsaw";
-const TREND_DAYS = 30;
+
+interface ResolvedRange {
+  start: string;
+  end: string;
+  prevStart: string;
+  prevEnd: string;
+}
+
+const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+
+// A selected period plus the immediately-preceding period of equal length
+// (calendar month presets compare against the prior calendar month).
+function resolveRange(key: RangeKey, today: Date): ResolvedRange {
+  if (key === "month") {
+    return {
+      start: fmt(startOfMonth(today)),
+      end: fmt(today),
+      prevStart: fmt(startOfMonth(subMonths(today, 1))),
+      prevEnd: fmt(endOfMonth(subMonths(today, 1))),
+    };
+  }
+  if (key === "prev_month") {
+    return {
+      start: fmt(startOfMonth(subMonths(today, 1))),
+      end: fmt(endOfMonth(subMonths(today, 1))),
+      prevStart: fmt(startOfMonth(subMonths(today, 2))),
+      prevEnd: fmt(endOfMonth(subMonths(today, 2))),
+    };
+  }
+
+  const days = key === "7d" ? 7 : key === "90d" ? 90 : 30;
+  const start = subDays(today, days - 1);
+  const prevEnd = subDays(start, 1);
+  const prevStart = subDays(prevEnd, days - 1);
+  return { start: fmt(start), end: fmt(today), prevStart: fmt(prevStart), prevEnd: fmt(prevEnd) };
+}
 
 export interface Kpi {
   value: number;
   previous: number;
-  /** Relative change vs previous period, in percent (null if no baseline). */
   deltaPercent: number | null;
 }
 
@@ -27,9 +67,9 @@ export interface DashboardKpis {
 }
 
 export interface TrendPoint {
-  date: string; // yyyy-MM-dd
+  date: string;
   spendMinorUnits: number;
-  sessions: number; // GA4 — zero until integrated
+  sessions: number;
 }
 
 export type CampaignStatus = "active" | "paused" | "off";
@@ -41,7 +81,7 @@ export interface CampaignRow {
   spendMinorUnits: number;
   clicks: number;
   impressions: number;
-  ctr: number; // percent
+  ctr: number;
   status: CampaignStatus;
 }
 
@@ -49,6 +89,8 @@ export interface DashboardData {
   kpis: DashboardKpis;
   trend: TrendPoint[];
   campaigns: CampaignRow[];
+  rangeKey: RangeKey;
+  rangeLabel: string;
 }
 
 interface AdsRow {
@@ -72,22 +114,19 @@ function ctrOf(clicks: number, impressions: number): number {
 }
 
 /**
- * Everything the client dashboard needs from ad data, in one round-trip:
- * month-over-month KPIs, a 30-day spend trend and the active campaign list.
+ * Everything the client dashboard needs from ad data for a given date range:
+ * period-over-period KPIs, a per-day spend trend and the campaign list.
  * GA4-derived figures (sessions) are stubbed at 0 until that integration ships.
  */
-export async function getDashboardData(clientId: string): Promise<DashboardData> {
+export async function getDashboardData(
+  clientId: string,
+  rangeKey: RangeKey = "30d"
+): Promise<DashboardData> {
   const supabase = createClient();
 
-  const now = new Date();
-  const todayStr = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
+  const todayStr = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
   const today = new Date(`${todayStr}T00:00:00`);
-
-  const curMonthStart = format(startOfMonth(today), "yyyy-MM-dd");
-  const prevMonthStart = format(startOfMonth(subMonths(today, 1)), "yyyy-MM-dd");
-  const prevMonthEnd = format(endOfMonth(subMonths(today, 1)), "yyyy-MM-dd");
-  const trendStart = format(subDays(today, TREND_DAYS - 1), "yyyy-MM-dd");
-  const earliest = prevMonthStart < trendStart ? prevMonthStart : trendStart;
+  const range = resolveRange(rangeKey, today);
 
   const { data } = await supabase
     .from("ads_daily")
@@ -95,11 +134,12 @@ export async function getDashboardData(clientId: string): Promise<DashboardData>
       "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions"
     )
     .eq("client_id", clientId)
-    .gte("date", earliest);
+    .gte("date", range.prevStart)
+    .lte("date", range.end);
 
   const rows = (data ?? []) as AdsRow[];
 
-  // --- KPIs (current vs previous calendar month) ---
+  // --- KPIs (current period vs previous period) ---
   let curSpend = 0;
   let curClicks = 0;
   let curImpr = 0;
@@ -112,11 +152,11 @@ export async function getDashboardData(clientId: string): Promise<DashboardData>
     const clicks = Number(row.clicks);
     const impressions = Number(row.impressions);
 
-    if (row.date >= curMonthStart && row.date <= todayStr) {
+    if (row.date >= range.start && row.date <= range.end) {
       curSpend += spend;
       curClicks += clicks;
       curImpr += impressions;
-    } else if (row.date >= prevMonthStart && row.date <= prevMonthEnd) {
+    } else if (row.date >= range.prevStart && row.date <= range.prevEnd) {
       prevSpend += spend;
       prevClicks += clicks;
       prevImpr += impressions;
@@ -130,19 +170,22 @@ export async function getDashboardData(clientId: string): Promise<DashboardData>
     ctr: kpi(ctrOf(curClicks, curImpr), ctrOf(prevClicks, prevImpr)),
   };
 
-  // --- 30-day spend trend (zero-filled) ---
+  // --- Per-day spend trend across the selected range (zero-filled) ---
   const spendByDate = new Map<string, number>();
   for (const row of rows) {
-    if (row.date >= trendStart && row.date <= todayStr) {
+    if (row.date >= range.start && row.date <= range.end) {
       spendByDate.set(
         row.date,
         (spendByDate.get(row.date) ?? 0) + Number(row.spend_minor_units)
       );
     }
   }
+  const startDate = new Date(`${range.start}T00:00:00`);
+  const endDate = new Date(`${range.end}T00:00:00`);
+  const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
   const trend: TrendPoint[] = [];
-  for (let i = TREND_DAYS - 1; i >= 0; i--) {
-    const dateStr = format(subDays(today, i), "yyyy-MM-dd");
+  for (let i = 0; i < totalDays; i++) {
+    const dateStr = fmt(addDays(startDate, i));
     trend.push({
       date: dateStr,
       spendMinorUnits: spendByDate.get(dateStr) ?? 0,
@@ -150,15 +193,16 @@ export async function getDashboardData(clientId: string): Promise<DashboardData>
     });
   }
 
-  // --- Active campaigns (current month, aggregated) ---
-  const recentThreshold = format(subDays(today, 2), "yyyy-MM-dd"); // last 3 days
+  // --- Campaigns aggregated over the selected range ---
+  const recentDate = subDays(endDate, 2);
+  const recentThreshold = fmt(recentDate < startDate ? startDate : recentDate);
   const campaignMap = new Map<
     string,
     CampaignRow & { recentSpend: number }
   >();
 
   for (const row of rows) {
-    if (row.date < curMonthStart || row.date > todayStr) continue;
+    if (row.date < range.start || row.date > range.end) continue;
 
     const key = `${row.provider}:${row.campaign_id}`;
     const existing =
@@ -197,5 +241,11 @@ export async function getDashboardData(clientId: string): Promise<DashboardData>
     }))
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits);
 
-  return { kpis, trend, campaigns };
+  return {
+    kpis,
+    trend,
+    campaigns,
+    rangeKey,
+    rangeLabel: RANGE_LABELS[rangeKey],
+  };
 }

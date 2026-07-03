@@ -35,7 +35,7 @@ function KpiCard({
         ) : null}
       </Flex>
       <Text className="mt-1 text-xs">
-        {muted ? "po podłączeniu GA4" : "vs poprzedni miesiąc"}
+        {muted ? "po podłączeniu GA4" : "vs poprzedni okres"}
       </Text>
     </Card>
   );
@@ -47,7 +47,7 @@ export function KpiCards({ kpis }: { kpis: DashboardKpis }) {
   return (
     <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
       <KpiCard
-        label="Wydatki (ten miesiąc)"
+        label="Wydatki"
         value={formatMoneyPLN(kpis.spendMinorUnits.value)}
         kpi={kpis.spendMinorUnits}
       />

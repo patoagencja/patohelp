@@ -5,7 +5,13 @@ import { AreaChart, Card, Title } from "@tremor/react";
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 import { formatMoneyPLN } from "@/lib/utils";
 
-export function TrendChart({ trend }: { trend: TrendPoint[] }) {
+export function TrendChart({
+  trend,
+  label,
+}: {
+  trend: TrendPoint[];
+  label?: string;
+}) {
   // Sessions (GA4) join as a second series once that integration lands.
   const hasSessions = trend.some((p) => p.sessions > 0);
 
@@ -20,7 +26,7 @@ export function TrendChart({ trend }: { trend: TrendPoint[] }) {
 
   return (
     <Card>
-      <Title>Trend 30 dni</Title>
+      <Title>Trend wydatków{label ? ` — ${label}` : ""}</Title>
       <AreaChart
         className="mt-4 h-72"
         data={data}
