@@ -3,6 +3,9 @@
   "crons": [
     { "path": "/api/cron/refresh-ads-meta", "schedule": "5 * * * *" },
     { "path": "/api/cron/refresh-ads-google", "schedule": "15 * * * *" },
-    { "path": "/api/cron/refresh-ga4", "schedule": "25 * * * *" }
+    { "path": "/api/cron/refresh-ga4", "schedule": "25 * * * *" },
+    { "path": "/api/cron/refresh-creatives-meta", "schedule": "45 */6 * * *" },
+    { "path": "/api/cron/generate-summary", "schedule": "0 5 * * *" },
+    { "path": "/api/cron/evaluate-alerts", "schedule": "0 */6 * * *" }
   ]
 }
