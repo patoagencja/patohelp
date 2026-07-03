@@ -104,6 +104,22 @@ async function saveAccounts(formData: FormData) {
     .eq("client_id", access.clientId)
     .eq("provider", provider);
 
+  // Auto-sync the newly selected accounts so data repopulates immediately
+  // (no manual cron run needed).
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  const secret = process.env.CRON_SECRET;
+  if (base && secret) {
+    const job = provider === "meta_ads" ? "refresh-ads-meta" : "refresh-ads-google";
+    try {
+      await fetch(`${base}/api/cron/${job}`, {
+        headers: { Authorization: `Bearer ${secret}` },
+        cache: "no-store",
+      });
+    } catch {
+      // Best-effort; the scheduled cron will catch up regardless.
+    }
+  }
+
   revalidatePath(`/${clientSlug}/settings`);
   revalidatePath(`/${clientSlug}`);
   redirect(`/${clientSlug}/settings?saved=${provider}`);

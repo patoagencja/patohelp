@@ -197,13 +197,19 @@ export function CampaignsTable({ campaigns }: { campaigns: CampaignRow[] }) {
                     {c.conversions > 0 ? formatNumberPL(c.conversions) : "—"}
                   </td>
                   <td className="py-2">
-                    <SparkAreaChart
-                      data={c.spark.map((v, i) => ({ i, v: v / 100 }))}
-                      index="i"
-                      categories={["v"]}
-                      colors={["indigo"]}
-                      className="ml-auto h-8 w-24"
-                    />
+                    {c.spark.some((v) => v > 0) ? (
+                      <SparkAreaChart
+                        data={c.spark.map((v, i) => ({ i, v: v / 100 }))}
+                        index="i"
+                        categories={["v"]}
+                        colors={["indigo"]}
+                        className="ml-auto h-8 w-24"
+                      />
+                    ) : (
+                      <span className="block text-right text-xs text-muted-foreground">
+                        —
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

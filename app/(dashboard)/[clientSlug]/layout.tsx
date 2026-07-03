@@ -3,6 +3,7 @@ import { LayoutDashboard } from "lucide-react";
 import { Toaster } from "sonner";
 
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
+import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { Button } from "@/components/ui/button";
 import { getLastSyncLabel } from "@/lib/dashboard/overview";
 import { createClient } from "@/lib/supabase/server";
@@ -65,6 +66,7 @@ export default async function ClientDashboardLayout({
             </span>
           ) : null}
           <span className="flex-1" />
+          {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
           {user?.email ? (
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-medium text-accent-foreground">
