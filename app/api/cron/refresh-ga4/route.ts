@@ -68,9 +68,28 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
+      // First sync for this client? Backfill 30 days of daily totals so the
+      // charts aren't empty; subsequent runs only touch yesterday+today.
+      const { count } = await admin
+        .from("ga4_daily")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", integration.client_id)
+        .lt("date", since);
+      const dailyRange: DateRange =
+        (count ?? 0) > 0
+          ? range
+          : {
+              startDate: formatInTimeZone(
+                subDays(now, 29),
+                WARSAW_TZ,
+                "yyyy-MM-dd"
+              ),
+              endDate: until,
+            };
+
       const [daily, sourceMedium, devices, pages, newReturning] =
         await Promise.all([
-          getDailyMetrics(refresh_token, propertyId, range),
+          getDailyMetrics(refresh_token, propertyId, dailyRange),
           getSessionsBySourceMedium(refresh_token, propertyId, range),
           getSessionsByDevice(refresh_token, propertyId, range),
           getTopPages(refresh_token, propertyId, range, 10),
@@ -131,12 +150,13 @@ export async function GET(request: Request) {
         });
       }
 
-      // Replace this window's rows so refreshes stay idempotent.
+      // Replace this window's rows so refreshes stay idempotent (covers the
+      // 30-day backfill window on first sync).
       await admin
         .from("ga4_daily")
         .delete()
         .eq("client_id", integration.client_id)
-        .gte("date", since)
+        .gte("date", dailyRange.startDate)
         .lte("date", until);
 
       if (rows.length) {
