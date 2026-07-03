@@ -124,8 +124,9 @@ export async function getCampaignInsights(
 ): Promise<MetaCampaignInsight[]> {
   const rows: MetaCampaignInsight[] = [];
 
-  const body = await graphGet<{
+  let body = await graphGet<{
     data: Array<Record<string, unknown>>;
+    paging?: { next?: string };
   }>(`/${adAccountId}/insights`, {
     fields:
       "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions",
@@ -136,7 +137,19 @@ export async function getCampaignInsights(
     limit: "500",
   });
 
-  for (const row of body.data ?? []) {
+  const allRows: Array<Record<string, unknown>> = [...(body.data ?? [])];
+
+  // Follow pagination — 30-day backfills easily exceed one page.
+  let guard = 0;
+  while (body.paging?.next && guard < 20) {
+    guard += 1;
+    const res = await fetch(body.paging.next, { cache: "no-store" });
+    body = await res.json();
+    if (body?.data?.length) allRows.push(...body.data);
+    else break;
+  }
+
+  for (const row of allRows) {
     rows.push({
       campaign_id: String(row.campaign_id ?? ""),
       campaign_name: String(row.campaign_name ?? ""),

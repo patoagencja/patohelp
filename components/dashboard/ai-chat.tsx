@@ -44,7 +44,13 @@ export function AiChat({ clientSlug }: { clientSlug: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history }),
       });
-      if (!res.ok || !res.body) throw new Error("request failed");
+      if (!res.ok || !res.body) {
+        const detail = await res
+          .json()
+          .then((b) => b?.error as string | undefined)
+          .catch(() => undefined);
+        throw new Error(detail || `Błąd serwera (${res.status})`);
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -70,12 +76,13 @@ export function AiChat({ clientSlug }: { clientSlug: string }) {
           return copy;
         });
       }
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "";
       setMessages((prev) => {
         const copy = prev.slice();
         copy[copy.length - 1] = {
           role: "assistant",
-          content: "Przepraszam, wystąpił błąd. Spróbuj ponownie.",
+          content: `Przepraszam, wystąpił błąd${detail ? `: ${detail}` : ""}. Spróbuj ponownie.`,
         };
         return copy;
       });

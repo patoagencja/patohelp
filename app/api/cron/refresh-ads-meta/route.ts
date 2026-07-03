@@ -58,6 +58,20 @@ export async function GET(request: Request) {
       const { access_token } = JSON.parse(
         decrypt(integration.credentials_encrypted as string)
       );
+
+      // First sync? Backfill 30 days so date ranges have real history;
+      // subsequent runs only refresh yesterday+today.
+      const { count: historyCount } = await admin
+        .from("ads_daily")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", integration.client_id)
+        .eq("provider", "meta_ads")
+        .lt("date", since);
+      const effectiveSince =
+        (historyCount ?? 0) > 0
+          ? since
+          : formatInTimeZone(subDays(now, 29), WARSAW_TZ, "yyyy-MM-dd");
+
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).
       const accounts = (
@@ -73,7 +87,7 @@ export async function GET(request: Request) {
           const insights = await getCampaignInsights(
             access_token,
             account.id,
-            since,
+            effectiveSince,
             until
           );
           for (const insight of insights) {

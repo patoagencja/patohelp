@@ -58,6 +58,19 @@ export async function GET(request: Request) {
       const { refresh_token } = JSON.parse(
         decrypt(integration.credentials_encrypted as string)
       );
+
+      // First sync? Backfill 30 days so date ranges have real history.
+      const { count: historyCount } = await admin
+        .from("ads_daily")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", integration.client_id)
+        .eq("provider", "google_ads")
+        .lt("date", since);
+      const effectiveSince =
+        (historyCount ?? 0) > 0
+          ? since
+          : formatInTimeZone(subDays(now, 29), WARSAW_TZ, "yyyy-MM-dd");
+
       // Only accounts explicitly selected for this client.
       const accounts = (
         (integration.account_ids ?? []) as GoogleAccount[]
@@ -73,7 +86,7 @@ export async function GET(request: Request) {
           const metrics = await getCampaignMetrics(
             refresh_token,
             account.id,
-            since,
+            effectiveSince,
             until
           );
           for (const metric of metrics) {
