@@ -59,18 +59,26 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // First sync? Backfill 30 days so date ranges have real history;
-      // subsequent runs only refresh yesterday+today.
-      const { count: historyCount } = await admin
+      // Backfill 30 days until we actually have 30 days of history, then fall
+      // back to yesterday+today. (Checking "any older row exists" was wrong —
+      // a couple of recent days made it skip the backfill forever.)
+      const backfillStart = formatInTimeZone(
+        subDays(now, 29),
+        WARSAW_TZ,
+        "yyyy-MM-dd"
+      );
+      const { data: earliest } = await admin
         .from("ads_daily")
-        .select("id", { count: "exact", head: true })
+        .select("date")
         .eq("client_id", integration.client_id)
         .eq("provider", "meta_ads")
-        .lt("date", since);
+        .order("date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
       const effectiveSince =
-        (historyCount ?? 0) > 0
+        earliest?.date && (earliest.date as string) <= backfillStart
           ? since
-          : formatInTimeZone(subDays(now, 29), WARSAW_TZ, "yyyy-MM-dd");
+          : backfillStart;
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).

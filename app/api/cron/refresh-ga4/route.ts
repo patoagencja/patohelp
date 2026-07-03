@@ -68,24 +68,27 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // First sync for this client? Backfill 30 days of daily totals so the
-      // charts aren't empty; subsequent runs only touch yesterday+today.
-      const { count } = await admin
+      // Backfill 30 days of daily totals until we have them, then only
+      // yesterday+today. (Based on the earliest daily-total row, not "any row".)
+      const backfillStart = formatInTimeZone(
+        subDays(now, 29),
+        WARSAW_TZ,
+        "yyyy-MM-dd"
+      );
+      const { data: earliest } = await admin
         .from("ga4_daily")
-        .select("id", { count: "exact", head: true })
+        .select("date")
         .eq("client_id", integration.client_id)
-        .lt("date", since);
+        .is("source_medium", null)
+        .is("device_category", null)
+        .is("page_path", null)
+        .order("date", { ascending: true })
+        .limit(1)
+        .maybeSingle();
       const dailyRange: DateRange =
-        (count ?? 0) > 0
+        earliest?.date && (earliest.date as string) <= backfillStart
           ? range
-          : {
-              startDate: formatInTimeZone(
-                subDays(now, 29),
-                WARSAW_TZ,
-                "yyyy-MM-dd"
-              ),
-              endDate: until,
-            };
+          : { startDate: backfillStart, endDate: until };
 
       const [daily, sourceMedium, devices, pages, newReturning] =
         await Promise.all([
