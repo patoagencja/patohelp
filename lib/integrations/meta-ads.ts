@@ -155,6 +155,69 @@ export async function getCampaignInsights(
   return rows;
 }
 
+export interface MetaAdInsight {
+  ad_id: string;
+  ad_name: string;
+  campaign_id: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+  ctr?: string;
+  cpc?: string;
+}
+
+/** Ad-level insights aggregated over [since, until] (one row per ad). */
+export async function getAdInsights(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string
+): Promise<MetaAdInsight[]> {
+  const body = await graphGet<{ data: Array<Record<string, unknown>> }>(
+    `/${adAccountId}/insights`,
+    {
+      fields: "ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc",
+      level: "ad",
+      time_range: JSON.stringify({ since, until }),
+      access_token: accessToken,
+      limit: "500",
+    }
+  );
+
+  return (body.data ?? []).map((row) => ({
+    ad_id: String(row.ad_id ?? ""),
+    ad_name: String(row.ad_name ?? ""),
+    campaign_id: String(row.campaign_id ?? ""),
+    spend: String(row.spend ?? "0"),
+    impressions: String(row.impressions ?? "0"),
+    clicks: String(row.clicks ?? "0"),
+    ctr: row.ctr != null ? String(row.ctr) : undefined,
+    cpc: row.cpc != null ? String(row.cpc) : undefined,
+  }));
+}
+
+/** Map of ad_id -> creative thumbnail URL for an ad account. */
+export async function getAdThumbnails(
+  accessToken: string,
+  adAccountId: string
+): Promise<Map<string, string>> {
+  const body = await graphGet<{
+    data: Array<{ id?: string; creative?: { thumbnail_url?: string } }>;
+  }>(`/${adAccountId}/ads`, {
+    fields: "id,creative{thumbnail_url}",
+    access_token: accessToken,
+    limit: "500",
+  });
+
+  const map = new Map<string, string>();
+  for (const ad of body.data ?? []) {
+    if (ad.id && ad.creative?.thumbnail_url) {
+      map.set(ad.id, ad.creative.thumbnail_url);
+    }
+  }
+  return map;
+}
+
 /** Sum conversion-like actions. Tracked only — never displayed as ROAS. */
 export function extractConversions(
   actions?: Array<{ action_type: string; value: string }>

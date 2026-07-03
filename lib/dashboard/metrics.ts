@@ -26,15 +26,22 @@ interface ResolvedRange {
 
 const fmt = (d: Date) => format(d, "yyyy-MM-dd");
 
-// A selected period plus the immediately-preceding period of equal length
-// (calendar month presets compare against the prior calendar month).
+// A selected period plus its comparison baseline. Month presets compare
+// day-for-day against the previous month (proportional), not the full month.
 function resolveRange(key: RangeKey, today: Date): ResolvedRange {
   if (key === "month") {
+    const dayOfMonth = today.getDate();
+    const prevMonthStart = startOfMonth(subMonths(today, 1));
+    const prevMonthEnd = endOfMonth(prevMonthStart);
+    const prevSameDay = addDays(
+      prevMonthStart,
+      Math.min(dayOfMonth, prevMonthEnd.getDate()) - 1
+    );
     return {
       start: fmt(startOfMonth(today)),
       end: fmt(today),
-      prevStart: fmt(startOfMonth(subMonths(today, 1))),
-      prevEnd: fmt(endOfMonth(subMonths(today, 1))),
+      prevStart: fmt(prevMonthStart),
+      prevEnd: fmt(prevSameDay),
     };
   }
   if (key === "prev_month") {
@@ -50,7 +57,12 @@ function resolveRange(key: RangeKey, today: Date): ResolvedRange {
   const start = subDays(today, days - 1);
   const prevEnd = subDays(start, 1);
   const prevStart = subDays(prevEnd, days - 1);
-  return { start: fmt(start), end: fmt(today), prevStart: fmt(prevStart), prevEnd: fmt(prevEnd) };
+  return {
+    start: fmt(start),
+    end: fmt(today),
+    prevStart: fmt(prevStart),
+    prevEnd: fmt(prevEnd),
+  };
 }
 
 export interface Kpi {
@@ -62,17 +74,21 @@ export interface Kpi {
 export interface DashboardKpis {
   spendMinorUnits: Kpi;
   clicks: Kpi;
-  sessions: Kpi; // GA4 — zero until the GA4 integration lands
+  sessions: Kpi;
   ctr: Kpi; // percent
+  cpcMinorUnits: Kpi;
+  conversions: Kpi;
 }
 
 export interface TrendPoint {
   date: string;
   spendMinorUnits: number;
   sessions: number;
+  clicks: number;
+  conversions: number;
 }
 
-export type CampaignStatus = "active" | "paused" | "off";
+export type CampaignStatus = "active" | "attention" | "critical" | "off";
 
 export interface CampaignRow {
   campaignId: string;
@@ -81,16 +97,35 @@ export interface CampaignRow {
   spendMinorUnits: number;
   clicks: number;
   impressions: number;
-  ctr: number;
+  ctr: number; // percent
+  cpcMinorUnits: number | null;
+  conversions: number;
   status: CampaignStatus;
+  statusReason: string | null;
+  spark: number[]; // daily spend, last 7 days of the range
+}
+
+export interface CostTrendPoint {
+  date: string;
+  metaCpcMinorUnits: number | null;
+  googleCpcMinorUnits: number | null;
+}
+
+export interface PlatformSplit {
+  metaSpendMinorUnits: number;
+  googleSpendMinorUnits: number;
 }
 
 export interface DashboardData {
   kpis: DashboardKpis;
   trend: TrendPoint[];
   campaigns: CampaignRow[];
+  costTrend: CostTrendPoint[];
+  platformSplit: PlatformSplit;
   rangeKey: RangeKey;
   rangeLabel: string;
+  rangeStart: string;
+  rangeEnd: string;
 }
 
 interface AdsRow {
@@ -101,6 +136,8 @@ interface AdsRow {
   spend_minor_units: number | string;
   clicks: number | string;
   impressions: number | string;
+  conversions: number | string | null;
+  frequency: number | string | null;
 }
 
 function kpi(value: number, previous: number): Kpi {
@@ -113,10 +150,14 @@ function ctrOf(clicks: number, impressions: number): number {
   return impressions > 0 ? (clicks / impressions) * 100 : 0;
 }
 
+function cpcOf(spend: number, clicks: number): number {
+  return clicks > 0 ? spend / clicks : 0;
+}
+
 /**
- * Everything the client dashboard needs from ad data for a given date range:
- * period-over-period KPIs, a per-day spend trend and the campaign list.
- * GA4-derived figures (sessions) are stubbed at 0 until that integration ships.
+ * Everything the dashboard needs for a date range: period-over-period KPIs
+ * (ads + GA4 sessions), per-day trend, campaign list with health status and
+ * 7-day sparklines, CPC trends per platform and the Meta/Google spend split.
  */
 export async function getDashboardData(
   clientId: string,
@@ -128,124 +169,279 @@ export async function getDashboardData(
   const today = new Date(`${todayStr}T00:00:00`);
   const range = resolveRange(rangeKey, today);
 
-  const { data } = await supabase
-    .from("ads_daily")
-    .select(
-      "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions"
-    )
-    .eq("client_id", clientId)
-    .gte("date", range.prevStart)
-    .lte("date", range.end);
+  const [adsRes, ga4Res] = await Promise.all([
+    supabase
+      .from("ads_daily")
+      .select(
+        "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
+      )
+      .eq("client_id", clientId)
+      .gte("date", range.prevStart)
+      .lte("date", range.end),
+    // GA4 daily totals only (dimension columns null).
+    supabase
+      .from("ga4_daily")
+      .select("date, sessions")
+      .eq("client_id", clientId)
+      .is("source_medium", null)
+      .is("device_category", null)
+      .is("page_path", null)
+      .gte("date", range.prevStart)
+      .lte("date", range.end),
+  ]);
 
-  const rows = (data ?? []) as AdsRow[];
+  const rows = (adsRes.data ?? []) as AdsRow[];
+  const ga4Rows = (ga4Res.data ?? []) as Array<{
+    date: string;
+    sessions: number | string;
+  }>;
 
-  // --- KPIs (current period vs previous period) ---
-  let curSpend = 0;
-  let curClicks = 0;
-  let curImpr = 0;
-  let prevSpend = 0;
-  let prevClicks = 0;
-  let prevImpr = 0;
+  const inRange = (d: string) => d >= range.start && d <= range.end;
+  const inPrev = (d: string) => d >= range.prevStart && d <= range.prevEnd;
+
+  // --- KPI accumulators ---
+  let curSpend = 0, curClicks = 0, curImpr = 0, curConv = 0;
+  let prevSpend = 0, prevClicks = 0, prevImpr = 0, prevConv = 0;
 
   for (const row of rows) {
     const spend = Number(row.spend_minor_units);
     const clicks = Number(row.clicks);
     const impressions = Number(row.impressions);
+    const conversions = Number(row.conversions ?? 0);
 
-    if (row.date >= range.start && row.date <= range.end) {
+    if (inRange(row.date)) {
       curSpend += spend;
       curClicks += clicks;
       curImpr += impressions;
-    } else if (row.date >= range.prevStart && row.date <= range.prevEnd) {
+      curConv += conversions;
+    } else if (inPrev(row.date)) {
       prevSpend += spend;
       prevClicks += clicks;
       prevImpr += impressions;
+      prevConv += conversions;
+    }
+  }
+
+  let curSessions = 0;
+  let prevSessions = 0;
+  const sessionsByDate = new Map<string, number>();
+  for (const row of ga4Rows) {
+    const sessions = Number(row.sessions);
+    if (inRange(row.date)) {
+      curSessions += sessions;
+      sessionsByDate.set(
+        row.date,
+        (sessionsByDate.get(row.date) ?? 0) + sessions
+      );
+    } else if (inPrev(row.date)) {
+      prevSessions += sessions;
     }
   }
 
   const kpis: DashboardKpis = {
     spendMinorUnits: kpi(curSpend, prevSpend),
     clicks: kpi(curClicks, prevClicks),
-    sessions: kpi(0, 0),
+    sessions: kpi(curSessions, prevSessions),
     ctr: kpi(ctrOf(curClicks, curImpr), ctrOf(prevClicks, prevImpr)),
+    cpcMinorUnits: kpi(cpcOf(curSpend, curClicks), cpcOf(prevSpend, prevClicks)),
+    conversions: kpi(curConv, prevConv),
   };
 
-  // --- Per-day spend trend across the selected range (zero-filled) ---
-  const spendByDate = new Map<string, number>();
+  // --- Per-day trend + per-platform CPC trend ---
+  const byDate = new Map<
+    string,
+    { spend: number; clicks: number; conversions: number }
+  >();
+  const byDateProvider = new Map<string, { spend: number; clicks: number }>();
+
   for (const row of rows) {
-    if (row.date >= range.start && row.date <= range.end) {
-      spendByDate.set(
-        row.date,
-        (spendByDate.get(row.date) ?? 0) + Number(row.spend_minor_units)
-      );
-    }
+    if (!inRange(row.date)) continue;
+    const agg = byDate.get(row.date) ?? { spend: 0, clicks: 0, conversions: 0 };
+    agg.spend += Number(row.spend_minor_units);
+    agg.clicks += Number(row.clicks);
+    agg.conversions += Number(row.conversions ?? 0);
+    byDate.set(row.date, agg);
+
+    const pKey = `${row.date}:${row.provider}`;
+    const pAgg = byDateProvider.get(pKey) ?? { spend: 0, clicks: 0 };
+    pAgg.spend += Number(row.spend_minor_units);
+    pAgg.clicks += Number(row.clicks);
+    byDateProvider.set(pKey, pAgg);
   }
+
   const startDate = new Date(`${range.start}T00:00:00`);
   const endDate = new Date(`${range.end}T00:00:00`);
   const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
+
   const trend: TrendPoint[] = [];
+  const costTrend: CostTrendPoint[] = [];
   for (let i = 0; i < totalDays; i++) {
     const dateStr = fmt(addDays(startDate, i));
+    const agg = byDate.get(dateStr);
     trend.push({
       date: dateStr,
-      spendMinorUnits: spendByDate.get(dateStr) ?? 0,
-      sessions: 0,
+      spendMinorUnits: agg?.spend ?? 0,
+      sessions: sessionsByDate.get(dateStr) ?? 0,
+      clicks: agg?.clicks ?? 0,
+      conversions: agg?.conversions ?? 0,
+    });
+
+    const meta = byDateProvider.get(`${dateStr}:meta_ads`);
+    const google = byDateProvider.get(`${dateStr}:google_ads`);
+    costTrend.push({
+      date: dateStr,
+      metaCpcMinorUnits:
+        meta && meta.clicks > 0 ? meta.spend / meta.clicks : null,
+      googleCpcMinorUnits:
+        google && google.clicks > 0 ? google.spend / google.clicks : null,
     });
   }
 
-  // --- Campaigns aggregated over the selected range ---
-  const recentDate = subDays(endDate, 2);
-  const recentThreshold = fmt(recentDate < startDate ? startDate : recentDate);
-  const campaignMap = new Map<
-    string,
-    CampaignRow & { recentSpend: number }
-  >();
+  // --- Platform split ---
+  let metaSpend = 0;
+  let googleSpend = 0;
+  for (const row of rows) {
+    if (!inRange(row.date)) continue;
+    if (row.provider === "meta_ads") metaSpend += Number(row.spend_minor_units);
+    else googleSpend += Number(row.spend_minor_units);
+  }
+
+  // --- Campaigns with health status ---
+  const sparkStart = fmt(subDays(endDate, 6));
+  const recentStart = fmt(subDays(endDate, 1)); // last 2 days
+  const clientAvgCtr = ctrOf(curClicks, curImpr);
+  const clientAvgCpc = cpcOf(curSpend, curClicks);
+
+  interface CampAgg {
+    campaignId: string;
+    provider: "meta_ads" | "google_ads";
+    name: string;
+    spend: number;
+    clicks: number;
+    impressions: number;
+    conversions: number;
+    recentSpend: number;
+    recentImpressions: number;
+    earlierSpend: number;
+    freqSum: number;
+    freqCount: number;
+    sparkByDate: Map<string, number>;
+  }
+  const campaignMap = new Map<string, CampAgg>();
 
   for (const row of rows) {
-    if (row.date < range.start || row.date > range.end) continue;
-
+    if (!inRange(row.date)) continue;
     const key = `${row.provider}:${row.campaign_id}`;
-    const existing =
+    const agg =
       campaignMap.get(key) ??
       ({
         campaignId: row.campaign_id,
         provider: row.provider,
         name: row.campaign_name || row.campaign_id,
-        spendMinorUnits: 0,
+        spend: 0,
         clicks: 0,
         impressions: 0,
-        ctr: 0,
-        status: "off" as CampaignStatus,
+        conversions: 0,
         recentSpend: 0,
-      } as CampaignRow & { recentSpend: number });
+        recentImpressions: 0,
+        earlierSpend: 0,
+        freqSum: 0,
+        freqCount: 0,
+        sparkByDate: new Map<string, number>(),
+      } as CampAgg);
 
     const spend = Number(row.spend_minor_units);
-    existing.spendMinorUnits += spend;
-    existing.clicks += Number(row.clicks);
-    existing.impressions += Number(row.impressions);
-    if (row.date >= recentThreshold) existing.recentSpend += spend;
+    const impressions = Number(row.impressions);
+    agg.spend += spend;
+    agg.clicks += Number(row.clicks);
+    agg.impressions += impressions;
+    agg.conversions += Number(row.conversions ?? 0);
 
-    campaignMap.set(key, existing);
+    if (row.date >= recentStart) {
+      agg.recentSpend += spend;
+      agg.recentImpressions += impressions;
+    } else {
+      agg.earlierSpend += spend;
+    }
+    if (row.frequency != null) {
+      agg.freqSum += Number(row.frequency);
+      agg.freqCount += 1;
+    }
+    if (row.date >= sparkStart) {
+      agg.sparkByDate.set(
+        row.date,
+        (agg.sparkByDate.get(row.date) ?? 0) + spend
+      );
+    }
+    campaignMap.set(key, agg);
   }
 
   const campaigns: CampaignRow[] = Array.from(campaignMap.values())
-    .map(({ recentSpend, ...c }) => ({
-      ...c,
-      ctr: ctrOf(c.clicks, c.impressions),
-      status:
-        recentSpend > 0
-          ? ("active" as CampaignStatus)
-          : c.spendMinorUnits > 0
-            ? ("paused" as CampaignStatus)
-            : ("off" as CampaignStatus),
-    }))
+    .map((c) => {
+      const ctr = ctrOf(c.clicks, c.impressions);
+      const cpc = c.clicks > 0 ? c.spend / c.clicks : null;
+      const avgFreq = c.freqCount > 0 ? c.freqSum / c.freqCount : 0;
+      const isActive = c.recentSpend > 0 || c.recentImpressions > 0;
+
+      let status: CampaignStatus = isActive ? "active" : "off";
+      let statusReason: string | null = null;
+
+      if (isActive || c.earlierSpend > 0) {
+        if (c.earlierSpend > 0 && c.recentImpressions === 0 && c.recentSpend === 0) {
+          status = "critical";
+          statusReason = "Brak wyświetleń w ostatnich 48h";
+        } else if (cpc != null && clientAvgCpc > 0 && cpc > 3 * clientAvgCpc) {
+          status = "critical";
+          statusReason = "CPC ponad 3× wyższy niż średnia konta";
+        } else if (avgFreq > 4) {
+          status = "attention";
+          statusReason = "Częstotliwość > 4 — czas na nowe kreacje";
+        } else if (
+          clientAvgCtr > 0 &&
+          c.impressions > 500 &&
+          ctr < 0.5 * clientAvgCtr
+        ) {
+          status = "attention";
+          statusReason = "CTR poniżej 50% średniej konta";
+        }
+      }
+
+      // Zero-filled 7-day spend sparkline.
+      const spark: number[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = fmt(subDays(endDate, i));
+        spark.push(c.sparkByDate.get(d) ?? 0);
+      }
+
+      return {
+        campaignId: c.campaignId,
+        provider: c.provider,
+        name: c.name,
+        spendMinorUnits: c.spend,
+        clicks: c.clicks,
+        impressions: c.impressions,
+        ctr,
+        cpcMinorUnits: cpc,
+        conversions: c.conversions,
+        status,
+        statusReason,
+        spark,
+      };
+    })
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits);
 
   return {
     kpis,
     trend,
     campaigns,
+    costTrend,
+    platformSplit: {
+      metaSpendMinorUnits: metaSpend,
+      googleSpendMinorUnits: googleSpend,
+    },
     rangeKey,
     rangeLabel: RANGE_LABELS[rangeKey],
+    rangeStart: range.start,
+    rangeEnd: range.end,
   };
 }

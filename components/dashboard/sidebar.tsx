@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Globe,
   LayoutDashboard,
   Megaphone,
   Settings,
@@ -23,7 +24,8 @@ export function DashboardSidebar({
 
   const items = [
     { href: base, label: "Przegląd", icon: LayoutDashboard },
-    { href: `${base}/kampanie`, label: "Kampanie", icon: Megaphone },
+    { href: `${base}/reklamy`, label: "Reklamy", icon: Megaphone },
+    { href: `${base}/witryna`, label: "Witryna", icon: Globe },
     { href: `${base}/asystent`, label: "Asystent AI", icon: Sparkles },
     ...(isAgency
       ? [{ href: `${base}/settings`, label: "Ustawienia", icon: Settings }]

@@ -1,10 +1,22 @@
 import { redirect } from "next/navigation";
 
+import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
+import { AlertsPanel } from "@/components/dashboard/alerts-panel";
+import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
-import { TrendChart } from "@/components/dashboard/trend-chart";
+import { MainChart } from "@/components/dashboard/main-chart";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
+import {
+  getActiveAlerts,
+  getBudgetStatus,
+  getEvents,
+  getLatestSummary,
+} from "@/lib/dashboard/overview";
 import { createClient } from "@/lib/supabase/server";
+import { isAgencyUser, type UserRole } from "@/lib/types";
+
+import { dismissAlert, setMonthlyBudget } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +29,10 @@ export default async function OverviewPage({
 }) {
   const supabase = createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: client } = await supabase
     .from("clients")
     .select("id, name")
@@ -27,8 +43,19 @@ export default async function OverviewPage({
     redirect("/login");
   }
 
+  const { data: profile } = user
+    ? await supabase.from("users").select("role").eq("id", user.id).single()
+    : { data: null };
+  const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
+
   const range = normalizeRange(searchParams.range);
-  const { kpis, trend, rangeLabel } = await getDashboardData(client.id, range);
+  const data = await getDashboardData(client.id, range);
+  const [budget, alerts, summary, events] = await Promise.all([
+    getBudgetStatus(client.id),
+    getActiveAlerts(client.id),
+    getLatestSummary(client.id),
+    getEvents(client.id, data.rangeStart, data.rangeEnd),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -42,8 +69,25 @@ export default async function OverviewPage({
         <DateRangePicker value={range} />
       </div>
 
-      <KpiCards kpis={kpis} />
-      <TrendChart trend={trend} label={rangeLabel} />
+      <AiSummaryCard summary={summary} />
+
+      <KpiCards kpis={data.kpis} />
+
+      <BudgetProgress
+        budget={budget}
+        clientSlug={params.clientSlug}
+        isAgency={isAgency}
+        setBudgetAction={setMonthlyBudget}
+      />
+
+      <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
+
+      <AlertsPanel
+        alerts={alerts}
+        clientSlug={params.clientSlug}
+        isAgency={isAgency}
+        dismissAction={dismissAlert}
+      />
     </div>
   );
 }

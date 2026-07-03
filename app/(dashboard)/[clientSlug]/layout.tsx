@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { Button } from "@/components/ui/button";
+import { getLastSyncLabel } from "@/lib/dashboard/overview";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 
@@ -34,9 +35,11 @@ export default async function ClientDashboardLayout({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("name")
+    .select("id, name")
     .eq("slug", params.clientSlug)
     .single();
+
+  const lastSync = client ? await getLastSyncLabel(client.id) : null;
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -54,7 +57,14 @@ export default async function ClientDashboardLayout({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end gap-3 border-b border-border bg-card px-6">
+        <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6">
+          {lastSync ? (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              {lastSync}
+            </span>
+          ) : null}
+          <span className="flex-1" />
           {user?.email ? (
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-medium text-accent-foreground">
