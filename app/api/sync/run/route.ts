@@ -6,7 +6,9 @@ import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 // Re-uses the cron endpoints server-side with the CRON_SECRET so we don't
 // duplicate the sync logic.
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Waits on the Meta/Google/GA4 cron endpoints, whose per-day backfills can take
+// a few minutes for large accounts.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);

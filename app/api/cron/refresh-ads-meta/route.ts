@@ -13,7 +13,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Vercel Cron: pull Meta Ads campaign insights for yesterday+today into
 // ads_daily. Auth via `Authorization: Bearer <CRON_SECRET>`.
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Per-day insight fetching for a large account (DRE ~1900 campaigns) is many
+// sequential paginated requests, so give the backfill plenty of headroom.
+export const maxDuration = 300;
 
 const WARSAW_TZ = "Europe/Warsaw";
 

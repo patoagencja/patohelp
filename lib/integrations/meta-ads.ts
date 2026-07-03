@@ -112,9 +112,25 @@ export async function listAdAccounts(
   return body.data ?? [];
 }
 
+/** Inclusive list of yyyy-MM-dd strings between `since` and `until` (UTC). */
+function eachDay(since: string, until: string): string[] {
+  const days: string[] = [];
+  const start = new Date(`${since}T00:00:00Z`);
+  const end = new Date(`${until}T00:00:00Z`);
+  for (let d = start; d <= end; d = new Date(d.getTime() + 86_400_000)) {
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
 /**
- * Campaign-level daily insights for [since, until]. `time_increment=1` forces
- * one row per campaign per day so we can upsert by date.
+ * Campaign-level daily insights for [since, until].
+ *
+ * We deliberately fetch ONE DAY AT A TIME rather than a single wide query with
+ * `time_increment=1`. For large accounts (DRE has ~1900 campaigns) Meta silently
+ * caps the row count of a wide multi-day query, so a 30-day pull returned only a
+ * fraction of the spend. A single-day, fully-paginated query is small enough to
+ * come back complete, and we tag every row with that day's date.
  */
 export async function getCampaignInsights(
   accessToken: string,
@@ -124,45 +140,46 @@ export async function getCampaignInsights(
 ): Promise<MetaCampaignInsight[]> {
   const rows: MetaCampaignInsight[] = [];
 
-  let body = await graphGet<{
-    data: Array<Record<string, unknown>>;
-    paging?: { next?: string };
-  }>(`/${adAccountId}/insights`, {
-    fields:
-      "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions",
-    level: "campaign",
-    time_increment: "1",
-    time_range: JSON.stringify({ since, until }),
-    access_token: accessToken,
-    limit: "500",
-  });
-
-  const allRows: Array<Record<string, unknown>> = [...(body.data ?? [])];
-
-  // Follow pagination — 30-day backfills easily exceed one page.
-  let guard = 0;
-  while (body.paging?.next && guard < 20) {
-    guard += 1;
-    const res = await fetch(body.paging.next, { cache: "no-store" });
-    body = await res.json();
-    if (body?.data?.length) allRows.push(...body.data);
-    else break;
-  }
-
-  for (const row of allRows) {
-    rows.push({
-      campaign_id: String(row.campaign_id ?? ""),
-      campaign_name: String(row.campaign_name ?? ""),
-      date: String(row.date_start ?? since),
-      spend: String(row.spend ?? "0"),
-      impressions: String(row.impressions ?? "0"),
-      clicks: String(row.clicks ?? "0"),
-      ctr: row.ctr != null ? String(row.ctr) : undefined,
-      cpc: row.cpc != null ? String(row.cpc) : undefined,
-      reach: row.reach != null ? String(row.reach) : undefined,
-      frequency: row.frequency != null ? String(row.frequency) : undefined,
-      actions: row.actions as MetaCampaignInsight["actions"],
+  for (const day of eachDay(since, until)) {
+    let body = await graphGet<{
+      data: Array<Record<string, unknown>>;
+      paging?: { next?: string };
+    }>(`/${adAccountId}/insights`, {
+      fields:
+        "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions",
+      level: "campaign",
+      time_range: JSON.stringify({ since: day, until: day }),
+      access_token: accessToken,
+      limit: "500",
     });
+
+    const dayRows: Array<Record<string, unknown>> = [...(body.data ?? [])];
+
+    // One day of a big account can still span several pages — follow them all.
+    let guard = 0;
+    while (body.paging?.next && guard < 50) {
+      guard += 1;
+      const res = await fetch(body.paging.next, { cache: "no-store" });
+      body = await res.json();
+      if (body?.data?.length) dayRows.push(...body.data);
+      else break;
+    }
+
+    for (const row of dayRows) {
+      rows.push({
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        date: String(row.date_start ?? day),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        ctr: row.ctr != null ? String(row.ctr) : undefined,
+        cpc: row.cpc != null ? String(row.cpc) : undefined,
+        reach: row.reach != null ? String(row.reach) : undefined,
+        frequency: row.frequency != null ? String(row.frequency) : undefined,
+        actions: row.actions as MetaCampaignInsight["actions"],
+      });
+    }
   }
 
   return rows;
