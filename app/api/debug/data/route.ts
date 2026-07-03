@@ -59,6 +59,50 @@ export async function GET(request: Request) {
     getDashboardData(access.clientId, "90d"),
   ]);
 
+  // GA4 diagnostics: is it connected, is a property picked, is there any data,
+  // and what did the last few GA4 syncs do?
+  const { data: ga4Integration } = await admin
+    .from("integrations")
+    .select("account_ids")
+    .eq("client_id", access.clientId)
+    .eq("provider", "ga4")
+    .maybeSingle();
+
+  const { data: ga4Rows } = await admin
+    .from("ga4_daily")
+    .select("date")
+    .eq("client_id", access.clientId);
+
+  const ga4Dates = Array.from(
+    new Set((ga4Rows ?? []).map((r) => r.date as string))
+  ).sort();
+
+  const { data: ga4Runs } = await admin
+    .from("sync_runs")
+    .select("status, error_message, started_at, finished_at")
+    .eq("client_id", access.clientId)
+    .eq("provider", "ga4")
+    .order("started_at", { ascending: false })
+    .limit(5);
+
+  const ga4AccountIds = (ga4Integration?.account_ids ?? {}) as {
+    propertyId?: string | null;
+    properties?: Array<{ propertyId: string; displayName: string }>;
+  };
+
+  const ga4 = {
+    connected: Boolean(ga4Integration),
+    propertyId: ga4AccountIds.propertyId ?? null,
+    availableProperties: (ga4AccountIds.properties ?? []).map((p) => ({
+      propertyId: p.propertyId,
+      displayName: p.displayName,
+    })),
+    totalRows: ga4Rows?.length ?? 0,
+    minDate: ga4Dates[0] ?? null,
+    maxDate: ga4Dates[ga4Dates.length - 1] ?? null,
+    lastRuns: ga4Runs ?? [],
+  };
+
   return NextResponse.json({
     clientSlug,
     totalRows: rows?.length ?? 0,
@@ -85,5 +129,6 @@ export async function GET(request: Request) {
       "30d": d30.trend.length,
       "90d": d90.trend.length,
     },
+    ga4,
   });
 }
