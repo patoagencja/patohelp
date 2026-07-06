@@ -61,7 +61,10 @@ export default async function ClientDashboardLayout({
         <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6">
           {lastSync ? (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
               {lastSync}
             </span>
           ) : null}

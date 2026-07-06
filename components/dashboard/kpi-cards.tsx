@@ -1,7 +1,10 @@
-import { BadgeDelta, Card, Flex, Grid, Metric, Text } from "@tremor/react";
+"use client";
 
-import type { DashboardKpis, Kpi } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
+
+import { AnimatedNumber } from "@/components/dashboard/animated-number";
+import type { DashboardKpis, Kpi, TrendPoint } from "@/lib/dashboard/metrics";
+import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 // How an increase should be judged for each metric.
 type Direction = "good" | "bad" | "neutral";
@@ -26,79 +29,143 @@ function deltaBadge(kpi: Kpi, direction: Direction) {
   };
 }
 
+// Sparkline colour mirrors the delta judgement: green = good move, red = bad,
+// indigo for neutral (spend). Keeps the whole card reading as one signal.
+function sparkColor(kpi: Kpi, direction: Direction) {
+  if (direction === "neutral" || kpi.deltaPercent === null) return "indigo";
+  const good = direction === "good" ? kpi.deltaPercent >= 0 : kpi.deltaPercent <= 0;
+  return good ? "emerald" : "red";
+}
+
 function KpiCard({
   label,
   value,
+  format,
   kpi,
   direction,
+  series,
   hint,
 }: {
   label: string;
-  value: string;
+  value: number;
+  format: (n: number) => string;
   kpi: Kpi;
   direction: Direction;
+  series: number[];
   hint?: string;
 }) {
   const delta = hint ? null : deltaBadge(kpi, direction);
+  const hasSpark = series.some((v) => v > 0);
+  const data = series.map((v, i) => ({ i, v }));
+
   return (
-    <Card>
-      <Text>{label}</Text>
-      <Flex justifyContent="between" alignItems="baseline" className="mt-2">
-        <Metric className="truncate">{value}</Metric>
+    <Card className="group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20">
+      <Flex justifyContent="between" alignItems="start">
+        <Text>{label}</Text>
         {delta ? (
           <BadgeDelta deltaType={delta.deltaType as never} size="xs">
             {`${delta.showArrow} ${delta.label}`.trim()}
           </BadgeDelta>
         ) : null}
       </Flex>
-      <Text className="mt-1 text-xs">{hint ?? "vs poprzedni okres"}</Text>
+
+      <Flex justifyContent="between" alignItems="end" className="mt-2 gap-3">
+        <AnimatedNumber
+          value={value}
+          format={format}
+          className="truncate text-2xl font-semibold tracking-tight text-foreground"
+        />
+        {hasSpark ? (
+          <SparkAreaChart
+            data={data}
+            index="i"
+            categories={["v"]}
+            colors={[sparkColor(kpi, direction)]}
+            className="h-9 w-24 shrink-0"
+          />
+        ) : null}
+      </Flex>
+
+      <Text className={cn("mt-1 text-xs", hint && "text-muted-foreground")}>
+        {hint ?? "vs poprzedni okres"}
+      </Text>
     </Card>
   );
 }
 
-export function KpiCards({ kpis }: { kpis: DashboardKpis }) {
+export function KpiCards({
+  kpis,
+  trend,
+}: {
+  kpis: DashboardKpis;
+  trend: TrendPoint[];
+}) {
   const noSessions = kpis.sessions.value === 0 && kpis.sessions.previous === 0;
   const noConversions =
     kpis.conversions.value === 0 && kpis.conversions.previous === 0;
+
+  // Per-day series for each metric so every card carries its own sparkline.
+  const spendSeries = trend.map((t) => t.spendMinorUnits / 100);
+  const clicksSeries = trend.map((t) => t.clicks);
+  const sessionsSeries = trend.map((t) => t.sessions);
+  const conversionsSeries = trend.map((t) => t.conversions);
+  const ctrSeries = trend.map((t) =>
+    t.impressions > 0 ? (t.clicks / t.impressions) * 100 : 0
+  );
+  const cpcSeries = trend.map((t) =>
+    t.clicks > 0 ? t.spendMinorUnits / t.clicks / 100 : 0
+  );
 
   return (
     <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
       <KpiCard
         label="Wydatki"
-        value={formatMoneyPLN(kpis.spendMinorUnits.value)}
+        value={kpis.spendMinorUnits.value}
+        format={(n) => formatMoneyPLN(Math.round(n))}
         kpi={kpis.spendMinorUnits}
         direction="neutral"
+        series={spendSeries}
       />
       <KpiCard
         label="Kliknięcia"
-        value={formatNumberPL(kpis.clicks.value)}
+        value={kpis.clicks.value}
+        format={formatNumberPL}
         kpi={kpis.clicks}
         direction="good"
+        series={clicksSeries}
       />
       <KpiCard
         label="Sesje (GA4)"
-        value={noSessions ? "—" : formatNumberPL(kpis.sessions.value)}
+        value={kpis.sessions.value}
+        format={(n) => (noSessions ? "—" : formatNumberPL(n))}
         kpi={kpis.sessions}
         direction="good"
+        series={sessionsSeries}
         hint={noSessions ? "po podłączeniu GA4" : undefined}
       />
       <KpiCard
         label="Średni CTR"
-        value={formatPercent(kpis.ctr.value)}
+        value={kpis.ctr.value}
+        format={(n) => formatPercent(n)}
         kpi={kpis.ctr}
         direction="good"
+        series={ctrSeries}
       />
       <KpiCard
         label="Średni CPC"
-        value={formatMoneyPLN(Math.round(kpis.cpcMinorUnits.value))}
+        value={kpis.cpcMinorUnits.value}
+        format={(n) => formatMoneyPLN(Math.round(n))}
         kpi={kpis.cpcMinorUnits}
         direction="bad"
+        series={cpcSeries}
       />
       <KpiCard
         label="Konwersje"
-        value={noConversions ? "—" : formatNumberPL(kpis.conversions.value)}
+        value={kpis.conversions.value}
+        format={(n) => (noConversions ? "—" : formatNumberPL(n))}
         kpi={kpis.conversions}
         direction="good"
+        series={conversionsSeries}
         hint={noConversions ? "brak zdarzeń konwersji" : undefined}
       />
     </Grid>

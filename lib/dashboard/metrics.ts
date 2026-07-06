@@ -85,6 +85,7 @@ export interface TrendPoint {
   spendMinorUnits: number;
   sessions: number;
   clicks: number;
+  impressions: number;
   conversions: number;
 }
 
@@ -250,15 +251,21 @@ export async function getDashboardData(
   // --- Per-day trend + per-platform CPC trend ---
   const byDate = new Map<
     string,
-    { spend: number; clicks: number; conversions: number }
+    { spend: number; clicks: number; impressions: number; conversions: number }
   >();
   const byDateProvider = new Map<string, { spend: number; clicks: number }>();
 
   for (const row of rows) {
     if (!inRange(row.date)) continue;
-    const agg = byDate.get(row.date) ?? { spend: 0, clicks: 0, conversions: 0 };
+    const agg = byDate.get(row.date) ?? {
+      spend: 0,
+      clicks: 0,
+      impressions: 0,
+      conversions: 0,
+    };
     agg.spend += Number(row.spend_minor_units);
     agg.clicks += Number(row.clicks);
+    agg.impressions += Number(row.impressions);
     agg.conversions += Number(row.conversions ?? 0);
     byDate.set(row.date, agg);
 
@@ -283,6 +290,7 @@ export async function getDashboardData(
       spendMinorUnits: agg?.spend ?? 0,
       sessions: sessionsByDate.get(dateStr) ?? 0,
       clicks: agg?.clicks ?? 0,
+      impressions: agg?.impressions ?? 0,
       conversions: agg?.conversions ?? 0,
     });
 

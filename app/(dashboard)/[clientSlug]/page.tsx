@@ -71,7 +71,7 @@ export default async function OverviewPage({
 
       <AiSummaryCard summary={summary} />
 
-      <KpiCards kpis={data.kpis} />
+      <KpiCards kpis={data.kpis} trend={data.trend} />
 
       <BudgetProgress
         budget={budget}
