@@ -6,6 +6,7 @@ import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
+import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
 import {
   getActiveAlerts,
@@ -68,6 +69,8 @@ export default async function OverviewPage({
         </div>
         <DateRangePicker value={range} />
       </div>
+
+      <TickerBar campaigns={data.campaigns} />
 
       <AiSummaryCard summary={summary} />
 

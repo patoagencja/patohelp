@@ -73,7 +73,7 @@ function KpiCard({
         <AnimatedNumber
           value={value}
           format={format}
-          className="truncate text-2xl font-semibold tracking-tight text-foreground"
+          className="truncate text-3xl font-bold tracking-tight text-foreground"
         />
         {hasSpark ? (
           <SparkAreaChart

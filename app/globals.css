@@ -57,3 +57,30 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Stock-ticker style marquee for the campaign tape. Duplicating the content
+   and translating by -50% makes the loop seamless. Pauses on hover. */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-scroll 40s linear infinite;
+}
+
+.ticker-mask:hover .ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
