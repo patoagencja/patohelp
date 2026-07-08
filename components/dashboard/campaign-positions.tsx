@@ -2,10 +2,52 @@
 
 import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { Card, SparkAreaChart, Title } from "@tremor/react";
+import { Card, Title } from "@tremor/react";
 
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
+
+// Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart —
+// rendering dozens of Recharts instances in an interactive table blocks clicks
+// and is slow. This is pure SVG: no deps, no re-render cost, can't throw.
+function Sparkline({ values, up }: { values: number[]; up: boolean }) {
+  const w = 96;
+  const h = 32;
+  const color = up ? "#10b981" : "#ef4444";
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  const n = values.length;
+  const pts = values.map((v, i) => {
+    const x = n > 1 ? (i / (n - 1)) * w : w;
+    const y = h - ((v - min) / range) * (h - 2) - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const line = pts.join(" ");
+  const area = `0,${h} ${line} ${w},${h}`;
+
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      className="ml-auto block"
+      aria-hidden
+    >
+      <polygon points={area} fill={color} opacity={0.12} />
+      <polyline
+        points={line}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
 
 // Momentum of a position = recent-half spend vs earlier-half spend (from the
 // 7-day spark). It's the "P&L %" tag that drives the LONG/SHORT colouring.
@@ -134,13 +176,7 @@ function Position({
       {/* 7d chart */}
       <td className="py-2.5 pl-1">
         {hasSpark ? (
-          <SparkAreaChart
-            data={c.spark.map((v, i) => ({ i, v: v / 100 }))}
-            index="i"
-            categories={["v"]}
-            colors={[up ? "emerald" : "red"]}
-            className="ml-auto h-8 w-24"
-          />
+          <Sparkline values={c.spark} up={up} />
         ) : (
           <span className="block text-right font-mono text-xs text-muted-foreground">
             —
