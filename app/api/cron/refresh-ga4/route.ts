@@ -122,12 +122,17 @@ export async function GET(request: Request) {
         });
       }
 
-      // Dimension snapshots dated to `until`.
+      // Dimension snapshots dated to `until`. NOTE: every row must carry the
+      // same NOT NULL columns (users_new/users_returning) — a batched insert of
+      // objects with differing keys fills the missing ones with NULL, not the
+      // column default, which violates the not-null constraint.
       for (const s of sourceMedium) {
         rows.push({
           client_id: integration.client_id,
           date: until,
           sessions: s.sessions,
+          users_new: 0,
+          users_returning: 0,
           engagement_rate: s.engagementRate,
           source_medium: s.sourceMedium,
           page_views: 0,
@@ -138,6 +143,8 @@ export async function GET(request: Request) {
           client_id: integration.client_id,
           date: until,
           sessions: dv.sessions,
+          users_new: 0,
+          users_returning: 0,
           device_category: dv.deviceCategory,
           page_views: 0,
         });
@@ -147,6 +154,8 @@ export async function GET(request: Request) {
           client_id: integration.client_id,
           date: until,
           sessions: 0,
+          users_new: 0,
+          users_returning: 0,
           engagement_rate: p.engagementRate,
           page_path: p.pagePath,
           page_views: p.pageViews,
