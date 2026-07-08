@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { CampaignsTable } from "@/components/dashboard/campaigns-table";
+import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
@@ -65,7 +65,7 @@ export default async function AdsPage({
         <DateRangePicker value={range} />
       </div>
 
-      <CampaignsTable campaigns={data.campaigns} />
+      <CampaignPositions campaigns={data.campaigns} />
 
       <TopCreatives creatives={creatives} />
 
