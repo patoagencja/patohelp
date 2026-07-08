@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Download, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import { ContentSlide } from "@/components/dashboard/report/deck";
 import { Button } from "@/components/ui/button";
 import type { RangeKey } from "@/lib/dashboard/ranges";
 import { cn } from "@/lib/utils";
@@ -11,9 +12,11 @@ import { cn } from "@/lib/utils";
 export function ReportActions({
   clientSlug,
   range,
+  rangeLabel,
 }: {
   clientSlug: string;
   range: RangeKey;
+  rangeLabel: string;
 }) {
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,39 +43,31 @@ export function ReportActions({
   return (
     <>
       {/* Controls — hidden in the printed PDF */}
-      <div className="flex flex-wrap gap-2 print:hidden">
+      <div className="flex flex-wrap justify-center gap-2 print:hidden">
         <Button onClick={generate} disabled={loading} className="gap-1.5">
           <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
           {loading ? "Generuję…" : summary ? "Wygeneruj ponownie" : "Generuj opis AI"}
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => window.print()}
-          className="gap-1.5"
-        >
+        <Button variant="outline" onClick={() => window.print()} className="gap-1.5">
           <Download className="h-4 w-4" />
           Pobierz PDF
         </Button>
       </div>
 
-      {/* Narrative — part of the printable report */}
+      {/* Narrative — rendered as a deck slide so it's part of the PDF */}
       {summary ? (
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Podsumowanie
-          </div>
-          <div className="space-y-3 text-sm leading-relaxed text-foreground">
+        <ContentSlide title="Podsumowanie" subtitle={rangeLabel}>
+          <div className="space-y-4 text-[15px] leading-relaxed text-slate-700">
             {summary.split(/\n\s*\n/).map((para, i) => (
               <p key={i}>{para}</p>
             ))}
           </div>
-        </div>
+        </ContentSlide>
       ) : (
-        <div className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground print:hidden">
-          Kliknij „Generuj opis AI", aby dodać do raportu narrację o wynikach z
-          wybranego okresu. Potem „Pobierz PDF", aby zapisać i wysłać.
-        </div>
+        <p className="text-center text-sm text-slate-500 print:hidden">
+          Kliknij „Generuj opis AI", aby dodać slajd z narracją o wynikach, a potem
+          „Pobierz PDF", aby zapisać deck i wysłać.
+        </p>
       )}
     </>
   );

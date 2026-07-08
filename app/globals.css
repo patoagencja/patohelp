@@ -110,4 +110,27 @@
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* Report deck: one 16:9 slide per landscape page. */
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  .deck {
+    gap: 0 !important;
+  }
+
+  .deck-slide {
+    max-width: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+    break-after: page;
+  }
+
+  .deck-slide:last-child {
+    break-after: auto;
+  }
 }

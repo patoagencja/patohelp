@@ -1,13 +1,22 @@
 import { redirect } from "next/navigation";
 
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import {
+  BarList,
+  ContentSlide,
+  DECK_COLORS,
+  DividerSlide,
+  DualLineChart,
+  LineChart,
+  Slide,
+  Stat,
+} from "@/components/dashboard/report/deck";
 import { ReportActions } from "@/components/dashboard/report/report-actions";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
 import {
-  cn,
   formatDateWarsaw,
   formatMoneyPLN,
   formatNumberPL,
@@ -18,41 +27,13 @@ export const dynamic = "force-dynamic";
 
 type Direction = "good" | "bad" | "neutral";
 
-function deltaText(kpi: Kpi): string {
-  if (kpi.deltaPercent === null) return "—";
+function deltaSub(kpi: Kpi, direction: Direction) {
+  if (kpi.deltaPercent === null) return { text: "—", tone: "flat" as const };
   const r = Math.round(kpi.deltaPercent * 10) / 10;
-  return `${r > 0 ? "+" : ""}${formatPercent(r, 1)}`;
-}
-
-function deltaClass(kpi: Kpi, direction: Direction): string {
-  if (kpi.deltaPercent === null || direction === "neutral" || kpi.deltaPercent === 0)
-    return "text-muted-foreground";
-  const good = direction === "good" ? kpi.deltaPercent > 0 : kpi.deltaPercent < 0;
-  return good
-    ? "text-emerald-600 dark:text-emerald-400"
-    : "text-red-600 dark:text-red-400";
-}
-
-function MetricTile({
-  label,
-  value,
-  kpi,
-  direction,
-}: {
-  label: string;
-  value: string;
-  kpi: Kpi;
-  direction: Direction;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-bold tracking-tight tabular-nums">{value}</p>
-      <p className={cn("mt-0.5 text-xs font-medium", deltaClass(kpi, direction))}>
-        {deltaText(kpi)} <span className="text-muted-foreground">vs poprz.</span>
-      </p>
-    </div>
-  );
+  const label = `${r > 0 ? "+" : ""}${formatPercent(r, 1)} vs poprz.`;
+  if (direction === "neutral" || r === 0) return { text: label, tone: "flat" as const };
+  const good = direction === "good" ? r > 0 : r < 0;
+  return { text: label, tone: good ? ("up" as const) : ("down" as const) };
 }
 
 export default async function RaportPage({
@@ -81,98 +62,155 @@ export default async function RaportPage({
   ]);
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
+  const periodLabel = `${data.rangeStart} – ${data.rangeEnd}`;
+
+  // Per-platform aggregates from the campaign list.
+  const platform = { meta: { spend: 0, clicks: 0 }, google: { spend: 0, clicks: 0 } };
+  for (const c of data.campaigns) {
+    const p = c.provider === "meta_ads" ? platform.meta : platform.google;
+    p.spend += c.spendMinorUnits;
+    p.clicks += c.clicks;
+  }
+
   const topCampaigns = [...data.campaigns]
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits)
     .slice(0, 8);
+
   const totalSessions = website.hasData
     ? website.sources.reduce((s, x) => s + x.sessions, 0)
     : 0;
 
+  const k = data.kpis;
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 bg-muted/20 p-6">
+      {/* Controls (not printed) */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <h1 className="text-xl font-semibold">Raport — {client.name}</h1>
         <DateRangePicker value={range} />
       </div>
 
-      {/* Cover */}
-      <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-8">
-        <p className="text-xs font-medium uppercase tracking-wider text-primary">
-          Raport wyników
-        </p>
-        <h2 className="mt-1 text-3xl font-bold tracking-tight">{client.name}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Okres: <span className="font-medium text-foreground">{data.rangeLabel}</span>{" "}
-          ({data.rangeStart} — {data.rangeEnd})
-        </p>
-        <p className="text-xs text-muted-foreground">Wygenerowano {generatedAt}</p>
-      </div>
+      <div className="deck space-y-6">
+        {/* Cover */}
+        <DividerSlide
+          title={`${client.name} — Raport`}
+          subtitle={`Kampania online · ${periodLabel}`}
+        />
 
-      <ReportActions clientSlug={params.clientSlug} range={range} />
+        {/* Exec summary (AI) + controls */}
+        <ReportActions
+          clientSlug={params.clientSlug}
+          range={range}
+          rangeLabel={data.rangeLabel}
+        />
 
-      {/* KPI summary */}
-      <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Kluczowe metryki
-        </h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MetricTile
-            label="Wydatki"
-            value={formatMoneyPLN(data.kpis.spendMinorUnits.value)}
-            kpi={data.kpis.spendMinorUnits}
-            direction="neutral"
-          />
-          <MetricTile
-            label="Kliknięcia"
-            value={formatNumberPL(data.kpis.clicks.value)}
-            kpi={data.kpis.clicks}
-            direction="good"
-          />
-          <MetricTile
-            label="Sesje (GA4)"
-            value={
-              data.kpis.sessions.value > 0
-                ? formatNumberPL(data.kpis.sessions.value)
-                : "—"
-            }
-            kpi={data.kpis.sessions}
-            direction="good"
-          />
-          <MetricTile
-            label="Średni CTR"
-            value={formatPercent(data.kpis.ctr.value)}
-            kpi={data.kpis.ctr}
-            direction="good"
-          />
-          <MetricTile
-            label="Średni CPC"
-            value={formatMoneyPLN(Math.round(data.kpis.cpcMinorUnits.value))}
-            kpi={data.kpis.cpcMinorUnits}
-            direction="bad"
-          />
-          <MetricTile
-            label="Konwersje"
-            value={
-              data.kpis.conversions.value > 0
-                ? formatNumberPL(data.kpis.conversions.value)
-                : "—"
-            }
-            kpi={data.kpis.conversions}
-            direction="good"
-          />
-        </div>
-      </section>
+        {/* ── Section: media data ── */}
+        <DividerSlide title="Dane mediowe" subtitle={periodLabel} />
 
-      {/* Top campaigns */}
-      {topCampaigns.length > 0 ? (
-        <section className="rounded-xl border border-border bg-card p-6">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Najważniejsze kampanie
-          </h3>
-          <div className="overflow-x-auto">
+        {/* KPI summary */}
+        <ContentSlide title="Podsumowanie wyników" subtitle={data.rangeLabel}>
+          <div className="grid h-full grid-cols-3 grid-rows-2 gap-4">
+            <Stat
+              label="Wydatki"
+              value={formatMoneyPLN(k.spendMinorUnits.value)}
+              {...(() => {
+                const d = deltaSub(k.spendMinorUnits, "neutral");
+                return { sub: d.text, tone: d.tone };
+              })()}
+            />
+            <Stat
+              label="Kliknięcia"
+              value={formatNumberPL(k.clicks.value)}
+              {...(() => {
+                const d = deltaSub(k.clicks, "good");
+                return { sub: d.text, tone: d.tone };
+              })()}
+            />
+            <Stat
+              label="Sesje (GA4)"
+              value={k.sessions.value > 0 ? formatNumberPL(k.sessions.value) : "—"}
+              {...(() => {
+                const d = deltaSub(k.sessions, "good");
+                return { sub: d.text, tone: d.tone };
+              })()}
+            />
+            <Stat
+              label="Średni CTR"
+              value={formatPercent(k.ctr.value)}
+              {...(() => {
+                const d = deltaSub(k.ctr, "good");
+                return { sub: d.text, tone: d.tone };
+              })()}
+            />
+            <Stat
+              label="Średni CPC"
+              value={formatMoneyPLN(Math.round(k.cpcMinorUnits.value))}
+              {...(() => {
+                const d = deltaSub(k.cpcMinorUnits, "bad");
+                return { sub: d.text, tone: d.tone };
+              })()}
+            />
+            <Stat
+              label="Konwersje"
+              value={k.conversions.value > 0 ? formatNumberPL(k.conversions.value) : "—"}
+              {...(() => {
+                const d = deltaSub(k.conversions, "good");
+                return { sub: d.text, tone: d.tone };
+              })()}
+            />
+          </div>
+        </ContentSlide>
+
+        {/* Meta vs Google */}
+        <ContentSlide title="Meta vs Google" subtitle="Wydatki i kliknięcia wg platformy">
+          <div className="grid h-full grid-cols-2 gap-10">
+            <div>
+              <p className="mb-3 text-sm font-medium text-slate-500">Wydatki</p>
+              <BarList
+                items={[
+                  {
+                    label: "Meta",
+                    value: platform.meta.spend,
+                    display: formatMoneyPLN(platform.meta.spend),
+                    color: DECK_COLORS[0],
+                  },
+                  {
+                    label: "Google",
+                    value: platform.google.spend,
+                    display: formatMoneyPLN(platform.google.spend),
+                    color: DECK_COLORS[1],
+                  },
+                ]}
+              />
+            </div>
+            <div>
+              <p className="mb-3 text-sm font-medium text-slate-500">Kliknięcia</p>
+              <BarList
+                items={[
+                  {
+                    label: "Meta",
+                    value: platform.meta.clicks,
+                    display: formatNumberPL(platform.meta.clicks),
+                    color: DECK_COLORS[0],
+                  },
+                  {
+                    label: "Google",
+                    value: platform.google.clicks,
+                    display: formatNumberPL(platform.google.clicks),
+                    color: DECK_COLORS[1],
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        </ContentSlide>
+
+        {/* Top campaigns */}
+        {topCampaigns.length > 0 ? (
+          <ContentSlide title="Najważniejsze kampanie" subtitle="Wg wydatków">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3 font-medium">Platforma</th>
                   <th className="py-2 pr-3 font-medium">Kampania</th>
                   <th className="py-2 pr-3 text-right font-medium">Wydatki</th>
@@ -184,12 +222,12 @@ export default async function RaportPage({
                 {topCampaigns.map((c) => (
                   <tr
                     key={`${c.provider}:${c.campaignId}`}
-                    className="border-b border-border/60 last:border-0"
+                    className="border-b border-slate-100 last:border-0"
                   >
-                    <td className="py-2 pr-3 text-muted-foreground">
+                    <td className="py-2 pr-3 text-slate-500">
                       {c.provider === "meta_ads" ? "Meta" : "Google"}
                     </td>
-                    <td className="max-w-[20rem] truncate py-2 pr-3" title={c.name}>
+                    <td className="max-w-[22rem] truncate py-2 pr-3" title={c.name}>
                       {c.name}
                     </td>
                     <td className="py-2 pr-3 text-right tabular-nums">
@@ -205,46 +243,149 @@ export default async function RaportPage({
                 ))}
               </tbody>
             </table>
-          </div>
-        </section>
-      ) : null}
+          </ContentSlide>
+        ) : null}
 
-      {/* Traffic sources */}
-      {website.hasData && totalSessions > 0 ? (
-        <section className="rounded-xl border border-border bg-card p-6">
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Źródła ruchu (GA4)
-          </h3>
-          <div className="space-y-2">
-            {website.sources
-              .slice()
-              .sort((a, b) => b.sessions - a.sessions)
-              .map((s) => {
-                const pct = (s.sessions / totalSessions) * 100;
-                return (
-                  <div key={s.category} className="flex items-center gap-3 text-sm">
-                    <span className="w-28 shrink-0 text-muted-foreground">
-                      {s.category}
-                    </span>
-                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                      <span
-                        className="block h-full rounded-full bg-primary"
-                        style={{ width: `${Math.max(pct, 2)}%` }}
-                      />
-                    </span>
-                    <span className="w-24 shrink-0 text-right tabular-nums">
-                      {formatNumberPL(s.sessions)} ({pct.toFixed(0)}%)
-                    </span>
+        {/* Trend */}
+        <ContentSlide title="Trend okresu" subtitle="Wydatki vs sesje">
+          <div className="flex h-full flex-col">
+            <div className="mb-3 flex gap-5 text-xs">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-4 rounded-full"
+                  style={{ background: DECK_COLORS[0] }}
+                />
+                Wydatki
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-4 rounded-full"
+                  style={{ background: DECK_COLORS[1] }}
+                />
+                Sesje (GA4)
+              </span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <DualLineChart
+                a={{ values: data.trend.map((t) => t.spendMinorUnits / 100), color: DECK_COLORS[0] }}
+                b={{ values: data.trend.map((t) => t.sessions), color: DECK_COLORS[1] }}
+              />
+            </div>
+          </div>
+        </ContentSlide>
+
+        {/* ── Section: analytics ── */}
+        <DividerSlide title="Dane Analytics" subtitle={periodLabel} />
+
+        {website.hasData ? (
+          <>
+            {/* Traffic overview */}
+            <ContentSlide title="Ruch na stronie" subtitle={data.rangeLabel}>
+              <div className="grid h-full grid-cols-2 gap-8">
+                <div className="grid grid-cols-2 content-start gap-4">
+                  <Stat
+                    label="Sesje"
+                    value={formatNumberPL(totalSessions)}
+                  />
+                  <Stat
+                    label="Zaangażowanie"
+                    value={formatPercent(website.engagement.engagementRate)}
+                  />
+                  <Stat
+                    label="Nowi"
+                    value={formatNumberPL(website.newVsReturning.newUsers)}
+                  />
+                  <Stat
+                    label="Powracający"
+                    value={formatNumberPL(website.newVsReturning.returningUsers)}
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <p className="mb-2 text-sm font-medium text-slate-500">
+                    Sesje w czasie
+                  </p>
+                  <div className="min-h-0 flex-1">
+                    <LineChart
+                      values={website.sessionsTrend.map((s) => s.sessions)}
+                      color={DECK_COLORS[0]}
+                    />
                   </div>
-                );
-              })}
-          </div>
-        </section>
-      ) : null}
+                </div>
+              </div>
+            </ContentSlide>
 
-      <p className="pt-2 text-center text-xs text-muted-foreground">
-        Przygotowane przez Pato Agencja · dashboard.patoagencja.com
-      </p>
+            {/* Sources */}
+            <ContentSlide title="Źródła ruchu" subtitle="Sesje wg kategorii">
+              <BarList
+                items={website.sources
+                  .slice()
+                  .sort((a, b) => b.sessions - a.sessions)
+                  .map((s) => ({
+                    label: s.category,
+                    value: s.sessions,
+                    display: `${formatNumberPL(s.sessions)}${
+                      totalSessions > 0
+                        ? ` (${Math.round((s.sessions / totalSessions) * 100)}%)`
+                        : ""
+                    }`,
+                  }))}
+              />
+            </ContentSlide>
+
+            {/* Devices + top pages */}
+            <ContentSlide title="Urządzenia i podstrony" subtitle={data.rangeLabel}>
+              <div className="grid h-full grid-cols-2 gap-10">
+                <div>
+                  <p className="mb-3 text-sm font-medium text-slate-500">Urządzenia</p>
+                  <BarList
+                    items={website.devices
+                      .slice()
+                      .sort((a, b) => b.sessions - a.sessions)
+                      .map((d) => ({
+                        label: d.device,
+                        value: d.sessions,
+                        display: formatNumberPL(d.sessions),
+                      }))}
+                  />
+                </div>
+                <div>
+                  <p className="mb-3 text-sm font-medium text-slate-500">
+                    Najczęściej odwiedzane
+                  </p>
+                  <ol className="space-y-1.5 text-sm">
+                    {website.topPages.slice(0, 5).map((p, i) => (
+                      <li key={p.path} className="flex gap-2">
+                        <span className="text-slate-400">{i + 1}.</span>
+                        <span className="flex-1 truncate" title={p.path}>
+                          {p.path}
+                        </span>
+                        <span className="tabular-nums text-slate-500">
+                          {formatNumberPL(p.views)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            </ContentSlide>
+          </>
+        ) : (
+          <ContentSlide title="Ruch na stronie">
+            <p className="text-sm text-slate-500">
+              Dane GA4 nie są jeszcze dostępne dla tego okresu. Po pierwszej
+              synchronizacji pojawią się tu źródła ruchu, urządzenia i podstrony.
+            </p>
+          </ContentSlide>
+        )}
+
+        {/* Closing */}
+        <Slide className="items-center justify-center text-center">
+          <h2 className="text-5xl font-semibold tracking-tight">Dziękujemy</h2>
+          <p className="mt-3 text-sm text-slate-500">
+            Przygotowane przez Pato Agencja · wygenerowano {generatedAt}
+          </p>
+        </Slide>
+      </div>
     </div>
   );
 }
