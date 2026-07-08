@@ -85,6 +85,17 @@
   }
 }
 
+/* Report deck page numbering (screen + print). */
+.deck {
+  counter-reset: slidenum;
+}
+.deck-slide {
+  counter-increment: slidenum;
+}
+.slide-pageno::after {
+  content: counter(slidenum);
+}
+
 /* Print / "Pobierz PDF": force a clean light report even from terminal (dark)
    mode, keep bar/chart colours, and drop page margins to the browser default. */
 @media print {

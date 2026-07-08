@@ -4,11 +4,12 @@ import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import {
   BarList,
   ContentSlide,
+  CoverSlide,
   DECK_COLORS,
   DividerSlide,
+  Donut,
   DualLineChart,
   LineChart,
-  Slide,
   Stat,
 } from "@/components/dashboard/report/deck";
 import { ReportActions } from "@/components/dashboard/report/report-actions";
@@ -63,6 +64,7 @@ export default async function RaportPage({
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
   const periodLabel = `${data.rangeStart} – ${data.rangeEnd}`;
+  const foot = `${client.name} · ${periodLabel}`;
 
   // Per-platform aggregates from the campaign list.
   const platform = { meta: { spend: 0, clicks: 0 }, google: { spend: 0, clicks: 0 } };
@@ -92,9 +94,10 @@ export default async function RaportPage({
 
       <div className="deck space-y-6">
         {/* Cover */}
-        <DividerSlide
+        <CoverSlide
           title={`${client.name} — Raport`}
-          subtitle={`Kampania online · ${periodLabel}`}
+          eyebrow="Kampania online"
+          period={periodLabel}
         />
 
         {/* Exec summary (AI) + controls */}
@@ -108,7 +111,12 @@ export default async function RaportPage({
         <DividerSlide title="Dane mediowe" subtitle={periodLabel} />
 
         {/* KPI summary */}
-        <ContentSlide title="Podsumowanie wyników" subtitle={data.rangeLabel}>
+        <ContentSlide
+          title="Podsumowanie wyników"
+          subtitle={data.rangeLabel}
+          section="Dane mediowe"
+          foot={foot}
+        >
           <div className="grid h-full grid-cols-3 grid-rows-2 gap-4">
             <Stat
               label="Wydatki"
@@ -162,26 +170,39 @@ export default async function RaportPage({
         </ContentSlide>
 
         {/* Meta vs Google */}
-        <ContentSlide title="Meta vs Google" subtitle="Wydatki i kliknięcia wg platformy">
+        <ContentSlide
+          title="Meta vs Google"
+          subtitle="Podział wydatków i kliknięcia wg platformy"
+          section="Dane mediowe"
+          foot={foot}
+        >
           <div className="grid h-full grid-cols-2 gap-10">
-            <div>
-              <p className="mb-3 text-sm font-medium text-slate-500">Wydatki</p>
-              <BarList
-                items={[
-                  {
-                    label: "Meta",
-                    value: platform.meta.spend,
-                    display: formatMoneyPLN(platform.meta.spend),
-                    color: DECK_COLORS[0],
-                  },
-                  {
-                    label: "Google",
-                    value: platform.google.spend,
-                    display: formatMoneyPLN(platform.google.spend),
-                    color: DECK_COLORS[1],
-                  },
-                ]}
-              />
+            <div className="flex flex-col">
+              <p className="mb-3 text-sm font-medium text-slate-500">
+                Udział w wydatkach
+              </p>
+              <div className="min-h-0 flex-1">
+                <Donut
+                  centerLabel="wydatki"
+                  centerValue={formatMoneyPLN(
+                    platform.meta.spend + platform.google.spend
+                  )}
+                  items={[
+                    {
+                      label: "Meta",
+                      value: platform.meta.spend,
+                      display: formatMoneyPLN(platform.meta.spend),
+                      color: DECK_COLORS[0],
+                    },
+                    {
+                      label: "Google",
+                      value: platform.google.spend,
+                      display: formatMoneyPLN(platform.google.spend),
+                      color: DECK_COLORS[1],
+                    },
+                  ]}
+                />
+              </div>
             </div>
             <div>
               <p className="mb-3 text-sm font-medium text-slate-500">Kliknięcia</p>
@@ -207,7 +228,12 @@ export default async function RaportPage({
 
         {/* Top campaigns */}
         {topCampaigns.length > 0 ? (
-          <ContentSlide title="Najważniejsze kampanie" subtitle="Wg wydatków">
+          <ContentSlide
+            title="Najważniejsze kampanie"
+            subtitle="Wg wydatków"
+            section="Dane mediowe"
+            foot={foot}
+          >
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -247,7 +273,12 @@ export default async function RaportPage({
         ) : null}
 
         {/* Trend */}
-        <ContentSlide title="Trend okresu" subtitle="Wydatki vs sesje">
+        <ContentSlide
+          title="Trend okresu"
+          subtitle="Wydatki vs sesje"
+          section="Dane mediowe"
+          foot={foot}
+        >
           <div className="flex h-full flex-col">
             <div className="mb-3 flex gap-5 text-xs">
               <span className="flex items-center gap-1.5">
@@ -280,7 +311,12 @@ export default async function RaportPage({
         {website.hasData ? (
           <>
             {/* Traffic overview */}
-            <ContentSlide title="Ruch na stronie" subtitle={data.rangeLabel}>
+            <ContentSlide
+              title="Ruch na stronie"
+              subtitle={data.rangeLabel}
+              section="Dane Analytics"
+              foot={foot}
+            >
               <div className="grid h-full grid-cols-2 gap-8">
                 <div className="grid grid-cols-2 content-start gap-4">
                   <Stat
@@ -315,7 +351,12 @@ export default async function RaportPage({
             </ContentSlide>
 
             {/* Sources */}
-            <ContentSlide title="Źródła ruchu" subtitle="Sesje wg kategorii">
+            <ContentSlide
+              title="Źródła ruchu"
+              subtitle="Sesje wg kategorii"
+              section="Dane Analytics"
+              foot={foot}
+            >
               <BarList
                 items={website.sources
                   .slice()
@@ -333,7 +374,12 @@ export default async function RaportPage({
             </ContentSlide>
 
             {/* Devices + top pages */}
-            <ContentSlide title="Urządzenia i podstrony" subtitle={data.rangeLabel}>
+            <ContentSlide
+              title="Urządzenia i podstrony"
+              subtitle={data.rangeLabel}
+              section="Dane Analytics"
+              foot={foot}
+            >
               <div className="grid h-full grid-cols-2 gap-10">
                 <div>
                   <p className="mb-3 text-sm font-medium text-slate-500">Urządzenia</p>
@@ -379,12 +425,10 @@ export default async function RaportPage({
         )}
 
         {/* Closing */}
-        <Slide className="items-center justify-center text-center">
-          <h2 className="text-5xl font-semibold tracking-tight">Dziękujemy</h2>
-          <p className="mt-3 text-sm text-slate-500">
-            Przygotowane przez Pato Agencja · wygenerowano {generatedAt}
-          </p>
-        </Slide>
+        <DividerSlide
+          title="Dziękujemy"
+          subtitle={`Przygotowane przez Pato Agencja · wygenerowano ${generatedAt}`}
+        />
       </div>
     </div>
   );
