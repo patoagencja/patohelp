@@ -84,3 +84,30 @@
     animation: none;
   }
 }
+
+/* Print / "Pobierz PDF": force a clean light report even from terminal (dark)
+   mode, keep bar/chart colours, and drop page margins to the browser default. */
+@media print {
+  .dark {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --border: 214.3 31.8% 91.4%;
+    --primary: 243 75% 59%;
+    --accent: 226 100% 97%;
+    --accent-foreground: 245 58% 51%;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

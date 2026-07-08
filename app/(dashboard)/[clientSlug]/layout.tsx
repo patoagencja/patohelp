@@ -46,7 +46,7 @@ export default async function ClientDashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-muted/20">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden">
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <LayoutDashboard className="h-4 w-4" />
@@ -60,7 +60,7 @@ export default async function ClientDashboardLayout({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6">
+        <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6 print:hidden">
           <AutoRefresh />
           {lastSync ? (
             <span className="hidden text-xs text-muted-foreground sm:inline">
