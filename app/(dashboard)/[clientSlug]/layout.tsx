@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
 import { Toaster } from "sonner";
 
+import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
+import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getLastSyncLabel } from "@/lib/dashboard/overview";
 import { createClient } from "@/lib/supabase/server";
@@ -59,16 +61,14 @@ export default async function ClientDashboardLayout({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6">
+          <AutoRefresh />
           {lastSync ? (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              </span>
+            <span className="hidden text-xs text-muted-foreground sm:inline">
               {lastSync}
             </span>
           ) : null}
           <span className="flex-1" />
+          <ThemeToggle />
           {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
           {user?.email ? (
             <div className="flex items-center gap-2">

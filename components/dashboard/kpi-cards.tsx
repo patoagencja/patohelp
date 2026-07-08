@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
 
 import { AnimatedNumber } from "@/components/dashboard/animated-number";
@@ -58,8 +59,25 @@ function KpiCard({
   const hasSpark = series.some((v) => v > 0);
   const data = series.map((v, i) => ({ i, v }));
 
+  // Flash the whole card green/red when the value changes (e.g. auto-refresh).
+  const prevRef = useRef(value);
+  const [cardFlash, setCardFlash] = useState<"up" | "down" | null>(null);
+  useEffect(() => {
+    if (prevRef.current === value) return;
+    setCardFlash(value > prevRef.current ? "up" : "down");
+    prevRef.current = value;
+    const t = setTimeout(() => setCardFlash(null), 700);
+    return () => clearTimeout(t);
+  }, [value]);
+
   return (
-    <Card className="group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20">
+    <Card
+      className={cn(
+        "group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20",
+        cardFlash === "up" && "ring-2 ring-emerald-500/60",
+        cardFlash === "down" && "ring-2 ring-red-500/60"
+      )}
+    >
       <Flex justifyContent="between" alignItems="start">
         <Text>{label}</Text>
         {delta ? (
