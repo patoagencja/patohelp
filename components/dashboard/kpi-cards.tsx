@@ -69,11 +69,11 @@ function KpiCard({
         ) : null}
       </Flex>
 
-      <Flex justifyContent="between" alignItems="end" className="mt-2 gap-3">
+      <Flex justifyContent="between" alignItems="end" className="mt-2 gap-2">
         <AnimatedNumber
           value={value}
           format={format}
-          className="truncate text-3xl font-bold tracking-tight text-foreground"
+          className="min-w-0 flex-1 truncate text-2xl font-bold tracking-tight text-foreground"
         />
         {hasSpark ? (
           <SparkAreaChart
@@ -81,7 +81,7 @@ function KpiCard({
             index="i"
             categories={["v"]}
             colors={[sparkColor(kpi, direction)]}
-            className="h-9 w-24 shrink-0"
+            className="h-8 w-16 shrink-0 sm:w-20"
           />
         ) : null}
       </Flex>

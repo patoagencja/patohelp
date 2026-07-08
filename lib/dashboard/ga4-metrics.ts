@@ -1,6 +1,7 @@
 import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const WARSAW_TZ = "Europe/Warsaw";
@@ -56,6 +57,96 @@ function categorize(sourceMedium: string): SourceCategory {
   if (source === "(direct)" || sm === "(direct) / (none)") return "Direct";
   if (SOCIAL_SOURCES.some((s) => source.includes(s))) return "Social";
   return "Referral/Inne";
+}
+
+export type Ga4Reason =
+  | "ok"
+  | "not_connected"
+  | "no_property"
+  | "sync_failed"
+  | "no_data_yet";
+
+export interface Ga4Status {
+  connected: boolean;
+  propertyId: string | null;
+  multipleProperties: boolean;
+  lastStatus: string | null;
+  lastError: string | null;
+  reason: Ga4Reason;
+}
+
+/**
+ * Why the Witryna tab is empty — so the UI can tell the user exactly what to do
+ * (pick a property / fix a failing sync) instead of a generic "connect GA4".
+ * Uses the admin client so it doesn't depend on RLS for sync_runs.
+ */
+export async function getGa4Status(clientId: string): Promise<Ga4Status> {
+  const admin = createAdminClient();
+
+  const { data: integration } = await admin
+    .from("integrations")
+    .select("account_ids")
+    .eq("client_id", clientId)
+    .eq("provider", "ga4")
+    .maybeSingle();
+
+  if (!integration) {
+    return {
+      connected: false,
+      propertyId: null,
+      multipleProperties: false,
+      lastStatus: null,
+      lastError: null,
+      reason: "not_connected",
+    };
+  }
+
+  const accountIds = (integration.account_ids ?? {}) as {
+    propertyId?: string | null;
+    properties?: Array<{ propertyId: string; displayName: string }>;
+  };
+  const propertyId = accountIds.propertyId ?? null;
+  const multipleProperties = (accountIds.properties?.length ?? 0) > 1;
+
+  if (!propertyId) {
+    return {
+      connected: true,
+      propertyId: null,
+      multipleProperties,
+      lastStatus: null,
+      lastError: null,
+      reason: "no_property",
+    };
+  }
+
+  const { data: lastRun } = await admin
+    .from("sync_runs")
+    .select("status, error_message")
+    .eq("client_id", clientId)
+    .eq("provider", "ga4")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastRun?.status === "failed") {
+    return {
+      connected: true,
+      propertyId,
+      multipleProperties,
+      lastStatus: "failed",
+      lastError: (lastRun.error_message as string) ?? null,
+      reason: "sync_failed",
+    };
+  }
+
+  return {
+    connected: true,
+    propertyId,
+    multipleProperties,
+    lastStatus: (lastRun?.status as string) ?? null,
+    lastError: null,
+    reason: "no_data_yet",
+  };
 }
 
 /** Everything the Witryna tab needs from ga4_daily (last 30 days). */
