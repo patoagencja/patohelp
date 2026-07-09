@@ -188,9 +188,13 @@ function Position({
 export function CampaignPositions({
   campaigns,
   filter = "all",
+  clientSlug,
+  range,
 }: {
   campaigns: CampaignRow[];
   filter?: PositionFilter;
+  clientSlug: string;
+  range: string;
 }) {
   const base =
     filter === "active"
@@ -253,7 +257,7 @@ export function CampaignPositions({
           </span>
         </div>
 
-        <PositionsFilter value={filter} />
+        <PositionsFilter value={filter} clientSlug={clientSlug} range={range} />
       </div>
 
       {filtered.length === 0 ? (
