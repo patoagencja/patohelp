@@ -12,9 +12,47 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // A failed chunk load means the browser is holding an old deployment whose
+  // JS files were purged from the CDN. Auto-reload once to fetch the new build
+  // (guarded so a genuinely broken build doesn't loop forever).
+  const isChunkError =
+    error.name === "ChunkLoadError" ||
+    /loading (css )?chunk [\w-]+ failed|failed to fetch dynamically imported/i.test(
+      error.message
+    );
+
   useEffect(() => {
     console.error("[dashboard error]", error);
-  }, [error]);
+    if (!isChunkError) return;
+    try {
+      const key = "chunkReloadAt";
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last > 10000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
+  }, [error, isChunkError]);
+
+  if (isChunkError) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-lg font-semibold">Ładuję nową wersję…</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Aplikacja została zaktualizowana. Za chwilę odświeży się automatycznie.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
+          Odśwież teraz
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
