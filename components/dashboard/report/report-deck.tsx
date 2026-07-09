@@ -45,9 +45,12 @@ export function ReportDeck({
         foot={foot}
       >
         <div className="space-y-4 text-[15px] leading-relaxed text-slate-700">
-          {summary.split(/\n\s*\n/).map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
+          {summary
+            .replace(/[–—]/g, "-")
+            .split(/\n\s*\n/)
+            .map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
         </div>
       </ContentSlide>
     );

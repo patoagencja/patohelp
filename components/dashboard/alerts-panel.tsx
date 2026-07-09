@@ -29,7 +29,7 @@ export function AlertsPanel({
       <Title>Wymaga uwagi</Title>
       {alerts.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Brak aktywnych alertów — wszystko wygląda dobrze. ✅
+          Brak aktywnych alertów - wszystko wygląda dobrze. ✅
         </p>
       ) : (
         <div className="mt-4 space-y-3">

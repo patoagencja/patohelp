@@ -15,7 +15,7 @@ export function DateRangePicker({ value }: { value: RangeKey }) {
     params.set("range", next);
     router.push(`${pathname}?${params.toString()}`);
     // Next 14 may serve the cached RSC payload when only search params
-    // change — force a server re-render so the data actually updates.
+    // change - force a server re-render so the data actually updates.
     router.refresh();
   }
 

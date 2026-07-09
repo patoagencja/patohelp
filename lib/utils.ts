@@ -17,7 +17,7 @@ const PLN_FORMATTER = new Intl.NumberFormat("pl-PL", {
 
 /**
  * Format a money amount stored as bigint minor units (grosze) into a PLN
- * string. All money in the DB is minor units — divide by 100 for display only.
+ * string. All money in the DB is minor units - divide by 100 for display only.
  */
 export function formatMoneyPLN(minorUnits: number | bigint): string {
   const major = Number(minorUnits) / 100;
@@ -52,7 +52,7 @@ export function formatDateWarsaw(
 
 /**
  * Interpret a wall-clock date/time as Europe/Warsaw local time and return the
- * corresponding UTC Date — the inverse of formatDateWarsaw, for writing to DB.
+ * corresponding UTC Date - the inverse of formatDateWarsaw, for writing to DB.
  */
 export function parseWarsawToUTC(date: Date | string): Date {
   return fromZonedTime(date, WARSAW_TZ);

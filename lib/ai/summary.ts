@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const WARSAW_TZ = "Europe/Warsaw";
 
 const SYSTEM_PROMPT = `Jesteś ekspertem od performance marketingu piszącym cotygodniowe podsumowanie dla klienta agencji.
-Klient to firma DRE (producent drzwi, non-ecom — mierzymy ruch i engagement, nie sprzedaż).
+Klient to firma DRE (producent drzwi, non-ecom - mierzymy ruch i engagement, nie sprzedaż).
 Pisz 3-4 zdania po polsku, konkretnie, bez ogólników agencyjnych typu "kontynuujemy optymalizację".
 Zawsze zawieraj:
 - KONKRETNĄ liczbę / metrykę (spend, CTR, CPC)
@@ -130,7 +130,7 @@ export async function generateWeeklySummary(
   const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
   const context = [
-    `OSTATNIE 7 DNI (${start} — ${end}):`,
+    `OSTATNIE 7 DNI (${start} - ${end}):`,
     `- Wydatki: ${pln(curSpend)} (poprzednie 7 dni: ${pln(prevSpend)}, zmiana: ${delta(curSpend, prevSpend)})`,
     `- Kliknięcia: ${curClicks} (poprzednio: ${prevClicks}, zmiana: ${delta(curClicks, prevClicks)})`,
     `- CTR: ${pct(curCtr)} (poprzednio: ${pct(prevCtr)})`,

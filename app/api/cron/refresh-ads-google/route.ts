@@ -87,7 +87,7 @@ export async function GET(request: Request) {
       const accountErrors: string[] = [];
 
       // One bad account (manager account, no access, etc.) must not sink the
-      // whole sync — isolate each account.
+      // whole sync - isolate each account.
       for (const account of accounts) {
         try {
           const metrics = await getCampaignMetrics(

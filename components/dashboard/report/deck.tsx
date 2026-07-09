@@ -1,4 +1,4 @@
-// Presentational primitives for the client report "deck" — a premium 16:9 slide
+// Presentational primitives for the client report "deck" - a premium 16:9 slide
 // layout for the monthly PDF. Fixed light/dark palette (not theme tokens) so the
 // deliverable looks identical in light mode, terminal mode and the printed PDF.
 import { cn } from "@/lib/utils";
@@ -190,7 +190,7 @@ export function Stat({
   );
 }
 
-/** Horizontal bar list — thick rounded bars with a category dot + value. */
+/** Horizontal bar list - thick rounded bars with a category dot + value. */
 export function BarList({
   items,
 }: {

@@ -105,7 +105,7 @@ export function AiChat({ clientSlug }: { clientSlug: string }) {
         {messages.length === 0 ? (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              Zadaj pytanie o swoje kampanie — np.:
+              Zadaj pytanie o swoje kampanie - np.:
             </p>
             <div className="flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (

@@ -48,7 +48,7 @@ function TickerItem({ c }: { c: CampaignRow }) {
 }
 
 /**
- * Scrolling campaign tape at the top of the dashboard — a stock-ticker for ad
+ * Scrolling campaign tape at the top of the dashboard - a stock-ticker for ad
  * campaigns. Content is duplicated so the marquee loops seamlessly.
  */
 export function TickerBar({ campaigns }: { campaigns: CampaignRow[] }) {

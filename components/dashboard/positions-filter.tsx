@@ -13,7 +13,7 @@ const FILTERS: Array<{ key: PositionFilter; label: string }> = [
 ];
 
 // URL-driven filter (same mechanism as the date-range picker, which works
-// reliably) — avoids depending on local client state for the switch.
+// reliably) - avoids depending on local client state for the switch.
 export function PositionsFilter({ value }: { value: PositionFilter }) {
   const router = useRouter();
   const pathname = usePathname();

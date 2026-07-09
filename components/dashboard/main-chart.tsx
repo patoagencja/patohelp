@@ -26,7 +26,7 @@ const EVENT_TYPE_LABEL: Record<string, string> = {
 };
 
 // TODO: annotations overlay directly on the chart (Tremor has no native
-// support) — for now events render as a chronological list below.
+// support) - for now events render as a chronological list below.
 export function MainChart({
   trend,
   events,
@@ -59,7 +59,7 @@ export function MainChart({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Title>
           {activeLabel}
-          {label ? ` — ${label}` : ""}
+          {label ? ` - ${label}` : ""}
         </Title>
         <div className="flex rounded-lg bg-muted p-1">
           {METRICS.map((m) => (

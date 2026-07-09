@@ -24,7 +24,7 @@ export default async function AssistantPage({
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Asystent AI — {client.name}</h1>
+      <h1 className="text-xl font-semibold">Asystent AI - {client.name}</h1>
       <AiChat clientSlug={params.clientSlug} />
     </div>
   );

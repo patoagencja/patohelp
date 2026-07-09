@@ -16,7 +16,7 @@ export function AiSummaryCard({ summary }: { summary: AiSummary | null }) {
           {summary ? (
             <>
               <p className="mt-1 text-sm leading-relaxed text-foreground">
-                {summary.summaryText}
+                {summary.summaryText.replace(/[–—]/g, "-")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
                 Wygenerowano {formatDateWarsaw(summary.generatedAt, "d MMM yyyy, HH:mm")}

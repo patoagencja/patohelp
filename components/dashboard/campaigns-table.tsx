@@ -191,10 +191,10 @@ export function CampaignsTable({ campaigns }: { campaigns: CampaignRow[] }) {
                   <td className="py-2 pr-4 text-right tabular-nums">
                     {c.cpcMinorUnits != null
                       ? formatMoneyPLN(Math.round(c.cpcMinorUnits))
-                      : "—"}
+                      : "-"}
                   </td>
                   <td className="py-2 pr-4 text-right tabular-nums">
-                    {c.conversions > 0 ? formatNumberPL(c.conversions) : "—"}
+                    {c.conversions > 0 ? formatNumberPL(c.conversions) : "-"}
                   </td>
                   <td className="py-2">
                     {c.spark.some((v) => v > 0) ? (
@@ -207,7 +207,7 @@ export function CampaignsTable({ campaigns }: { campaigns: CampaignRow[] }) {
                       />
                     ) : (
                       <span className="block text-right text-xs text-muted-foreground">
-                        —
+                        -
                       </span>
                     )}
                   </td>

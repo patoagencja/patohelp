@@ -11,7 +11,7 @@ import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 type Direction = "good" | "bad" | "neutral";
 
 // Green when the change is good for the client, red when bad, gray for
-// neutral metrics (spend) — the arrow still shows the direction.
+// neutral metrics (spend) - the arrow still shows the direction.
 function deltaBadge(kpi: Kpi, direction: Direction) {
   if (kpi.deltaPercent === null) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
@@ -155,7 +155,7 @@ export function KpiCards({
       <KpiCard
         label="Sesje (GA4)"
         value={kpis.sessions.value}
-        format={(n) => (noSessions ? "—" : formatNumberPL(n))}
+        format={(n) => (noSessions ? "-" : formatNumberPL(n))}
         kpi={kpis.sessions}
         direction="good"
         series={sessionsSeries}
@@ -180,7 +180,7 @@ export function KpiCards({
       <KpiCard
         label="Konwersje"
         value={kpis.conversions.value}
-        format={(n) => (noConversions ? "—" : formatNumberPL(n))}
+        format={(n) => (noConversions ? "-" : formatNumberPL(n))}
         kpi={kpis.conversions}
         direction="good"
         series={conversionsSeries}

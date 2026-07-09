@@ -48,7 +48,7 @@ export function getAuthorizationUrl(state: string): string {
   return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
 }
 
-// Meta returns rich error bodies — surface them instead of swallowing.
+// Meta returns rich error bodies - surface them instead of swallowing.
 async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const url = `${GRAPH_BASE}${path}?${new URLSearchParams(params).toString()}`;
   const res = await fetch(url, { cache: "no-store" });
@@ -155,7 +155,7 @@ export async function getCampaignInsights(
 
     const dayRows: Array<Record<string, unknown>> = [...(body.data ?? [])];
 
-    // One day of a big account can still span several pages — follow them all.
+    // One day of a big account can still span several pages - follow them all.
     let guard = 0;
     while (body.paging?.next && guard < 50) {
       guard += 1;
@@ -289,7 +289,7 @@ export async function getDemographics(
   };
 }
 
-/** Sum conversion-like actions. Tracked only — never displayed as ROAS. */
+/** Sum conversion-like actions. Tracked only - never displayed as ROAS. */
 export function extractConversions(
   actions?: Array<{ action_type: string; value: string }>
 ): number {

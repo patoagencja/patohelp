@@ -90,13 +90,18 @@ export async function GET(request: Request) {
           ? range
           : { startDate: backfillStart, endDate: until };
 
+      // Dimension snapshots (sources/devices/pages/new-vs-returning) must cover
+      // the whole 30-day period they represent in the report — not just
+      // yesterday+today, which made the totals ~30x too small.
+      const snapshotRange: DateRange = { startDate: backfillStart, endDate: until };
+
       const [daily, sourceMedium, devices, pages, newReturning] =
         await Promise.all([
           getDailyMetrics(refresh_token, propertyId, dailyRange),
-          getSessionsBySourceMedium(refresh_token, propertyId, range),
-          getSessionsByDevice(refresh_token, propertyId, range),
-          getTopPages(refresh_token, propertyId, range, 10),
-          getNewVsReturning(refresh_token, propertyId, range),
+          getSessionsBySourceMedium(refresh_token, propertyId, snapshotRange),
+          getSessionsByDevice(refresh_token, propertyId, snapshotRange),
+          getTopPages(refresh_token, propertyId, snapshotRange, 10),
+          getNewVsReturning(refresh_token, propertyId, snapshotRange),
         ]);
 
       const newUsers =
@@ -123,7 +128,7 @@ export async function GET(request: Request) {
       }
 
       // Dimension snapshots dated to `until`. NOTE: every row must carry the
-      // same NOT NULL columns (users_new/users_returning) — a batched insert of
+      // same NOT NULL columns (users_new/users_returning) - a batched insert of
       // objects with differing keys fills the missing ones with NULL, not the
       // column default, which violates the not-null constraint.
       for (const s of sourceMedium) {

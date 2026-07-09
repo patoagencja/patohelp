@@ -138,7 +138,7 @@ export async function POST(request: Request) {
     model: "claude-opus-4-8",
     max_tokens: 1024,
     thinking: { type: "disabled" },
-    system: `${CHAT_SYSTEM_PROMPT}\n\nOdpowiadaj wyłącznie finalną odpowiedzią po polsku — bez rozpisywania toku rozumowania.\n\n--- DANE KAMPANII ---\n${context}`,
+    system: `${CHAT_SYSTEM_PROMPT}\n\nOdpowiadaj wyłącznie finalną odpowiedzią po polsku - bez rozpisywania toku rozumowania.\n\n--- DANE KAMPANII ---\n${context}`,
     messages: parsed.data.messages,
   });
 

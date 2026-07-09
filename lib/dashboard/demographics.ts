@@ -32,7 +32,7 @@ const sortByAge = (a: DemoBucket, b: DemoBucket) =>
 
 /**
  * Latest demographics snapshot for a client. Uses the admin client (service
- * role) — the caller has already resolved an authorized client id.
+ * role) - the caller has already resolved an authorized client id.
  */
 export async function getDemographics(clientId: string): Promise<DemographicsData> {
   const admin = createAdminClient();

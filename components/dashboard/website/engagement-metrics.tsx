@@ -2,7 +2,7 @@ import { Card, Grid, Metric, Text } from "@tremor/react";
 
 import { formatNumberPL, formatPercent } from "@/lib/utils";
 
-// TODO: avg session duration (not stored in ga4_daily yet) — showing average
+// TODO: avg session duration (not stored in ga4_daily yet) - showing average
 // daily sessions instead.
 export function EngagementMetrics({
   engagement,

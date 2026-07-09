@@ -18,7 +18,7 @@ export function SessionsTrend({
 
   return (
     <Card>
-      <Title>Sesje — ostatnie 30 dni</Title>
+      <Title>Sesje - ostatnie 30 dni</Title>
       <AreaChart
         className="mt-4 h-64"
         data={data}

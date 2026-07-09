@@ -26,7 +26,7 @@ export function TrendChart({
 
   return (
     <Card>
-      <Title>Trend wydatków{label ? ` — ${label}` : ""}</Title>
+      <Title>Trend wydatków{label ? ` - ${label}` : ""}</Title>
       <AreaChart
         className="mt-4 h-72"
         data={data}

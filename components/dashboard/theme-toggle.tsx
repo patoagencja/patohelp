@@ -21,7 +21,7 @@ export function ThemeToggle() {
     try {
       localStorage.setItem("theme", next ? "dark" : "light");
     } catch {
-      // ignore — non-persistent is fine
+      // ignore - non-persistent is fine
     }
   }
 

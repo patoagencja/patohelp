@@ -1,6 +1,6 @@
 // GA4 integration via the `googleapis` package (Analytics Admin API for
 // property discovery, Analytics Data API for reports). Same OAuth shape as
-// Google Ads — offline access + refresh token stored encrypted per client.
+// Google Ads - offline access + refresh token stored encrypted per client.
 import { google } from "googleapis";
 
 function clientId(): string {
@@ -121,7 +121,7 @@ function metric(row: any, i: number): number {
   return Number(row?.metricValues?.[i]?.value ?? 0);
 }
 
-/** GA4 dates come as "YYYYMMDD" — normalize to yyyy-MM-dd. */
+/** GA4 dates come as "YYYYMMDD" - normalize to yyyy-MM-dd. */
 function normalizeGa4Date(raw: string): string {
   if (raw.length === 8) {
     return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;

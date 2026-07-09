@@ -4,12 +4,12 @@ import type { DashboardData } from "@/lib/dashboard/metrics";
 import type { WebsiteData } from "@/lib/dashboard/ga4-metrics";
 
 const SYSTEM_PROMPT = `Jesteś strategiem performance marketingu przygotowującym raport okresowy dla klienta agencji Pato.
-Klient to firma DRE (producent drzwi, non-ecom — mierzymy ruch, zasięg i engagement, NIE sprzedaż. Nigdy nie pisz o ROAS, przychodzie ani konwersjach sprzedażowych).
+Klient to firma DRE (producent drzwi, non-ecom - mierzymy ruch, zasięg i engagement, NIE sprzedaż. Nigdy nie pisz o ROAS, przychodzie ani konwersjach sprzedażowych).
 Napisz zwięzły raport po polsku (3 krótkie akapity):
-1. Podsumowanie okresu — najważniejsze liczby (wydatki, kliknięcia, CTR, CPC, sesje) i zmiana względem poprzedniego okresu.
-2. Co się wyróżniło — najlepsze/najsłabsze kampanie, skąd przyszedł ruch.
-3. Rekomendacje — 2-3 konkretne rzeczy do rozważenia w kolejnym okresie.
-Ton: profesjonalny, konkretny, dla odbiorcy biznesowego (klient wyśle to swojemu zespołowi). Bez emoji, bez markdown, bez nagłówków — czysty tekst z akapitami oddzielonymi pustą linią.`;
+1. Podsumowanie okresu - najważniejsze liczby (wydatki, kliknięcia, CTR, CPC, sesje) i zmiana względem poprzedniego okresu.
+2. Co się wyróżniło - najlepsze/najsłabsze kampanie, skąd przyszedł ruch.
+3. Rekomendacje - 2-3 konkretne rzeczy do rozważenia w kolejnym okresie.
+Ton: profesjonalny, konkretny, dla odbiorcy biznesowego (klient wyśle to swojemu zespołowi). Bez emoji, bez markdown, bez nagłówków - czysty tekst z akapitami oddzielonymi pustą linią.`;
 
 const pln = (minor: number) => `${(minor / 100).toFixed(2)} PLN`;
 const pct = (v: number) => `${v.toFixed(2)}%`;
@@ -46,7 +46,7 @@ export async function generatePeriodReport(
 
   const context = [
     `KLIENT: ${clientName}`,
-    `OKRES: ${data.rangeLabel} (${data.rangeStart} — ${data.rangeEnd})`,
+    `OKRES: ${data.rangeLabel} (${data.rangeStart} - ${data.rangeEnd})`,
     "",
     "METRYKI (wartość, zmiana vs poprzedni okres):",
     `- Wydatki: ${pln(k.spendMinorUnits.value)} (${delta(k.spendMinorUnits.deltaPercent)})`,

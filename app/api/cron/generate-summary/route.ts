@@ -6,7 +6,7 @@ import { describeError } from "@/lib/integrations/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron (daily, 7:00 Warsaw): generate the Polish AI summary for every
-// client that has ad data. Idempotent per day — skips clients already
+// client that has ad data. Idempotent per day - skips clients already
 // summarized today.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

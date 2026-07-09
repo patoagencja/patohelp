@@ -48,7 +48,7 @@ export default function LoginPage() {
 
         {status === "sent" ? (
           <div className="mt-6 rounded-md bg-secondary p-4 text-sm text-secondary-foreground">
-            Sprawdź skrzynkę <strong>{email}</strong> — wysłaliśmy link do
+            Sprawdź skrzynkę <strong>{email}</strong> - wysłaliśmy link do
             logowania.
           </div>
         ) : (

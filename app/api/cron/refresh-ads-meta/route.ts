@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       );
 
       // Backfill 30 days until we actually have 30 days of history, then fall
-      // back to yesterday+today. (Checking "any older row exists" was wrong —
+      // back to yesterday+today. (Checking "any older row exists" was wrong -
       // a couple of recent days made it skip the backfill forever.)
       const backfillStart = formatInTimeZone(
         subDays(now, 29),

@@ -45,7 +45,7 @@ export default async function WebsitePage({
       },
       no_data_yet: {
         title: "Trwa pierwsza synchronizacja GA4",
-        body: `Property ${status.propertyId} jest podłączone, ale w bazie nie ma jeszcze danych. Kliknij „Odśwież" w nagłówku i odczekaj chwilę. Jeśli dalej pusto — sprawdź, czy w Google Cloud jest włączone „Analytics Data API".`,
+        body: `Property ${status.propertyId} jest podłączone, ale w bazie nie ma jeszcze danych. Kliknij „Odśwież" w nagłówku i odczekaj chwilę. Jeśli dalej pusto - sprawdź, czy w Google Cloud jest włączone „Analytics Data API".`,
       },
       not_connected: {
         title: "GA4 nie jest połączone",
@@ -73,7 +73,7 @@ export default async function WebsitePage({
 
     return (
       <div className="p-6">
-        <h1 className="text-xl font-semibold">Witryna — {client.name}</h1>
+        <h1 className="text-xl font-semibold">Witryna - {client.name}</h1>
         <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-12 text-center">
           <Globe className="mb-3 h-8 w-8 text-muted-foreground" />
           <p className="text-sm font-medium">{g.title}</p>
@@ -93,7 +93,7 @@ export default async function WebsitePage({
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-xl font-semibold">Witryna — {client.name}</h1>
+      <h1 className="text-xl font-semibold">Witryna - {client.name}</h1>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <TrafficSources sources={data.sources} />

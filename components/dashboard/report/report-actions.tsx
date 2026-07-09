@@ -42,7 +42,7 @@ export function ReportActions({
 
   return (
     <>
-      {/* Controls — hidden in the printed PDF */}
+      {/* Controls - hidden in the printed PDF */}
       <div className="flex flex-wrap justify-center gap-2 print:hidden">
         <Button onClick={generate} disabled={loading} className="gap-1.5">
           <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
@@ -54,7 +54,7 @@ export function ReportActions({
         </Button>
       </div>
 
-      {/* Narrative — rendered as a deck slide so it's part of the PDF */}
+      {/* Narrative - rendered as a deck slide so it's part of the PDF */}
       {summary ? (
         <ContentSlide title="Podsumowanie" subtitle={rangeLabel}>
           <div className="space-y-4 text-[15px] leading-relaxed text-slate-700">

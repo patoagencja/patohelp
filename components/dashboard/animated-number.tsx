@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-// easeOutCubic — fast start, gentle settle. The "slot machine" feel that makes
+// easeOutCubic - fast start, gentle settle. The "slot machine" feel that makes
 // trading apps addictive comes from the number racing up then easing in.
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /**
  * A number that counts up to `value` on mount and animates (with a brief
- * green/red flash) whenever `value` changes — e.g. after a refresh. `format`
+ * green/red flash) whenever `value` changes - e.g. after a refresh. `format`
  * turns the live numeric into the displayed string every frame.
  */
 export function AnimatedNumber({

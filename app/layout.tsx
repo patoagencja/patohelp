@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Pato Dashboard",
-  description: "Client dashboard for Pato agency — live Meta Ads, Google Ads & GA4 data.",
+  description: "Client dashboard for Pato agency - live Meta Ads, Google Ads & GA4 data.",
 };
 
 // Apply the saved theme before first paint to avoid a light→dark flash.

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
-// Background auto-refresh — re-fetches the server components on an interval so
+// Background auto-refresh - re-fetches the server components on an interval so
 // the numbers re-animate and "Zaktualizowano" stays live, without the user
 // clicking Odśwież. Pauses while the tab is hidden to avoid pointless work.
 export function AutoRefresh({ intervalSeconds = 30 }: { intervalSeconds?: number }) {

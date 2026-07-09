@@ -17,7 +17,7 @@ const pln = (minor: number) => `${(minor / 100).toFixed(2)} PLN`;
 
 /**
  * Evaluate alert rules on recent ads_daily data (+ monthly budget pace).
- * Pure evaluation — persistence and dedup happen in the cron.
+ * Pure evaluation - persistence and dedup happen in the cron.
  */
 export async function evaluateAlerts(
   admin: SupabaseClient,
@@ -190,7 +190,7 @@ export async function evaluateAlerts(
         severity: "warning",
         category: "high_frequency",
         title: `Wysoka częstotliwość w kampanii "${c.name}"`,
-        description: `Meta: średnia częstotliwość ${avgFreq.toFixed(1)} w ostatnich 7 dniach — odbiorcy widzą reklamy zbyt często, czas na nowe kreacje.`,
+        description: `Meta: średnia częstotliwość ${avgFreq.toFixed(1)} w ostatnich 7 dniach - odbiorcy widzą reklamy zbyt często, czas na nowe kreacje.`,
         campaignId,
         provider: c.provider,
       });

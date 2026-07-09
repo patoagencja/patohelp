@@ -19,7 +19,7 @@ export function CostTrends({ costTrend }: { costTrend: CostTrendPoint[] }) {
 
   return (
     <Card>
-      <Title>Średni CPC dziennie — Meta vs Google</Title>
+      <Title>Średni CPC dziennie - Meta vs Google</Title>
       <LineChart
         className="mt-4 h-64"
         data={data}

@@ -52,10 +52,10 @@ export function TopCreatives({ creatives }: { creatives: CreativeRow[] }) {
                   Wydatki: {formatMoneyPLN(c.spendMinorUnits)}
                 </Text>
                 <Text className="text-xs">
-                  CTR: {c.ctr != null ? formatPercent(c.ctr) : "—"} · CPC:{" "}
+                  CTR: {c.ctr != null ? formatPercent(c.ctr) : "-"} · CPC:{" "}
                   {c.cpcMinorUnits != null
                     ? formatMoneyPLN(c.cpcMinorUnits)
-                    : "—"}
+                    : "-"}
                 </Text>
               </div>
             </div>

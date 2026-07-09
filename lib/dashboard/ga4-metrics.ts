@@ -76,7 +76,7 @@ export interface Ga4Status {
 }
 
 /**
- * Why the Witryna tab is empty — so the UI can tell the user exactly what to do
+ * Why the Witryna tab is empty - so the UI can tell the user exactly what to do
  * (pick a property / fix a failing sync) instead of a generic "connect GA4".
  * Uses the admin client so it doesn't depend on RLS for sync_runs.
  */

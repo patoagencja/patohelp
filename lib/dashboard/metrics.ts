@@ -403,7 +403,7 @@ export async function getDashboardData(
           statusReason = "CPC ponad 3× wyższy niż średnia konta";
         } else if (avgFreq > 4) {
           status = "attention";
-          statusReason = "Częstotliwość > 4 — czas na nowe kreacje";
+          statusReason = "Częstotliwość > 4 - czas na nowe kreacje";
         } else if (
           clientAvgCtr > 0 &&
           c.impressions > 500 &&

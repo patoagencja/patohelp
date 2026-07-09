@@ -42,7 +42,7 @@ const compactPln = (minorUnits: number) => {
 };
 
 function deltaSub(kpi: Kpi, direction: Direction) {
-  if (kpi.deltaPercent === null) return { text: "—", tone: "flat" as const };
+  if (kpi.deltaPercent === null) return { text: "-", tone: "flat" as const };
   const r = Math.round(kpi.deltaPercent * 10) / 10;
   const label = `${r > 0 ? "+" : ""}${formatPercent(r, 1)} vs poprz.`;
   if (direction === "neutral" || r === 0) return { text: label, tone: "flat" as const };
@@ -77,7 +77,7 @@ export default async function RaportPage({
   ]);
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
-  const periodLabel = `${data.rangeStart} – ${data.rangeEnd}`;
+  const periodLabel = `${data.rangeStart} - ${data.rangeEnd}`;
   const foot = `${client.name} · ${periodLabel}`;
 
   // Per-platform aggregates from the campaign list.
@@ -92,9 +92,11 @@ export default async function RaportPage({
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits)
     .slice(0, 8);
 
+  // Source breakdown total (for %), and the true period total from daily rows.
   const totalSessions = website.hasData
     ? website.sources.reduce((s, x) => s + x.sessions, 0)
     : 0;
+  const sessionsTotal = website.sessionsTrend.reduce((s, x) => s + x.sessions, 0);
 
   const k = data.kpis;
 
@@ -107,7 +109,7 @@ export default async function RaportPage({
     <div className="space-y-6 bg-muted/20 p-6">
       {/* Controls (not printed) */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <h1 className="text-xl font-semibold">Raport — {client.name}</h1>
+        <h1 className="text-xl font-semibold">Raport - {client.name}</h1>
         <DateRangePicker value={range} />
       </div>
 
@@ -117,9 +119,9 @@ export default async function RaportPage({
         rangeLabel={data.rangeLabel}
         foot={foot}
       >
-        {/* Cover — MUST stay first (AI summary is injected right after it) */}
+        {/* Cover - MUST stay first (AI summary is injected right after it) */}
         <CoverSlide
-          title={`${client.name} — Raport`}
+          title={`${client.name} - Raport`}
           eyebrow="Kampania online"
           period={periodLabel}
         />
@@ -153,7 +155,7 @@ export default async function RaportPage({
             />
             <Stat
               label="Sesje (GA4)"
-              value={k.sessions.value > 0 ? formatNumberPL(k.sessions.value) : "—"}
+              value={k.sessions.value > 0 ? formatNumberPL(k.sessions.value) : "-"}
               {...(() => {
                 const d = deltaSub(k.sessions, "good");
                 return { sub: d.text, tone: d.tone };
@@ -177,7 +179,7 @@ export default async function RaportPage({
             />
             <Stat
               label="Konwersje"
-              value={k.conversions.value > 0 ? formatNumberPL(k.conversions.value) : "—"}
+              value={k.conversions.value > 0 ? formatNumberPL(k.conversions.value) : "-"}
               {...(() => {
                 const d = deltaSub(k.conversions, "good");
                 return { sub: d.text, tone: d.tone };
@@ -344,10 +346,7 @@ export default async function RaportPage({
             >
               <div className="grid h-full grid-cols-2 gap-8">
                 <div className="grid grid-cols-2 content-start gap-4">
-                  <Stat
-                    label="Sesje"
-                    value={formatNumberPL(totalSessions)}
-                  />
+                  <Stat label="Sesje" value={formatNumberPL(sessionsTotal)} />
                   <Stat
                     label="Zaangażowanie"
                     value={formatPercent(website.engagement.engagementRate)}
@@ -457,7 +456,7 @@ export default async function RaportPage({
 
             {demo.gender.length > 0 ? (
               <ContentSlide
-                title="Demografia — płeć"
+                title="Demografia - płeć"
                 subtitle={demoSource(demo.genderSource)}
                 section="Demografia"
                 foot={foot}
@@ -476,7 +475,7 @@ export default async function RaportPage({
 
             {demo.age.length > 0 ? (
               <ContentSlide
-                title="Demografia — wiek"
+                title="Demografia - wiek"
                 subtitle={demoSource(demo.ageSource)}
                 section="Demografia"
                 foot={foot}

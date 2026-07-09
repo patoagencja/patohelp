@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Multiple properties — let the admin choose which one to track.
+    // Multiple properties - let the admin choose which one to track.
     return NextResponse.redirect(`${origin}/${slug ?? "dre"}/settings/ga4-select`);
   } catch (err) {
     console.error("[ga4/callback] flow failed", err);

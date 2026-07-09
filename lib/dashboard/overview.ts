@@ -99,16 +99,16 @@ export async function getBudgetStatus(clientId: string): Promise<BudgetStatus> {
   let paceLabel = "Tempo zgodne z planem.";
   if (deviation > 25) {
     pace = "fast";
-    paceLabel = "Zbyt szybkie — wydajemy znacznie powyżej planu.";
+    paceLabel = "Zbyt szybkie - wydajemy znacznie powyżej planu.";
   } else if (deviation > 10) {
     pace = "fast";
-    paceLabel = "Lekko za szybkie — wydajemy powyżej planu.";
+    paceLabel = "Lekko za szybkie - wydajemy powyżej planu.";
   } else if (deviation < -25) {
     pace = "slow";
-    paceLabel = "Zbyt wolne — wydajemy znacznie poniżej planu.";
+    paceLabel = "Zbyt wolne - wydajemy znacznie poniżej planu.";
   } else if (deviation < -10) {
     pace = "slow";
-    paceLabel = "Lekko za wolne — wydajemy poniżej planu.";
+    paceLabel = "Lekko za wolne - wydajemy poniżej planu.";
   }
 
   return {

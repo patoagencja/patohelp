@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({
       ok: false,
-      error: "Token wygasł lub został odwołany — połącz ponownie",
+      error: "Token wygasł lub został odwołany - połącz ponownie",
     });
   }
 }

@@ -8,7 +8,7 @@ import {
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
 
-// Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart —
+// Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart -
 // rendering dozens of Recharts instances in an interactive table blocks clicks
 // and is slow. This is pure SVG: no deps, no re-render cost, can't throw.
 function Sparkline({ values, up }: { values: number[]; up: boolean }) {
@@ -141,7 +141,7 @@ function Position({
 
       {/* CPC */}
       <td className="py-2.5 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-        {c.cpcMinorUnits != null ? formatMoneyPLN(Math.round(c.cpcMinorUnits)) : "—"}
+        {c.cpcMinorUnits != null ? formatMoneyPLN(Math.round(c.cpcMinorUnits)) : "-"}
       </td>
 
       {/* Change (momentum) */}
@@ -162,7 +162,7 @@ function Position({
             {mom.toFixed(1)}%
           </span>
         ) : (
-          <span className="font-mono text-sm text-muted-foreground">—</span>
+          <span className="font-mono text-sm text-muted-foreground">-</span>
         )}
       </td>
 
@@ -172,7 +172,7 @@ function Position({
           <Sparkline values={c.spark} up={up} />
         ) : (
           <span className="block text-right font-mono text-xs text-muted-foreground">
-            —
+            -
           </span>
         )}
       </td>
@@ -181,7 +181,7 @@ function Position({
 }
 
 /**
- * Campaigns rendered as open trading positions — LONG/SHORT by spend momentum,
+ * Campaigns rendered as open trading positions - LONG/SHORT by spend momentum,
  * exposure (spend) with a size bar, % change and a 7-day chart. Header shows
  * aggregate exposure and net momentum like a portfolio summary.
  */
