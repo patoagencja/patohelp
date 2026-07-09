@@ -217,25 +217,30 @@ export async function detectAnomalies(clientId: string): Promise<Anomaly[]> {
     });
   }
 
-  // ---- Per-campaign checks (only meaningful spenders) ----
+  // ---- Per-campaign checks ----
+  // Only campaigns STILL running (spending now) that were also active before —
+  // we care about in-flight degradation, not campaigns someone paused on purpose.
   for (const [id, c] of campaigns) {
-    if (c.base.spend < MIN_CAMPAIGN_SPEND && c.recent.spend < MIN_CAMPAIGN_SPEND)
+    if (c.recent.spend < MIN_CAMPAIGN_SPEND || c.base.spend < MIN_CAMPAIGN_SPEND)
       continue;
 
-    // Stopped: had real baseline spend, ~zero now.
-    if (c.base.spend >= MIN_CAMPAIGN_SPEND && c.recent.spend === 0) {
+    // Sudden drop in clicks while still spending ("nie dowozi").
+    const clicksCampCh = change(
+      perDay(c.recent.clicks, RECENT_DAYS),
+      perDay(c.base.clicks, BASE_DAYS)
+    );
+    if (clicksCampCh !== null && clicksCampCh <= -0.5) {
       anomalies.push({
-        id: `camp-${id}-stopped`,
-        severity: "high",
+        id: `camp-${id}-clicks`,
+        severity: sev(Math.abs(clicksCampCh)),
         scope: "campaign",
         scopeLabel: c.name,
-        metric: "Wydatki",
+        metric: "Kliknięcia",
         direction: "down",
-        changePct: -100,
-        title: "Kampania zatrzymana",
-        description: `Kampania wydawała ${formatMoneyPLN(c.base.spend)} w ostatnich 2 tygodniach, a w ostatnich dniach 0 zł.`,
+        changePct: clicksCampCh * 100,
+        title: `Spadek kliknięć ${pct(clicksCampCh)}`,
+        description: `Kampania wciąż wydaje, ale dzienne kliknięcia mocno spadły względem ostatnich 2 tygodni.`,
       });
-      continue;
     }
 
     const ccpc = change(cpc(c.recent) ?? 0, cpc(c.base) ?? 0);
