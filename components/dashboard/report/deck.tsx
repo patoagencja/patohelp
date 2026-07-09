@@ -38,17 +38,19 @@ export function Slide({
   );
 }
 
-/** Branded cover slide (dark gradient, big title, period, client monogram). */
+/** Branded cover slide (dark gradient, big title, period, client logo/monogram). */
 export function CoverSlide({
   title,
   eyebrow,
   period,
   monogram,
+  logo,
 }: {
   title: string;
   eyebrow?: string;
   period: string;
   monogram?: string;
+  logo?: React.ReactNode;
 }) {
   return (
     <Slide dark className="justify-between p-12">
@@ -64,7 +66,9 @@ export function CoverSlide({
           <span className="inline-block h-2 w-2 rounded-full bg-indigo-400" />
           Pato Agencja
         </div>
-        {monogram ? (
+        {logo ? (
+          <span className="flex h-10 items-center text-white">{logo}</span>
+        ) : monogram ? (
           <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sm font-bold tracking-wide text-white">
             {monogram}
           </span>

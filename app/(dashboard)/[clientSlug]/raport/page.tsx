@@ -14,6 +14,7 @@ import {
   Stat,
 } from "@/components/dashboard/report/deck";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
+import { clientLogo } from "@/components/dashboard/client-logo";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
@@ -128,12 +129,18 @@ export default async function RaportPage({
         foot={foot}
       >
         {/* Cover - MUST stay first (AI summary is injected right after it) */}
-        <CoverSlide
-          title={`${client.name} - Raport`}
-          eyebrow="Kampania online"
-          period={periodLabel}
-          monogram={client.name.slice(0, 3).toUpperCase()}
-        />
+        {(() => {
+          const Logo = clientLogo(params.clientSlug);
+          return (
+            <CoverSlide
+              title={Logo ? "Raport" : `${client.name} - Raport`}
+              eyebrow="Kampania online"
+              period={periodLabel}
+              monogram={client.name.slice(0, 3).toUpperCase()}
+              logo={Logo ? <Logo className="h-9 w-auto" /> : undefined}
+            />
+          );
+        })()}
 
         {/* ── Section: media data ── */}
         <DividerSlide title="Dane mediowe" subtitle={periodLabel} />

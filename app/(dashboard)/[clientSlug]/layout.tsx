@@ -3,6 +3,7 @@ import { LayoutDashboard } from "lucide-react";
 import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
+import { clientLogo } from "@/components/dashboard/client-logo";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
@@ -48,10 +49,20 @@ export default async function ClientDashboardLayout({
     <div className="flex min-h-screen bg-muted/20">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden">
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <LayoutDashboard className="h-4 w-4" />
-          </span>
-          <span className="font-semibold">{client?.name ?? "Pato"}</span>
+          {(() => {
+            const Logo = clientLogo(params.clientSlug);
+            if (Logo) {
+              return <Logo className="h-6 w-auto text-foreground" />;
+            }
+            return (
+              <>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <LayoutDashboard className="h-4 w-4" />
+                </span>
+                <span className="font-semibold">{client?.name ?? "Pato"}</span>
+              </>
+            );
+          })()}
         </div>
         <DashboardSidebar
           clientSlug={params.clientSlug}
