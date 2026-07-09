@@ -242,58 +242,51 @@ export function Donut({
   centerValue?: string;
 }) {
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
-  const r = 60;
+  const r = 62;
   const circ = 2 * Math.PI * r;
   let offset = 0;
 
   return (
     <div className="flex h-full items-center gap-8">
-      <svg viewBox="0 0 160 160" className="h-44 w-44 shrink-0">
-        <g transform="rotate(-90 80 80)">
-          <circle cx="80" cy="80" r={r} fill="none" stroke="#f1f5f9" strokeWidth="20" />
-          {items.map((it, idx) => {
-            const frac = it.value / total;
-            const dash = frac * circ;
-            const el = (
-              <circle
-                key={it.label}
-                cx="80"
-                cy="80"
-                r={r}
-                fill="none"
-                stroke={it.color ?? DECK_COLORS[idx % DECK_COLORS.length]}
-                strokeWidth="20"
-                strokeDasharray={`${dash} ${circ - dash}`}
-                strokeDashoffset={-offset}
-              />
-            );
-            offset += dash;
-            return el;
-          })}
-        </g>
-        {centerValue ? (
-          <text
-            x="80"
-            y="76"
-            textAnchor="middle"
-            className="fill-slate-900"
-            style={{ fontSize: 22, fontWeight: 700 }}
-          >
-            {centerValue}
-          </text>
-        ) : null}
-        {centerLabel ? (
-          <text
-            x="80"
-            y="96"
-            textAnchor="middle"
-            className="fill-slate-400"
-            style={{ fontSize: 10 }}
-          >
-            {centerLabel}
-          </text>
-        ) : null}
-      </svg>
+      <div className="relative h-44 w-44 shrink-0">
+        <svg viewBox="0 0 160 160" className="h-full w-full">
+          <g transform="rotate(-90 80 80)">
+            <circle cx="80" cy="80" r={r} fill="none" stroke="#f1f5f9" strokeWidth="16" />
+            {items.map((it, idx) => {
+              const frac = it.value / total;
+              const dash = frac * circ;
+              const el = (
+                <circle
+                  key={it.label}
+                  cx="80"
+                  cy="80"
+                  r={r}
+                  fill="none"
+                  stroke={it.color ?? DECK_COLORS[idx % DECK_COLORS.length]}
+                  strokeWidth="16"
+                  strokeDasharray={`${dash} ${circ - dash}`}
+                  strokeDashoffset={-offset}
+                />
+              );
+              offset += dash;
+              return el;
+            })}
+          </g>
+        </svg>
+        {/* Centre label as HTML so it never overflows the ring hole. */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+          {centerValue ? (
+            <span className="text-lg font-bold leading-tight tracking-tight text-slate-900">
+              {centerValue}
+            </span>
+          ) : null}
+          {centerLabel ? (
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">
+              {centerLabel}
+            </span>
+          ) : null}
+        </div>
+      </div>
       <div className="min-w-0 flex-1 space-y-3">
         {items.map((it, idx) => (
           <div key={it.label} className="flex items-center justify-between text-sm">
@@ -308,6 +301,37 @@ export function Donut({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Vertical axis tick column (max → min), rendered as HTML so text isn't
+// distorted by the stretched SVG plot. Aligns with the plot's gridlines.
+function TickCol({
+  min,
+  max,
+  format,
+  color = "#94a3b8",
+  align = "right",
+}: {
+  min: number;
+  max: number;
+  format: (n: number) => string;
+  color?: string;
+  align?: "left" | "right";
+}) {
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => max - f * (max - min));
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 flex-col justify-between py-[2px] text-[10px] tabular-nums",
+        align === "right" ? "items-start" : "items-end"
+      )}
+      style={{ color }}
+    >
+      {ticks.map((t, i) => (
+        <span key={i}>{format(t)}</span>
+      ))}
     </div>
   );
 }
@@ -327,20 +351,22 @@ function grid(w: number, h: number) {
   ));
 }
 
-/** Single-series area chart with gradient fill and gridlines. */
+/** Single-series area chart with gradient fill, gridlines and a right axis. */
 export function LineChart({
   values,
   color = DECK_COLORS[0],
+  format,
 }: {
   values: number[];
   color?: string;
+  format?: (n: number) => string;
 }) {
   const w = 640;
   const h = 220;
   if (values.length === 0)
     return <p className="text-sm text-slate-400">Brak danych.</p>;
   const max = Math.max(...values);
-  const min = Math.min(...values);
+  const min = Math.min(...values, 0);
   const range = max - min || 1;
   const n = values.length;
   const gid = `g-${color.replace("#", "")}`;
@@ -350,7 +376,7 @@ export function LineChart({
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
   const line = pts.join(" ");
-  return (
+  const svg = (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-full w-full">
       <defs>
         <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
@@ -370,49 +396,76 @@ export function LineChart({
       />
     </svg>
   );
+  if (!format) return svg;
+  return (
+    <div className="flex h-full gap-2">
+      <div className="min-w-0 flex-1">{svg}</div>
+      <TickCol min={min} max={max} format={format} color={color} align="right" />
+    </div>
+  );
 }
 
-/** Two-series line chart (each normalised) with gridlines. */
+/**
+ * Two-series line chart with independent left/right axes (e.g. spend vs
+ * sessions). Each series is scaled to its own [min,max] and gets a labelled
+ * axis on its side, so both are readable despite different units.
+ */
 export function DualLineChart({
   a,
   b,
 }: {
-  a: { values: number[]; color?: string };
-  b: { values: number[]; color?: string };
+  a: { values: number[]; color?: string; format?: (n: number) => string };
+  b: { values: number[]; color?: string; format?: (n: number) => string };
 }) {
   const w = 640;
   const h = 220;
-  const path = (values: number[]) => {
+  const aColor = a.color ?? DECK_COLORS[0];
+  const bColor = b.color ?? DECK_COLORS[1];
+  const bounds = (values: number[]) => {
+    const max = Math.max(...values, 0);
+    const min = Math.min(...values, 0);
+    return { min, max, range: max - min || 1 };
+  };
+  const ab = bounds(a.values);
+  const bb = bounds(b.values);
+  const path = (values: number[], bnd: { min: number; range: number }) => {
     if (values.length === 0) return "";
-    const max = Math.max(...values);
-    const min = Math.min(...values);
-    const range = max - min || 1;
     const n = values.length;
     return values
       .map((v, i) => {
         const x = n > 1 ? (i / (n - 1)) * w : w / 2;
-        const y = h - ((v - min) / range) * (h - 12) - 6;
+        const y = h - ((v - bnd.min) / bnd.range) * (h - 12) - 6;
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(" ");
   };
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-full w-full">
-      {grid(w, h)}
-      <polyline
-        points={path(a.values)}
-        fill="none"
-        stroke={a.color ?? DECK_COLORS[0]}
-        strokeWidth={2.5}
-        vectorEffect="non-scaling-stroke"
-      />
-      <polyline
-        points={path(b.values)}
-        fill="none"
-        stroke={b.color ?? DECK_COLORS[1]}
-        strokeWidth={2.5}
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <div className="flex h-full gap-2">
+      {a.format ? (
+        <TickCol min={ab.min} max={ab.max} format={a.format} color={aColor} align="left" />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-full w-full">
+          {grid(w, h)}
+          <polyline
+            points={path(a.values, ab)}
+            fill="none"
+            stroke={aColor}
+            strokeWidth={2.5}
+            vectorEffect="non-scaling-stroke"
+          />
+          <polyline
+            points={path(b.values, bb)}
+            fill="none"
+            stroke={bColor}
+            strokeWidth={2.5}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+      {b.format ? (
+        <TickCol min={bb.min} max={bb.max} format={b.format} color={bColor} align="right" />
+      ) : null}
+    </div>
   );
 }

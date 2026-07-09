@@ -1,9 +1,10 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Card, Title } from "@tremor/react";
 
+import {
+  PositionsFilter,
+  type PositionFilter,
+} from "@/components/dashboard/positions-filter";
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
 
@@ -66,14 +67,6 @@ const STATUS_DOT: Record<CampaignStatus, string> = {
   critical: "bg-red-500",
   off: "bg-slate-400",
 };
-
-type FilterKey = "all" | "active" | "attention";
-
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: "all", label: "Wszystkie" },
-  { key: "active", label: "Otwarte" },
-  { key: "attention", label: "Wymagają uwagi" },
-];
 
 function Position({
   c,
@@ -192,44 +185,41 @@ function Position({
  * exposure (spend) with a size bar, % change and a 7-day chart. Header shows
  * aggregate exposure and net momentum like a portfolio summary.
  */
-export function CampaignPositions({ campaigns }: { campaigns: CampaignRow[] }) {
-  const [filter, setFilter] = useState<FilterKey>("all");
-
-  const filtered = useMemo(() => {
-    const base =
-      filter === "active"
-        ? campaigns.filter((c) => c.status !== "off")
-        : filter === "attention"
-          ? campaigns.filter(
-              (c) => c.status === "attention" || c.status === "critical"
-            )
-          : campaigns;
-    return [...base].sort((a, b) => b.spendMinorUnits - a.spendMinorUnits);
-  }, [campaigns, filter]);
-
-  const maxSpend = useMemo(
-    () => filtered.reduce((m, c) => Math.max(m, c.spendMinorUnits), 0),
-    [filtered]
+export function CampaignPositions({
+  campaigns,
+  filter = "all",
+}: {
+  campaigns: CampaignRow[];
+  filter?: PositionFilter;
+}) {
+  const base =
+    filter === "active"
+      ? campaigns.filter((c) => c.status !== "off")
+      : filter === "attention"
+        ? campaigns.filter(
+            (c) => c.status === "attention" || c.status === "critical"
+          )
+        : campaigns;
+  const filtered = [...base].sort(
+    (a, b) => b.spendMinorUnits - a.spendMinorUnits
   );
 
-  const totalExposure = useMemo(
-    () => filtered.reduce((s, c) => s + c.spendMinorUnits, 0),
-    [filtered]
+  const maxSpend = filtered.reduce(
+    (m, c) => Math.max(m, c.spendMinorUnits),
+    0
   );
+  const totalExposure = filtered.reduce((s, c) => s + c.spendMinorUnits, 0);
 
   // Net momentum: exposure-weighted average of per-position momentum.
-  const netMomentum = useMemo(() => {
-    let weight = 0;
-    let acc = 0;
-    for (const c of filtered) {
-      const m = momentum(c.spark);
-      if (m === null) continue;
-      weight += c.spendMinorUnits;
-      acc += m * c.spendMinorUnits;
-    }
-    return weight > 0 ? acc / weight : null;
-  }, [filtered]);
-
+  let weight = 0;
+  let acc = 0;
+  for (const c of filtered) {
+    const m = momentum(c.spark);
+    if (m === null) continue;
+    weight += c.spendMinorUnits;
+    acc += m * c.spendMinorUnits;
+  }
+  const netMomentum = weight > 0 ? acc / weight : null;
   const netUp = (netMomentum ?? 0) >= 0;
 
   return (
@@ -263,23 +253,7 @@ export function CampaignPositions({ campaigns }: { campaigns: CampaignRow[] }) {
           </span>
         </div>
 
-        <div className="flex rounded-lg bg-muted p-1">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key)}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                filter === f.key
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        <PositionsFilter value={filter} />
       </div>
 
       {filtered.length === 0 ? (

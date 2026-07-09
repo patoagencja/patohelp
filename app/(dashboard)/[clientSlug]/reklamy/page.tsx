@@ -38,7 +38,7 @@ export default async function AdsPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { range?: string };
+  searchParams: { range?: string; camp?: string };
 }) {
   const supabase = createClient();
 
@@ -65,7 +65,14 @@ export default async function AdsPage({
         <DateRangePicker value={range} />
       </div>
 
-      <CampaignPositions campaigns={data.campaigns} />
+      <CampaignPositions
+        campaigns={data.campaigns}
+        filter={
+          searchParams.camp === "active" || searchParams.camp === "attention"
+            ? searchParams.camp
+            : "all"
+        }
+      />
 
       <TopCreatives creatives={creatives} />
 

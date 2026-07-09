@@ -28,6 +28,18 @@ export const dynamic = "force-dynamic";
 
 type Direction = "good" | "bad" | "neutral";
 
+// Compact axis/label formatters so chart axes and the donut centre stay short.
+const axisPln = (v: number) =>
+  v >= 1000 ? `${(v / 1000).toFixed(1).replace(".", ",")} tys. zł` : `${Math.round(v)} zł`;
+const axisNum = (v: number) =>
+  v >= 1000 ? `${(v / 1000).toFixed(1).replace(".", ",")} tys.` : `${Math.round(v)}`;
+const compactPln = (minorUnits: number) => {
+  const v = minorUnits / 100;
+  return v >= 1000
+    ? `${(v / 1000).toFixed(1).replace(".", ",")} tys. zł`
+    : formatMoneyPLN(minorUnits);
+};
+
 function deltaSub(kpi: Kpi, direction: Direction) {
   if (kpi.deltaPercent === null) return { text: "—", tone: "flat" as const };
   const r = Math.round(kpi.deltaPercent * 10) / 10;
@@ -182,7 +194,7 @@ export default async function RaportPage({
               <div className="min-h-0 flex-1">
                 <Donut
                   centerLabel="wydatki"
-                  centerValue={formatMoneyPLN(
+                  centerValue={compactPln(
                     platform.meta.spend + platform.google.spend
                   )}
                   items={[
@@ -296,8 +308,16 @@ export default async function RaportPage({
             </div>
             <div className="min-h-0 flex-1">
               <DualLineChart
-                a={{ values: data.trend.map((t) => t.spendMinorUnits / 100), color: DECK_COLORS[0] }}
-                b={{ values: data.trend.map((t) => t.sessions), color: DECK_COLORS[1] }}
+                a={{
+                  values: data.trend.map((t) => t.spendMinorUnits / 100),
+                  color: DECK_COLORS[0],
+                  format: axisPln,
+                }}
+                b={{
+                  values: data.trend.map((t) => t.sessions),
+                  color: DECK_COLORS[1],
+                  format: axisNum,
+                }}
               />
             </div>
           </div>
@@ -342,6 +362,7 @@ export default async function RaportPage({
                     <LineChart
                       values={website.sessionsTrend.map((s) => s.sessions)}
                       color={DECK_COLORS[0]}
+                      format={axisNum}
                     />
                   </div>
                 </div>
