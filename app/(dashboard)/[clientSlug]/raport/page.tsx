@@ -12,7 +12,7 @@ import {
   LineChart,
   Stat,
 } from "@/components/dashboard/report/deck";
-import { ReportActions } from "@/components/dashboard/report/report-actions";
+import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
@@ -92,19 +92,17 @@ export default async function RaportPage({
         <DateRangePicker value={range} />
       </div>
 
-      <div className="deck space-y-6">
-        {/* Cover */}
+      <ReportDeck
+        clientSlug={params.clientSlug}
+        range={range}
+        rangeLabel={data.rangeLabel}
+        foot={foot}
+      >
+        {/* Cover — MUST stay first (AI summary is injected right after it) */}
         <CoverSlide
           title={`${client.name} — Raport`}
           eyebrow="Kampania online"
           period={periodLabel}
-        />
-
-        {/* Exec summary (AI) + controls */}
-        <ReportActions
-          clientSlug={params.clientSlug}
-          range={range}
-          rangeLabel={data.rangeLabel}
         />
 
         {/* ── Section: media data ── */}
@@ -429,7 +427,7 @@ export default async function RaportPage({
           title="Dziękujemy"
           subtitle={`Przygotowane przez Pato Agencja · wygenerowano ${generatedAt}`}
         />
-      </div>
+      </ReportDeck>
     </div>
   );
 }

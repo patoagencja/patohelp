@@ -85,7 +85,7 @@
   }
 }
 
-/* Report deck page numbering (screen + print). */
+/* Report deck: one slide visible on screen, page numbering in the PDF. */
 .deck {
   counter-reset: slidenum;
 }
@@ -94,6 +94,16 @@
 }
 .slide-pageno::after {
   content: counter(slidenum);
+}
+
+/* Only the active slide shows on screen; page numbers are print-only. */
+.deck-inactive {
+  display: none;
+}
+@media screen {
+  .slide-pageno {
+    display: none;
+  }
 }
 
 /* Print / "Pobierz PDF": force a clean light report even from terminal (dark)
@@ -132,6 +142,11 @@
     gap: 0 !important;
   }
 
+  /* Reveal every slide for the export (screen shows only the active one). */
+  .deck-inactive {
+    display: block !important;
+  }
+
   .deck-slide {
     max-width: none !important;
     box-shadow: none !important;
@@ -141,7 +156,7 @@
     break-after: page;
   }
 
-  .deck-slide:last-child {
+  .deck-item:last-child .deck-slide {
     break-after: auto;
   }
 }
