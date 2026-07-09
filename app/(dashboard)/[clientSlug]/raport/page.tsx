@@ -13,6 +13,7 @@ import {
   Stat,
 } from "@/components/dashboard/report/deck";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
+import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
@@ -69,9 +70,10 @@ export default async function RaportPage({
   }
 
   const range = normalizeRange(searchParams.range);
-  const [data, website] = await Promise.all([
+  const [data, website, demo] = await Promise.all([
     getDashboardData(client.id, range),
     getWebsiteData(client.id),
+    getDemographics(client.id),
   ]);
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
@@ -95,6 +97,11 @@ export default async function RaportPage({
     : 0;
 
   const k = data.kpis;
+
+  const genderTotal = demo.gender.reduce((s, g) => s + g.value, 0) || 1;
+  const ageTotal = demo.age.reduce((s, a) => s + a.value, 0) || 1;
+  const demoSource = (src: "meta" | "ga4" | null) =>
+    src === "meta" ? "Wg wyświetleń reklam (Meta)" : "Wg sesji (GA4)";
 
   return (
     <div className="space-y-6 bg-muted/20 p-6">
@@ -442,6 +449,67 @@ export default async function RaportPage({
             </p>
           </ContentSlide>
         )}
+
+        {/* ── Section: demographics ── */}
+        {demo.hasData ? (
+          <>
+            <DividerSlide title="Demografia" subtitle={periodLabel} />
+
+            {demo.gender.length > 0 ? (
+              <ContentSlide
+                title="Demografia — płeć"
+                subtitle={demoSource(demo.genderSource)}
+                section="Demografia"
+                foot={foot}
+              >
+                <Donut
+                  centerLabel="odbiorcy"
+                  items={demo.gender.map((g, i) => ({
+                    label: genderLabel(g.bucket),
+                    value: g.value,
+                    display: `${Math.round((g.value / genderTotal) * 100)}%`,
+                    color: DECK_COLORS[i % DECK_COLORS.length],
+                  }))}
+                />
+              </ContentSlide>
+            ) : null}
+
+            {demo.age.length > 0 ? (
+              <ContentSlide
+                title="Demografia — wiek"
+                subtitle={demoSource(demo.ageSource)}
+                section="Demografia"
+                foot={foot}
+              >
+                <BarList
+                  items={demo.age.map((a) => ({
+                    label: a.bucket,
+                    value: a.value,
+                    display: `${Math.round((a.value / ageTotal) * 100)}%`,
+                    color: DECK_COLORS[0],
+                  }))}
+                />
+              </ContentSlide>
+            ) : null}
+
+            {demo.geo.length > 0 ? (
+              <ContentSlide
+                title="Geografia"
+                subtitle="Sesje wg regionu (GA4)"
+                section="Demografia"
+                foot={foot}
+              >
+                <BarList
+                  items={demo.geo.map((r) => ({
+                    label: r.bucket,
+                    value: r.value,
+                    display: formatNumberPL(r.value),
+                  }))}
+                />
+              </ContentSlide>
+            ) : null}
+          </>
+        ) : null}
 
         {/* Closing */}
         <DividerSlide

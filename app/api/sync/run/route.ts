@@ -36,6 +36,7 @@ export async function POST(request: Request) {
     "refresh-ads-meta",
     "refresh-ads-google",
     "refresh-ga4",
+    "refresh-demographics",
   ];
 
   const results = await Promise.allSettled(

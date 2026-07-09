@@ -226,6 +226,54 @@ export async function getNewVsReturning(
     .filter((r) => r.type);
 }
 
+export async function getAgeBrackets(
+  refreshToken: string,
+  propertyId: string,
+  range: DateRange
+): Promise<Array<{ bucket: string; value: number }>> {
+  const data = await runReport(refreshToken, propertyId, {
+    dateRanges: [range],
+    dimensions: [{ name: "userAgeBracket" }],
+    metrics: [{ name: "sessions" }],
+  });
+  return rows(data)
+    .map((r) => ({ bucket: dim(r, 0), value: metric(r, 0) }))
+    .filter((r) => r.bucket);
+}
+
+export async function getGenders(
+  refreshToken: string,
+  propertyId: string,
+  range: DateRange
+): Promise<Array<{ bucket: string; value: number }>> {
+  const data = await runReport(refreshToken, propertyId, {
+    dateRanges: [range],
+    dimensions: [{ name: "userGender" }],
+    metrics: [{ name: "sessions" }],
+  });
+  return rows(data)
+    .map((r) => ({ bucket: dim(r, 0), value: metric(r, 0) }))
+    .filter((r) => r.bucket);
+}
+
+export async function getRegions(
+  refreshToken: string,
+  propertyId: string,
+  range: DateRange,
+  limit = 12
+): Promise<Array<{ bucket: string; value: number }>> {
+  const data = await runReport(refreshToken, propertyId, {
+    dateRanges: [range],
+    dimensions: [{ name: "region" }],
+    metrics: [{ name: "sessions" }],
+    orderBys: [{ metric: { metricName: "sessions" }, desc: true }],
+    limit,
+  });
+  return rows(data)
+    .map((r) => ({ bucket: dim(r, 0), value: metric(r, 0) }))
+    .filter((r) => r.bucket && r.bucket !== "(not set)");
+}
+
 export async function getDailyMetrics(
   refreshToken: string,
   propertyId: string,

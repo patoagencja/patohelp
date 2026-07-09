@@ -248,6 +248,47 @@ export async function getAdThumbnails(
   return map;
 }
 
+/**
+ * Age & gender breakdown for [since, until], by impressions. Two calls (Meta
+ * only allows one primary breakdown cleanly here). Buckets: age "25-34", gender
+ * "male"/"female"/"unknown".
+ */
+export async function getDemographics(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string
+): Promise<{
+  age: Array<{ bucket: string; value: number }>;
+  gender: Array<{ bucket: string; value: number }>;
+}> {
+  const query = (breakdown: "age" | "gender") =>
+    graphGet<{ data: Array<Record<string, unknown>> }>(
+      `/${adAccountId}/insights`,
+      {
+        fields: "impressions",
+        level: "account",
+        breakdowns: breakdown,
+        time_range: JSON.stringify({ since, until }),
+        access_token: accessToken,
+        limit: "100",
+      }
+    );
+
+  const [ageBody, genderBody] = await Promise.all([query("age"), query("gender")]);
+
+  return {
+    age: (ageBody.data ?? []).map((r) => ({
+      bucket: String(r.age ?? ""),
+      value: parseInt(String(r.impressions ?? "0"), 10) || 0,
+    })),
+    gender: (genderBody.data ?? []).map((r) => ({
+      bucket: String(r.gender ?? ""),
+      value: parseInt(String(r.impressions ?? "0"), 10) || 0,
+    })),
+  };
+}
+
 /** Sum conversion-like actions. Tracked only — never displayed as ROAS. */
 export function extractConversions(
   actions?: Array<{ action_type: string; value: string }>
