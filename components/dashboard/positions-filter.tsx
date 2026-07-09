@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { cn } from "@/lib/utils";
 
 export type PositionFilter = "all" | "active" | "attention";
@@ -8,9 +10,8 @@ const FILTERS: Array<{ key: PositionFilter; label: string }> = [
   { key: "attention", label: "Wymagają uwagi" },
 ];
 
-// Plain anchor links (hard navigation) — bulletproof: the filter switches even
-// if client JS hasn't hydrated. The page is force-dynamic so each URL renders
-// the correctly filtered list server-side.
+// Next <Link> — client-side navigation that updates the `camp` search param, so
+// the force-dynamic page re-renders the filtered list without a full reload.
 export function PositionsFilter({
   value,
   clientSlug,
@@ -23,9 +24,10 @@ export function PositionsFilter({
   return (
     <div className="flex rounded-lg bg-muted p-1">
       {FILTERS.map((f) => (
-        <a
+        <Link
           key={f.key}
           href={`/${clientSlug}/reklamy?range=${range}&camp=${f.key}`}
+          scroll={false}
           className={cn(
             "rounded-md px-3 py-1 text-xs font-medium transition-colors",
             value === f.key
@@ -34,7 +36,7 @@ export function PositionsFilter({
           )}
         >
           {f.label}
-        </a>
+        </Link>
       ))}
     </div>
   );
