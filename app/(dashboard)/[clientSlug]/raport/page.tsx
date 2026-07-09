@@ -5,6 +5,7 @@ import {
   BarList,
   ContentSlide,
   CoverSlide,
+  CreativesGrid,
   DECK_COLORS,
   DividerSlide,
   Donut,
@@ -70,10 +71,17 @@ export default async function RaportPage({
   }
 
   const range = normalizeRange(searchParams.range);
-  const [data, website, demo] = await Promise.all([
+  const [data, website, demo, creatives] = await Promise.all([
     getDashboardData(client.id, range),
     getWebsiteData(client.id),
     getDemographics(client.id),
+    supabase
+      .from("creatives")
+      .select("ad_name, thumbnail_url, spend_minor_units, ctr")
+      .eq("client_id", client.id)
+      .order("spend_minor_units", { ascending: false })
+      .limit(4)
+      .then((res) => res.data ?? []),
   ]);
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
@@ -124,6 +132,7 @@ export default async function RaportPage({
           title={`${client.name} - Raport`}
           eyebrow="Kampania online"
           period={periodLabel}
+          monogram={client.name.slice(0, 3).toUpperCase()}
         />
 
         {/* ── Section: media data ── */}
@@ -288,6 +297,26 @@ export default async function RaportPage({
                 ))}
               </tbody>
             </table>
+          </ContentSlide>
+        ) : null}
+
+        {/* Top creatives */}
+        {creatives.length > 0 ? (
+          <ContentSlide
+            title="Najlepsze kreacje"
+            subtitle="Meta - wg wydatków"
+            section="Dane mediowe"
+            foot={foot}
+          >
+            <CreativesGrid
+              items={creatives.map((c) => ({
+                name: (c.ad_name as string) || "Reklama",
+                thumbnailUrl: (c.thumbnail_url as string) || null,
+                spendDisplay: formatMoneyPLN(Number(c.spend_minor_units)),
+                ctrDisplay:
+                  c.ctr != null ? formatPercent(Number(c.ctr)) : "-",
+              }))}
+            />
           </ContentSlide>
         ) : null}
 

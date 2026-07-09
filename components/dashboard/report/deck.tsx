@@ -38,15 +38,17 @@ export function Slide({
   );
 }
 
-/** Branded cover slide (dark gradient, big title, period). */
+/** Branded cover slide (dark gradient, big title, period, client monogram). */
 export function CoverSlide({
   title,
   eyebrow,
   period,
+  monogram,
 }: {
   title: string;
   eyebrow?: string;
   period: string;
+  monogram?: string;
 }) {
   return (
     <Slide dark className="justify-between p-12">
@@ -57,9 +59,16 @@ export function CoverSlide({
             "radial-gradient(120% 120% at 100% 0%, rgba(99,102,241,0.45) 0%, rgba(15,23,42,0) 55%)",
         }}
       />
-      <div className="relative flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">
-        <span className="inline-block h-2 w-2 rounded-full bg-indigo-400" />
-        Pato Agencja
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">
+          <span className="inline-block h-2 w-2 rounded-full bg-indigo-400" />
+          Pato Agencja
+        </div>
+        {monogram ? (
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sm font-bold tracking-wide text-white">
+            {monogram}
+          </span>
+        ) : null}
       </div>
       <div className="relative">
         {eyebrow ? (
@@ -301,6 +310,52 @@ export function Donut({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Grid of top creatives with thumbnails for the report deck. */
+export function CreativesGrid({
+  items,
+}: {
+  items: Array<{
+    name: string;
+    thumbnailUrl: string | null;
+    spendDisplay: string;
+    ctrDisplay: string;
+  }>;
+}) {
+  return (
+    <div className="grid h-full grid-cols-4 gap-4">
+      {items.map((c, i) => (
+        <div
+          key={i}
+          className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
+        >
+          <div className="aspect-square w-full bg-slate-100">
+            {c.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={c.thumbnailUrl}
+                alt={c.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-slate-300">
+                brak podglądu
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-0.5 p-3">
+            <span className="truncate text-xs font-medium" title={c.name}>
+              {c.name}
+            </span>
+            <span className="text-xs text-slate-500">
+              {c.spendDisplay} · CTR {c.ctrDisplay}
+            </span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
