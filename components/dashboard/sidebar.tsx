@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BellRing,
   FileText,
   Globe,
   LayoutDashboard,
@@ -27,6 +28,7 @@ export function DashboardSidebar({
     { href: base, label: "Przegląd", icon: LayoutDashboard },
     { href: `${base}/reklamy`, label: "Reklamy", icon: Megaphone },
     { href: `${base}/witryna`, label: "Witryna", icon: Globe },
+    { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
     { href: `${base}/raport`, label: "Raport", icon: FileText },
     { href: `${base}/asystent`, label: "Asystent AI", icon: Sparkles },
     ...(isAgency
