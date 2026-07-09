@@ -216,10 +216,11 @@ export async function getNewVsReturning(
   propertyId: string,
   range: DateRange
 ): Promise<Array<{ type: string; sessions: number }>> {
+  // Users (not sessions) so "Nowi / Powracający" match GA4's user counts.
   const data = await runReport(refreshToken, propertyId, {
     dateRanges: [range],
     dimensions: [{ name: "newVsReturning" }],
-    metrics: [{ name: "sessions" }],
+    metrics: [{ name: "activeUsers" }],
   });
   return rows(data)
     .map((r) => ({ type: dim(r, 0), sessions: metric(r, 0) }))
