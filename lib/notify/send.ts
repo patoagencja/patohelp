@@ -30,15 +30,22 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
   return { text, html };
 }
 
+export interface SendResult {
+  ok: boolean;
+  error?: string;
+}
+
 /** Send an email via Resend. Needs RESEND_API_KEY + NOTIFY_FROM_EMAIL. */
 export async function sendEmail(
   to: string[],
   subject: string,
   html: string
-): Promise<boolean> {
+): Promise<SendResult> {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.NOTIFY_FROM_EMAIL;
-  if (!key || !from || to.length === 0) return false;
+  if (!key) return { ok: false, error: "Brak RESEND_API_KEY (dodaj na Vercelu + redeploy)" };
+  if (!from) return { ok: false, error: "Brak NOTIFY_FROM_EMAIL (dodaj na Vercelu + redeploy)" };
+  if (to.length === 0) return { ok: false, error: "Brak adresów odbiorców w panelu" };
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -50,10 +57,11 @@ export async function sendEmail(
     cache: "no-store",
   });
   if (!res.ok) {
-    console.error("[notify] resend failed", res.status, await res.text().catch(() => ""));
-    return false;
+    const body = await res.text().catch(() => "");
+    console.error("[notify] resend failed", res.status, body);
+    return { ok: false, error: `Resend ${res.status}: ${body.slice(0, 200)}` };
   }
-  return true;
+  return { ok: true };
 }
 
 /**
@@ -65,10 +73,12 @@ export async function sendEmail(
 export async function sendWhatsApp(
   numbers: string[],
   text: string
-): Promise<boolean> {
+): Promise<SendResult> {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneId || numbers.length === 0) return false;
+  if (!token) return { ok: false, error: "Brak WHATSAPP_TOKEN" };
+  if (!phoneId) return { ok: false, error: "Brak WHATSAPP_PHONE_NUMBER_ID" };
+  if (numbers.length === 0) return { ok: false, error: "Brak numerów odbiorców" };
 
   let anyOk = false;
   for (const to of numbers) {
@@ -102,5 +112,5 @@ export async function sendWhatsApp(
       console.error("[notify] whatsapp error", to, err);
     }
   }
-  return anyOk;
+  return { ok: anyOk, error: anyOk ? undefined : "Wysyłka WhatsApp nie powiodła się" };
 }

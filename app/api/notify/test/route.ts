@@ -79,16 +79,22 @@ export async function POST(request: Request) {
   const subject = `[TEST] Alerty — ${clientName}`;
 
   const results: Record<string, boolean> = {};
-  if (s.email_enabled) results.email = await sendEmail(s.emails ?? [], subject, digest.html);
-  if (s.whatsapp_enabled)
-    results.whatsapp = await sendWhatsApp(s.whatsapp_numbers ?? [], digest.text);
+  const errors: string[] = [];
+  if (s.email_enabled) {
+    const r = await sendEmail(s.emails ?? [], subject, digest.html);
+    results.email = r.ok;
+    if (!r.ok && r.error) errors.push(`Mail: ${r.error}`);
+  }
+  if (s.whatsapp_enabled) {
+    const r = await sendWhatsApp(s.whatsapp_numbers ?? [], digest.text);
+    results.whatsapp = r.ok;
+    if (!r.ok && r.error) errors.push(`WhatsApp: ${r.error}`);
+  }
 
   const anySent = Object.values(results).some(Boolean);
   return NextResponse.json({
     ok: anySent,
     results,
-    error: anySent
-      ? undefined
-      : "Nie wysłano. Sprawdź RESEND_API_KEY + NOTIFY_FROM_EMAIL (mail) lub dane WhatsApp na Vercelu.",
+    error: anySent ? undefined : errors.join(" · ") || "Nie wysłano.",
   });
 }
