@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/lib/types";
 
 import { ConnectedToast } from "./connected-toast";
+import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
 
 // Always render fresh so the account selection reflects the latest save.
@@ -489,9 +490,12 @@ export default async function SettingsPage({
                 </label>
               </div>
 
-              <Button type="submit" size="sm" className="w-fit">
-                Zapisz powiadomienia
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" className="w-fit">
+                  Zapisz powiadomienia
+                </Button>
+                <TestAlertButton clientSlug={params.clientSlug} />
+              </div>
             </form>
           </CardContent>
         </Card>
