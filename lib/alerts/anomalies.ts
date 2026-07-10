@@ -1,5 +1,6 @@
 import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 import { formatMoneyPLN, formatPercent } from "@/lib/utils";
@@ -52,8 +53,12 @@ const sev = (absPct: number): AnomalySeverity => (absPct >= 0.6 ? "high" : "medi
  * ads_daily / ga4_daily — no extra table needed. Reusable by a future
  * notification cron (e.g. WhatsApp).
  */
-export async function detectAnomalies(clientId: string): Promise<Anomaly[]> {
-  const supabase = createClient();
+export async function detectAnomalies(
+  clientId: string,
+  client?: SupabaseClient
+): Promise<Anomaly[]> {
+  // Accepts an admin client so the notify cron can read past RLS (no session).
+  const supabase = client ?? createClient();
   const todayStr = fmtDate(new Date());
   const today = new Date(`${todayStr}T00:00:00`);
 

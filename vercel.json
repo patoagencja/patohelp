@@ -7,6 +7,7 @@
     { "path": "/api/cron/refresh-demographics", "schedule": "35 */6 * * *" },
     { "path": "/api/cron/refresh-creatives-meta", "schedule": "45 */6 * * *" },
     { "path": "/api/cron/generate-summary", "schedule": "0 5 * * *" },
-    { "path": "/api/cron/evaluate-alerts", "schedule": "0 */6 * * *" }
+    { "path": "/api/cron/evaluate-alerts", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/notify-alerts", "schedule": "0 */2 * * *" }
   ]
 }

@@ -125,6 +125,42 @@ async function saveAccounts(formData: FormData) {
   redirect(`/${clientSlug}/settings?saved=${provider}`);
 }
 
+// Server Action: save alert-notification settings (agency only).
+async function saveNotificationSettings(formData: FormData) {
+  "use server";
+  const clientSlug = String(formData.get("client"));
+  const access = await requireAgencyClientAccess(clientSlug);
+  if (!access.ok) return;
+
+  const parseList = (v: FormDataEntryValue | null) =>
+    String(v ?? "")
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const clamp = (n: number) => Math.min(23, Math.max(0, Math.round(n)));
+
+  const admin = createAdminClient();
+  await admin.from("notification_settings").upsert(
+    {
+      client_id: access.clientId,
+      email_enabled: formData.get("email_enabled") === "on",
+      emails: parseList(formData.get("emails")),
+      whatsapp_enabled: formData.get("whatsapp_enabled") === "on",
+      whatsapp_numbers: parseList(formData.get("whatsapp_numbers")),
+      hour_start: clamp(Number(formData.get("hour_start") ?? 8)),
+      hour_end: clamp(Number(formData.get("hour_end") ?? 20)),
+      min_severity:
+        String(formData.get("min_severity")) === "medium" ? "medium" : "high",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "client_id" }
+  );
+
+  revalidatePath(`/${clientSlug}/settings`);
+  redirect(`/${clientSlug}/settings?saved=notifications`);
+}
+
 export default async function SettingsPage({
   params,
   searchParams,
@@ -142,6 +178,15 @@ export default async function SettingsPage({
     .from("integrations")
     .select("provider, account_ids")
     .eq("client_id", access.clientId);
+
+  // Notification settings live behind RLS with no policy — read via admin.
+  const { data: notif } = await createAdminClient()
+    .from("notification_settings")
+    .select(
+      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity"
+    )
+    .eq("client_id", access.clientId)
+    .maybeSingle();
 
   const byProvider = new Map(
     (integrations ?? []).map((row) => [row.provider as string, row])
@@ -349,6 +394,107 @@ export default async function SettingsPage({
             </Card>
           );
         })()}
+      </div>
+
+      {/* Alert notifications */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold">Powiadomienia o alertach</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Wysyłamy alerty (anomalie + „nie dowozi") na wskazane kanały, tylko w
+          wybranych godzinach. Jeden alert = maks. raz dziennie.
+        </p>
+
+        <Card className="mt-4 max-w-2xl">
+          <CardContent className="pt-6">
+            <form action={saveNotificationSettings} className="flex flex-col gap-5">
+              <input type="hidden" name="client" value={params.clientSlug} />
+
+              {/* Email */}
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    name="email_enabled"
+                    defaultChecked={notif?.email_enabled ?? false}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  E-mail
+                </label>
+                <textarea
+                  name="emails"
+                  rows={2}
+                  placeholder="adresy oddzielone przecinkiem lub nową linią"
+                  defaultValue={(notif?.emails ?? []).join(", ")}
+                  className="rounded-md border border-input bg-background p-2 text-sm"
+                />
+              </div>
+
+              {/* WhatsApp */}
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    name="whatsapp_enabled"
+                    defaultChecked={notif?.whatsapp_enabled ?? false}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  WhatsApp
+                </label>
+                <textarea
+                  name="whatsapp_numbers"
+                  rows={2}
+                  placeholder="numery z kierunkowym, np. +48600100200"
+                  defaultValue={(notif?.whatsapp_numbers ?? []).join(", ")}
+                  className="rounded-md border border-input bg-background p-2 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wymaga skonfigurowania WhatsApp Business API (token + numer).
+                </p>
+              </div>
+
+              {/* Window + severity */}
+              <div className="grid grid-cols-3 gap-3">
+                <label className="flex flex-col gap-1 text-xs">
+                  <span className="text-muted-foreground">Od godziny</span>
+                  <input
+                    type="number"
+                    name="hour_start"
+                    min="0"
+                    max="23"
+                    defaultValue={notif?.hour_start ?? 8}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  <span className="text-muted-foreground">Do godziny</span>
+                  <input
+                    type="number"
+                    name="hour_end"
+                    min="0"
+                    max="23"
+                    defaultValue={notif?.hour_end ?? 20}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs">
+                  <span className="text-muted-foreground">Próg</span>
+                  <select
+                    name="min_severity"
+                    defaultValue={notif?.min_severity ?? "high"}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="high">Tylko wysoki</option>
+                    <option value="medium">Wysoki + średni</option>
+                  </select>
+                </label>
+              </div>
+
+              <Button type="submit" size="sm" className="w-fit">
+                Zapisz powiadomienia
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
