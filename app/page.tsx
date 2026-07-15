@@ -5,7 +5,7 @@ import { isAgencyUser, type UserRole } from "@/lib/types";
 
 // Landing route. Sends the visitor to the right place:
 //   * not logged in            -> /login
-//   * agency user (admin/member) -> /dre (MVP's only client)
+//   * agency user (admin/member) -> /clients (pick a client)
 //   * client user              -> /<their client slug>
 export default async function HomePage() {
   const supabase = createClient();
@@ -28,7 +28,7 @@ export default async function HomePage() {
   }
 
   if (isAgencyUser(profile.role as UserRole)) {
-    redirect("/dre");
+    redirect("/clients");
   }
 
   if (profile.client_id) {

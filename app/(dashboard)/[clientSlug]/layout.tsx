@@ -4,11 +4,13 @@ import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { clientLogo } from "@/components/dashboard/client-logo";
+import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getLastSyncLabel } from "@/lib/dashboard/overview";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 
@@ -45,6 +47,14 @@ export default async function ClientDashboardLayout({
 
   const lastSync = client ? await getLastSyncLabel(client.id) : null;
 
+  // Agency users get a client switcher in the sidebar.
+  const { data: allClients } = isAgency
+    ? await createAdminClient()
+        .from("clients")
+        .select("slug, name")
+        .order("name", { ascending: true })
+    : { data: null };
+
   return (
     <div className="flex min-h-screen bg-muted/20">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden">
@@ -64,6 +74,11 @@ export default async function ClientDashboardLayout({
             );
           })()}
         </div>
+        {isAgency && allClients && allClients.length > 1 ? (
+          <div className="border-b border-border p-3">
+            <ClientSwitcher clients={allClients} current={params.clientSlug} />
+          </div>
+        ) : null}
         <DashboardSidebar
           clientSlug={params.clientSlug}
           isAgency={isAgency}

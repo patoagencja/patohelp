@@ -7,6 +7,7 @@ import {
   FileText,
   Globe,
   LayoutDashboard,
+  LayoutGrid,
   Megaphone,
   Settings,
   Sparkles,
@@ -32,7 +33,10 @@ export function DashboardSidebar({
     { href: `${base}/raport`, label: "Raport", icon: FileText },
     { href: `${base}/asystent`, label: "Asystent AI", icon: Sparkles },
     ...(isAgency
-      ? [{ href: `${base}/settings`, label: "Ustawienia", icon: Settings }]
+      ? [
+          { href: `${base}/settings`, label: "Ustawienia", icon: Settings },
+          { href: `/clients`, label: "Wszyscy klienci", icon: LayoutGrid },
+        ]
       : []),
   ];
 
