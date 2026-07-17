@@ -36,9 +36,15 @@ async function addClient(formData: FormData) {
   if (!profile || (profile.role as UserRole) !== "admin") return;
 
   const name = String(formData.get("name") ?? "").trim();
+  // Tolerate pasting a URL: strip protocol/www/path and the domain suffix so
+  // "https://www.olx.pl" becomes "olx", not "https-www-olx-pl".
   const slug = String(formData.get("slug") ?? "")
     .trim()
     .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .split(".")[0]
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (!name || !slug) return;
