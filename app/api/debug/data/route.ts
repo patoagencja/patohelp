@@ -59,6 +59,26 @@ export async function GET(request: Request) {
     getDashboardData(access.clientId, "90d"),
   ]);
 
+  // Last sync per provider (status + error) — tells us if a provider pull
+  // failed even though the cron returned 200.
+  const { data: syncRows } = await admin
+    .from("sync_runs")
+    .select("provider, status, error_message, started_at")
+    .eq("client_id", access.clientId)
+    .order("started_at", { ascending: false })
+    .limit(20);
+  const lastSyncs: Record<string, unknown> = {};
+  for (const r of syncRows ?? []) {
+    const p = r.provider as string;
+    if (!lastSyncs[p]) {
+      lastSyncs[p] = {
+        status: r.status,
+        error: r.error_message,
+        at: r.started_at,
+      };
+    }
+  }
+
   // GA4 diagnostics: is it connected, is a property picked, is there any data,
   // and what did the last few GA4 syncs do?
   const { data: ga4Integration } = await admin
@@ -130,5 +150,6 @@ export async function GET(request: Request) {
       "90d": d90.trend.length,
     },
     ga4,
+    lastSyncs,
   });
 }
