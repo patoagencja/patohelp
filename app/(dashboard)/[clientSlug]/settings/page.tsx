@@ -29,8 +29,8 @@ interface Account {
 }
 
 const PROVIDERS: Array<{
-  key: Extract<IntegrationProvider, "meta_ads" | "google_ads">;
-  routeSlug: "meta" | "google-ads";
+  key: Extract<IntegrationProvider, "meta_ads" | "google_ads" | "tiktok_ads">;
+  routeSlug: "meta" | "google-ads" | "tiktok";
   label: string;
   description: string;
 }> = [
@@ -45,6 +45,12 @@ const PROVIDERS: Array<{
     routeSlug: "google-ads",
     label: "Google Ads",
     description: "Kampanie z wyszukiwarki i sieci Google.",
+  },
+  {
+    key: "tiktok_ads",
+    routeSlug: "tiktok",
+    label: "TikTok Ads",
+    description: "Kampanie i statystyki z TikTok Ads.",
   },
 ];
 
@@ -110,7 +116,12 @@ async function saveAccounts(formData: FormData) {
   const base = process.env.NEXT_PUBLIC_APP_URL;
   const secret = process.env.CRON_SECRET;
   if (base && secret) {
-    const job = provider === "meta_ads" ? "refresh-ads-meta" : "refresh-ads-google";
+    const job =
+      provider === "meta_ads"
+        ? "refresh-ads-meta"
+        : provider === "tiktok_ads"
+          ? "refresh-ads-tiktok"
+          : "refresh-ads-google";
     try {
       await fetch(`${base}/api/cron/${job}`, {
         headers: { Authorization: `Bearer ${secret}` },

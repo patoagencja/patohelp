@@ -20,6 +20,7 @@ import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
+import { AD_PROVIDER_HEX, AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import {
   formatDateWarsaw,
   formatMoneyPLN,
@@ -90,12 +91,18 @@ export default async function RaportPage({
   const foot = `${client.name} · ${periodLabel}`;
 
   // Per-platform aggregates from the campaign list.
-  const platform = { meta: { spend: 0, clicks: 0 }, google: { spend: 0, clicks: 0 } };
+  const platform: Record<AdProvider, { spend: number; clicks: number }> = {
+    meta_ads: { spend: 0, clicks: 0 },
+    google_ads: { spend: 0, clicks: 0 },
+    tiktok_ads: { spend: 0, clicks: 0 },
+  };
   for (const c of data.campaigns) {
-    const p = c.provider === "meta_ads" ? platform.meta : platform.google;
-    p.spend += c.spendMinorUnits;
-    p.clicks += c.clicks;
+    platform[c.provider].spend += c.spendMinorUnits;
+    platform[c.provider].clicks += c.clicks;
   }
+  const activePlatforms = (Object.keys(platform) as AdProvider[]).filter(
+    (p) => platform[p].spend > 0
+  );
 
   const topCampaigns = [...data.campaigns]
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits)
@@ -204,10 +211,10 @@ export default async function RaportPage({
           </div>
         </ContentSlide>
 
-        {/* Meta vs Google */}
+        {/* Platform split */}
         <ContentSlide
-          title="Meta vs Google"
-          subtitle="Podział wydatków i kliknięcia wg platformy"
+          title="Podział wg platform"
+          subtitle="Wydatki i kliknięcia: Meta / Google / TikTok"
           section="Dane mediowe"
           foot={foot}
         >
@@ -220,42 +227,26 @@ export default async function RaportPage({
                 <Donut
                   centerLabel="wydatki"
                   centerValue={compactPln(
-                    platform.meta.spend + platform.google.spend
+                    activePlatforms.reduce((s, p) => s + platform[p].spend, 0)
                   )}
-                  items={[
-                    {
-                      label: "Meta",
-                      value: platform.meta.spend,
-                      display: formatMoneyPLN(platform.meta.spend),
-                      color: DECK_COLORS[0],
-                    },
-                    {
-                      label: "Google",
-                      value: platform.google.spend,
-                      display: formatMoneyPLN(platform.google.spend),
-                      color: DECK_COLORS[1],
-                    },
-                  ]}
+                  items={activePlatforms.map((p) => ({
+                    label: AD_PROVIDER_LABEL[p],
+                    value: platform[p].spend,
+                    display: formatMoneyPLN(platform[p].spend),
+                    color: AD_PROVIDER_HEX[p],
+                  }))}
                 />
               </div>
             </div>
             <div>
               <p className="mb-3 text-sm font-medium text-slate-500">Kliknięcia</p>
               <BarList
-                items={[
-                  {
-                    label: "Meta",
-                    value: platform.meta.clicks,
-                    display: formatNumberPL(platform.meta.clicks),
-                    color: DECK_COLORS[0],
-                  },
-                  {
-                    label: "Google",
-                    value: platform.google.clicks,
-                    display: formatNumberPL(platform.google.clicks),
-                    color: DECK_COLORS[1],
-                  },
-                ]}
+                items={activePlatforms.map((p) => ({
+                  label: AD_PROVIDER_LABEL[p],
+                  value: platform[p].clicks,
+                  display: formatNumberPL(platform[p].clicks),
+                  color: AD_PROVIDER_HEX[p],
+                }))}
               />
             </div>
           </div>
@@ -286,7 +277,7 @@ export default async function RaportPage({
                     className="border-b border-slate-100 last:border-0"
                   >
                     <td className="py-2 pr-3 text-slate-500">
-                      {c.provider === "meta_ads" ? "Meta" : "Google"}
+                      {AD_PROVIDER_LABEL[c.provider]}
                     </td>
                     <td className="max-w-[22rem] truncate py-2 pr-3" title={c.name}>
                       {c.name}

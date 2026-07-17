@@ -5,12 +5,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 
-// Provider slug matches the route folder: "meta" | "google-ads".
+// Provider slug matches the route folder: "meta" | "google-ads" | "tiktok".
 export function TestConnectionButton({
   provider,
   clientSlug,
 }: {
-  provider: "meta" | "google-ads" | "ga4";
+  provider: "meta" | "google-ads" | "ga4" | "tiktok";
   clientSlug: string;
 }) {
   const [loading, setLoading] = useState(false);

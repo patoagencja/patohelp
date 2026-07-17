@@ -11,6 +11,7 @@ import { formatInTimeZone } from "date-fns-tz";
 
 import { RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
 import { createClient } from "@/lib/supabase/server";
+import type { AdProvider } from "@/lib/types";
 
 export { RANGE_KEYS, RANGE_LABELS, normalizeRange } from "@/lib/dashboard/ranges";
 export type { RangeKey } from "@/lib/dashboard/ranges";
@@ -93,7 +94,7 @@ export type CampaignStatus = "active" | "attention" | "critical" | "off";
 
 export interface CampaignRow {
   campaignId: string;
-  provider: "meta_ads" | "google_ads";
+  provider: AdProvider;
   name: string;
   spendMinorUnits: number;
   clicks: number;
@@ -115,6 +116,7 @@ export interface CostTrendPoint {
 export interface PlatformSplit {
   metaSpendMinorUnits: number;
   googleSpendMinorUnits: number;
+  tiktokSpendMinorUnits: number;
 }
 
 export interface DashboardData {
@@ -130,7 +132,7 @@ export interface DashboardData {
 }
 
 interface AdsRow {
-  provider: "meta_ads" | "google_ads";
+  provider: AdProvider;
   campaign_id: string;
   campaign_name: string | null;
   date: string;
@@ -308,10 +310,13 @@ export async function getDashboardData(
   // --- Platform split ---
   let metaSpend = 0;
   let googleSpend = 0;
+  let tiktokSpend = 0;
   for (const row of rows) {
     if (!inRange(row.date)) continue;
-    if (row.provider === "meta_ads") metaSpend += Number(row.spend_minor_units);
-    else googleSpend += Number(row.spend_minor_units);
+    const spend = Number(row.spend_minor_units);
+    if (row.provider === "meta_ads") metaSpend += spend;
+    else if (row.provider === "tiktok_ads") tiktokSpend += spend;
+    else googleSpend += spend;
   }
 
   // --- Campaigns with health status ---
@@ -322,7 +327,7 @@ export async function getDashboardData(
 
   interface CampAgg {
     campaignId: string;
-    provider: "meta_ads" | "google_ads";
+    provider: AdProvider;
     name: string;
     spend: number;
     clicks: number;
@@ -446,6 +451,7 @@ export async function getDashboardData(
     platformSplit: {
       metaSpendMinorUnits: metaSpend,
       googleSpendMinorUnits: googleSpend,
+      tiktokSpendMinorUnits: tiktokSpend,
     },
     rangeKey,
     rangeLabel: RANGE_LABELS[rangeKey],

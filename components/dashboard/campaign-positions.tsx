@@ -6,6 +6,7 @@ import {
   type PositionFilter,
 } from "@/components/dashboard/positions-filter";
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
+import { AD_PROVIDER_SHORT } from "@/lib/types";
 import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
 
 // Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart -
@@ -108,7 +109,7 @@ function Position({
             title={c.statusReason ?? undefined}
           />
           <span className="font-mono text-[11px] font-semibold text-muted-foreground">
-            {c.provider === "meta_ads" ? "META" : "GOOG"}
+            {AD_PROVIDER_SHORT[c.provider]}
           </span>
           <span className="truncate text-sm" title={c.name}>
             {c.name}

@@ -12,6 +12,9 @@ export interface MetaCredentials {
 export interface GoogleAdsCredentials {
   refresh_token: string;
 }
+export interface TikTokCredentials {
+  access_token: string;
+}
 
 export interface LoadedIntegration<T> {
   credentials: T;

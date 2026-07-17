@@ -35,6 +35,7 @@ export async function POST(request: Request) {
   const jobs = [
     "refresh-ads-meta",
     "refresh-ads-google",
+    "refresh-ads-tiktok",
     "refresh-ga4",
     "refresh-demographics",
   ];

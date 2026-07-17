@@ -1,6 +1,7 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 
 import type { CampaignRow } from "@/lib/dashboard/metrics";
+import { AD_PROVIDER_SHORT } from "@/lib/types";
 import { cn, formatMoneyPLN } from "@/lib/utils";
 
 // Recent-vs-earlier spend delta from the 7-day spark, so each campaign gets a
@@ -20,7 +21,7 @@ function TickerItem({ c }: { c: CampaignRow }) {
   return (
     <span className="inline-flex items-center gap-2 px-5 text-sm">
       <span className="font-semibold uppercase tracking-wide text-muted-foreground">
-        {c.provider === "meta_ads" ? "META" : "GOOG"}
+        {AD_PROVIDER_SHORT[c.provider]}
       </span>
       <span className="max-w-[14rem] truncate text-foreground">{c.name}</span>
       <span className="tabular-nums font-medium text-foreground">

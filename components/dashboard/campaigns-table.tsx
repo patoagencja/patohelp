@@ -20,6 +20,7 @@ const PROVIDER_META: Record<
 > = {
   meta_ads: { label: "Meta", className: "bg-blue-50 text-blue-700" },
   google_ads: { label: "Google", className: "bg-amber-50 text-amber-700" },
+  tiktok_ads: { label: "TikTok", className: "bg-rose-50 text-rose-700" },
 };
 
 type SortKey =
