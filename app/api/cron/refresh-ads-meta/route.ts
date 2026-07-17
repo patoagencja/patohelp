@@ -24,6 +24,17 @@ interface MetaAccount {
   selected?: boolean;
 }
 
+/** Inclusive list of yyyy-MM-dd between two dates. */
+function eachDay(since: string, until: string): string[] {
+  const days: string[] = [];
+  const start = new Date(`${since}T00:00:00Z`);
+  const end = new Date(`${until}T00:00:00Z`);
+  for (let d = start; d <= end; d = new Date(d.getTime() + 86_400_000)) {
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
 export async function GET(request: Request) {
   if (
     request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
@@ -36,10 +47,16 @@ export async function GET(request: Request) {
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
   const since = formatInTimeZone(subDays(now, 1), WARSAW_TZ, "yyyy-MM-dd");
 
-  const { data: integrations } = await admin
+  // Optional ?client=<id> scopes the run to a single client (used by on-demand
+  // refresh) so large accounts don't time out competing with other clients.
+  const onlyClient = new URL(request.url).searchParams.get("client");
+
+  let q = admin
     .from("integrations")
     .select("client_id, credentials_encrypted, account_ids")
     .eq("provider", "meta_ads");
+  if (onlyClient) q = q.eq("client_id", onlyClient);
+  const { data: integrations } = await q;
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
@@ -88,20 +105,22 @@ export async function GET(request: Request) {
         (integration.account_ids ?? []) as MetaAccount[]
       ).filter((a) => a.selected === true);
 
-      const rows: Record<string, unknown>[] = [];
       const accountErrors: string[] = [];
 
       // Isolate each ad account so one disabled/error account doesn't sink all.
       for (const account of accounts) {
         try {
-          const insights = await getCampaignInsights(
-            access_token,
-            account.id,
-            effectiveSince,
-            until
-          );
-          for (const insight of insights) {
-            rows.push({
+          // Fetch AND upsert one day at a time, so progress persists even if the
+          // function is killed mid-backfill on a huge account (1000s of campaigns).
+          for (const day of eachDay(effectiveSince, until)) {
+            const insights = await getCampaignInsights(
+              access_token,
+              account.id,
+              day,
+              day
+            );
+            if (!insights.length) continue;
+            const dayRows = insights.map((insight) => ({
               client_id: integration.client_id,
               provider: "meta_ads",
               campaign_id: insight.campaign_id,
@@ -117,12 +136,15 @@ export async function GET(request: Request) {
                   : null,
               reach: insight.reach != null ? parseInt(insight.reach, 10) : null,
               frequency:
-                insight.frequency != null
-                  ? parseFloat(insight.frequency)
-                  : null,
+                insight.frequency != null ? parseFloat(insight.frequency) : null,
               conversions: extractConversions(insight.actions),
               raw_data: insight as unknown as Record<string, unknown>,
-            });
+            }));
+            const { error } = await admin
+              .from("ads_daily")
+              .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
+            if (error) throw new Error(error.message);
+            campaignsUpserted += dayRows.length;
           }
         } catch (accErr) {
           accountsFailed += 1;
@@ -132,14 +154,6 @@ export async function GET(request: Request) {
             describeError(accErr)
           );
         }
-      }
-
-      if (rows.length) {
-        const { error } = await admin
-          .from("ads_daily")
-          .upsert(rows, { onConflict: "client_id,provider,campaign_id,date" });
-        if (error) throw new Error(error.message);
-        campaignsUpserted += rows.length;
       }
 
       await admin

@@ -41,10 +41,13 @@ export async function GET(request: Request) {
   const since = formatInTimeZone(subDays(now, 1), WARSAW_TZ, "yyyy-MM-dd");
   const range: DateRange = { startDate: since, endDate: until };
 
-  const { data: integrations } = await admin
+  const onlyClient = new URL(request.url).searchParams.get("client");
+  let gq = admin
     .from("integrations")
     .select("client_id, credentials_encrypted, account_ids")
     .eq("provider", "ga4");
+  if (onlyClient) gq = gq.eq("client_id", onlyClient);
+  const { data: integrations } = await gq;
 
   let processed = 0;
   let rowsUpserted = 0;

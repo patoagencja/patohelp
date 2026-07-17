@@ -40,10 +40,13 @@ export async function POST(request: Request) {
     "refresh-demographics",
   ];
 
+  // Scope the sync to just this client so large accounts don't compete with
+  // other clients in one function invocation (avoids timeouts).
+  const clientParam = `?client=${access.clientId}`;
   const results = await Promise.allSettled(
     jobs.map((job) =>
-      fetch(`${base}/api/cron/${job}`, { headers, cache: "no-store" }).then((r) =>
-        r.json().catch(() => ({ ok: r.ok }))
+      fetch(`${base}/api/cron/${job}${clientParam}`, { headers, cache: "no-store" }).then(
+        (r) => r.json().catch(() => ({ ok: r.ok }))
       )
     )
   );

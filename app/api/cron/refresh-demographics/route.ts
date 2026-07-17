@@ -41,17 +41,18 @@ export async function GET(request: Request) {
 
   let processed = 0;
 
+  const onlyClient = new URL(request.url).searchParams.get("client");
+  const scoped = (provider: string) => {
+    let q = admin
+      .from("integrations")
+      .select("client_id, credentials_encrypted, account_ids")
+      .eq("provider", provider);
+    if (onlyClient) q = q.eq("client_id", onlyClient);
+    return q;
+  };
+
   // Collect rows per client, then replace that client's snapshot atomically.
-  const [ga4Res, metaRes] = await Promise.all([
-    admin
-      .from("integrations")
-      .select("client_id, credentials_encrypted, account_ids")
-      .eq("provider", "ga4"),
-    admin
-      .from("integrations")
-      .select("client_id, credentials_encrypted, account_ids")
-      .eq("provider", "meta_ads"),
-  ]);
+  const [ga4Res, metaRes] = await Promise.all([scoped("ga4"), scoped("meta_ads")]);
 
   const clientIds = new Set<string>();
   const rowsByClient = new Map<string, Record<string, unknown>[]>();

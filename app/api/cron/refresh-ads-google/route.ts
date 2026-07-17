@@ -34,10 +34,13 @@ export async function GET(request: Request) {
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
   const since = formatInTimeZone(subDays(now, 1), WARSAW_TZ, "yyyy-MM-dd");
 
-  const { data: integrations } = await admin
+  const onlyClient = new URL(request.url).searchParams.get("client");
+  let q = admin
     .from("integrations")
     .select("client_id, credentials_encrypted, account_ids")
     .eq("provider", "google_ads");
+  if (onlyClient) q = q.eq("client_id", onlyClient);
+  const { data: integrations } = await q;
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
