@@ -67,9 +67,7 @@ export default async function AdsPage({
 
       <CampaignPositions
         campaigns={data.campaigns}
-        clientSlug={params.clientSlug}
-        range={range}
-        filter={
+        initialFilter={
           searchParams.camp === "active" || searchParams.camp === "attention"
             ? searchParams.camp
             : "all"

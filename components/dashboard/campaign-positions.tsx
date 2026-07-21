@@ -1,13 +1,20 @@
+"use client";
+
+import { useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Card, Title } from "@tremor/react";
 
-import {
-  PositionsFilter,
-  type PositionFilter,
-} from "@/components/dashboard/positions-filter";
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { AD_PROVIDER_SHORT } from "@/lib/types";
 import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
+
+type PositionFilter = "all" | "active" | "attention";
+
+const FILTERS: Array<{ key: PositionFilter; label: string }> = [
+  { key: "all", label: "Wszystkie" },
+  { key: "active", label: "Otwarte" },
+  { key: "attention", label: "Wymagają uwagi" },
+];
 
 // Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart -
 // rendering dozens of Recharts instances in an interactive table blocks clicks
@@ -188,15 +195,15 @@ function Position({
  */
 export function CampaignPositions({
   campaigns,
-  filter = "all",
-  clientSlug,
-  range,
+  initialFilter = "all",
 }: {
   campaigns: CampaignRow[];
-  filter?: PositionFilter;
-  clientSlug: string;
-  range: string;
+  initialFilter?: PositionFilter;
 }) {
+  // Client-side filtering: instant, no navigation, immune to stale-chunk errors
+  // after a fresh deploy (which broke the previous URL-param approach).
+  const [filter, setFilter] = useState<PositionFilter>(initialFilter);
+
   const base =
     filter === "active"
       ? campaigns.filter((c) => c.status !== "off")
@@ -258,7 +265,23 @@ export function CampaignPositions({
           </span>
         </div>
 
-        <PositionsFilter value={filter} clientSlug={clientSlug} range={range} />
+        <div className="flex rounded-lg bg-muted p-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setFilter(f.key)}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                filter === f.key
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
