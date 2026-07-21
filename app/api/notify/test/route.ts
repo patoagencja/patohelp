@@ -4,7 +4,13 @@ import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
-import { buildDigest, sendEmail, sendWhatsApp, type AlertItem } from "@/lib/notify/send";
+import {
+  buildDigest,
+  sendEmail,
+  sendTelegram,
+  sendWhatsApp,
+  type AlertItem,
+} from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // On-demand test notification (agency only). Sends the current alerts (or a
@@ -29,14 +35,14 @@ export async function POST(request: Request) {
   const { data: s } = await admin
     .from("notification_settings")
     .select(
-      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
+      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, telegram_enabled, telegram_chat_ids, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     )
     .eq("client_id", access.clientId)
     .maybeSingle();
 
-  if (!s || (!s.email_enabled && !s.whatsapp_enabled)) {
+  if (!s || (!s.email_enabled && !s.whatsapp_enabled && !s.telegram_enabled)) {
     return NextResponse.json(
-      { ok: false, error: "Włącz i zapisz kanał (e-mail/WhatsApp) przed testem." },
+      { ok: false, error: "Włącz i zapisz kanał (e-mail/WhatsApp/Telegram) przed testem." },
       { status: 400 }
     );
   }
@@ -109,6 +115,11 @@ export async function POST(request: Request) {
     const r = await sendWhatsApp(s.whatsapp_numbers ?? [], digest.text);
     results.whatsapp = r.ok;
     if (!r.ok && r.error) errors.push(`WhatsApp: ${r.error}`);
+  }
+  if (s.telegram_enabled) {
+    const r = await sendTelegram(s.telegram_chat_ids ?? [], digest.text);
+    results.telegram = r.ok;
+    if (!r.ok && r.error) errors.push(`Telegram: ${r.error}`);
   }
 
   const anySent = Object.values(results).some(Boolean);

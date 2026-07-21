@@ -168,6 +168,8 @@ async function saveNotificationSettings(formData: FormData) {
       emails: parseList(formData.get("emails")),
       whatsapp_enabled: formData.get("whatsapp_enabled") === "on",
       whatsapp_numbers: parseList(formData.get("whatsapp_numbers")),
+      telegram_enabled: formData.get("telegram_enabled") === "on",
+      telegram_chat_ids: parseList(formData.get("telegram_chat_ids")),
       hour_start: clamp(Number(formData.get("hour_start") ?? 8)),
       hour_end: clamp(Number(formData.get("hour_end") ?? 20)),
       min_severity:
@@ -208,7 +210,7 @@ export default async function SettingsPage({
   const { data: notif } = await createAdminClient()
     .from("notification_settings")
     .select(
-      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
+      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, telegram_enabled, telegram_chat_ids, hour_start, hour_end, min_severity, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     )
     .eq("client_id", access.clientId)
     .maybeSingle();
@@ -474,6 +476,32 @@ export default async function SettingsPage({
                 />
                 <p className="text-xs text-muted-foreground">
                   Wymaga skonfigurowania WhatsApp Business API (token + numer).
+                </p>
+              </div>
+
+              {/* Telegram */}
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    name="telegram_enabled"
+                    defaultChecked={notif?.telegram_enabled ?? false}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  Telegram
+                </label>
+                <textarea
+                  name="telegram_chat_ids"
+                  rows={2}
+                  placeholder="chat ID, np. 123456789 lub -1001234567890 (grupa)"
+                  defaultValue={(notif?.telegram_chat_ids ?? []).join(", ")}
+                  className="rounded-md border border-input bg-background p-2 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Napisz do bota{" "}
+                  <code className="rounded bg-muted px-1">/start</code>, potem
+                  pobierz chat ID (np. przez @userinfobot). Wymaga
+                  TELEGRAM_BOT_TOKEN na serwerze.
                 </p>
               </div>
 

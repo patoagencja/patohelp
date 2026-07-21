@@ -4,7 +4,13 @@ import { NextResponse } from "next/server";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
-import { buildDigest, sendEmail, sendWhatsApp, type AlertItem } from "@/lib/notify/send";
+import {
+  buildDigest,
+  sendEmail,
+  sendTelegram,
+  sendWhatsApp,
+  type AlertItem,
+} from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: detect anomalies + pacing shortfalls and notify each client's
@@ -21,6 +27,8 @@ interface Settings {
   emails: string[];
   whatsapp_enabled: boolean;
   whatsapp_numbers: string[];
+  telegram_enabled: boolean;
+  telegram_chat_ids: string[];
   hour_start: number;
   hour_end: number;
   min_severity: string;
@@ -44,13 +52,13 @@ export async function GET(request: Request) {
   const { data: settingsRows } = await admin
     .from("notification_settings")
     .select(
-      "client_id, email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
+      "client_id, email_enabled, emails, whatsapp_enabled, whatsapp_numbers, telegram_enabled, telegram_chat_ids, hour_start, hour_end, min_severity, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     );
 
   let notified = 0;
 
   for (const s of (settingsRows ?? []) as Settings[]) {
-    if (!s.email_enabled && !s.whatsapp_enabled) continue;
+    if (!s.email_enabled && !s.whatsapp_enabled && !s.telegram_enabled) continue;
 
     // Critical budget spikes ignore quiet hours; everything else waits for the
     // allowed window. We still evaluate budget spikes every run so an overspend
@@ -133,6 +141,8 @@ export async function GET(request: Request) {
     if (s.email_enabled) await sendEmail(s.emails ?? [], subject, digest.html);
     if (s.whatsapp_enabled)
       await sendWhatsApp(s.whatsapp_numbers ?? [], digest.text);
+    if (s.telegram_enabled)
+      await sendTelegram(s.telegram_chat_ids ?? [], digest.text);
 
     notified += 1;
   }

@@ -128,3 +128,53 @@ export async function sendWhatsApp(
   }
   return { ok: anyOk, error: anyOk ? undefined : "Wysyłka WhatsApp nie powiodła się" };
 }
+
+/**
+ * Send a Telegram message via the Bot API. Needs TELEGRAM_BOT_TOKEN and at least
+ * one chat id (personal chat or a group the bot was added to). Free, instant,
+ * and works proactively with no template/verification - ideal for urgent
+ * budget-spike alerts.
+ */
+export async function sendTelegram(
+  chatIds: string[],
+  text: string
+): Promise<SendResult> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token)
+    return { ok: false, error: "Brak TELEGRAM_BOT_TOKEN (dodaj na Vercelu + redeploy)" };
+  if (chatIds.length === 0)
+    return { ok: false, error: "Brak chat ID w panelu" };
+
+  let anyOk = false;
+  const errors: string[] = [];
+  for (const chatId of chatIds) {
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${token}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId.trim(),
+            text,
+            disable_web_page_preview: true,
+          }),
+          cache: "no-store",
+        }
+      );
+      if (res.ok) anyOk = true;
+      else {
+        const body = await res.text().catch(() => "");
+        errors.push(`${chatId}: ${res.status} ${body.slice(0, 120)}`);
+        console.error("[notify] telegram failed", chatId, res.status, body);
+      }
+    } catch (err) {
+      errors.push(`${chatId}: ${String(err)}`);
+      console.error("[notify] telegram error", chatId, err);
+    }
+  }
+  return {
+    ok: anyOk,
+    error: anyOk ? undefined : errors.join(" · ") || "Wysyłka Telegram nie powiodła się",
+  };
+}
