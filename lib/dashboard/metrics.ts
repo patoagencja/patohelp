@@ -9,12 +9,21 @@ import {
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
-import { RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
+import {
+  RANGE_LABELS,
+  type CustomRange,
+  type RangeKey,
+} from "@/lib/dashboard/ranges";
 import { createClient } from "@/lib/supabase/server";
 import type { AdProvider } from "@/lib/types";
 
-export { RANGE_KEYS, RANGE_LABELS, normalizeRange } from "@/lib/dashboard/ranges";
-export type { RangeKey } from "@/lib/dashboard/ranges";
+export {
+  RANGE_KEYS,
+  RANGE_LABELS,
+  normalizeRange,
+  parseCustomRange,
+} from "@/lib/dashboard/ranges";
+export type { CustomRange, RangeKey } from "@/lib/dashboard/ranges";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
@@ -164,13 +173,32 @@ function cpcOf(spend: number, clicks: number): number {
  */
 export async function getDashboardData(
   clientId: string,
-  rangeKey: RangeKey = "30d"
+  rangeKey: RangeKey = "30d",
+  custom?: CustomRange | null
 ): Promise<DashboardData> {
   const supabase = createClient();
 
   const todayStr = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
   const today = new Date(`${todayStr}T00:00:00`);
-  const range = resolveRange(rangeKey, today);
+  // A custom from/to overrides the preset; its baseline is the same-length
+  // period immediately before it (for the vs-previous deltas).
+  let range: ResolvedRange;
+  let label = RANGE_LABELS[rangeKey];
+  if (custom) {
+    const start = new Date(`${custom.start}T00:00:00`);
+    const end = new Date(`${custom.end}T00:00:00`);
+    const len = differenceInCalendarDays(end, start) + 1;
+    const prevEnd = subDays(start, 1);
+    range = {
+      start: custom.start,
+      end: custom.end,
+      prevStart: fmt(subDays(prevEnd, len - 1)),
+      prevEnd: fmt(prevEnd),
+    };
+    label = `${custom.start} - ${custom.end}`;
+  } else {
+    range = resolveRange(rangeKey, today);
+  }
 
   const [adsRes, ga4Res] = await Promise.all([
     supabase
@@ -454,7 +482,7 @@ export async function getDashboardData(
       tiktokSpendMinorUnits: tiktokSpend,
     },
     rangeKey,
-    rangeLabel: RANGE_LABELS[rangeKey],
+    rangeLabel: label,
     rangeStart: range.start,
     rangeEnd: range.end,
   };

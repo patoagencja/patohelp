@@ -8,7 +8,11 @@ import {
   TopCreatives,
   type CreativeRow,
 } from "@/components/dashboard/top-creatives";
-import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
+import {
+  getDashboardData,
+  normalizeRange,
+  parseCustomRange,
+} from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +42,7 @@ export default async function AdsPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { range?: string; camp?: string };
+  searchParams: { range?: string; camp?: string; from?: string; to?: string };
 }) {
   const supabase = createClient();
 
@@ -53,8 +57,9 @@ export default async function AdsPage({
   }
 
   const range = normalizeRange(searchParams.range);
+  const custom = parseCustomRange(searchParams.from, searchParams.to);
   const [data, creatives] = await Promise.all([
-    getDashboardData(client.id, range),
+    getDashboardData(client.id, range, custom),
     getTopCreatives(client.id),
   ]);
 
@@ -62,7 +67,11 @@ export default async function AdsPage({
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold">Reklamy - {client.name}</h1>
-        <DateRangePicker value={range} />
+        <DateRangePicker
+          value={range}
+          customFrom={custom?.start}
+          customTo={custom?.end}
+        />
       </div>
 
       <CampaignPositions

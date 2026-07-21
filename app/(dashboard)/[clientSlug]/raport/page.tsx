@@ -18,7 +18,11 @@ import { clientLogo } from "@/components/dashboard/client-logo";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
-import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
+import {
+  getDashboardData,
+  normalizeRange,
+  parseCustomRange,
+} from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
 import { AD_PROVIDER_HEX, AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import {
@@ -58,7 +62,7 @@ export default async function RaportPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { range?: string };
+  searchParams: { range?: string; from?: string; to?: string };
 }) {
   const supabase = createClient();
 
@@ -73,8 +77,9 @@ export default async function RaportPage({
   }
 
   const range = normalizeRange(searchParams.range);
+  const custom = parseCustomRange(searchParams.from, searchParams.to);
   const [data, website, demo, creatives] = await Promise.all([
-    getDashboardData(client.id, range),
+    getDashboardData(client.id, range, custom),
     getWebsiteData(client.id),
     getDemographics(client.id),
     supabase
@@ -126,7 +131,11 @@ export default async function RaportPage({
       {/* Controls (not printed) */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <h1 className="text-xl font-semibold">Raport - {client.name}</h1>
-        <DateRangePicker value={range} />
+        <DateRangePicker
+          value={range}
+          customFrom={custom?.start}
+          customTo={custom?.end}
+        />
       </div>
 
       <ReportDeck

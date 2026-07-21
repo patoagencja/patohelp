@@ -7,7 +7,11 @@ import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
-import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
+import {
+  getDashboardData,
+  normalizeRange,
+  parseCustomRange,
+} from "@/lib/dashboard/metrics";
 import {
   getActiveAlerts,
   getBudgetStatus,
@@ -26,7 +30,7 @@ export default async function OverviewPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { range?: string };
+  searchParams: { range?: string; from?: string; to?: string };
 }) {
   const supabase = createClient();
 
@@ -50,7 +54,8 @@ export default async function OverviewPage({
   const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
 
   const range = normalizeRange(searchParams.range);
-  const data = await getDashboardData(client.id, range);
+  const custom = parseCustomRange(searchParams.from, searchParams.to);
+  const data = await getDashboardData(client.id, range, custom);
   const [budget, alerts, summary, events] = await Promise.all([
     getBudgetStatus(client.id),
     getActiveAlerts(client.id),
@@ -67,7 +72,11 @@ export default async function OverviewPage({
             Przegląd kampanii {client.name}
           </p>
         </div>
-        <DateRangePicker value={range} />
+        <DateRangePicker
+          value={range}
+          customFrom={custom?.start}
+          customTo={custom?.end}
+        />
       </div>
 
       <TickerBar campaigns={data.campaigns} />
