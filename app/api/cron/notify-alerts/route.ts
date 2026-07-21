@@ -86,15 +86,25 @@ export async function GET(request: Request) {
 
     const items: AlertItem[] = [];
 
-    // Budget spikes are always critical and always eligible to send.
+    // Single-day blowouts (critical) always fire, even outside the window.
+    // Weekly elevated-spend (high) is a slower signal - respect the window.
     for (const a of spikes) {
-      items.push({
-        key: a.id,
-        title: a.title,
-        detail: a.description,
-        scope: a.scopeLabel,
-        critical: true,
-      });
+      if (a.severity === "critical") {
+        items.push({
+          key: a.id,
+          title: a.title,
+          detail: a.description,
+          scope: a.scopeLabel,
+          critical: true,
+        });
+      } else if (inWindow) {
+        items.push({
+          key: a.id,
+          title: a.title,
+          detail: a.description,
+          scope: a.scopeLabel,
+        });
+      }
     }
 
     // Regular anomalies + pacing only inside the allowed hours.
@@ -142,7 +152,7 @@ export async function GET(request: Request) {
     if (s.whatsapp_enabled)
       await sendWhatsApp(s.whatsapp_numbers ?? [], digest.text);
     if (s.telegram_enabled)
-      await sendTelegram(s.telegram_chat_ids ?? [], digest.text);
+      await sendTelegram(s.telegram_chat_ids ?? [], digest.telegram);
 
     notified += 1;
   }

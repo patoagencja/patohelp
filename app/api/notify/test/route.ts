@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       title: a.title,
       detail: a.description,
       scope: a.scopeLabel,
-      critical: true,
+      critical: a.severity === "critical",
     })),
     ...anomalies.map((a) => ({
       key: a.id,
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     if (!r.ok && r.error) errors.push(`WhatsApp: ${r.error}`);
   }
   if (s.telegram_enabled) {
-    const r = await sendTelegram(s.telegram_chat_ids ?? [], digest.text);
+    const r = await sendTelegram(s.telegram_chat_ids ?? [], digest.telegram);
     results.telegram = r.ok;
     if (!r.ok && r.error) errors.push(`Telegram: ${r.error}`);
   }

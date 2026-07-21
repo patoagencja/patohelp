@@ -10,13 +10,25 @@ export interface AlertItem {
   critical?: boolean;
 }
 
-/** Build a short plaintext + HTML digest from alert items (critical first). */
+// Escape for Telegram/HTML parse mode (only these three matter for HTML mode).
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// The dimension-stuffed campaign names ("OLX-PL | BRAND | GOODS | ...") are long;
+// keep them readable by collapsing runs of separators and trimming length.
+const tidyScope = (s: string) => {
+  const clean = s.replace(/\s*\|\s*/g, " · ").trim();
+  return clean.length > 64 ? `${clean.slice(0, 61)}…` : clean;
+};
+
+/** Build plaintext + email HTML + Telegram HTML digests (critical first). */
 export function buildDigest(clientName: string, items: AlertItem[]) {
   const sorted = [...items].sort(
     (a, b) => Number(Boolean(b.critical)) - Number(Boolean(a.critical))
   );
   const hasCritical = sorted.some((i) => i.critical);
 
+  // Plaintext (WhatsApp / fallback).
   const lines = sorted.map(
     (i) => `${i.critical ? "🚨 " : "• "}${i.title} — ${i.scope}: ${i.detail}`
   );
@@ -24,6 +36,7 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
     sorted.length
   }):\n\n${lines.join("\n")}`;
 
+  // Email HTML.
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a">
       <h2 style="margin:0 0 4px">${hasCritical ? "🚨 PILNE — " : ""}Alerty — ${clientName}</h2>
@@ -41,7 +54,24 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
           .join("")}
       </ul>
     </div>`;
-  return { text, html };
+
+  // Telegram HTML (parse_mode=HTML): bold title, scope on its own dimmed line.
+  const tgHeader = hasCritical
+    ? `🚨 <b>PILNE — Alerty ${esc(clientName)}</b>`
+    : `📊 <b>Alerty — ${esc(clientName)}</b>`;
+  const tgBody = sorted
+    .map((i) => {
+      const icon = i.critical ? "🔴" : "🟡";
+      return (
+        `${icon} <b>${esc(i.title)}</b>\n` +
+        `<i>${esc(tidyScope(i.scope))}</i>\n` +
+        `${esc(i.detail)}`
+      );
+    })
+    .join("\n\n");
+  const telegram = `${tgHeader}\n<i>${sorted.length} rzeczy wymaga uwagi</i>\n\n${tgBody}`;
+
+  return { text, html, telegram };
 }
 
 export interface SendResult {
@@ -157,6 +187,7 @@ export async function sendTelegram(
           body: JSON.stringify({
             chat_id: chatId.trim(),
             text,
+            parse_mode: "HTML",
             disable_web_page_preview: true,
           }),
           cache: "no-store",
