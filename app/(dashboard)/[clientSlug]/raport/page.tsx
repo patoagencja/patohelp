@@ -131,11 +131,19 @@ export default async function RaportPage({
       {/* Controls (not printed) */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <h1 className="text-xl font-semibold">Raport - {client.name}</h1>
-        <DateRangePicker
-          value={range}
-          customFrom={custom?.start}
-          customTo={custom?.end}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/report/pptx?client=${params.clientSlug}`}
+            className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Pobierz PPTX (poprz. miesiąc)
+          </a>
+          <DateRangePicker
+            value={range}
+            customFrom={custom?.start}
+            customTo={custom?.end}
+          />
+        </div>
       </div>
 
       <ReportDeck

@@ -62,9 +62,10 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill 30 days until we have 30 days of history, then yesterday+today.
+      // Backfill 92 days (3 full months for monthly reports) until we have
+      // that much history, then yesterday+today.
       const backfillStart = formatInTimeZone(
-        subDays(now, 29),
+        subDays(now, 91),
         WARSAW_TZ,
         "yyyy-MM-dd"
       );

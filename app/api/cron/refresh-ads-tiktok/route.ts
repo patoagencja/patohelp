@@ -54,8 +54,8 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill 30 days until we have them, then just yesterday+today.
-      const backfillStart = formatInTimeZone(subDays(now, 29), WARSAW_TZ, "yyyy-MM-dd");
+      // Backfill 92 days (3 full months for monthly reports), then yesterday+today.
+      const backfillStart = formatInTimeZone(subDays(now, 91), WARSAW_TZ, "yyyy-MM-dd");
       const { data: earliest } = await admin
         .from("ads_daily")
         .select("date")

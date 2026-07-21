@@ -78,11 +78,13 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill 30 days until we actually have 30 days of history, then fall
-      // back to yesterday+today. (Checking "any older row exists" was wrong -
-      // a couple of recent days made it skip the backfill forever.)
-      const backfillStart = formatInTimeZone(
-        subDays(now, 29),
+      // Keep 92 days of history (3 full months for monthly reports). Fresh
+      // days first, then backfill CONTIGUOUSLY BACKWARDS from the earliest row
+      // we already have - so a timeout mid-backfill just means the next run
+      // resumes where this one stopped, with no gaps.
+      const HISTORY_DAYS = 92;
+      const windowStart = formatInTimeZone(
+        subDays(now, HISTORY_DAYS - 1),
         WARSAW_TZ,
         "yyyy-MM-dd"
       );
@@ -94,10 +96,21 @@ export async function GET(request: Request) {
         .order("date", { ascending: true })
         .limit(1)
         .maybeSingle();
-      const effectiveSince =
-        earliest?.date && (earliest.date as string) <= backfillStart
-          ? since
-          : backfillStart;
+      const earliestDate = (earliest?.date as string) ?? null;
+
+      // Always refresh yesterday+today; then extend history backwards.
+      const dayList: string[] = eachDay(since, until);
+      if (!earliestDate) {
+        // Nothing yet: newest -> oldest across the whole window.
+        dayList.push(...eachDay(windowStart, since).reverse());
+      } else if (earliestDate > windowStart) {
+        const dayBefore = formatInTimeZone(
+          subDays(new Date(`${earliestDate}T00:00:00`), 1),
+          WARSAW_TZ,
+          "yyyy-MM-dd"
+        );
+        dayList.push(...eachDay(windowStart, dayBefore).reverse());
+      }
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).
@@ -112,7 +125,7 @@ export async function GET(request: Request) {
         try {
           // Fetch AND upsert one day at a time, so progress persists even if the
           // function is killed mid-backfill on a huge account (1000s of campaigns).
-          for (const day of eachDay(effectiveSince, until)) {
+          for (const day of dayList) {
             const insights = await getCampaignInsights(
               access_token,
               account.id,
