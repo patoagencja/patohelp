@@ -308,12 +308,43 @@ export async function getOlxSmReportData(
     ? parseNaming(topCampaignNames[0].name)
     : [];
 
-  const ai = await generateAiSections(
-    `${MONTHS_PL[monthStart.getMonth()]} ${monthStart.getFullYear()}`,
-    channels,
-    lookback,
-    topCampaignNames
-  );
+  // AI sections are cached per client+month (report_cache) so viewing the
+  // report tab doesn't re-run the LLM. Cache errors (e.g. table not yet
+  // migrated) degrade to generating fresh each time.
+  const cacheKey = `olx-sm-ai:${targetKey}`;
+  let ai: AiSections | null = null;
+  try {
+    const { data: cached } = await admin
+      .from("report_cache")
+      .select("payload")
+      .eq("client_id", clientId)
+      .eq("cache_key", cacheKey)
+      .maybeSingle();
+    if (cached?.payload) ai = cached.payload as unknown as AiSections;
+  } catch {
+    // table missing - ignore
+  }
+  if (!ai) {
+    ai = await generateAiSections(
+      `${MONTHS_PL[monthStart.getMonth()]} ${monthStart.getFullYear()}`,
+      channels,
+      lookback,
+      topCampaignNames
+    );
+    try {
+      await admin.from("report_cache").upsert(
+        {
+          client_id: clientId,
+          cache_key: cacheKey,
+          payload: ai as unknown as Record<string, unknown>,
+          generated_at: new Date().toISOString(),
+        },
+        { onConflict: "client_id,cache_key" }
+      );
+    } catch {
+      // table missing - ignore
+    }
+  }
 
   return {
     clientName,

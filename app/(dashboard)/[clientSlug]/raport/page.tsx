@@ -13,7 +13,9 @@ import {
   LineChart,
   Stat,
 } from "@/components/dashboard/report/deck";
+import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
+import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
@@ -62,7 +64,7 @@ export default async function RaportPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { range?: string; from?: string; to?: string };
+  searchParams: { range?: string; from?: string; to?: string; month?: string };
 }) {
   const supabase = createClient();
 
@@ -74,6 +76,60 @@ export default async function RaportPage({
 
   if (!client) {
     redirect("/login");
+  }
+
+  // OLX gets the agency's SM-template deck (auto-filled monthly report);
+  // other clients keep the generic performance deck below.
+  if (["olx", "https-www-olx-pl"].includes(params.clientSlug)) {
+    const monthParam = searchParams.month;
+    const monthDate =
+      monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+        ? new Date(`${monthParam}-15T00:00:00`)
+        : undefined;
+    const sm = await getOlxSmReportData(client.id, client.name, monthDate);
+    const smFoot = `${client.name} · ${sm.periodLabel} · PatoAgencja`;
+
+    return (
+      <div className="space-y-6 bg-muted/20 p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
+          <h1 className="text-xl font-semibold">Raport SM - {client.name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <form method="get" className="flex items-center gap-1.5">
+              <input
+                type="month"
+                name="month"
+                defaultValue={monthParam ?? ""}
+                aria-label="Miesiąc raportu"
+                className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                type="submit"
+                className="h-9 rounded-lg border border-border bg-card px-3 text-sm font-medium hover:bg-muted"
+              >
+                OK
+              </button>
+            </form>
+            <a
+              href={`/api/report/pptx?client=${params.clientSlug}${
+                monthParam ? `&month=${monthParam}` : ""
+              }`}
+              className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Pobierz PPTX
+            </a>
+          </div>
+        </div>
+
+        <ReportDeck
+          clientSlug={params.clientSlug}
+          range="prev_month"
+          rangeLabel={sm.monthLabel}
+          foot={smFoot}
+        >
+          {olxSmSlides(sm, smFoot)}
+        </ReportDeck>
+      </div>
+    );
   }
 
   const range = normalizeRange(searchParams.range);

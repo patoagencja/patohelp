@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // last 30 days into `creatives`. Google Ads creatives are a TODO (no
 // thumbnails in their API; we skip them in this version).
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const WARSAW_TZ = "Europe/Warsaw";
 
@@ -32,10 +32,13 @@ export async function GET(request: Request) {
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
   const since = formatInTimeZone(subDays(now, 29), WARSAW_TZ, "yyyy-MM-dd");
 
-  const { data: integrations } = await admin
+  const onlyClient = new URL(request.url).searchParams.get("client");
+  let q = admin
     .from("integrations")
     .select("client_id, credentials_encrypted, account_ids")
     .eq("provider", "meta_ads");
+  if (onlyClient) q = q.eq("client_id", onlyClient);
+  const { data: integrations } = await q;
 
   let creativesUpserted = 0;
   let accountsFailed = 0;

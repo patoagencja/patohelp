@@ -17,7 +17,15 @@ interface Series {
   points: Array<{ i: number; value: number }>;
 }
 
-export function CostTrends({ costTrend }: { costTrend: CostTrendPoint[] }) {
+export function CostTrends({ costTrend: raw }: { costTrend: CostTrendPoint[] }) {
+  // Trim leading/trailing days with no data at all, so a range that starts
+  // before the data does (e.g. before the backfill horizon) doesn't squash
+  // the lines into a corner of an empty axis.
+  const hasData = (p: CostTrendPoint) =>
+    p.metaCpcMinorUnits != null || p.googleCpcMinorUnits != null;
+  const first = raw.findIndex(hasData);
+  const last = raw.length - 1 - [...raw].reverse().findIndex(hasData);
+  const costTrend = first === -1 ? [] : raw.slice(first, last + 1);
   const n = costTrend.length;
 
   const series: Series[] = [

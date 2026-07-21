@@ -20,8 +20,18 @@ export function PlatformSplit({ split }: { split: PlatformSplitData }) {
     { short: "TikTok", value: split.tiktokSpendMinorUnits, hex: "#fe2c55" },
   ].filter((e) => e.value > 0);
 
+  // Compact amount for the donut hole so it never overflows the ring.
+  const compact = (grosze: number) => {
+    const zl = grosze / 100;
+    if (zl >= 1_000_000)
+      return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 2 })} mln zł`;
+    if (zl >= 10_000)
+      return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} tys. zł`;
+    return formatMoneyPLN(grosze);
+  };
+
   // Donut geometry: stroke-dasharray segments on a circle.
-  const R = 70;
+  const R = 76;
   const CIRC = 2 * Math.PI * R;
   let offset = 0;
   const segments = entries.map((e) => {
@@ -49,7 +59,7 @@ export function PlatformSplit({ split }: { split: PlatformSplitData }) {
                   r={R}
                   fill="none"
                   className="stroke-muted"
-                  strokeWidth="26"
+                  strokeWidth="18"
                 />
                 {segments.map((s) => (
                   <circle
@@ -59,18 +69,18 @@ export function PlatformSplit({ split }: { split: PlatformSplitData }) {
                     r={R}
                     fill="none"
                     stroke={s.hex}
-                    strokeWidth="26"
+                    strokeWidth="18"
                     strokeDasharray={`${Math.max(s.dash, 0.1)} ${CIRC}`}
                     strokeDashoffset={-s.offset}
                     strokeLinecap="butt"
                   />
                 ))}
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-semibold tabular-nums">
-                  {formatMoneyPLN(total)}
+              <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
+                <span className="text-base font-semibold tabular-nums">
+                  {compact(total)}
                 </span>
-                <span className="text-xs text-muted-foreground">łącznie</span>
+                <span className="text-[11px] text-muted-foreground">łącznie</span>
               </div>
             </div>
           </div>
