@@ -78,6 +78,15 @@ export const plnFmt = (grosze: number) =>
   `${(grosze / 100).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`;
 export const numFmt = (n: number) => n.toLocaleString("pl-PL");
 
+/** Compact number: 62,1 mln / 328,4 tys. */
+export const numCompact = (n: number) => {
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln`;
+  if (n >= 10_000)
+    return `${(n / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} tys.`;
+  return numFmt(n);
+};
+
 interface Agg {
   cost: number;
   impressions: number;
@@ -101,7 +110,10 @@ function channelFromAgg(provider: AdProvider, a: Agg): ChannelMonth {
 
 /** Parse "OLX-PL | BRAND | GOODS | CEP | REACH | ... " into naming segments. */
 function parseNaming(name: string): Array<{ segment: string; value: string }> {
-  const parts = name.split("|").map((p) => p.trim()).filter(Boolean);
+  // Campaign names use either " | " (new convention) or " / " (legacy [FP]
+  // names) as the segment separator - support both.
+  const sep = name.includes("|") ? "|" : "/";
+  const parts = name.split(sep).map((p) => p.trim()).filter(Boolean);
   const labels = [
     "PREFIX", "BRAND", "PILAR", "TYP", "CEL", "Opis", "Wersja", "Okres", "Kanał", "Agencja",
   ];
@@ -110,6 +122,16 @@ function parseNaming(name: string): Array<{ segment: string; value: string }> {
     value,
   }));
 }
+
+/** Compact PLN for tight stat cards: 531,4 tys. / 1,42 mln. */
+export const plnCompact = (grosze: number) => {
+  const zl = grosze / 100;
+  if (zl >= 1_000_000)
+    return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 2 })} mln PLN`;
+  if (zl >= 10_000)
+    return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} tys. PLN`;
+  return plnFmt(grosze);
+};
 
 async function generateAiSections(
   monthLabel: string,

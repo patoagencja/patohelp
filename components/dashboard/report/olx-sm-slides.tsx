@@ -6,7 +6,7 @@ import {
   Stat,
 } from "@/components/dashboard/report/deck";
 import type { OlxSmReportData } from "@/lib/report/olx-sm-data";
-import { numFmt, plnFmt } from "@/lib/report/olx-sm-data";
+import { numCompact, numFmt, plnCompact, plnFmt } from "@/lib/report/olx-sm-data";
 import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -184,12 +184,12 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
               Budget & Channels
             </p>
             <div className="grid grid-cols-3 gap-3">
-              <Stat label="Budget total" value={plnFmt(data.totalCost)} accent="#0d9488" />
+              <Stat label="Budget total" value={plnCompact(data.totalCost)} accent="#0d9488" />
               {data.channels.slice(0, 2).map((c) => (
                 <Stat
                   key={c.provider}
                   label={PROVIDER_SHORT[c.provider]}
-                  value={plnFmt(c.cost)}
+                  value={plnCompact(c.cost)}
                   accent="#0d9488"
                 />
               ))}
@@ -240,7 +240,7 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
         <div className="grid grid-cols-4 gap-3">
           <Stat
             label="Total reach*"
-            value={data.totalReach > 0 ? numFmt(data.totalReach) : "-"}
+            value={data.totalReach > 0 ? numCompact(data.totalReach) : "-"}
             accent="#0d9488"
           />
           <Stat
@@ -253,7 +253,7 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
             value={data.topFrequency ? data.topFrequency.frequency.toFixed(2) : "-"}
             accent="#f59e0b"
           />
-          <Stat label="Budget spent" value={plnFmt(data.totalCost)} accent="#0d9488" />
+          <Stat label="Budget spent" value={plnCompact(data.totalCost)} accent="#0d9488" />
         </div>
 
         <div>
@@ -274,7 +274,7 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
                   {l.months.map((m) => (
                     <Td key={m.label}>
                       {m.cpm
-                        ? `${plnFmt(Math.round(m.cpm))} CPM · R: ${numFmt(m.reach)}`
+                        ? `${plnFmt(Math.round(m.cpm))} CPM · R: ${numCompact(m.reach)}`
                         : "-"}
                     </Td>
                   ))}
@@ -356,8 +356,8 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
       subtitle="Analiza per kanał · flagi · pytania do OLX"
       foot={foot}
     >
-      <div className="flex h-full flex-col gap-5">
-        <div className="grid flex-1 grid-cols-3 gap-5">
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="grid min-h-0 flex-1 grid-cols-3 gap-4">
           {(
             [
               ["Meta", data.ai.metaFlag, data.ai.metaBullets],
@@ -365,14 +365,17 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
               ["Kampanie / kategorie", data.ai.categoriesFlag, data.ai.categoriesBullets],
             ] as Array<[string, string, string[]]>
           ).map(([title, flag, bullets]) => (
-            <div key={title} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div
+              key={title}
+              className="min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4"
+            >
               <p className="text-sm font-bold text-slate-800">{title}</p>
-              <div className="mt-2">
+              <div className="mt-1.5">
                 <FlagChip flag={flag} />
               </div>
-              <ul className="mt-3 space-y-2">
-                {bullets.map((b, i) => (
-                  <li key={i} className="flex gap-2 text-xs leading-relaxed text-slate-600">
+              <ul className="mt-2.5 space-y-1.5">
+                {bullets.slice(0, 4).map((b, i) => (
+                  <li key={i} className="flex gap-2 text-[11px] leading-snug text-slate-600">
                     <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-teal-500" />
                     {b}
                   </li>
@@ -381,7 +384,7 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
             </div>
           ))}
         </div>
-        <div className="rounded-xl bg-[#002F34] px-5 py-3.5 text-sm text-white">
+        <div className="shrink-0 rounded-xl bg-[#002F34] px-5 py-3 text-xs leading-relaxed text-white">
           <span className="font-bold text-teal-300">PYTANIA / DECYZJE DLA OLX: </span>
           {data.ai.questions}
         </div>
