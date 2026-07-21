@@ -12,6 +12,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
+import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing, type FlightMetric, type PacingFlight } from "@/lib/alerts/pacing";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -117,6 +118,11 @@ const SEVERITY_META: Record<
   Anomaly["severity"],
   { label: string; ring: string; badge: string }
 > = {
+  critical: {
+    label: "Krytyczny",
+    ring: "border-l-red-600",
+    badge: "bg-red-600 text-white dark:bg-red-600 dark:text-white",
+  },
   high: {
     label: "Wysoki",
     ring: "border-l-red-500",
@@ -285,7 +291,26 @@ export default async function AlertyPage({
     : { data: null };
   const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
 
-  const [anomalies, pacing] = await Promise.all([
+  // Budget-spike thresholds are configured per client in settings.
+  const { data: notif } = await createAdminClient()
+    .from("notification_settings")
+    .select(
+      "daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
+    )
+    .eq("client_id", client.id)
+    .maybeSingle();
+  const budgetConfig: BudgetConfig = {
+    campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
+    accountCap:
+      (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
+    multiplier:
+      notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
+        ? Number(notif.spike_multiplier)
+        : 3,
+  };
+
+  const [spikes, anomalies, pacing] = await Promise.all([
+    detectBudgetSpikes(client.id, undefined, budgetConfig),
     detectAnomalies(client.id),
     getPacing(client.id),
   ]);
@@ -329,9 +354,24 @@ export default async function AlertyPage({
 
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
         <BellRing className="h-3.5 w-3.5" />
-        Powiadomienia na WhatsApp - wkrótce. Alerty będą wysyłane automatycznie,
-        gdy tylko podepniemy numer.
+        Skoki wydatków wysyłamy natychmiast na e-mail (i WhatsApp, gdy podłączony)
+        - nawet poza godzinami ciszy. Progi ustawisz w Ustawieniach.
       </div>
+
+      {/* Budget spikes - the critical, "kampania przywiozła 500k" case */}
+      {spikes.length > 0 ? (
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-red-600">
+            <AlertTriangle className="h-4 w-4" />
+            Skoki wydatków - pilne ({spikes.length})
+          </h2>
+          <div className="grid gap-3">
+            {spikes.map((a) => (
+              <AnomalyCard key={a.id} a={a} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* Campaign pacing (flights) */}
       <section>

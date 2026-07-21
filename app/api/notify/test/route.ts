@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { detectAnomalies } from "@/lib/alerts/anomalies";
+import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { buildDigest, sendEmail, sendWhatsApp, type AlertItem } from "@/lib/notify/send";
@@ -27,7 +28,9 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: s } = await admin
     .from("notification_settings")
-    .select("email_enabled, emails, whatsapp_enabled, whatsapp_numbers")
+    .select(
+      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
+    )
     .eq("client_id", access.clientId)
     .maybeSingle();
 
@@ -45,12 +48,29 @@ export async function POST(request: Request) {
     .single();
   const clientName = (client?.name as string) ?? "Klient";
 
+  const budgetConfig: BudgetConfig = {
+    campaignCap: (s.daily_spend_cap_minor_units as number | null) ?? null,
+    accountCap: (s.account_daily_spend_cap_minor_units as number | null) ?? null,
+    multiplier:
+      s.spike_multiplier && Number(s.spike_multiplier) > 0
+        ? Number(s.spike_multiplier)
+        : 3,
+  };
+
   // Real alerts if any, otherwise a placeholder so delivery can be verified.
-  const [anomalies, pacing] = await Promise.all([
+  const [spikes, anomalies, pacing] = await Promise.all([
+    detectBudgetSpikes(access.clientId, admin, budgetConfig),
     detectAnomalies(access.clientId, admin),
     getPacing(access.clientId),
   ]);
   const items: AlertItem[] = [
+    ...spikes.map((a) => ({
+      key: a.id,
+      title: a.title,
+      detail: a.description,
+      scope: a.scopeLabel,
+      critical: true,
+    })),
     ...anomalies.map((a) => ({
       key: a.id,
       title: a.title,

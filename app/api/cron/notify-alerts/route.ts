@@ -2,6 +2,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { detectAnomalies } from "@/lib/alerts/anomalies";
+import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
 import { buildDigest, sendEmail, sendWhatsApp, type AlertItem } from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -23,6 +24,9 @@ interface Settings {
   hour_start: number;
   hour_end: number;
   min_severity: string;
+  daily_spend_cap_minor_units: number | null;
+  account_daily_spend_cap_minor_units: number | null;
+  spike_multiplier: number | null;
 }
 
 export async function GET(request: Request) {
@@ -40,15 +44,18 @@ export async function GET(request: Request) {
   const { data: settingsRows } = await admin
     .from("notification_settings")
     .select(
-      "client_id, email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity"
+      "client_id, email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     );
 
   let notified = 0;
 
   for (const s of (settingsRows ?? []) as Settings[]) {
     if (!s.email_enabled && !s.whatsapp_enabled) continue;
-    // Respect the quiet-hours window (a later run inside the window catches up).
-    if (hour < s.hour_start || hour >= s.hour_end) continue;
+
+    // Critical budget spikes ignore quiet hours; everything else waits for the
+    // allowed window. We still evaluate budget spikes every run so an overspend
+    // is caught the moment fresh data lands, day or night.
+    const inWindow = hour >= s.hour_start && hour < s.hour_end;
 
     const { data: client } = await admin
       .from("clients")
@@ -57,32 +64,54 @@ export async function GET(request: Request) {
       .single();
     const clientName = (client?.name as string) ?? "Klient";
 
-    const [anomalies, pacing] = await Promise.all([
+    const budgetConfig: BudgetConfig = {
+      campaignCap: s.daily_spend_cap_minor_units ?? null,
+      accountCap: s.account_daily_spend_cap_minor_units ?? null,
+      multiplier: s.spike_multiplier && s.spike_multiplier > 0 ? s.spike_multiplier : 3,
+    };
+
+    const [spikes, anomalies, pacing] = await Promise.all([
+      detectBudgetSpikes(s.client_id, admin, budgetConfig),
       detectAnomalies(s.client_id, admin),
       getPacing(s.client_id),
     ]);
 
     const items: AlertItem[] = [];
-    for (const a of anomalies) {
-      if (s.min_severity === "high" && a.severity !== "high") continue;
+
+    // Budget spikes are always critical and always eligible to send.
+    for (const a of spikes) {
       items.push({
         key: a.id,
         title: a.title,
         detail: a.description,
         scope: a.scopeLabel,
+        critical: true,
       });
     }
-    for (const f of pacing) {
-      if (f.status !== "behind") continue;
-      items.push({
-        key: `pacing-${f.id}`,
-        title: `Nie dowozi: ${f.campaignName}`,
-        detail: `Realizacja ${(f.realizedPct * 100).toFixed(0)}% celu, ${Math.max(
-          f.daysLeft,
-          0
-        )} dni do końca.`,
-        scope: "Pacing",
-      });
+
+    // Regular anomalies + pacing only inside the allowed hours.
+    if (inWindow) {
+      for (const a of anomalies) {
+        if (s.min_severity === "high" && a.severity !== "high") continue;
+        items.push({
+          key: a.id,
+          title: a.title,
+          detail: a.description,
+          scope: a.scopeLabel,
+        });
+      }
+      for (const f of pacing) {
+        if (f.status !== "behind") continue;
+        items.push({
+          key: `pacing-${f.id}`,
+          title: `Nie dowozi: ${f.campaignName}`,
+          detail: `Realizacja ${(f.realizedPct * 100).toFixed(0)}% celu, ${Math.max(
+            f.daysLeft,
+            0
+          )} dni do końca.`,
+          scope: "Pacing",
+        });
+      }
     }
 
     if (items.length === 0) continue;

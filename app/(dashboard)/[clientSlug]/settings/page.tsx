@@ -152,6 +152,14 @@ async function saveNotificationSettings(formData: FormData) {
 
   const clamp = (n: number) => Math.min(23, Math.max(0, Math.round(n)));
 
+  // Caps are entered in PLN, stored in grosze. Empty / 0 = no cap (null).
+  const capToMinor = (v: FormDataEntryValue | null) => {
+    const n = Number(String(v ?? "").replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+  };
+  const rawMult = Number(formData.get("spike_multiplier") ?? 3);
+  const multiplier = Number.isFinite(rawMult) && rawMult >= 1.5 ? rawMult : 3;
+
   const admin = createAdminClient();
   await admin.from("notification_settings").upsert(
     {
@@ -164,6 +172,11 @@ async function saveNotificationSettings(formData: FormData) {
       hour_end: clamp(Number(formData.get("hour_end") ?? 20)),
       min_severity:
         String(formData.get("min_severity")) === "medium" ? "medium" : "high",
+      daily_spend_cap_minor_units: capToMinor(formData.get("campaign_cap")),
+      account_daily_spend_cap_minor_units: capToMinor(
+        formData.get("account_cap")
+      ),
+      spike_multiplier: multiplier,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "client_id" }
@@ -195,7 +208,7 @@ export default async function SettingsPage({
   const { data: notif } = await createAdminClient()
     .from("notification_settings")
     .select(
-      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity"
+      "email_enabled, emails, whatsapp_enabled, whatsapp_numbers, hour_start, hour_end, min_severity, daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     )
     .eq("client_id", access.clientId)
     .maybeSingle();
@@ -499,6 +512,71 @@ export default async function SettingsPage({
                     <option value="medium">Wysoki + średni</option>
                   </select>
                 </label>
+              </div>
+
+              {/* Budget-spike thresholds */}
+              <div className="rounded-lg border border-red-200 bg-red-50/50 p-3 dark:border-red-500/20 dark:bg-red-500/5">
+                <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                  🚨 Alerty budżetowe (skok wydatków)
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Wysyłane natychmiast, także poza godzinami ciszy. Zostaw puste,
+                  by użyć auto-wykrywania (dzień ≥ {""}
+                  {notif?.spike_multiplier ?? 3}x średniej dziennej).
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-muted-foreground">
+                      Limit / kampania / dzień (zł)
+                    </span>
+                    <input
+                      type="number"
+                      name="campaign_cap"
+                      min="0"
+                      step="any"
+                      placeholder="np. 10000"
+                      defaultValue={
+                        notif?.daily_spend_cap_minor_units
+                          ? Number(notif.daily_spend_cap_minor_units) / 100
+                          : ""
+                      }
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-muted-foreground">
+                      Limit / całe konto / dzień (zł)
+                    </span>
+                    <input
+                      type="number"
+                      name="account_cap"
+                      min="0"
+                      step="any"
+                      placeholder="np. 50000"
+                      defaultValue={
+                        notif?.account_daily_spend_cap_minor_units
+                          ? Number(notif.account_daily_spend_cap_minor_units) /
+                            100
+                          : ""
+                      }
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <span className="text-muted-foreground">
+                      Czułość (x średniej)
+                    </span>
+                    <input
+                      type="number"
+                      name="spike_multiplier"
+                      min="1.5"
+                      step="0.5"
+                      placeholder="3"
+                      defaultValue={notif?.spike_multiplier ?? 3}
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    />
+                  </label>
+                </div>
               </div>
 
               <div className="flex gap-2">

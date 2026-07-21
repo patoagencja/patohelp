@@ -7,7 +7,7 @@ import { formatMoneyPLN, formatPercent } from "@/lib/utils";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
-export type AnomalySeverity = "high" | "medium";
+export type AnomalySeverity = "critical" | "high" | "medium";
 
 export interface Anomaly {
   id: string;
@@ -283,7 +283,7 @@ export async function detectAnomalies(
     }
   }
 
-  const rank = { high: 0, medium: 1 };
+  const rank = { critical: 0, high: 1, medium: 2 };
   return anomalies
     .sort(
       (a, b) =>

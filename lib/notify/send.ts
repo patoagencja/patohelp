@@ -7,21 +7,35 @@ export interface AlertItem {
   title: string;
   detail: string;
   scope: string;
+  critical?: boolean;
 }
 
-/** Build a short plaintext + HTML digest from alert items. */
+/** Build a short plaintext + HTML digest from alert items (critical first). */
 export function buildDigest(clientName: string, items: AlertItem[]) {
-  const lines = items.map((i) => `• ${i.title} — ${i.scope}: ${i.detail}`);
-  const text = `Alerty dla ${clientName} (${items.length}):\n\n${lines.join("\n")}`;
+  const sorted = [...items].sort(
+    (a, b) => Number(Boolean(b.critical)) - Number(Boolean(a.critical))
+  );
+  const hasCritical = sorted.some((i) => i.critical);
+
+  const lines = sorted.map(
+    (i) => `${i.critical ? "🚨 " : "• "}${i.title} — ${i.scope}: ${i.detail}`
+  );
+  const text = `${hasCritical ? "PILNE — " : ""}Alerty dla ${clientName} (${
+    sorted.length
+  }):\n\n${lines.join("\n")}`;
+
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a">
-      <h2 style="margin:0 0 4px">Alerty — ${clientName}</h2>
-      <p style="margin:0 0 16px;color:#64748b">${items.length} rzeczy wymaga uwagi</p>
-      <ul style="padding-left:18px">
-        ${items
+      <h2 style="margin:0 0 4px">${hasCritical ? "🚨 PILNE — " : ""}Alerty — ${clientName}</h2>
+      <p style="margin:0 0 16px;color:#64748b">${sorted.length} rzeczy wymaga uwagi</p>
+      <ul style="padding-left:18px;list-style:none;margin:0">
+        ${sorted
           .map(
             (i) =>
-              `<li style="margin-bottom:10px"><strong>${i.title}</strong><br/>
+              `<li style="margin-bottom:12px;padding:10px 12px;border-left:4px solid ${
+                i.critical ? "#dc2626" : "#e2e8f0"
+              };background:${i.critical ? "#fef2f2" : "#f8fafc"};border-radius:4px">
+               <strong>${i.title}</strong><br/>
                <span style="color:#64748b">${i.scope}</span> — ${i.detail}</li>`
           )
           .join("")}
