@@ -10,9 +10,6 @@ function clientId(): string {
 function clientSecret(): string {
   return process.env.GOOGLE_ADS_CLIENT_SECRET!;
 }
-function loginCustomerId(): string {
-  return process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID!;
-}
 function redirectUri(): string {
   return `${process.env.NEXT_PUBLIC_APP_URL}/api/integrations/google-ads/callback`;
 }
@@ -23,6 +20,42 @@ function apiClient(): GoogleAdsApi {
     client_secret: clientSecret(),
     developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN!,
   });
+}
+
+// Which manager id to authenticate as (the `login-customer-id` header). An
+// account that appears in listAccessibleCustomers is DIRECTLY accessible, so its
+// own id works; a child account under a manager needs that manager's id. Since
+// clients can sit under different managers, we try the account itself first,
+// then the agency's configured MCC - the first that Google accepts wins.
+function candidateLogins(customerId: string): string[] {
+  const list = [customerId];
+  const envMcc = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
+  if (envMcc && envMcc !== customerId) list.push(envMcc);
+  return list;
+}
+
+// Run a GAQL query against a customer, trying each candidate login-customer-id
+// until one is accepted. Throws the last error if all fail.
+async function queryWithFallback(
+  client: GoogleAdsApi,
+  refreshToken: string,
+  customerId: string,
+  gaql: string
+): Promise<Array<Record<string, unknown>>> {
+  let lastErr: unknown;
+  for (const login of candidateLogins(customerId)) {
+    try {
+      const customer = client.Customer({
+        customer_id: customerId,
+        login_customer_id: login,
+        refresh_token: refreshToken,
+      });
+      return (await customer.query(gaql)) as Array<Record<string, unknown>>;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 }
 
 export interface GoogleAdsAccount {
@@ -111,13 +144,10 @@ export async function listAccessibleCustomers(
   for (const resourceName of resource_names) {
     const customerId = resourceName.split("/")[1];
     try {
-      const customer = client.Customer({
-        customer_id: customerId,
-        login_customer_id: loginCustomerId(),
-        refresh_token: refreshToken,
-      });
-
-      const rows = await customer.query(
+      const rows = await queryWithFallback(
+        client,
+        refreshToken,
+        customerId,
         "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone FROM customer LIMIT 1"
       );
       const c = (rows[0] as { customer?: Record<string, unknown> })?.customer;
@@ -149,11 +179,6 @@ export async function getCampaignMetrics(
   until: string
 ): Promise<GoogleCampaignMetric[]> {
   const client = apiClient();
-  const customer = client.Customer({
-    customer_id: customerId,
-    login_customer_id: loginCustomerId(),
-    refresh_token: refreshToken,
-  });
 
   const gaql = `
     SELECT
@@ -172,7 +197,7 @@ export async function getCampaignMetrics(
       AND campaign.status != 'REMOVED'
   `;
 
-  const rows = await customer.query(gaql);
+  const rows = await queryWithFallback(client, refreshToken, customerId, gaql);
 
   return (rows as Array<Record<string, any>>).map((row) => ({
     campaign_id: String(row.campaign?.id ?? ""),

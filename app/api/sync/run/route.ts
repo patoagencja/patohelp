@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     "refresh-ads-tiktok",
     "refresh-ga4",
     "refresh-demographics",
+    "refresh-creatives-meta",
   ];
 
   // Scope the sync to just this client so large accounts don't compete with
