@@ -1,27 +1,29 @@
 import { redirect } from "next/navigation";
 
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
-import { AlertsPanel } from "@/components/dashboard/alerts-panel";
+import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
+import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
+import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import {
   getDashboardData,
   normalizeRange,
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
 import {
-  getActiveAlerts,
   getBudgetStatus,
   getEvents,
   getLatestSummary,
 } from "@/lib/dashboard/overview";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 
-import { dismissAlert, setMonthlyBudget } from "./actions";
+import { setMonthlyBudget } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +58,33 @@ export default async function OverviewPage({
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
   const data = await getDashboardData(client.id, range, custom);
-  const [budget, alerts, summary, events] = await Promise.all([
+
+  // Live anomaly digest (same engine as the Alerty tab): budget spikes first.
+  const { data: notif } = await createAdminClient()
+    .from("notification_settings")
+    .select(
+      "daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
+    )
+    .eq("client_id", client.id)
+    .maybeSingle();
+  const budgetConfig: BudgetConfig = {
+    campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
+    accountCap:
+      (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
+    multiplier:
+      notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
+        ? Number(notif.spike_multiplier)
+        : 3,
+  };
+
+  const [budget, summary, events, spikes, anomalies] = await Promise.all([
     getBudgetStatus(client.id),
-    getActiveAlerts(client.id),
     getLatestSummary(client.id),
     getEvents(client.id, data.rangeStart, data.rangeEnd),
+    detectBudgetSpikes(client.id, undefined, budgetConfig),
+    detectAnomalies(client.id),
   ]);
+  const digest: Anomaly[] = [...spikes, ...anomalies];
 
   return (
     <div className="space-y-6 p-6">
@@ -81,7 +104,8 @@ export default async function OverviewPage({
 
       <TickerBar campaigns={data.campaigns} />
 
-      <AiSummaryCard summary={summary} />
+      {/* GA-style: the big picture first, details below. */}
+      <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
 
       <KpiCards kpis={data.kpis} trend={data.trend} />
 
@@ -92,14 +116,9 @@ export default async function OverviewPage({
         setBudgetAction={setMonthlyBudget}
       />
 
-      <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
+      <AlertsDigest alerts={digest} clientSlug={params.clientSlug} />
 
-      <AlertsPanel
-        alerts={alerts}
-        clientSlug={params.clientSlug}
-        isAgency={isAgency}
-        dismissAction={dismissAlert}
-      />
+      <AiSummaryCard summary={summary} />
     </div>
   );
 }
