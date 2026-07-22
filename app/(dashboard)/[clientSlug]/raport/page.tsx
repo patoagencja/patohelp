@@ -112,7 +112,7 @@ async function ShareBox({
     return (
       <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 print:hidden">
         Publiczne linki wymagają tabeli <code>share_links</code> w Supabase.
-        Odpal SQL z migracji <code>0015_share_links</code> (patrz czat), potem
+        Odpal zbiorczy SQL (<code>ALL_RECENT.sql</code> / patrz czat), potem
         odśwież stronę.
       </div>
     );

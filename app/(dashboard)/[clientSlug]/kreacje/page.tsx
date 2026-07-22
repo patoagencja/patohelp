@@ -218,14 +218,18 @@ export default async function KreacjePage({
               {top5.map((c, i) => (
                 <div
                   key={c.adId}
-                  className="overflow-hidden rounded-xl border border-border bg-card"
+                  className="rounded-xl border border-border bg-card"
                 >
-                  <Thumb c={c} className="h-36 w-full rounded-none" rank={i + 1} />
+                  {/* overflow-hidden only on the image so the name tooltip can
+                      escape the card instead of being clipped. */}
+                  <div className="overflow-hidden rounded-t-xl">
+                    <Thumb c={c} className="h-36 w-full rounded-none" rank={i + 1} />
+                  </div>
                   <div className="space-y-1.5 p-3">
-                    {/* Full name on hover: instant custom tooltip. */}
+                    {/* Full name on hover: instant custom tooltip, above. */}
                     <div className="group/name relative">
                       <p className="truncate text-sm font-medium">{c.name}</p>
-                      <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-max max-w-xs whitespace-normal rounded-md bg-foreground px-2 py-1 text-xs font-normal text-background shadow-lg group-hover/name:block">
+                      <span className="pointer-events-none absolute bottom-full left-0 z-30 mb-1 hidden w-max max-w-[16rem] whitespace-normal rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs font-normal leading-snug text-popover-foreground shadow-xl group-hover/name:block">
                         {c.name}
                       </span>
                     </div>
