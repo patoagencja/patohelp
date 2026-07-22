@@ -1,8 +1,7 @@
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ExternalLink, Newspaper, RefreshCw } from "lucide-react";
+import { ExternalLink, Newspaper } from "lucide-react";
 
-import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { NewsRefreshButton } from "@/components/dashboard/news-refresh-button";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { NewsCategory } from "@/lib/news/fetch";
@@ -60,28 +59,6 @@ const MONTHS_PL = [
 function dateLabel(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return `${d} ${MONTHS_PL[m - 1]} ${y}`;
-}
-
-// Server action: pull fresh news on demand (agency only).
-async function refreshNews(formData: FormData) {
-  "use server";
-  const clientSlug = String(formData.get("client"));
-  const access = await requireAgencyClientAccess(clientSlug);
-  if (!access.ok) return;
-
-  const base = process.env.NEXT_PUBLIC_APP_URL;
-  const secret = process.env.CRON_SECRET;
-  if (base && secret) {
-    try {
-      await fetch(`${base}/api/cron/refresh-news`, {
-        headers: { Authorization: `Bearer ${secret}` },
-        cache: "no-store",
-      });
-    } catch {
-      // best-effort
-    }
-  }
-  revalidatePath(`/${clientSlug}/newsy`);
 }
 
 export default async function NewsyPage({
@@ -150,16 +127,7 @@ export default async function NewsyPage({
               </a>
             ))}
           </div>
-          <form action={refreshNews}>
-            <input type="hidden" name="client" value={params.clientSlug} />
-            <button
-              type="submit"
-              title="Pobierz świeże newsy teraz"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-          </form>
+          <NewsRefreshButton clientSlug={params.clientSlug} />
         </div>
       </div>
 
