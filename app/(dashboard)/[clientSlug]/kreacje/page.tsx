@@ -222,9 +222,13 @@ export default async function KreacjePage({
                 >
                   <Thumb c={c} className="h-36 w-full rounded-none" rank={i + 1} />
                   <div className="space-y-1.5 p-3">
-                    <p className="truncate text-sm font-medium" title={c.name}>
-                      {c.name}
-                    </p>
+                    {/* Full name on hover: instant custom tooltip. */}
+                    <div className="group/name relative">
+                      <p className="truncate text-sm font-medium">{c.name}</p>
+                      <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-max max-w-xs whitespace-normal rounded-md bg-foreground px-2 py-1 text-xs font-normal text-background shadow-lg group-hover/name:block">
+                        {c.name}
+                      </span>
+                    </div>
                     <p className="font-mono text-base font-bold tabular-nums">
                       {formatMoneyPLN(c.spend)}
                     </p>

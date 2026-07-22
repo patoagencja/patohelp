@@ -231,18 +231,28 @@ export async function getAdThumbnails(
   accessToken: string,
   adAccountId: string
 ): Promise<Map<string, string>> {
+  // Ask Meta for a larger rendered thumbnail (default is ~64px and looks
+  // blurry when displayed bigger) and the full creative image, preferring the
+  // full image when present.
   const body = await graphGet<{
-    data: Array<{ id?: string; creative?: { thumbnail_url?: string } }>;
+    data: Array<{
+      id?: string;
+      creative?: {
+        thumbnail_url?: string;
+        image_url?: string;
+      };
+    }>;
   }>(`/${adAccountId}/ads`, {
-    fields: "id,creative{thumbnail_url}",
+    fields: "id,creative{thumbnail_url.width(400).height(400),image_url}",
     access_token: accessToken,
     limit: "500",
   });
 
   const map = new Map<string, string>();
   for (const ad of body.data ?? []) {
-    if (ad.id && ad.creative?.thumbnail_url) {
-      map.set(ad.id, ad.creative.thumbnail_url);
+    const url = ad.creative?.image_url || ad.creative?.thumbnail_url;
+    if (ad.id && url) {
+      map.set(ad.id, url);
     }
   }
   return map;

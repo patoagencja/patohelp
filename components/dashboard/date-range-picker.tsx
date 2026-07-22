@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 
 import { RANGE_KEYS, RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
@@ -18,7 +18,6 @@ export function DateRangePicker({
   customFrom?: string;
   customTo?: string;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -27,10 +26,9 @@ export function DateRangePicker({
     params.set("range", next);
     params.delete("from");
     params.delete("to");
-    router.push(`${pathname}?${params.toString()}`);
-    // Next 14 may serve the cached RSC payload when only search params
-    // change - force a server re-render so the data actually updates.
-    router.refresh();
+    // Full navigation (not router.push) so a fresh deploy can't trigger a
+    // ChunkLoadError mid-transition - always loads current assets.
+    window.location.assign(`${pathname}?${params.toString()}`);
   }
 
   const hasCustom = Boolean(customFrom && customTo);
