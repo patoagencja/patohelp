@@ -70,7 +70,7 @@ function OlxCover({ data }: { data: OlxSmReportData }) {
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">
           <span className="inline-block h-2 w-2 rounded-full bg-teal-300" />
-          PatoAgencja
+          patoagencja
         </div>
         <span className="text-2xl font-black tracking-tight text-white">olx</span>
       </div>
@@ -94,7 +94,7 @@ function OlxCover({ data }: { data: OlxSmReportData }) {
       <div className="relative grid grid-cols-4 gap-4">
         {(
           [
-            ["AGENCJA", "PatoAgencja (PATO)"],
+            ["AGENCJA", "patoagencja (PATO)"],
             ["OKRES", data.periodLabel],
             ["BUDŻET ŁĄCZNIE", plnFmt(data.totalCost)],
             [

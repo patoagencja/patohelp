@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { DashboardData } from "@/lib/dashboard/metrics";
 import type { WebsiteData } from "@/lib/dashboard/ga4-metrics";
 
-const SYSTEM_PROMPT = `Jesteś strategiem performance marketingu przygotowującym raport okresowy dla klienta agencji Pato.
+const SYSTEM_PROMPT = `Jesteś strategiem performance marketingu przygotowującym raport okresowy dla klienta agencji patoagencja.
 Klient to firma DRE (producent drzwi, non-ecom - mierzymy ruch, zasięg i engagement, NIE sprzedaż. Nigdy nie pisz o ROAS, przychodzie ani konwersjach sprzedażowych).
 Napisz zwięzły raport po polsku (3 krótkie akapity):
 1. Podsumowanie okresu - najważniejsze liczby (wydatki, kliknięcia, CTR, CPC, sesje) i zmiana względem poprzedniego okresu.

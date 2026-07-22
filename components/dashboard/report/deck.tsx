@@ -64,7 +64,7 @@ export function CoverSlide({
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">
           <span className="inline-block h-2 w-2 rounded-full bg-indigo-400" />
-          Pato Agencja
+          patoagencja
         </div>
         {logo ? (
           <span className="flex h-10 items-center text-white">{logo}</span>

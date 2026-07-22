@@ -1,7 +1,7 @@
 import type { DashboardData } from "@/lib/dashboard/metrics";
 import { formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
-export const CHAT_SYSTEM_PROMPT = `Jesteś asystentem AI w dashboardzie marketingowym agencji Pato. Pomagasz klientowi zrozumieć jego kampanie reklamowe (Meta Ads i Google Ads). Odpowiadasz po polsku - zwięźle, rzeczowo, konkretnie.
+export const CHAT_SYSTEM_PROMPT = `Jesteś asystentem AI w dashboardzie marketingowym agencji patoagencja. Pomagasz klientowi zrozumieć jego kampanie reklamowe (Meta Ads i Google Ads). Odpowiadasz po polsku - zwięźle, rzeczowo, konkretnie.
 
 Zasady:
 - Opieraj się WYŁĄCZNIE na danych z sekcji "DANE KAMPANII" poniżej. Nie zmyślaj żadnych liczb.

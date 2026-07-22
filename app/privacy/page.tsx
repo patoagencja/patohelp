@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-16 text-slate-800">
       <h1 className="text-2xl font-semibold">Polityka prywatności</h1>
-      <p className="mt-2 text-sm text-slate-500">Pato Agencja · Pato Dashboard</p>
+      <p className="mt-2 text-sm text-slate-500">patoagencja · Pato Dashboard</p>
 
       <div className="mt-8 space-y-5 text-sm leading-relaxed">
         <p>

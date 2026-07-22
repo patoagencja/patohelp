@@ -128,7 +128,7 @@ export async function buildOlxSmDeck(data: OlxSmReportData): Promise<Buffer> {
   pptx.defineLayout({ name: "WIDE", width: 13.33, height: 7.5 });
   pptx.layout = "WIDE";
 
-  const foot = `OLX Social Media Report · ${data.monthLabel} · PatoAgencja`;
+  const foot = `OLX Social Media Report · ${data.monthLabel} · patoagencja`;
   const channelLabel = (p: AdProvider) => AD_PROVIDER_LABEL[p];
 
   // ---------- Slide 1: Cover ----------
@@ -160,7 +160,7 @@ export async function buildOlxSmDeck(data: OlxSmReportData): Promise<Buffer> {
     });
 
     const chips: Array<[string, string]> = [
-      ["AGENCJA", "PatoAgencja (PATO)"],
+      ["AGENCJA", "patoagencja (PATO)"],
       ["OKRES", data.periodLabel],
       ["BUDŻET ŁĄCZNIE", plnFmt(data.totalCost)],
       ["KANAŁY", data.channels.map((c) => channelLabel(c.provider)).join(" · ") || "-"],

@@ -87,7 +87,7 @@ export default async function RaportPage({
         ? new Date(`${monthParam}-15T00:00:00`)
         : undefined;
     const sm = await getOlxSmReportData(client.id, client.name, monthDate);
-    const smFoot = `${client.name} · ${sm.periodLabel} · PatoAgencja`;
+    const smFoot = `${client.name} · ${sm.periodLabel} · patoagencja`;
 
     return (
       <div className="space-y-6 bg-muted/20 p-6">
@@ -613,7 +613,7 @@ export default async function RaportPage({
         {/* Closing */}
         <DividerSlide
           title="Dziękujemy"
-          subtitle={`Przygotowane przez Pato Agencja · wygenerowano ${generatedAt}`}
+          subtitle={`Przygotowane przez patoagencja · wygenerowano ${generatedAt}`}
         />
       </ReportDeck>
     </div>

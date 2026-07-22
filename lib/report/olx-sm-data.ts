@@ -184,7 +184,7 @@ async function generateAiSections(
       model: "claude-sonnet-4-5",
       max_tokens: 1600,
       system:
-        "Jesteś strategiem social media agencji Pato przygotowującym miesięczny raport dla OLX. Klient brandowy (reach/traffic, NIE e-commerce, nigdy ROAS). Odpowiadasz WYŁĄCZNIE poprawnym JSON, po polsku, zwięźle, bez emoji. Nie używaj długich myślników.",
+        "Jesteś strategiem social media agencji patoagencja przygotowującym miesięczny raport dla OLX. Klient brandowy (reach/traffic, NIE e-commerce, nigdy ROAS). Odpowiadasz WYŁĄCZNIE poprawnym JSON, po polsku, zwięźle, bez emoji. Nie używaj długich myślników.",
       messages: [
         {
           role: "user",
