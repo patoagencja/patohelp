@@ -2,10 +2,9 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import Anthropic from "@anthropic-ai/sdk";
 
-// Daily industry-news sweep for the "Newsy" tab: Claude with the server-side
-// web search tool finds what changed in Meta Ads / Google & YouTube Ads /
-// TikTok Ads / AI (OpenAI, Anthropic, Google) and returns compact Polish
-// summaries with sources.
+// Daily industry-news sweep for the "Newsy" tab: one Claude+web-search research
+// pass PER CATEGORY (run in parallel), so every filter tab has content - a
+// single combined pass tended to skip whole categories.
 
 export type NewsCategory = "meta" | "google" | "tiktok" | "ai" | "other";
 
@@ -17,63 +16,68 @@ export interface NewsItem {
   source_url: string | null;
 }
 
-const VALID_CATEGORIES: NewsCategory[] = ["meta", "google", "tiktok", "ai", "other"];
+const CATEGORY_BRIEFS: Array<{ key: NewsCategory; brief: string }> = [
+  {
+    key: "meta",
+    brief:
+      "Meta Ads / Facebook / Instagram: nowe funkcje reklamowe, zmiany algorytmu i zasięgów, polityki reklamowe, Advantage+, awarie, zmiany w Ads Managerze i API",
+  },
+  {
+    key: "google",
+    brief:
+      "Google Ads i YouTube: nowe funkcje kampanii (PMax, Demand Gen, YouTube Ads), zmiany w wyszukiwarce i AI Overviews wpływające na ruch, polityki, Google Marketing Platform. KONIECZNIE poszukaj też osobno newsów o samym YouTube (reklamy, monetyzacja, algorytm)",
+  },
+  {
+    key: "tiktok",
+    brief:
+      "TikTok i TikTok Ads: funkcje reklamowe, algorytm, regulacje/bany, TikTok Shop, trendy istotne dla reklamodawców",
+  },
+  {
+    key: "ai",
+    brief:
+      "AI dla marketerów: OpenAI/ChatGPT, Anthropic/Claude, Google Gemini - nowe modele, narzędzia do reklam/kreacji, AI w platformach reklamowych, wpływ AI na SEO/ruch",
+  },
+];
 
-/**
- * Fetch today's industry news via Claude + web search. `recentTitles` lets the
- * model skip stories we already covered on previous days.
- */
-export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]> {
-  if (!process.env.ANTHROPIC_API_KEY) return [];
-
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
-  const freshCutoff = formatInTimeZone(
-    subDays(new Date(), 7),
-    "Europe/Warsaw",
-    "yyyy-MM-dd"
-  );
-
+/** One research pass for a single category. */
+async function fetchCategoryNews(
+  anthropic: Anthropic,
+  category: NewsCategory,
+  brief: string,
+  today: string,
+  freshCutoff: string,
+  recentTitles: string[]
+): Promise<NewsItem[]> {
   const avoid = recentTitles.length
-    ? `\n\nTe tematy JUŻ opisaliśmy w poprzednich dniach - pomiń je, chyba że jest istotny nowy rozwój:\n${recentTitles
-        .slice(0, 40)
+    ? `\n\nTe tematy JUŻ opisaliśmy - pomiń, chyba że jest nowy rozwój:\n${recentTitles
+        .slice(0, 25)
         .map((t) => `- ${t}`)
         .join("\n")}`
     : "";
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4000,
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: 8,
-      },
-    ],
+    max_tokens: 3000,
+    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 6 }],
     system:
-      "Jesteś researcherem newsów dla polskiej agencji marketingowej (patoagencja). Zbierasz najświeższe, KONKRETNE newsy istotne dla ludzi robiących płatne kampanie (Meta Ads, Google Ads, YouTube, TikTok Ads) oraz śledzisz rozwój AI (OpenAI/ChatGPT, Anthropic/Claude, Google Gemini) pod kątem wpływu na marketing. Piszesz po polsku, zwięźle, bez clickbaitu i bez długich myślników.",
+      "Jesteś researcherem newsów dla polskiej agencji marketingowej (patoagencja). Piszesz po polsku, zwięźle, rzeczowo, bez clickbaitu i bez długich myślników.",
     messages: [
       {
         role: "user",
-        content: `DZIŚ JEST ${today}. Poszukaj w sieci najważniejszych newsów opublikowanych w OSTATNICH 2-3 DNIACH (absolutne maksimum: po ${freshCutoff}) w kategoriach:
-1. "meta" - Meta Ads / Facebook / Instagram (nowe funkcje reklamowe, zmiany algorytmu, polityki, awarie)
-2. "google" - Google Ads / YouTube / wyszukiwarka (funkcje, AI Overviews, zmiany w kampaniach)
-3. "tiktok" - TikTok / TikTok Ads
-4. "ai" - AI istotne dla marketerów (OpenAI, Anthropic/Claude, Gemini, nowe modele, narzędzia)
+        content: `DZIŚ JEST ${today}. Poszukaj najważniejszych newsów opublikowanych w OSTATNICH 2-3 DNIACH (absolutne maksimum: po ${freshCutoff}) w temacie:
 
-KRYTYCZNE - ŚWIEŻOŚĆ: dla każdego newsa USTAL datę publikacji artykułu. Jeśli artykuł jest starszy niż ${freshCutoff} albo nie możesz potwierdzić daty publikacji - POMIŃ go całkowicie. Lepiej zwrócić 4 świeże newsy niż 10 starych. Dodawaj do zapytań bieżący miesiąc i rok, żeby nie łapać archiwalnych tekstów.
+${brief}
 
-Wybierz 6-12 najistotniejszych (mniej, jeśli mało świeżych). Dla każdego: kategoria, data publikacji, chwytliwy ale rzeczowy tytuł PO POLSKU (max 90 znaków), 2-3 zdania podsumowania PO POLSKU (co się stało i CO TO ZNACZY dla agencji reklamowej), nazwa źródła i URL.${avoid}
+KRYTYCZNE - ŚWIEŻOŚĆ: dla każdego newsa USTAL datę publikacji. Artykuł starszy niż ${freshCutoff} albo bez potwierdzonej daty - POMIŃ. Dodawaj do zapytań bieżący miesiąc i rok. Zrób KILKA RÓŻNYCH wyszukiwań (różne frazy), żeby zebrać szeroko.
+
+Zwróć 3-6 newsów (mniej tylko jeśli naprawdę brak świeżych). Dla każdego: data publikacji, rzeczowy tytuł PO POLSKU (max 90 znaków), 2-3 zdania podsumowania PO POLSKU (co się stało i CO TO ZNACZY dla agencji reklamowej), nazwa źródła i URL.${avoid}
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
-[{"category":"meta|google|tiktok|ai|other","published":"yyyy-mm-dd","title":"...","summary":"...","source_name":"...","source_url":"https://..."}]`,
+[{"published":"yyyy-mm-dd","title":"...","summary":"...","source_name":"...","source_url":"https://..."}]`,
       },
     ],
   });
 
-  // The final text block carries the JSON (earlier blocks are search activity).
   const text = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
@@ -89,16 +93,13 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
     >;
     return parsed
       .filter((i) => i && typeof i.title === "string" && typeof i.summary === "string")
-      // Hard freshness gate: the model must assert a publish date within the
-      // last 7 days - anything older or undated is dropped, no exceptions.
+      // Hard freshness gate: publish date must be within the last 7 days.
       .filter((i) => {
         const pub = typeof i.published === "string" ? i.published.slice(0, 10) : "";
         return /^\d{4}-\d{2}-\d{2}$/.test(pub) && pub >= freshCutoff && pub <= today;
       })
       .map((i) => ({
-        category: VALID_CATEGORIES.includes(i.category as NewsCategory)
-          ? (i.category as NewsCategory)
-          : "other",
+        category,
         title: String(i.title).replace(/[–—]/g, "-").slice(0, 200),
         summary: String(i.summary).replace(/[–—]/g, "-").slice(0, 1000),
         source_name: i.source_name ? String(i.source_name).slice(0, 120) : null,
@@ -107,8 +108,38 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
             ? i.source_url.slice(0, 500)
             : null,
       }))
-      .slice(0, 15);
+      .slice(0, 6);
   } catch {
     return [];
   }
+}
+
+/**
+ * Fetch today's industry news: four category researches in parallel.
+ * `recentTitles` lets the model skip stories covered on previous days.
+ * One failed category doesn't sink the rest.
+ */
+export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]> {
+  if (!process.env.ANTHROPIC_API_KEY) return [];
+
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const freshCutoff = formatInTimeZone(
+    subDays(new Date(), 7),
+    "Europe/Warsaw",
+    "yyyy-MM-dd"
+  );
+
+  const results = await Promise.allSettled(
+    CATEGORY_BRIEFS.map((c) =>
+      fetchCategoryNews(anthropic, c.key, c.brief, today, freshCutoff, recentTitles)
+    )
+  );
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<NewsItem[]> => r.status === "fulfilled"
+    )
+    .flatMap((r) => r.value)
+    .slice(0, 24);
 }
