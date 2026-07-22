@@ -354,8 +354,8 @@ export default async function AlertyPage({
 
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
         <BellRing className="h-3.5 w-3.5" />
-        Skoki wydatków wysyłamy natychmiast na e-mail (i WhatsApp, gdy podłączony)
-        - nawet poza godzinami ciszy. Progi ustawisz w Ustawieniach.
+        Skoki wydatków lecą natychmiast na e-mail i Telegram - nawet poza
+        godzinami ciszy. Kanały i progi ustawisz w Ustawieniach.
       </div>
 
       {/* Budget spikes - the critical, "kampania przywiozła 500k" case */}

@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
+import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
@@ -112,6 +113,8 @@ export default async function ClientDashboardLayout({
             </Button>
           </form>
         </header>
+
+        <MobileNav clientSlug={params.clientSlug} isAgency={isAgency} />
 
         <main className="flex-1">{children}</main>
       </div>
