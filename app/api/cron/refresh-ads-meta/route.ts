@@ -144,41 +144,51 @@ export async function GET(request: Request) {
       // Isolate each ad account so one disabled/error account doesn't sink all.
       for (const account of accounts) {
         try {
-          // Fetch AND upsert one day at a time, so progress persists even if the
-          // function is killed mid-backfill on a huge account (1000s of campaigns).
-          for (const day of dayList) {
-            const insights = await getCampaignInsights(
-              access_token,
-              account.id,
-              day,
-              day
+          // Fetch days in small parallel batches (sequential was the wall-clock
+          // bottleneck on year-long backfills), upserting per day so progress
+          // persists even if the function is killed mid-backfill.
+          const CONCURRENCY = 4;
+          for (let i = 0; i < dayList.length; i += CONCURRENCY) {
+            const batch = dayList.slice(i, i + CONCURRENCY);
+            const results = await Promise.all(
+              batch.map(async (day) => ({
+                day,
+                insights: await getCampaignInsights(
+                  access_token,
+                  account.id,
+                  day,
+                  day
+                ),
+              }))
             );
-            if (!insights.length) continue;
-            const dayRows = insights.map((insight) => ({
-              client_id: integration.client_id,
-              provider: "meta_ads",
-              campaign_id: insight.campaign_id,
-              campaign_name: insight.campaign_name,
-              date: insight.date,
-              spend_minor_units: Math.round(parseFloat(insight.spend) * 100),
-              impressions: parseInt(insight.impressions, 10) || 0,
-              clicks: parseInt(insight.clicks, 10) || 0,
-              ctr: insight.ctr != null ? parseFloat(insight.ctr) : null,
-              cpc_minor_units:
-                insight.cpc != null
-                  ? Math.round(parseFloat(insight.cpc) * 100)
-                  : null,
-              reach: insight.reach != null ? parseInt(insight.reach, 10) : null,
-              frequency:
-                insight.frequency != null ? parseFloat(insight.frequency) : null,
-              conversions: extractConversions(insight.actions),
-              raw_data: insight as unknown as Record<string, unknown>,
-            }));
-            const { error } = await admin
-              .from("ads_daily")
-              .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
-            if (error) throw new Error(error.message);
-            campaignsUpserted += dayRows.length;
+            for (const { insights } of results) {
+              if (!insights.length) continue;
+              const dayRows = insights.map((insight) => ({
+                client_id: integration.client_id,
+                provider: "meta_ads",
+                campaign_id: insight.campaign_id,
+                campaign_name: insight.campaign_name,
+                date: insight.date,
+                spend_minor_units: Math.round(parseFloat(insight.spend) * 100),
+                impressions: parseInt(insight.impressions, 10) || 0,
+                clicks: parseInt(insight.clicks, 10) || 0,
+                ctr: insight.ctr != null ? parseFloat(insight.ctr) : null,
+                cpc_minor_units:
+                  insight.cpc != null
+                    ? Math.round(parseFloat(insight.cpc) * 100)
+                    : null,
+                reach: insight.reach != null ? parseInt(insight.reach, 10) : null,
+                frequency:
+                  insight.frequency != null ? parseFloat(insight.frequency) : null,
+                conversions: extractConversions(insight.actions),
+                raw_data: insight as unknown as Record<string, unknown>,
+              }));
+              const { error } = await admin
+                .from("ads_daily")
+                .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
+              if (error) throw new Error(error.message);
+              campaignsUpserted += dayRows.length;
+            }
           }
         } catch (accErr) {
           accountsFailed += 1;
