@@ -231,29 +231,36 @@ export async function getAdThumbnails(
   accessToken: string,
   adAccountId: string
 ): Promise<Map<string, string>> {
-  // Ask Meta for a larger rendered thumbnail (default is ~64px and looks
-  // blurry when displayed bigger) and the full creative image, preferring the
-  // full image when present.
+  // The default thumbnail_url is ~64px and looks blurry when shown larger.
+  // Pull every higher-res source Meta exposes and pick the best: full image,
+  // the picture/video frame from object_story_spec, else the small thumbnail.
+  interface Creative {
+    image_url?: string;
+    thumbnail_url?: string;
+    object_story_spec?: {
+      link_data?: { picture?: string };
+      video_data?: { image_url?: string };
+    };
+  }
   const body = await graphGet<{
-    data: Array<{
-      id?: string;
-      creative?: {
-        thumbnail_url?: string;
-        image_url?: string;
-      };
-    }>;
+    data: Array<{ id?: string; creative?: Creative }>;
   }>(`/${adAccountId}/ads`, {
-    fields: "id,creative{thumbnail_url.width(400).height(400),image_url}",
+    fields:
+      "id,creative{image_url,thumbnail_url,object_story_spec{link_data{picture},video_data{image_url}}}",
     access_token: accessToken,
     limit: "500",
   });
 
+  const bestUrl = (c?: Creative): string | undefined =>
+    c?.image_url ||
+    c?.object_story_spec?.video_data?.image_url ||
+    c?.object_story_spec?.link_data?.picture ||
+    c?.thumbnail_url;
+
   const map = new Map<string, string>();
   for (const ad of body.data ?? []) {
-    const url = ad.creative?.image_url || ad.creative?.thumbnail_url;
-    if (ad.id && url) {
-      map.set(ad.id, url);
-    }
+    const url = bestUrl(ad.creative);
+    if (ad.id && url) map.set(ad.id, url);
   }
   return map;
 }
