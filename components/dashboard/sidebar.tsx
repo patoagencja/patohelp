@@ -6,6 +6,7 @@ import {
   BellRing,
   FileText,
   Globe,
+  Image as ImageIcon,
   LayoutDashboard,
   LayoutGrid,
   Megaphone,
@@ -28,6 +29,7 @@ export function DashboardSidebar({
   const items = [
     { href: base, label: "Przegląd", icon: LayoutDashboard },
     { href: `${base}/reklamy`, label: "Reklamy", icon: Megaphone },
+    { href: `${base}/kreacje`, label: "Kreacje", icon: ImageIcon },
     { href: `${base}/witryna`, label: "Witryna", icon: Globe },
     { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
     { href: `${base}/raport`, label: "Raport", icon: FileText },
