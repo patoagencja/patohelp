@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Megaphone,
+  Newspaper,
   Settings,
   Sparkles,
 } from "lucide-react";
@@ -33,6 +34,7 @@ export function DashboardSidebar({
     { href: `${base}/witryna`, label: "Witryna", icon: Globe },
     { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
     { href: `${base}/raport`, label: "Raport", icon: FileText },
+    { href: `${base}/newsy`, label: "Newsy", icon: Newspaper },
     { href: `${base}/asystent`, label: "Asystent AI", icon: Sparkles },
     ...(isAgency
       ? [
