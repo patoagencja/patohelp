@@ -72,7 +72,7 @@
 .ticker-track {
   display: inline-flex;
   white-space: nowrap;
-  animation: ticker-scroll 40s linear infinite;
+  animation: ticker-scroll 90s linear infinite;
 }
 
 .ticker-mask:hover .ticker-track {

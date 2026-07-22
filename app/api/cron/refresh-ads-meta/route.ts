@@ -35,6 +35,31 @@ function eachDay(since: string, until: string): string[] {
   return days;
 }
 
+/** All dates with at least one row for client+provider since `fromDate`
+ *  (paginated - PostgREST caps a single select at ~1000 rows). */
+async function presentDates(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  provider: string,
+  fromDate: string
+): Promise<Set<string>> {
+  const present = new Set<string>();
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await admin
+      .from("ads_daily")
+      .select("date")
+      .eq("client_id", clientId)
+      .eq("provider", provider)
+      .gte("date", fromDate)
+      .order("date", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    for (const r of data ?? []) present.add(r.date as string);
+    if (!data || data.length < PAGE) break;
+  }
+  return present;
+}
+
 export async function GET(request: Request) {
   if (
     request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
@@ -88,29 +113,21 @@ export async function GET(request: Request) {
         WARSAW_TZ,
         "yyyy-MM-dd"
       );
-      const { data: earliest } = await admin
-        .from("ads_daily")
-        .select("date")
-        .eq("client_id", integration.client_id)
-        .eq("provider", "meta_ads")
-        .order("date", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      const earliestDate = (earliest?.date as string) ?? null;
-
-      // Always refresh yesterday+today; then extend history backwards.
+      // Always refresh yesterday+today; then fill every day in the window we
+      // don't have yet (newest first). This covers both extending history
+      // backwards AND holes in the middle left by killed runs.
+      const present = await presentDates(
+        admin,
+        integration.client_id as string,
+        "meta_ads",
+        windowStart
+      );
       const dayList: string[] = eachDay(since, until);
-      if (!earliestDate) {
-        // Nothing yet: newest -> oldest across the whole window.
-        dayList.push(...eachDay(windowStart, since).reverse());
-      } else if (earliestDate > windowStart) {
-        const dayBefore = formatInTimeZone(
-          subDays(new Date(`${earliestDate}T00:00:00`), 1),
-          WARSAW_TZ,
-          "yyyy-MM-dd"
-        );
-        dayList.push(...eachDay(windowStart, dayBefore).reverse());
-      }
+      dayList.push(
+        ...eachDay(windowStart, formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd"))
+          .filter((d) => !present.has(d))
+          .reverse()
+      );
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).

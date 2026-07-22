@@ -69,18 +69,30 @@ export async function GET(request: Request) {
         WARSAW_TZ,
         "yyyy-MM-dd"
       );
-      const { data: earliest } = await admin
-        .from("ads_daily")
-        .select("date")
-        .eq("client_id", integration.client_id)
-        .eq("provider", "google_ads")
-        .order("date", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      const effectiveSince =
-        earliest?.date && (earliest.date as string) <= backfillStart
-          ? since
-          : backfillStart;
+      // If ANY day in the window is missing (no history yet, or a hole left by
+      // a failed run), refetch the whole window - one GAQL query covers it.
+      const present = new Set<string>();
+      for (let offset = 0; ; offset += 1000) {
+        const { data: dateRows } = await admin
+          .from("ads_daily")
+          .select("date")
+          .eq("client_id", integration.client_id)
+          .eq("provider", "google_ads")
+          .gte("date", backfillStart)
+          .order("date", { ascending: true })
+          .range(offset, offset + 999);
+        for (const r of dateRows ?? []) present.add(r.date as string);
+        if (!dateRows || dateRows.length < 1000) break;
+      }
+      let hasGap = false;
+      for (
+        let d = new Date(`${backfillStart}T00:00:00Z`);
+        !hasGap && d.toISOString().slice(0, 10) < since;
+        d = new Date(d.getTime() + 86_400_000)
+      ) {
+        if (!present.has(d.toISOString().slice(0, 10))) hasGap = true;
+      }
+      const effectiveSince = hasGap ? backfillStart : since;
 
       // Only accounts explicitly selected for this client.
       const accounts = (
