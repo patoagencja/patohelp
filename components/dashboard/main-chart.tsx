@@ -6,7 +6,7 @@ import { CalendarDays } from "lucide-react";
 
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 import type { ClientEvent } from "@/lib/dashboard/overview";
-import { cn, formatMoneyPLN, formatNumberPL } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type MetricKey = "spend" | "sessions" | "clicks" | "conversions";
 
@@ -16,6 +16,22 @@ const METRICS: Array<{ key: MetricKey; label: string }> = [
   { key: "clicks", label: "Kliknięcia" },
   { key: "conversions", label: "Konwersje" },
 ];
+
+// Compact axis labels so wide amounts ("140 000,00 zł") don't get clipped.
+const compactPln = (zl: number) => {
+  if (Math.abs(zl) >= 1_000_000)
+    return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln zł`;
+  if (Math.abs(zl) >= 1_000)
+    return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 0 })} tys. zł`;
+  return `${Math.round(zl)} zł`;
+};
+const compactNum = (v: number) => {
+  if (Math.abs(v) >= 1_000_000)
+    return `${(v / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln`;
+  if (Math.abs(v) >= 1_000)
+    return `${(v / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 0 })} tys.`;
+  return `${Math.round(v)}`;
+};
 
 const EVENT_TYPE_LABEL: Record<string, string> = {
   campaign_launch: "Start kampanii",
@@ -86,11 +102,9 @@ export function MainChart({
         index="date"
         categories={["Wartość"]}
         colors={["indigo"]}
-        valueFormatter={(v) =>
-          isMoney ? formatMoneyPLN(Math.round(v * 100)) : formatNumberPL(v)
-        }
+        valueFormatter={(v) => (isMoney ? compactPln(v) : compactNum(v))}
         showLegend={false}
-        yAxisWidth={isMoney ? 80 : 56}
+        yAxisWidth={isMoney ? 76 : 56}
         curveType="monotone"
       />
 
