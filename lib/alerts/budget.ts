@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { formatMoneyPLN } from "@/lib/utils";
@@ -199,12 +200,18 @@ export async function detectBudgetSpikes(
   // Fetch enough history for both single-day baselines and the weekly window.
   const fetchStart = fmtDate(subDays(today, WEEK_DAYS + PRIOR_WEEKS_DAYS + 1)); // ~22 days
 
-  const { data } = await supabase
-    .from("ads_daily")
-    .select("date, campaign_id, campaign_name, spend_minor_units")
-    .eq("client_id", clientId)
-    .gte("date", fetchStart)
-    .lte("date", todayStr);
+  const data = await fetchAll<Record<string, unknown>>((from, to) =>
+    supabase
+      .from("ads_daily")
+      .select("date, campaign_id, campaign_name, spend_minor_units")
+      .eq("client_id", clientId)
+      .gte("date", fetchStart)
+      .lte("date", todayStr)
+      .order("date", { ascending: true })
+      .order("provider", { ascending: true })
+      .order("campaign_id", { ascending: true })
+      .range(from, to)
+  );
 
   // Date-string helpers for window membership.
   const d = (offset: number) => fmtDate(subDays(today, offset));

@@ -26,6 +26,7 @@ interface Account {
   id: string;
   name?: string;
   selected?: boolean;
+  video_only?: boolean;
 }
 
 const PROVIDERS: Array<{
@@ -94,9 +95,12 @@ async function saveAccounts(formData: FormData) {
     .eq("provider", provider)
     .single();
 
+  const videoOnly = formData.get("video_only") === "on";
   const accounts = ((data?.account_ids ?? []) as Account[]).map((a) => ({
     ...a,
     selected: selectedIds.includes(String(a.id)),
+    // Google-only flag: report just YouTube (VIDEO) campaigns.
+    ...(provider === "google_ads" ? { video_only: videoOnly } : {}),
   }));
 
   await admin
@@ -297,6 +301,22 @@ export default async function SettingsPage({
                           </label>
                         ))}
                       </div>
+                      {provider.key === "google_ads" ? (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            name="video_only"
+                            defaultChecked={accounts.some(
+                              (a) => a.selected && a.video_only
+                            )}
+                            className="h-4 w-4 rounded border-input"
+                          />
+                          Tylko kampanie YouTube (VIDEO)
+                          <span className="text-xs text-muted-foreground">
+                            - gdy resztę konta prowadzi inna agencja
+                          </span>
+                        </label>
+                      ) : null}
                       <Button type="submit" size="sm" className="w-fit">
                         Zapisz wybór kont
                       </Button>

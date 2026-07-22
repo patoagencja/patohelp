@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoneyPLN, formatPercent } from "@/lib/utils";
 
@@ -70,25 +71,34 @@ export async function detectAnomalies(
   const inRecent = (d: string) => d >= recentStart && d <= recentEnd;
   const inBase = (d: string) => d >= baseStart && d <= baseEnd;
 
-  const [adsRes, ga4Res] = await Promise.all([
-    supabase
-      .from("ads_daily")
-      .select("campaign_id, campaign_name, date, spend_minor_units, clicks, impressions")
-      .eq("client_id", clientId)
-      .gte("date", baseStart)
-      .lte("date", recentEnd),
-    supabase
-      .from("ga4_daily")
-      .select("date, sessions")
-      .eq("client_id", clientId)
-      .is("source_medium", null)
-      .is("device_category", null)
-      .is("page_path", null)
-      .gte("date", baseStart)
-      .lte("date", recentEnd),
+  const [rows, ga4Rows] = await Promise.all([
+    fetchAll<Record<string, unknown>>((from, to) =>
+      supabase
+        .from("ads_daily")
+        .select("campaign_id, campaign_name, date, spend_minor_units, clicks, impressions")
+        .eq("client_id", clientId)
+        .gte("date", baseStart)
+        .lte("date", recentEnd)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ),
+    fetchAll<Record<string, unknown>>((from, to) =>
+      supabase
+        .from("ga4_daily")
+        .select("date, sessions")
+        .eq("client_id", clientId)
+        .is("source_medium", null)
+        .is("device_category", null)
+        .is("page_path", null)
+        .gte("date", baseStart)
+        .lte("date", recentEnd)
+        .order("date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
   ]);
-
-  const rows = adsRes.data ?? [];
 
   const clientRecent = empty();
   const clientBase = empty();
@@ -201,7 +211,7 @@ export async function detectAnomalies(
   // GA4 sessions
   let ga4Recent = 0;
   let ga4Base = 0;
-  for (const r of ga4Res.data ?? []) {
+  for (const r of ga4Rows) {
     const d = r.date as string;
     const s = Number(r.sessions);
     if (inRecent(d)) ga4Recent += s;

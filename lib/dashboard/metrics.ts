@@ -14,6 +14,7 @@ import {
   type CustomRange,
   type RangeKey,
 } from "@/lib/dashboard/ranges";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { AdProvider } from "@/lib/types";
 
@@ -200,32 +201,39 @@ export async function getDashboardData(
     range = resolveRange(rangeKey, today);
   }
 
-  const [adsRes, ga4Res] = await Promise.all([
-    supabase
-      .from("ads_daily")
-      .select(
-        "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
-      )
-      .eq("client_id", clientId)
-      .gte("date", range.prevStart)
-      .lte("date", range.end),
+  // Paginated reads: a long range on a large account easily exceeds
+  // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
+  const [rows, ga4Rows] = await Promise.all([
+    fetchAll<AdsRow>((from, to) =>
+      supabase
+        .from("ads_daily")
+        .select(
+          "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
+        )
+        .eq("client_id", clientId)
+        .gte("date", range.prevStart)
+        .lte("date", range.end)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ),
     // GA4 daily totals only (dimension columns null).
-    supabase
-      .from("ga4_daily")
-      .select("date, sessions")
-      .eq("client_id", clientId)
-      .is("source_medium", null)
-      .is("device_category", null)
-      .is("page_path", null)
-      .gte("date", range.prevStart)
-      .lte("date", range.end),
+    fetchAll<{ date: string; sessions: number | string }>((from, to) =>
+      supabase
+        .from("ga4_daily")
+        .select("date, sessions")
+        .eq("client_id", clientId)
+        .is("source_medium", null)
+        .is("device_category", null)
+        .is("page_path", null)
+        .gte("date", range.prevStart)
+        .lte("date", range.end)
+        .order("date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
   ]);
-
-  const rows = (adsRes.data ?? []) as AdsRow[];
-  const ga4Rows = (ga4Res.data ?? []) as Array<{
-    date: string;
-    sessions: number | string;
-  }>;
 
   const inRange = (d: string) => d >= range.start && d <= range.end;
   const inPrev = (d: string) => d >= range.prevStart && d <= range.prevEnd;

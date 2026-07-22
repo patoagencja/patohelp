@@ -18,11 +18,19 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const { data: rows } = await admin
-    .from("ads_daily")
-    .select("date, provider, campaign_name, spend_minor_units")
-    .eq("client_id", access.clientId)
-    .order("date", { ascending: true });
+  const rows: Array<Record<string, unknown>> = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data: page } = await admin
+      .from("ads_daily")
+      .select("date, provider, campaign_name, spend_minor_units")
+      .eq("client_id", access.clientId)
+      .order("date", { ascending: true })
+      .order("provider", { ascending: true })
+      .order("campaign_id", { ascending: true })
+      .range(offset, offset + 999);
+    rows.push(...(page ?? []));
+    if (!page || page.length < 1000) break;
+  }
 
   const dates = new Set((rows ?? []).map((r) => r.date as string));
   const sorted = Array.from(dates).sort();

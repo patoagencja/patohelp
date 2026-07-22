@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { AdProvider } from "@/lib/types";
 
 // Data assembly for the monthly OLX Social Media PPTX report. Aggregates
@@ -227,12 +228,18 @@ export async function getOlxSmReportData(
   const fmtIso = (d: Date) => format(d, "yyyy-MM-dd");
   const fmtDot = (d: Date) => format(d, "dd.MM.yyyy");
 
-  const { data: rows } = await admin
-    .from("ads_daily")
-    .select("provider, campaign_id, campaign_name, date, spend_minor_units, impressions, clicks, reach")
-    .eq("client_id", clientId)
-    .gte("date", fmtIso(fetchStart))
-    .lte("date", fmtIso(monthEnd));
+  const rows = await fetchAll<Record<string, unknown>>((from, to) =>
+    admin
+      .from("ads_daily")
+      .select("provider, campaign_id, campaign_name, date, spend_minor_units, impressions, clicks, reach")
+      .eq("client_id", clientId)
+      .gte("date", fmtIso(fetchStart))
+      .lte("date", fmtIso(monthEnd))
+      .order("date", { ascending: true })
+      .order("provider", { ascending: true })
+      .order("campaign_id", { ascending: true })
+      .range(from, to)
+  );
 
   // Aggregate per provider per month-bucket, and per campaign for the target month.
   const monthKey = (d: string) => d.slice(0, 7); // yyyy-MM

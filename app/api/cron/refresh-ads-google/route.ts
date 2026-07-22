@@ -18,6 +18,8 @@ const WARSAW_TZ = "Europe/Warsaw";
 interface GoogleAccount {
   id: string;
   selected?: boolean;
+  /** Only pull YouTube (VIDEO) campaigns for this account. */
+  video_only?: boolean;
 }
 
 export async function GET(request: Request) {
@@ -110,7 +112,8 @@ export async function GET(request: Request) {
             refresh_token,
             account.id,
             effectiveSince,
-            until
+            until,
+            account.video_only === true
           );
           for (const metric of metrics) {
             rows.push({

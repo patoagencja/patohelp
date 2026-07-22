@@ -176,10 +176,13 @@ export async function getCampaignMetrics(
   refreshToken: string,
   customerId: string,
   since: string,
-  until: string
+  until: string,
+  videoOnly = false
 ): Promise<GoogleCampaignMetric[]> {
   const client = apiClient();
 
+  // videoOnly: only YouTube (VIDEO) campaigns - used when another agency runs
+  // the rest of the Google account and we must not report their spend.
   const gaql = `
     SELECT
       campaign.id,
@@ -195,6 +198,7 @@ export async function getCampaignMetrics(
     FROM campaign
     WHERE segments.date BETWEEN '${since}' AND '${until}'
       AND campaign.status != 'REMOVED'
+      ${videoOnly ? "AND campaign.advertising_channel_type = 'VIDEO'" : ""}
   `;
 
   const rows = await queryWithFallback(client, refreshToken, customerId, gaql);
