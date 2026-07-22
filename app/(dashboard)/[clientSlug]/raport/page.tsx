@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
@@ -25,6 +26,8 @@ import {
   normalizeRange,
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
+import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { AD_PROVIDER_HEX, AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import {
@@ -35,6 +38,99 @@ import {
 } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+// Server action: create (or reuse) a public share link for this client's report.
+async function createShareLink(formData: FormData) {
+  "use server";
+  const clientSlug = String(formData.get("client"));
+  const access = await requireAgencyClientAccess(clientSlug);
+  if (!access.ok) return;
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("share_links")
+    .select("token")
+    .eq("client_id", access.clientId)
+    .eq("revoked", false)
+    .maybeSingle();
+
+  if (!existing) {
+    const token = globalThis.crypto.randomUUID().replace(/-/g, "");
+    await admin
+      .from("share_links")
+      .insert({ token, client_id: access.clientId });
+  }
+  revalidatePath(`/${clientSlug}/raport`);
+}
+
+// Server action: revoke every active share link for this client.
+async function revokeShareLink(formData: FormData) {
+  "use server";
+  const clientSlug = String(formData.get("client"));
+  const access = await requireAgencyClientAccess(clientSlug);
+  if (!access.ok) return;
+
+  const admin = createAdminClient();
+  await admin
+    .from("share_links")
+    .update({ revoked: true })
+    .eq("client_id", access.clientId)
+    .eq("revoked", false);
+  revalidatePath(`/${clientSlug}/raport`);
+}
+
+// Share box shown to agency users: current public link + create/revoke.
+async function ShareBox({ clientSlug, clientId }: { clientSlug: string; clientId: string }) {
+  const admin = createAdminClient();
+  let token: string | null = null;
+  try {
+    const { data } = await admin
+      .from("share_links")
+      .select("token")
+      .eq("client_id", clientId)
+      .eq("revoked", false)
+      .maybeSingle();
+    token = (data?.token as string) ?? null;
+  } catch {
+    // table not migrated yet - hide the box gracefully
+    return null;
+  }
+
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 print:hidden">
+      <span className="text-sm font-medium">Publiczny link (bez logowania):</span>
+      {token ? (
+        <>
+          <input
+            readOnly
+            value={`${base}/r/${token}`}
+            className="min-w-0 flex-1 rounded-md border border-input bg-muted/40 px-2 py-1.5 font-mono text-xs"
+          />
+          <form action={revokeShareLink}>
+            <input type="hidden" name="client" value={clientSlug} />
+            <button
+              type="submit"
+              className="rounded-md px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+            >
+              Unieważnij
+            </button>
+          </form>
+        </>
+      ) : (
+        <form action={createShareLink}>
+          <input type="hidden" name="client" value={clientSlug} />
+          <button
+            type="submit"
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Wygeneruj link
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
 
 type Direction = "good" | "bad" | "neutral";
 
@@ -78,6 +174,15 @@ export default async function RaportPage({
     redirect("/login");
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("users").select("role").eq("id", user.id).single()
+    : { data: null };
+  const isAgency =
+    profile?.role === "admin" || profile?.role === "member";
+
   // OLX gets the agency's SM-template deck (auto-filled monthly report);
   // other clients keep the generic performance deck below.
   if (["olx", "https-www-olx-pl"].includes(params.clientSlug)) {
@@ -119,6 +224,10 @@ export default async function RaportPage({
             </a>
           </div>
         </div>
+
+        {isAgency ? (
+          <ShareBox clientSlug={params.clientSlug} clientId={client.id} />
+        ) : null}
 
         <ReportDeck
           clientSlug={params.clientSlug}

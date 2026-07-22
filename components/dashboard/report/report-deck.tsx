@@ -20,12 +20,15 @@ export function ReportDeck({
   range,
   rangeLabel,
   foot,
+  shareMode = false,
   children,
 }: {
   clientSlug: string;
   range: RangeKey;
   rangeLabel: string;
   foot: string;
+  /** Public share view: hides the AI-generate button (auth-only endpoint). */
+  shareMode?: boolean;
   children: React.ReactNode;
 }) {
   const staticSlides = useMemo(() => Children.toArray(children), [children]);
@@ -93,10 +96,12 @@ export function ReportDeck({
     <div>
       {/* Toolbar (not printed) */}
       <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
-        <Button onClick={generate} disabled={loading} className="gap-1.5">
-          <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
-          {loading ? "Generuję…" : summary ? "Wygeneruj ponownie" : "Generuj opis AI"}
-        </Button>
+        {!shareMode ? (
+          <Button onClick={generate} disabled={loading} className="gap-1.5">
+            <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
+            {loading ? "Generuję…" : summary ? "Wygeneruj ponownie" : "Generuj opis AI"}
+          </Button>
+        ) : null}
         <Button variant="outline" onClick={() => window.print()} className="gap-1.5">
           <Download className="h-4 w-4" />
           Pobierz PDF

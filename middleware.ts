@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Public paths that must stay reachable without a session.
-const PUBLIC_PATHS = ["/login", "/auth", "/privacy", "/terms"];
+const PUBLIC_PATHS = ["/login", "/auth", "/privacy", "/terms", "/r"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
