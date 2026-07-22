@@ -1,3 +1,5 @@
+import { subDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import Anthropic from "@anthropic-ai/sdk";
 
 // Daily industry-news sweep for the "Newsy" tab: Claude with the server-side
@@ -26,6 +28,13 @@ export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const freshCutoff = formatInTimeZone(
+    subDays(new Date(), 7),
+    "Europe/Warsaw",
+    "yyyy-MM-dd"
+  );
+
   const avoid = recentTitles.length
     ? `\n\nTe tematy JUŻ opisaliśmy w poprzednich dniach - pomiń je, chyba że jest istotny nowy rozwój:\n${recentTitles
         .slice(0, 40)
@@ -48,16 +57,18 @@ export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]
     messages: [
       {
         role: "user",
-        content: `Poszukaj w sieci najważniejszych newsów z OSTATNICH 48 GODZIN w kategoriach:
+        content: `DZIŚ JEST ${today}. Poszukaj w sieci najważniejszych newsów opublikowanych w OSTATNICH 2-3 DNIACH (absolutne maksimum: po ${freshCutoff}) w kategoriach:
 1. "meta" - Meta Ads / Facebook / Instagram (nowe funkcje reklamowe, zmiany algorytmu, polityki, awarie)
 2. "google" - Google Ads / YouTube / wyszukiwarka (funkcje, AI Overviews, zmiany w kampaniach)
 3. "tiktok" - TikTok / TikTok Ads
 4. "ai" - AI istotne dla marketerów (OpenAI, Anthropic/Claude, Gemini, nowe modele, narzędzia)
 
-Wybierz 6-12 najistotniejszych. Dla każdego: kategoria, chwytliwy ale rzeczowy tytuł PO POLSKU (max 90 znaków), 2-3 zdania podsumowania PO POLSKU (co się stało i CO TO ZNACZY dla agencji reklamowej), nazwa źródła i URL.${avoid}
+KRYTYCZNE - ŚWIEŻOŚĆ: dla każdego newsa USTAL datę publikacji artykułu. Jeśli artykuł jest starszy niż ${freshCutoff} albo nie możesz potwierdzić daty publikacji - POMIŃ go całkowicie. Lepiej zwrócić 4 świeże newsy niż 10 starych. Dodawaj do zapytań bieżący miesiąc i rok, żeby nie łapać archiwalnych tekstów.
+
+Wybierz 6-12 najistotniejszych (mniej, jeśli mało świeżych). Dla każdego: kategoria, data publikacji, chwytliwy ale rzeczowy tytuł PO POLSKU (max 90 znaków), 2-3 zdania podsumowania PO POLSKU (co się stało i CO TO ZNACZY dla agencji reklamowej), nazwa źródła i URL.${avoid}
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
-[{"category":"meta|google|tiktok|ai|other","title":"...","summary":"...","source_name":"...","source_url":"https://..."}]`,
+[{"category":"meta|google|tiktok|ai|other","published":"yyyy-mm-dd","title":"...","summary":"...","source_name":"...","source_url":"https://..."}]`,
       },
     ],
   });
@@ -78,6 +89,12 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
     >;
     return parsed
       .filter((i) => i && typeof i.title === "string" && typeof i.summary === "string")
+      // Hard freshness gate: the model must assert a publish date within the
+      // last 7 days - anything older or undated is dropped, no exceptions.
+      .filter((i) => {
+        const pub = typeof i.published === "string" ? i.published.slice(0, 10) : "";
+        return /^\d{4}-\d{2}-\d{2}$/.test(pub) && pub >= freshCutoff && pub <= today;
+      })
       .map((i) => ({
         category: VALID_CATEGORIES.includes(i.category as NewsCategory)
           ? (i.category as NewsCategory)
