@@ -64,10 +64,10 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill ~6 months (one GAQL query covers the whole span) until we
+      // Backfill a full year (one GAQL query covers the whole span) until we
       // have that much history, then yesterday+today.
       const backfillStart = formatInTimeZone(
-        subDays(now, 179),
+        subDays(now, 364),
         WARSAW_TZ,
         "yyyy-MM-dd"
       );

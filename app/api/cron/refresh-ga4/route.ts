@@ -71,10 +71,10 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill ~6 months of daily totals until we have them, then only
+      // Backfill a full year of daily totals until we have them, then only
       // yesterday+today. (Based on the earliest daily-total row, not "any row".)
       const backfillStart = formatInTimeZone(
-        subDays(now, 179),
+        subDays(now, 364),
         WARSAW_TZ,
         "yyyy-MM-dd"
       );

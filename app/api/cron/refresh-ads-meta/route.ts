@@ -103,11 +103,11 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Keep ~6 months of history (custom date ranges reach back to spring).
+      // Keep a full year of history (clients compare year-over-year).
       // Fresh days first, then backfill CONTIGUOUSLY BACKWARDS from the
       // earliest row we already have - so a timeout mid-backfill just means
       // the next run resumes where this one stopped, with no gaps.
-      const HISTORY_DAYS = 180;
+      const HISTORY_DAYS = 365;
       const windowStart = formatInTimeZone(
         subDays(now, HISTORY_DAYS - 1),
         WARSAW_TZ,
@@ -122,11 +122,15 @@ export async function GET(request: Request) {
         "meta_ads",
         windowStart
       );
+      // Cap historical work per run so a year-long backfill lands within the
+      // 300s budget; successive runs (hourly cron / manual refresh) continue.
+      const MAX_BACKFILL_PER_RUN = 150;
       const dayList: string[] = eachDay(since, until);
       dayList.push(
         ...eachDay(windowStart, formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd"))
           .filter((d) => !present.has(d))
           .reverse()
+          .slice(0, MAX_BACKFILL_PER_RUN)
       );
 
       // Only accounts explicitly selected for this client (avoids pulling
