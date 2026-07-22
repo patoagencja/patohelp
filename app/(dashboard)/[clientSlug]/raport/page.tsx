@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -55,12 +57,18 @@ async function createShareLink(formData: FormData) {
     .maybeSingle();
 
   if (!existing) {
-    const token = globalThis.crypto.randomUUID().replace(/-/g, "");
-    await admin
+    const token = randomUUID().replace(/-/g, "");
+    const { error } = await admin
       .from("share_links")
       .insert({ token, client_id: access.clientId });
+    if (error) {
+      // Surface the failure instead of silently doing nothing (usually: the
+      // share_links table hasn't been migrated yet).
+      redirect(`/${clientSlug}/raport?share=error`);
+    }
   }
   revalidatePath(`/${clientSlug}/raport`);
+  redirect(`/${clientSlug}/raport?share=ok`);
 }
 
 // Server action: revoke every active share link for this client.
@@ -80,20 +88,34 @@ async function revokeShareLink(formData: FormData) {
 }
 
 // Share box shown to agency users: current public link + create/revoke.
-async function ShareBox({ clientSlug, clientId }: { clientSlug: string; clientId: string }) {
+async function ShareBox({
+  clientSlug,
+  clientId,
+  status,
+}: {
+  clientSlug: string;
+  clientId: string;
+  status?: string;
+}) {
   const admin = createAdminClient();
-  let token: string | null = null;
-  try {
-    const { data } = await admin
-      .from("share_links")
-      .select("token")
-      .eq("client_id", clientId)
-      .eq("revoked", false)
-      .maybeSingle();
-    token = (data?.token as string) ?? null;
-  } catch {
-    // table not migrated yet - hide the box gracefully
-    return null;
+  const { data, error } = await admin
+    .from("share_links")
+    .select("token")
+    .eq("client_id", clientId)
+    .eq("revoked", false)
+    .maybeSingle();
+  const token = (data?.token as string) ?? null;
+
+  // Missing table (migration not run) surfaces as a read error too - tell the
+  // user exactly what to do instead of failing silently.
+  if (error || status === "error") {
+    return (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 print:hidden">
+        Publiczne linki wymagają tabeli <code>share_links</code> w Supabase.
+        Odpal SQL z migracji <code>0015_share_links</code> (patrz czat), potem
+        odśwież stronę.
+      </div>
+    );
   }
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
@@ -160,7 +182,13 @@ export default async function RaportPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { range?: string; from?: string; to?: string; month?: string };
+  searchParams: {
+    range?: string;
+    from?: string;
+    to?: string;
+    month?: string;
+    share?: string;
+  };
 }) {
   const supabase = createClient();
 
@@ -226,7 +254,11 @@ export default async function RaportPage({
         </div>
 
         {isAgency ? (
-          <ShareBox clientSlug={params.clientSlug} clientId={client.id} />
+          <ShareBox
+            clientSlug={params.clientSlug}
+            clientId={client.id}
+            status={searchParams.share}
+          />
         ) : null}
 
         <ReportDeck
