@@ -9,6 +9,9 @@ import type { NewsCategory } from "@/lib/news/fetch";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+// The on-demand refresh action waits for the news cron (Claude + web search,
+// ~1-2 min) before revalidating, so give the route a generous budget.
+export const maxDuration = 240;
 
 const CATEGORY_META: Record<
   NewsCategory,

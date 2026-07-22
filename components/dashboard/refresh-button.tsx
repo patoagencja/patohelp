@@ -20,7 +20,17 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
         method: "POST",
       });
       if (!res.ok) throw new Error();
-      toast.success("Dane odświeżone", { id: "refresh" });
+      const body = (await res.json().catch(() => ({}))) as {
+        still_running?: boolean;
+      };
+      if (body.still_running) {
+        toast.success(
+          "Odświeżanie trwa w tle - duże konto dociąga historię, dane wpadają partiami.",
+          { id: "refresh", duration: 6000 }
+        );
+      } else {
+        toast.success("Dane odświeżone", { id: "refresh" });
+      }
       router.refresh();
     } catch {
       toast.error("Nie udało się odświeżyć", { id: "refresh" });

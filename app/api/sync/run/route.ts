@@ -43,24 +43,37 @@ export async function POST(request: Request) {
 
   // Scope the sync to just this client so large accounts don't compete with
   // other clients in one function invocation (avoids timeouts).
+  //
+  // Wait at most ~45s per job: each cron endpoint is its own invocation and
+  // keeps running to completion even after we stop waiting, so a year-long
+  // backfill doesn't kill THIS request (which used to surface as a false
+  // "refresh failed" toast after 300s).
+  const WAIT_MS = 45_000;
   const clientParam = `?client=${access.clientId}`;
   const results = await Promise.allSettled(
-    jobs.map((job) =>
-      fetch(`${base}/api/cron/${job}${clientParam}`, { headers, cache: "no-store" }).then(
-        (r) => r.json().catch(() => ({ ok: r.ok }))
-      )
-    )
+    jobs.map(async (job) => {
+      const req = fetch(`${base}/api/cron/${job}${clientParam}`, {
+        headers,
+        cache: "no-store",
+      }).then((r) => r.json().catch(() => ({ ok: r.ok })));
+      const timeout = new Promise<{ ok: true; status: string }>((resolve) =>
+        setTimeout(() => resolve({ ok: true, status: "running_in_background" }), WAIT_MS)
+      );
+      return Promise.race([req, timeout]);
+    })
   );
 
-  return NextResponse.json({
-    ok: true,
-    jobs: Object.fromEntries(
-      jobs.map((job, i) => [
-        job,
-        results[i].status === "fulfilled"
-          ? (results[i] as PromiseFulfilledResult<unknown>).value
-          : { error: "failed" },
-      ])
-    ),
-  });
+  const jobResults = Object.fromEntries(
+    jobs.map((job, i) => [
+      job,
+      results[i].status === "fulfilled"
+        ? (results[i] as PromiseFulfilledResult<unknown>).value
+        : { error: "failed" },
+    ])
+  );
+  const stillRunning = Object.values(jobResults).some(
+    (r) => (r as { status?: string }).status === "running_in_background"
+  );
+
+  return NextResponse.json({ ok: true, still_running: stillRunning, jobs: jobResults });
 }

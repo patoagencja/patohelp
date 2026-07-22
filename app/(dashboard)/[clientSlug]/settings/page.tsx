@@ -127,9 +127,12 @@ async function saveAccounts(formData: FormData) {
           ? "refresh-ads-tiktok"
           : "refresh-ads-google";
     try {
-      await fetch(`${base}/api/cron/${job}`, {
+      // Kick the sync and stop waiting after a few seconds - the cron endpoint
+      // is its own invocation and runs to completion in the background.
+      await fetch(`${base}/api/cron/${job}?client=${access.clientId}`, {
         headers: { Authorization: `Bearer ${secret}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(5000),
       });
     } catch {
       // Best-effort; the scheduled cron will catch up regardless.
