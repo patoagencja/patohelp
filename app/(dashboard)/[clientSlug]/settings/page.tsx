@@ -234,7 +234,7 @@ export default async function SettingsPage({
         saved={searchParams.saved}
       />
 
-      <h1 className="text-lg font-semibold">Integracje</h1>
+      <h1 className="text-xl font-semibold">Ustawienia - {params.clientSlug.toUpperCase()}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Połącz konta reklamowe i zaznacz, które należą do tego klienta.
       </p>
