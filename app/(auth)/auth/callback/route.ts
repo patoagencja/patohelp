@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         const admin = createAdminClient();
         const { data: existing } = await admin
           .from("users")
-          .select("id")
+          .select("id, role")
           .eq("id", user.id)
           .maybeSingle();
         if (!existing) {
@@ -38,6 +38,13 @@ export async function GET(request: Request) {
             email: user.email,
             role: "member",
           });
+        } else if (existing.role === "client") {
+          // A teammate previously added as a client of one brand: upgrade to
+          // member (all clients). Never downgrade admins.
+          await admin
+            .from("users")
+            .update({ role: "member", client_id: null })
+            .eq("id", user.id);
         }
       }
 
