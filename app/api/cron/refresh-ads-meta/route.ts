@@ -78,11 +78,11 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Keep 92 days of history (3 full months for monthly reports). Fresh
-      // days first, then backfill CONTIGUOUSLY BACKWARDS from the earliest row
-      // we already have - so a timeout mid-backfill just means the next run
-      // resumes where this one stopped, with no gaps.
-      const HISTORY_DAYS = 92;
+      // Keep ~6 months of history (custom date ranges reach back to spring).
+      // Fresh days first, then backfill CONTIGUOUSLY BACKWARDS from the
+      // earliest row we already have - so a timeout mid-backfill just means
+      // the next run resumes where this one stopped, with no gaps.
+      const HISTORY_DAYS = 180;
       const windowStart = formatInTimeZone(
         subDays(now, HISTORY_DAYS - 1),
         WARSAW_TZ,

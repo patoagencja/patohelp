@@ -71,9 +71,16 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill 30 days of daily totals until we have them, then only
+      // Backfill ~6 months of daily totals until we have them, then only
       // yesterday+today. (Based on the earliest daily-total row, not "any row".)
       const backfillStart = formatInTimeZone(
+        subDays(now, 179),
+        WARSAW_TZ,
+        "yyyy-MM-dd"
+      );
+      // Dimension snapshots stay a 30-day window - the report widgets present
+      // them as "last 30 days".
+      const snapshotStart = formatInTimeZone(
         subDays(now, 29),
         WARSAW_TZ,
         "yyyy-MM-dd"
@@ -96,7 +103,7 @@ export async function GET(request: Request) {
       // Dimension snapshots (sources/devices/pages/new-vs-returning) must cover
       // the whole 30-day period they represent in the report — not just
       // yesterday+today, which made the totals ~30x too small.
-      const snapshotRange: DateRange = { startDate: backfillStart, endDate: until };
+      const snapshotRange: DateRange = { startDate: snapshotStart, endDate: until };
 
       const [daily, sourceMedium, devices, pages, newReturning] =
         await Promise.all([
