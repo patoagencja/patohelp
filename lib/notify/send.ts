@@ -55,21 +55,34 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
       </ul>
     </div>`;
 
-  // Telegram HTML (parse_mode=HTML): bold title, scope on its own dimmed line.
+  // Telegram HTML (parse_mode=HTML): compact, scannable. Two lines per item -
+  // bold title (already carries the key number) + dimmed short campaign name.
+  // The full sentence lives in the email/panel; on a phone it's just noise.
+  const TG_MAX = 10;
+  const stripLeadEmoji = (s: string) =>
+    s.replace(/^(?:🚨|📈|📊|🔴|🟡|🟢|⬆️|⬇️|🔻|▲|▼)\s*/u, "").trim();
+
   const tgHeader = hasCritical
-    ? `🚨 <b>PILNE — Alerty ${esc(clientName)}</b>`
-    : `📊 <b>Alerty — ${esc(clientName)}</b>`;
+    ? `🚨 <b>PILNE - Alerty ${esc(clientName)}</b>`
+    : `📊 <b>Alerty - ${esc(clientName)}</b>`;
+
   const tgBody = sorted
+    .slice(0, TG_MAX)
     .map((i) => {
       const icon = i.critical ? "🔴" : "🟡";
-      return (
-        `${icon} <b>${esc(i.title)}</b>\n` +
-        `<i>${esc(tidyScope(i.scope))}</i>\n` +
-        `${esc(i.detail)}`
-      );
+      const scope = tidyScope(i.scope);
+      const scopeLine =
+        scope && scope !== "Całe konto"
+          ? `\n<i>${esc(scope)}</i>`
+          : scope === "Całe konto"
+            ? `\n<i>Całe konto</i>`
+            : "";
+      return `${icon} <b>${esc(stripLeadEmoji(i.title))}</b>${scopeLine}`;
     })
     .join("\n\n");
-  const telegram = `${tgHeader}\n<i>${sorted.length} rzeczy wymaga uwagi</i>\n\n${tgBody}`;
+
+  const more = sorted.length > TG_MAX ? `\n\n… i ${sorted.length - TG_MAX} więcej` : "";
+  const telegram = `${tgHeader}  ·  ${sorted.length}\n\n${tgBody}${more}`;
 
   return { text, html, telegram };
 }
