@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+
+// Emails on these domains are auto-provisioned as agency members on first
+// login - no manual SQL needed to onboard the team.
+const AGENCY_DOMAINS = ["patoagencja.com"];
 
 /**
  * Magic-link callback. Exchanges the auth code for a session cookie, then
@@ -13,8 +18,29 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
     if (!error) {
+      // Auto-provision agency teammates (@patoagencja.com) as `member` so a
+      // partner/employee can log in with just the login link.
+      const user = data?.user;
+      const domain = user?.email?.split("@")[1]?.toLowerCase();
+      if (user?.email && domain && AGENCY_DOMAINS.includes(domain)) {
+        const admin = createAdminClient();
+        const { data: existing } = await admin
+          .from("users")
+          .select("id")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (!existing) {
+          await admin.from("users").insert({
+            id: user.id,
+            email: user.email,
+            role: "member",
+          });
+        }
+      }
+
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
