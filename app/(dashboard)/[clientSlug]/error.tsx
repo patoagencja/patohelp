@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 // Route error boundary: keeps the dashboard usable instead of a blank white
 // "Application error" screen, and surfaces the actual message/digest so we can
@@ -13,49 +13,63 @@ export default function DashboardError({
   reset: () => void;
 }) {
   // A failed chunk load means the browser is holding an old deployment whose
-  // hashed JS files were purged from the CDN. We recover by doing a HARD,
-  // cache-busting reload so the browser fetches the new build's HTML (which
-  // references the new chunk names) instead of replaying the stale one.
+  // hashed JS files were purged from the CDN (typically while a new deploy is
+  // still rolling out). We recover with a cache-busting reload, retried gently
+  // with delays so we keep trying until the rollout settles instead of burning
+  // through attempts in a couple of seconds and getting stuck.
   const isChunkError =
     error.name === "ChunkLoadError" ||
     /loading (css )?chunk [\w-]+ failed|failed to fetch dynamically imported/i.test(
       error.message
     );
 
+  // Once auto-retries are exhausted we stop hiding the problem and reveal the
+  // real error so it can be diagnosed instead of an eternal loader.
+  const [gaveUp, setGaveUp] = useState(false);
+
+  const MAX_ATTEMPTS = 5;
+  const RETRY_DELAY_MS = 2500;
+
+  function hardReload() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("_cb", String(Date.now()));
+    window.location.replace(url.toString());
+  }
+
   useEffect(() => {
     console.error("[dashboard error]", error);
     if (!isChunkError) return;
+
+    const KEY = "chunkReload";
+    const now = Date.now();
+    let state = { at: 0, n: 0 };
     try {
-      // Bounded retries within a short window so a genuinely broken build can't
-      // loop forever showing "Ładuję nową wersję". The window auto-expires, so a
-      // fresh chunk error later (after another deploy) recovers again.
-      const KEY = "chunkReload";
-      const now = Date.now();
-      let state = { at: 0, n: 0 };
-      try {
-        state = { ...state, ...JSON.parse(sessionStorage.getItem(KEY) || "{}") };
-      } catch {
-        /* ignore malformed state */
-      }
-      // Reset the counter if the last attempt was long ago (recovery succeeded
-      // in between, or this is a brand-new incident).
-      if (now - state.at > 30_000) state.n = 0;
-
-      if (state.n >= 3) return; // give up auto-reloading; show manual button
-
-      sessionStorage.setItem(KEY, JSON.stringify({ at: now, n: state.n + 1 }));
-
-      // Cache-busting hard navigation: a plain reload() can be served the same
-      // stale document/chunks from cache. A unique query forces a fresh fetch.
-      const url = new URL(window.location.href);
-      url.searchParams.set("_cb", String(now));
-      window.location.replace(url.toString());
+      state = { ...state, ...JSON.parse(sessionStorage.getItem(KEY) || "{}") };
     } catch {
-      window.location.reload();
+      /* ignore malformed state */
     }
+    // Fresh incident if the last attempt was a while ago (a previous recovery
+    // succeeded, or a new deploy rolled out since).
+    if (now - state.at > 120_000) state.n = 0;
+
+    if (state.n >= MAX_ATTEMPTS) {
+      setGaveUp(true);
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(KEY, JSON.stringify({ at: now, n: state.n + 1 }));
+    } catch {
+      /* ignore */
+    }
+
+    // Delay before reloading: a chunk 404 usually clears within a few seconds
+    // once the new deploy finishes propagating on the CDN.
+    const t = setTimeout(hardReload, RETRY_DELAY_MS);
+    return () => clearTimeout(t);
   }, [error, isChunkError]);
 
-  if (isChunkError) {
+  if (isChunkError && !gaveUp) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-lg font-semibold">Ładuję nową wersję…</p>
@@ -70,9 +84,7 @@ export default function DashboardError({
             } catch {
               /* ignore */
             }
-            const url = new URL(window.location.href);
-            url.searchParams.set("_cb", String(Date.now()));
-            window.location.replace(url.toString());
+            hardReload();
           }}
           className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
         >
@@ -93,13 +105,29 @@ export default function DashboardError({
         {error.message || "Nieznany błąd"}
         {error.digest ? `\n\ndigest: ${error.digest}` : ""}
       </pre>
-      <button
-        type="button"
-        onClick={reset}
-        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-      >
-        Spróbuj ponownie
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              sessionStorage.removeItem("chunkReload");
+            } catch {
+              /* ignore */
+            }
+            hardReload();
+          }}
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+        >
+          Odśwież
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
+          Spróbuj ponownie
+        </button>
+      </div>
     </div>
   );
 }
