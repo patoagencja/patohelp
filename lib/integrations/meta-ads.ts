@@ -332,12 +332,18 @@ export async function getAdThumbnails(
     "id,creative{image_url,thumbnail_url,video_id,object_story_spec{link_data{picture},video_data{image_url,video_id}}}";
   const BASIC = "id,creative{image_url,thumbnail_url}";
 
+  // thumbnail_width/height ask Meta to render `thumbnail_url` larger than its
+  // ~64px default - the single biggest win against blur, and it applies to every
+  // ad (image and video) even if the per-video lookup below can't run.
+  const SIZE = { thumbnail_width: "1080", thumbnail_height: "1080" };
+
   let data: Array<{ id?: string; creative?: Creative }> = [];
   try {
     const body = await graphGet<{ data: typeof data }>(`/${adAccountId}/ads`, {
       fields: RICH,
       access_token: accessToken,
       limit: "500",
+      ...SIZE,
     });
     data = body.data ?? [];
   } catch {
@@ -345,6 +351,7 @@ export async function getAdThumbnails(
       fields: BASIC,
       access_token: accessToken,
       limit: "500",
+      ...SIZE,
     });
     data = body.data ?? [];
   }

@@ -1,18 +1,25 @@
-import { NextResponse } from "next/server";
-
 import { decrypt } from "@/lib/integrations/encryption";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { getAdThumbnails } from "@/lib/integrations/meta-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Diagnostic: dump the raw creative fields Meta returns for a few ads, so we
-// can see which image source is actually populated (image_url vs story-spec vs
-// video). Agency only. Visit /api/debug/creatives?client=olx while logged in.
+// Visual verifier for creative sharpness. Runs the REAL getAdThumbnails live
+// (same code the sync uses) and renders each thumbnail with its actual pixel
+// dimensions, so you can see at a glance whether the fix produces sharp images
+// - no JSON to read. Agency only. Open /api/debug/creatives?client=olx while
+// logged in.
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface MetaAccount {
   id: string;
   selected?: boolean;
+}
+
+function html(body: string): Response {
+  return new Response(`<!doctype html><meta charset="utf-8">${body}`, {
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
 }
 
 export async function GET(request: Request) {
@@ -20,7 +27,7 @@ export async function GET(request: Request) {
   const clientSlug = searchParams.get("client") ?? "olx";
   const access = await requireAgencyClientAccess(clientSlug);
   if (!access.ok) {
-    return NextResponse.json({ error: "Brak dostępu" }, { status: access.status });
+    return html(`<p style="font-family:sans-serif">Brak dostępu (${access.status}).</p>`);
   }
 
   const admin = createAdminClient();
@@ -32,7 +39,7 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (!integration) {
-    return NextResponse.json({ error: "Brak integracji Meta" }, { status: 404 });
+    return html(`<p style="font-family:sans-serif">Brak integracji Meta.</p>`);
   }
 
   const { access_token } = JSON.parse(
@@ -42,38 +49,70 @@ export async function GET(request: Request) {
     (a) => a.selected
   );
   if (!account) {
-    return NextResponse.json({ error: "Brak wybranego konta" }, { status: 404 });
+    return html(`<p style="font-family:sans-serif">Brak wybranego konta.</p>`);
   }
 
-  const fields =
-    "id,name,creative{image_url,thumbnail_url,video_id,object_type,object_story_spec{link_data{picture,image_hash},video_data{image_url,video_id}}}";
-  const url = `https://graph.facebook.com/v21.0/${account.id}/ads?fields=${encodeURIComponent(
-    fields
-  )}&limit=6&access_token=${access_token}`;
-
-  const res = await fetch(url, { cache: "no-store" });
-  const body = await res.json();
-
-  if (!res.ok) {
-    return NextResponse.json({ ok: false, status: res.status, body }, { status: 200 });
+  let thumbs: Map<string, string>;
+  try {
+    thumbs = await getAdThumbnails(access_token, account.id);
+  } catch (err) {
+    return html(
+      `<p style="font-family:sans-serif;color:#b00">getAdThumbnails rzucił błąd:<br><pre>${String(
+        (err as Error).message
+      )}</pre></p>`
+    );
   }
 
-  // Summarise which fields are present per ad.
-  const summary = (body.data ?? []).map((ad: Record<string, any>) => {
-    const c = ad.creative ?? {};
-    const oss = c.object_story_spec ?? {};
-    return {
-      ad_name: ad.name,
-      object_type: c.object_type,
-      has_image_url: Boolean(c.image_url),
-      has_thumbnail_url: Boolean(c.thumbnail_url),
-      video_id: c.video_id ?? oss.video_data?.video_id ?? null,
-      story_link_picture: oss.link_data?.picture ? "yes" : "no",
-      story_video_image: oss.video_data?.image_url ? "yes" : "no",
-      thumbnail_url: c.thumbnail_url ?? null,
-      image_url: c.image_url ?? null,
-    };
-  });
+  // Show the highest-spend ads so this matches the Kreacje podium the user sees.
+  const { data: rows } = await admin
+    .from("creatives")
+    .select("ad_id, ad_name")
+    .eq("client_id", access.clientId)
+    .eq("provider", "meta_ads")
+    .order("spend_minor_units", { ascending: false })
+    .limit(12);
 
-  return NextResponse.json({ account: account.id, count: summary.length, summary });
+  const items = (rows ?? [])
+    .map((r) => ({
+      adId: r.ad_id as string,
+      name: (r.ad_name as string) || (r.ad_id as string),
+      url: thumbs.get(r.ad_id as string) ?? null,
+    }))
+    .filter((i) => i.url);
+
+  // If the DB is empty for some reason, fall back to whatever the live map has.
+  const fallbackItems =
+    items.length === 0
+      ? [...thumbs.entries()].slice(0, 12).map(([adId, url]) => ({
+          adId,
+          name: adId,
+          url,
+        }))
+      : items;
+
+  const cards = fallbackItems
+    .map(
+      (i) => `
+    <div style="border:1px solid #ddd;border-radius:12px;padding:10px;width:230px">
+      <div style="position:relative;height:150px;border-radius:8px;overflow:hidden;background:#f2f2f2">
+        <img src="${i.url}" alt="" style="width:100%;height:100%;object-fit:cover"
+             onload="var s=this.nextElementSibling;s.textContent=this.naturalWidth+'×'+this.naturalHeight+' px';s.style.background=(this.naturalWidth>=300?'#0a7':'#c22')"
+             onerror="var s=this.nextElementSibling;s.textContent='błąd ładowania';s.style.background='#c22'">
+        <span style="position:absolute;left:6px;top:6px;color:#fff;font:600 11px/1.4 sans-serif;padding:2px 6px;border-radius:6px;background:#888">…</span>
+      </div>
+      <p style="font:500 12px/1.4 sans-serif;margin:8px 0 0;word-break:break-word">${i.name}</p>
+    </div>`
+    )
+    .join("");
+
+  return html(`
+    <div style="font-family:sans-serif;padding:20px;max-width:1100px;margin:0 auto">
+      <h1 style="font-size:18px">Weryfikacja ostrości kreacji — ${clientSlug}</h1>
+      <p style="color:#555;font-size:13px">
+        Konto ${account.id} · ${fallbackItems.length} kreacji · liczba pobranych miniatur: ${thumbs.size}.<br>
+        Zielona plakietka = źródło ≥300&nbsp;px (ostre). Czerwona = małe/rozmyte lub błąd.
+        To są obrazki pobrane <b>na żywo aktualnym kodem</b> — jeśli są ostre, kliknij „Odśwież" w Kreacjach, żeby zapisać je w bazie.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:16px">${cards}</div>
+    </div>`);
 }
