@@ -4,32 +4,43 @@ import { formatInTimeZone } from "date-fns-tz";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 
-// "Puls" - a Whoop-style daily score (0-100) for a client, measured against the
-// client's OWN recent norm rather than an absolute target. The point is a single
-// number that changes every day and a streak you don't want to break, so people
-// come back to check it. Computed purely from data we already store.
+// "Puls" - a Whoop-style form score (0-100) for a client, measured against the
+// client's OWN long-run norm. Deliberately SMOOTHED (7-day window) and floored
+// so it reads as a calm "forma" that trends with real momentum instead of a
+// noisy day-to-day number that swings ugly for no reason. The point is a single
+// positive-leaning figure people check daily, plus a streak they don't break.
 
 const WARSAW_TZ = "Europe/Warsaw";
-const GOOD = 60; // score at/above which a day counts as a "good" day (streak)
-const BASELINE_DAYS = 21; // trailing window that defines "normal" for this client
+const WINDOW = 7; // rolling window that defines "recent form"
+const FETCH_DAYS = 56; // enough history for a stable baseline + prev-week delta
+const FLOOR = 58; // the score never drops below this - it always looks decent
+const CAP = 99; // leave a little headroom so 100 stays aspirational
 
 export type ScoreTier = "low" | "mid" | "high";
 
 export interface ScoreFactor {
-  key: "ctr" | "clicks" | "sessions" | "stability";
+  key: "ctr" | "clicks" | "sessions" | "reach";
   label: string;
-  deltaPct: number | null; // vs baseline, e.g. +12 means 12% above normal
+  deltaPct: number | null; // recent window vs baseline
+}
+
+export interface ScoreRing {
+  key: "form" | "engagement" | "traffic";
+  label: string;
+  value: number; // 0-100
+  tier: ScoreTier;
 }
 
 export interface DailyScore {
-  score: number; // 0-100 for the latest day with data
-  prevScore: number | null; // the day before, for the delta
+  score: number;
+  prevScore: number | null; // previous 7-day window, for the delta
   delta: number | null;
   tier: ScoreTier;
-  streak: number; // consecutive most-recent good days
-  date: string; // the day the score refers to
-  headline: string; // one Polish sentence: what stands out today
+  streak: number; // consecutive recent days with healthy activity
+  date: string;
+  headline: string;
   factors: ScoreFactor[];
+  rings: ScoreRing[]; // 3 dials for the card (Whoop/Apple style)
 }
 
 interface DayMetrics {
@@ -40,64 +51,68 @@ interface DayMetrics {
   sessions: number;
 }
 
-/** Map a today/baseline ratio to a 0-100 sub-score. 1.0 (normal) -> 65. */
-function ratioScore(ratio: number): number {
-  if (!isFinite(ratio) || ratio <= 0) return 50;
-  return Math.max(5, Math.min(100, 65 + (ratio - 1) * 130));
-}
+const avg = (n: number[]) => (n.length ? n.reduce((a, b) => a + b, 0) / n.length : 0);
 
-/** Stability: reward spend staying near normal, penalise spikes either way. */
-function stabilityScore(ratio: number): number {
-  if (!isFinite(ratio) || ratio <= 0) return 50;
-  return Math.max(5, Math.min(100, 100 - Math.abs(ratio - 1) * 120));
+/**
+ * Map a recent/baseline ratio to a 0-100 sub-score with a GENEROUS curve:
+ * "normal" (ratio 1) lands at 78, improvement climbs fast, and a downturn is
+ * cushioned (never below 45). This is what keeps the Puls looking healthy.
+ */
+function ratioScore(ratio: number): number {
+  if (!isFinite(ratio) || ratio <= 0) return 72;
+  return Math.max(45, Math.min(100, 78 + (ratio - 1) * 85));
 }
 
 function tierOf(score: number): ScoreTier {
-  return score >= 70 ? "high" : score >= 45 ? "mid" : "low";
+  return score >= 78 ? "high" : score >= 66 ? "mid" : "low";
 }
 
-function avg(nums: number[]): number {
-  if (!nums.length) return 0;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
+/** Composite score for a 7-day window (indices [end-6, end]) vs a baseline. */
+function windowScore(
+  days: DayMetrics[],
+  end: number,
+  base: {
+    ctr: number;
+    clicks: number;
+    sessions: number;
+    impressions: number;
+  }
+): number | null {
+  if (end < 0) return null;
+  const win = days.slice(Math.max(0, end - WINDOW + 1), end + 1);
+  if (!win.length) return null;
+
+  const winImpr = avg(win.map((d) => d.impressions));
+  const winClicks = avg(win.map((d) => d.clicks));
+  const winSessions = avg(win.map((d) => d.sessions));
+  const winCtr = avg(win.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0)));
+  const activeDays = win.filter((d) => d.impressions > 0 || d.sessions > 0).length;
+
+  const ctrS = ratioScore(base.ctr > 0 ? winCtr / base.ctr : 1);
+  const clicksS = ratioScore(base.clicks > 0 ? winClicks / base.clicks : 1);
+  const sessionsS = ratioScore(base.sessions > 0 ? winSessions / base.sessions : 1);
+  const reachS = ratioScore(base.impressions > 0 ? winImpr / base.impressions : 1);
+  const consistency = 55 + (activeDays / WINDOW) * 45; // steady activity keeps it up
+
+  const raw =
+    ctrS * 0.3 +
+    clicksS * 0.24 +
+    sessionsS * 0.2 +
+    reachS * 0.14 +
+    consistency * 0.12;
+  return Math.round(Math.max(FLOOR, Math.min(CAP, raw)));
 }
 
-/** Compute the composite score for the day at `idx` using the trailing window. */
-function scoreForDay(days: DayMetrics[], idx: number): number | null {
-  if (idx <= 0) return null;
-  const day = days[idx];
-  const base = days.slice(Math.max(0, idx - BASELINE_DAYS), idx);
-  if (base.length < 5) return null; // not enough history to judge "normal"
-
-  const dayCtr = day.impressions > 0 ? day.clicks / day.impressions : 0;
-  const baseCtr = avg(
-    base.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0))
-  );
-  const baseClicks = avg(base.map((d) => d.clicks));
-  const baseSessions = avg(base.map((d) => d.sessions));
-  const baseSpend = avg(base.map((d) => d.spend));
-
-  const ctrS = ratioScore(baseCtr > 0 ? dayCtr / baseCtr : 1);
-  const clicksS = ratioScore(baseClicks > 0 ? day.clicks / baseClicks : 1);
-  const sessionsS = ratioScore(
-    baseSessions > 0 ? day.sessions / baseSessions : 1
-  );
-  const stabS = stabilityScore(baseSpend > 0 ? day.spend / baseSpend : 1);
-
-  const score =
-    ctrS * 0.35 + clicksS * 0.3 + sessionsS * 0.25 + stabS * 0.1;
-  return Math.round(score);
-}
-
-function pct(today: number, base: number): number | null {
+function pct(recent: number, base: number): number | null {
   if (base <= 0) return null;
-  return Math.round(((today - base) / base) * 100);
+  return Math.round(((recent - base) / base) * 100);
 }
 
 export async function getDailyScore(clientId: string): Promise<DailyScore | null> {
   const supabase = createClient();
   const today = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
   const since = formatInTimeZone(
-    subDays(new Date(), BASELINE_DAYS + 14),
+    subDays(new Date(), FETCH_DAYS),
     WARSAW_TZ,
     "yyyy-MM-dd"
   );
@@ -135,7 +150,6 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
     ),
   ]);
 
-  // Aggregate per day (sum across campaigns / providers).
   const byDate = new Map<string, DayMetrics>();
   const get = (d: string): DayMetrics => {
     let m = byDate.get(d);
@@ -151,59 +165,95 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
     m.clicks += Number(r.clicks) || 0;
     m.impressions += Number(r.impressions) || 0;
   }
-  for (const r of ga4Rows) {
-    get(r.date).sessions += Number(r.sessions) || 0;
-  }
+  for (const r of ga4Rows) get(r.date).sessions += Number(r.sessions) || 0;
 
-  const days = [...byDate.values()].sort((a, b) =>
-    a.date < b.date ? -1 : 1
-  );
-  if (days.length < 6) return null;
+  const days = [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (days.length < WINDOW + 3) return null;
 
-  // Latest day that actually has activity (avoid scoring an empty "today").
+  // Latest day with activity (avoid scoring an empty "today").
   let latestIdx = days.length - 1;
-  while (latestIdx > 0 && days[latestIdx].impressions === 0 && days[latestIdx].sessions === 0) {
+  while (
+    latestIdx > 0 &&
+    days[latestIdx].impressions === 0 &&
+    days[latestIdx].sessions === 0
+  ) {
     latestIdx -= 1;
   }
 
-  const score = scoreForDay(days, latestIdx);
-  if (score === null) return null;
-  const prevScore = scoreForDay(days, latestIdx - 1);
+  // Baseline = the client's own average over everything BEFORE the recent
+  // window, so recent improvement reads as a ratio above 1.
+  const baseDays = days.slice(0, Math.max(1, latestIdx - WINDOW + 1));
+  const base = {
+    ctr: avg(baseDays.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0))),
+    clicks: avg(baseDays.map((d) => d.clicks)),
+    sessions: avg(baseDays.map((d) => d.sessions)),
+    impressions: avg(baseDays.map((d) => d.impressions)),
+  };
 
-  // Streak: consecutive good days ending at the latest scored day.
+  const score = windowScore(days, latestIdx, base);
+  if (score === null) return null;
+  const prevScore = windowScore(days, latestIdx - WINDOW, base);
+
+  // Streak: consecutive recent days that weren't "dead" (activity >= 40% of
+  // the client's normal clicks). Forgiving on purpose - it should feel earned,
+  // not punishing.
+  const clicksBar = base.clicks * 0.4;
   let streak = 0;
-  for (let i = latestIdx; i > 0; i--) {
-    const s = scoreForDay(days, i);
-    if (s !== null && s >= GOOD) streak += 1;
+  for (let i = latestIdx; i >= 0; i--) {
+    const d = days[i];
+    const alive = d.impressions > 0 && (base.clicks <= 0 || d.clicks >= clicksBar);
+    if (alive) streak += 1;
     else break;
   }
 
-  // Factor deltas vs baseline, for the headline and chips.
-  const day = days[latestIdx];
-  const base = days.slice(Math.max(0, latestIdx - BASELINE_DAYS), latestIdx);
-  const dayCtr = day.impressions > 0 ? day.clicks / day.impressions : 0;
-  const baseCtr = avg(
-    base.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0))
-  );
+  // Factor deltas: recent 7-day window vs baseline.
+  const win = days.slice(Math.max(0, latestIdx - WINDOW + 1), latestIdx + 1);
+  const winCtr = avg(win.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0)));
   const factors: ScoreFactor[] = [
-    { key: "ctr", label: "CTR", deltaPct: pct(dayCtr, baseCtr) },
-    { key: "clicks", label: "Kliknięcia", deltaPct: pct(day.clicks, avg(base.map((d) => d.clicks))) },
-    { key: "sessions", label: "Sesje", deltaPct: pct(day.sessions, avg(base.map((d) => d.sessions))) },
+    { key: "ctr", label: "CTR", deltaPct: pct(winCtr, base.ctr) },
+    { key: "clicks", label: "Kliknięcia", deltaPct: pct(avg(win.map((d) => d.clicks)), base.clicks) },
+    { key: "sessions", label: "Sesje", deltaPct: pct(avg(win.map((d) => d.sessions)), base.sessions) },
+    { key: "reach", label: "Zasięg", deltaPct: pct(avg(win.map((d) => d.impressions)), base.impressions) },
   ];
 
-  // Headline: the factor that stands out most (positively or negatively).
+  // Headline: always lead with the strongest positive; only nudge gently if the
+  // best signal is actually down.
   const ranked = [...factors]
     .filter((f) => f.deltaPct !== null)
-    .sort((a, b) => Math.abs(b.deltaPct!) - Math.abs(a.deltaPct!));
-  const top = ranked[0];
+    .sort((a, b) => (b.deltaPct ?? 0) - (a.deltaPct ?? 0));
+  const best = ranked[0];
   let headline: string;
-  if (!top || Math.abs(top.deltaPct!) < 5) {
-    headline = "Stabilny dzień - wyniki blisko Twojej normy.";
-  } else if (top.deltaPct! > 0) {
-    headline = `${top.label} wyższe niż zwykle o ${top.deltaPct}% 🔥`;
+  if (best && best.deltaPct! >= 5) {
+    headline = `${best.label} w tym tygodniu wyżej o ${best.deltaPct}% 🔥`;
+  } else if (score >= 78) {
+    headline = "Mocny tydzień - forma trzyma poziom.";
+  } else if (best && best.deltaPct! <= -8) {
+    headline = `${best.label} lekko niżej niż zwykle - jest co poprawiać.`;
   } else {
-    headline = `${top.label} niższe niż zwykle o ${Math.abs(top.deltaPct!)}% - warto zerknąć.`;
+    headline = "Stabilna forma - blisko Twojej normy.";
   }
+
+  // Three dials for the card. Same generous curve + floor, so each one always
+  // reads as a healthy ring rather than an empty sliver.
+  const clamp = (n: number) => Math.round(Math.max(FLOOR, Math.min(CAP, n)));
+  const engagement = clamp(ratioScore(base.ctr > 0 ? winCtr / base.ctr : 1));
+  const traffic = clamp(
+    (ratioScore(base.clicks > 0 ? avg(win.map((d) => d.clicks)) / base.clicks : 1) +
+      ratioScore(
+        base.sessions > 0 ? avg(win.map((d) => d.sessions)) / base.sessions : 1
+      )) /
+      2
+  );
+  const rings: ScoreRing[] = [
+    { key: "form", label: "Forma", value: score, tier: tierOf(score) },
+    {
+      key: "engagement",
+      label: "Zaangażowanie",
+      value: engagement,
+      tier: tierOf(engagement),
+    },
+    { key: "traffic", label: "Ruch", value: traffic, tier: tierOf(traffic) },
+  ];
 
   return {
     score,
@@ -211,8 +261,9 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
     delta: prevScore !== null ? score - prevScore : null,
     tier: tierOf(score),
     streak,
-    date: day.date,
+    date: days[latestIdx].date,
     headline,
     factors,
+    rings,
   };
 }
