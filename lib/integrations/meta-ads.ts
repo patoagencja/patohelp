@@ -230,6 +230,7 @@ interface Creative {
   image_url?: string;
   thumbnail_url?: string;
   video_id?: string;
+  object_type?: string;
   object_story_spec?: {
     link_data?: { picture?: string };
     video_data?: { image_url?: string; video_id?: string };
@@ -268,6 +269,7 @@ async function resolveVideoThumbnail(
 ): Promise<string | undefined> {
   try {
     const body = await graphGet<{
+      picture?: string;
       thumbnails?: {
         data?: Array<{
           uri?: string;
@@ -276,20 +278,22 @@ async function resolveVideoThumbnail(
         }>;
       };
     }>(`/${videoId}`, {
-      fields: "thumbnails{uri,width,height,is_preferred}",
+      // `picture` is a single decent-size frame that works even when the
+      // thumbnails edge is empty; thumbnails give us the highest-res option.
+      fields: "picture,thumbnails{uri,width,height,is_preferred}",
       access_token: accessToken,
     });
 
     const frames = body.thumbnails?.data ?? [];
-    if (!frames.length) return undefined;
-
     const preferred = frames.find((f) => f.is_preferred && f.uri);
     if (preferred?.uri) return preferred.uri;
 
     const widest = [...frames]
       .filter((f) => f.uri)
       .sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
-    return widest?.uri;
+    if (widest?.uri) return widest.uri;
+
+    return body.picture || undefined;
   } catch {
     return undefined;
   }
@@ -325,12 +329,13 @@ export async function getAdThumbnails(
   accessToken: string,
   adAccountId: string
 ): Promise<Map<string, string>> {
-  // Rich query first (full image / story-spec picture / video id). If Meta
-  // rejects any nested field, fall back to the basic query so the sync never
-  // fails outright and leaves stale thumbnails.
+  // Rich query first. We request object_story_spec WHOLESALE (not sub-selected)
+  // because sub-selecting a field Meta doesn't recognise makes the entire query
+  // throw - which previously dropped us to BASIC and left every video ad on its
+  // blurry 64px thumbnail_url. If it still fails, BASIC keeps the sync alive.
   const RICH =
-    "id,creative{image_url,thumbnail_url,video_id,object_story_spec{link_data{picture},video_data{image_url,video_id}}}";
-  const BASIC = "id,creative{image_url,thumbnail_url}";
+    "id,creative{id,object_type,image_url,thumbnail_url,video_id,object_story_spec}";
+  const BASIC = "id,creative{id,image_url,thumbnail_url}";
 
   // thumbnail_width/height ask Meta to render `thumbnail_url` larger than its
   // ~64px default - the single biggest win against blur, and it applies to every
