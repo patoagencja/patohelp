@@ -99,7 +99,7 @@ function KpiCard({
             index="i"
             categories={["v"]}
             colors={[sparkColor(kpi, direction)]}
-            className="h-8 w-16 shrink-0 sm:w-20"
+            className="h-8 w-16 shrink-0 animate-[soft-pulse_2.8s_ease-in-out_infinite] sm:w-20"
           />
         ) : null}
       </Flex>

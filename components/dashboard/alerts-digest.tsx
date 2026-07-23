@@ -58,18 +58,33 @@ export function AlertsDigest({
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-border/60">
-          {top.map((a) => (
-            <li key={a.id}>
+          {top.map((a, i) => (
+            <li
+              key={a.id}
+              className="animate-[rise-in_0.4s_ease-out_both]"
+              style={{ animationDelay: `${i * 70}ms` }}
+            >
               <Link
                 href={`/${clientSlug}/alerty`}
                 className="group flex items-center gap-3 py-2.5"
               >
-                <span
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-full",
-                    SEVERITY_DOT[a.severity]
-                  )}
-                />
+                {/* Pulsing dot draws the eye to the urgent ones. */}
+                <span className="relative flex h-2 w-2 shrink-0">
+                  {a.severity !== "medium" ? (
+                    <span
+                      className={cn(
+                        "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+                        SEVERITY_DOT[a.severity]
+                      )}
+                    />
+                  ) : null}
+                  <span
+                    className={cn(
+                      "relative inline-flex h-2 w-2 rounded-full",
+                      SEVERITY_DOT[a.severity]
+                    )}
+                  />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium group-hover:underline">
                     {a.title}
@@ -82,7 +97,7 @@ export function AlertsDigest({
                   className={cn(
                     "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
                     a.severity === "critical"
-                      ? "bg-red-600 text-white"
+                      ? "animate-[soft-pulse_2.2s_ease-in-out_infinite] bg-red-600 text-white"
                       : a.severity === "high"
                         ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
                         : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
