@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // last 30 days into `creatives`. Google Ads creatives are a TODO (no
 // thumbnails in their API; we skip them in this version).
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const WARSAW_TZ = "Europe/Warsaw";
 

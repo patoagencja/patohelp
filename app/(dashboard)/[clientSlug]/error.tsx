@@ -27,7 +27,8 @@ export default function DashboardError({
     try {
       const key = "chunkReloadAt";
       const last = Number(sessionStorage.getItem(key) || 0);
-      if (Date.now() - last > 10000) {
+      // Reload immediately; guard only against a tight loop (broken build).
+      if (Date.now() - last > 4000) {
         sessionStorage.setItem(key, String(Date.now()));
         window.location.reload();
       }

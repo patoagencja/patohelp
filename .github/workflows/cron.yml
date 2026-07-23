@@ -1,0 +1,50 @@
+name: External cron (data sync + alerts + news)
+
+# Reliable scheduler independent of Vercel Cron. Pings the app's cron endpoints
+# with the CRON_SECRET bearer token. Requires two repo secrets:
+#   CRON_SECRET   - same value as the Vercel env var
+#   APP_URL       - e.g. https://patohelp-two.vercel.app  (optional; defaults below)
+# GitHub schedules are UTC and best-effort (may lag a few minutes under load).
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 min: ads + ga4 + alerts
+    - cron: "30 4 * * *"     # 04:30 UTC (~06:30 PL): daily news + summary
+  workflow_dispatch: {}      # manual "Run workflow" button
+
+concurrency:
+  group: patohelp-cron
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Guard - secret present
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET repo secret is missing"; exit 1
+          fi
+
+      - name: Frequent sync (ads, ga4, alerts)
+        if: github.event.schedule == '*/30 * * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          for job in refresh-ads-meta refresh-ads-google refresh-ads-tiktok refresh-ga4 refresh-creatives-meta refresh-demographics notify-alerts; do
+            echo "-> $job"
+            curl -sS -m 300 -o /dev/null -w "   %{http_code}\n" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/cron/$job" || echo "   (failed, continuing)"
+          done
+
+      - name: Daily (news, summary)
+        if: github.event.schedule == '30 4 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          for job in refresh-news generate-summary; do
+            echo "-> $job"
+            curl -sS -m 300 -o /dev/null -w "   %{http_code}\n" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/cron/$job" || echo "   (failed, continuing)"
+          done

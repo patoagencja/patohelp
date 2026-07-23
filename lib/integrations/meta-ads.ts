@@ -242,23 +242,38 @@ export async function getAdThumbnails(
       video_data?: { image_url?: string };
     };
   }
-  const body = await graphGet<{
-    data: Array<{ id?: string; creative?: Creative }>;
-  }>(`/${adAccountId}/ads`, {
-    fields:
-      "id,creative{image_url,thumbnail_url,object_story_spec{link_data{picture},video_data{image_url}}}",
-    access_token: accessToken,
-    limit: "500",
-  });
-
   const bestUrl = (c?: Creative): string | undefined =>
     c?.image_url ||
     c?.object_story_spec?.video_data?.image_url ||
     c?.object_story_spec?.link_data?.picture ||
     c?.thumbnail_url;
 
+  // Rich query first (full image / story-spec picture / video frame). If Meta
+  // rejects any nested field, fall back to the basic query so the sync never
+  // fails outright and leaves stale thumbnails.
+  const RICH =
+    "id,creative{image_url,thumbnail_url,object_story_spec{link_data{picture},video_data{image_url}}}";
+  const BASIC = "id,creative{image_url,thumbnail_url}";
+
+  let data: Array<{ id?: string; creative?: Creative }> = [];
+  try {
+    const body = await graphGet<{ data: typeof data }>(`/${adAccountId}/ads`, {
+      fields: RICH,
+      access_token: accessToken,
+      limit: "500",
+    });
+    data = body.data ?? [];
+  } catch {
+    const body = await graphGet<{ data: typeof data }>(`/${adAccountId}/ads`, {
+      fields: BASIC,
+      access_token: accessToken,
+      limit: "500",
+    });
+    data = body.data ?? [];
+  }
+
   const map = new Map<string, string>();
-  for (const ad of body.data ?? []) {
+  for (const ad of data) {
     const url = bestUrl(ad.creative);
     if (ad.id && url) map.set(ad.id, url);
   }
