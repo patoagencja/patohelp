@@ -13,8 +13,9 @@ export default function DashboardError({
   reset: () => void;
 }) {
   // A failed chunk load means the browser is holding an old deployment whose
-  // JS files were purged from the CDN. Auto-reload once to fetch the new build
-  // (guarded so a genuinely broken build doesn't loop forever).
+  // hashed JS files were purged from the CDN. We recover by doing a HARD,
+  // cache-busting reload so the browser fetches the new build's HTML (which
+  // references the new chunk names) instead of replaying the stale one.
   const isChunkError =
     error.name === "ChunkLoadError" ||
     /loading (css )?chunk [\w-]+ failed|failed to fetch dynamically imported/i.test(
@@ -25,13 +26,30 @@ export default function DashboardError({
     console.error("[dashboard error]", error);
     if (!isChunkError) return;
     try {
-      const key = "chunkReloadAt";
-      const last = Number(sessionStorage.getItem(key) || 0);
-      // Reload immediately; guard only against a tight loop (broken build).
-      if (Date.now() - last > 4000) {
-        sessionStorage.setItem(key, String(Date.now()));
-        window.location.reload();
+      // Bounded retries within a short window so a genuinely broken build can't
+      // loop forever showing "Ładuję nową wersję". The window auto-expires, so a
+      // fresh chunk error later (after another deploy) recovers again.
+      const KEY = "chunkReload";
+      const now = Date.now();
+      let state = { at: 0, n: 0 };
+      try {
+        state = { ...state, ...JSON.parse(sessionStorage.getItem(KEY) || "{}") };
+      } catch {
+        /* ignore malformed state */
       }
+      // Reset the counter if the last attempt was long ago (recovery succeeded
+      // in between, or this is a brand-new incident).
+      if (now - state.at > 30_000) state.n = 0;
+
+      if (state.n >= 3) return; // give up auto-reloading; show manual button
+
+      sessionStorage.setItem(KEY, JSON.stringify({ at: now, n: state.n + 1 }));
+
+      // Cache-busting hard navigation: a plain reload() can be served the same
+      // stale document/chunks from cache. A unique query forces a fresh fetch.
+      const url = new URL(window.location.href);
+      url.searchParams.set("_cb", String(now));
+      window.location.replace(url.toString());
     } catch {
       window.location.reload();
     }
@@ -46,7 +64,16 @@ export default function DashboardError({
         </p>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            try {
+              sessionStorage.removeItem("chunkReload");
+            } catch {
+              /* ignore */
+            }
+            const url = new URL(window.location.href);
+            url.searchParams.set("_cb", String(Date.now()));
+            window.location.replace(url.toString());
+          }}
           className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
         >
           Odśwież teraz
