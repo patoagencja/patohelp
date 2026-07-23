@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ImageOff, MousePointerClick, Percent, Trophy, Wallet } from "lucide-react";
 
+import { CreativesTable } from "@/components/dashboard/creatives-table";
 import { createClient } from "@/lib/supabase/server";
 import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
@@ -19,15 +20,6 @@ interface Creative {
   periodStart: string | null;
   periodEnd: string | null;
 }
-
-type SortKey = "spend" | "ctr" | "cpc" | "clicks";
-
-const SORTS: Array<{ key: SortKey; label: string }> = [
-  { key: "spend", label: "Wydatki" },
-  { key: "clicks", label: "Kliknięcia" },
-  { key: "ctr", label: "CTR" },
-  { key: "cpc", label: "CPC" },
-];
 
 // Ranking eligibility floor - tiny ads with 3 impressions produce absurd CTRs.
 const MIN_IMPRESSIONS = 1000;
@@ -115,10 +107,8 @@ function RankList({
 
 export default async function KreacjePage({
   params,
-  searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { sort?: string };
 }) {
   const supabase = createClient();
 
@@ -174,18 +164,6 @@ export default async function KreacjePage({
     .sort((a, b) => (a.cpc ?? 0) - (b.cpc ?? 0))
     .slice(0, 5);
   const topClicks = [...eligible].sort((a, b) => b.clicks - a.clicks).slice(0, 5);
-
-  // Sortable full table.
-  const sort: SortKey = (SORTS.find((s) => s.key === searchParams.sort)?.key ??
-    "spend") as SortKey;
-  const table = [...creatives]
-    .sort((a, b) => {
-      if (sort === "ctr") return (b.ctr ?? -1) - (a.ctr ?? -1);
-      if (sort === "cpc") return (a.cpc ?? Infinity) - (b.cpc ?? Infinity);
-      if (sort === "clicks") return b.clicks - a.clicks;
-      return b.spend - a.spend;
-    })
-    .slice(0, 50);
 
   return (
     <div className="space-y-6 p-6">
@@ -274,77 +252,19 @@ export default async function KreacjePage({
             wyświetleń.
           </p>
 
-          {/* Full table with sort */}
-          <section className="rounded-xl border border-border bg-card p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-sm font-semibold">
-                Wszystkie kreacje ({Math.min(creatives.length, 50)}
-                {creatives.length > 50 ? ` z ${creatives.length}` : ""})
-              </h2>
-              <div className="flex rounded-lg bg-muted p-1">
-                {SORTS.map((s) => (
-                  <a
-                    key={s.key}
-                    href={`/${params.clientSlug}/kreacje?sort=${s.key}`}
-                    className={cn(
-                      "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                      sort === s.key
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {s.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">Kreacja</th>
-                    <th className="py-2 pr-3 text-right font-medium">Wydatki</th>
-                    <th className="py-2 pr-3 text-right font-medium">Wyśw.</th>
-                    <th className="py-2 pr-3 text-right font-medium">Klik.</th>
-                    <th className="py-2 pr-3 text-right font-medium">CTR</th>
-                    <th className="py-2 text-right font-medium">CPC</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {table.map((c) => (
-                    <tr
-                      key={c.adId}
-                      className="border-b border-border/60 last:border-0 hover:bg-muted/40"
-                    >
-                      <td className="max-w-[22rem] py-2 pr-3">
-                        <div className="flex items-center gap-2.5">
-                          <Thumb c={c} className="h-9 w-9" />
-                          <span className="truncate text-sm" title={c.name}>
-                            {c.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums">
-                        {formatMoneyPLN(c.spend)}
-                      </td>
-                      <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                        {formatNumberPL(c.impressions)}
-                      </td>
-                      <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                        {formatNumberPL(c.clicks)}
-                      </td>
-                      <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                        {formatPercent(c.ctr ?? 0)}
-                      </td>
-                      <td className="py-2 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                        {c.cpc != null ? formatMoneyPLN(Math.round(c.cpc)) : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          {/* Full sortable table with click-to-preview. */}
+          <CreativesTable
+            creatives={creatives.map((c) => ({
+              adId: c.adId,
+              name: c.name,
+              thumbnailUrl: c.thumbnailUrl,
+              spend: c.spend,
+              impressions: c.impressions,
+              clicks: c.clicks,
+              ctr: c.ctr,
+              cpc: c.cpc,
+            }))}
+          />
         </>
       )}
     </div>

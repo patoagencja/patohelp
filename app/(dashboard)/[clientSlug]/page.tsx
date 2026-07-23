@@ -4,6 +4,7 @@ import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { CampaignRings } from "@/components/dashboard/campaign-rings";
+import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
@@ -21,6 +22,7 @@ import {
   getEvents,
   getLatestSummary,
 } from "@/lib/dashboard/overview";
+import { getDailyScore } from "@/lib/dashboard/score";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
@@ -82,14 +84,16 @@ export default async function OverviewPage({
   // Campaign rings (gamification) are DRE-only for now.
   const isDre = params.clientSlug === "dre";
 
-  const [budget, summary, events, spikes, anomalies, pacing] = await Promise.all([
-    getBudgetStatus(client.id),
-    getLatestSummary(client.id),
-    getEvents(client.id, data.rangeStart, data.rangeEnd),
-    detectBudgetSpikes(client.id, undefined, budgetConfig),
-    detectAnomalies(client.id),
-    isDre ? getPacing(client.id) : Promise.resolve([] as PacingFlight[]),
-  ]);
+  const [budget, summary, events, spikes, anomalies, pacing, score] =
+    await Promise.all([
+      getBudgetStatus(client.id),
+      getLatestSummary(client.id),
+      getEvents(client.id, data.rangeStart, data.rangeEnd),
+      detectBudgetSpikes(client.id, undefined, budgetConfig),
+      detectAnomalies(client.id),
+      isDre ? getPacing(client.id) : Promise.resolve([] as PacingFlight[]),
+      getDailyScore(client.id),
+    ]);
   const digest: Anomaly[] = [...spikes, ...anomalies];
 
   return (
@@ -107,6 +111,8 @@ export default async function OverviewPage({
           customTo={custom?.end}
         />
       </div>
+
+      {score ? <DailyScoreCard data={score} /> : null}
 
       <TickerBar campaigns={data.campaigns} />
 

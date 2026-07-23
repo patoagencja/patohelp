@@ -69,6 +69,16 @@
   }
 }
 
+/* Positive shimmer sweep for the Puls card on a strong day. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .ticker-track {
   display: inline-flex;
   white-space: nowrap;
