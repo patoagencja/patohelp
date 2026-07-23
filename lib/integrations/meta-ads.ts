@@ -226,33 +226,110 @@ export async function getAdInsights(
   }));
 }
 
-/** Map of ad_id -> creative thumbnail URL for an ad account. */
+interface Creative {
+  image_url?: string;
+  thumbnail_url?: string;
+  video_id?: string;
+  object_story_spec?: {
+    link_data?: { picture?: string };
+    video_data?: { image_url?: string; video_id?: string };
+  };
+}
+
+/** The video id attached to a creative, wherever Meta chose to put it. */
+function creativeVideoId(c?: Creative): string | undefined {
+  return c?.video_id ?? c?.object_story_spec?.video_data?.video_id ?? undefined;
+}
+
+/**
+ * Best NON-video source for a creative (full image or the story-spec picture).
+ * `thumbnail_url` is deliberately last — it is the tiny ~64px frame that looks
+ * blurry when rendered larger, so we only fall back to it when nothing else is
+ * available.
+ */
+function bestStaticUrl(c?: Creative): string | undefined {
+  return (
+    c?.image_url ||
+    c?.object_story_spec?.video_data?.image_url ||
+    c?.object_story_spec?.link_data?.picture ||
+    c?.thumbnail_url
+  );
+}
+
+/**
+ * Resolve a full-resolution cover frame for a video by asking the video node
+ * directly. Meta exposes several thumbnail sizes here; the small `thumbnail_url`
+ * on the creative is not one we want. Prefer the `is_preferred` frame, else the
+ * widest. Returns undefined on any error so the caller can fall back.
+ */
+async function resolveVideoThumbnail(
+  accessToken: string,
+  videoId: string
+): Promise<string | undefined> {
+  try {
+    const body = await graphGet<{
+      thumbnails?: {
+        data?: Array<{
+          uri?: string;
+          width?: number;
+          is_preferred?: boolean;
+        }>;
+      };
+    }>(`/${videoId}`, {
+      fields: "thumbnails{uri,width,height,is_preferred}",
+      access_token: accessToken,
+    });
+
+    const frames = body.thumbnails?.data ?? [];
+    if (!frames.length) return undefined;
+
+    const preferred = frames.find((f) => f.is_preferred && f.uri);
+    if (preferred?.uri) return preferred.uri;
+
+    const widest = [...frames]
+      .filter((f) => f.uri)
+      .sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
+    return widest?.uri;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Run async tasks with a small concurrency cap (Meta rate-limits hard). */
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Map of ad_id -> creative thumbnail URL for an ad account.
+ *
+ * Video ads are the tricky case: their creative only carries a tiny ~64px
+ * `thumbnail_url`, so we resolve a sharp cover frame from the video node
+ * (`/{video_id}?fields=thumbnails`). Static ads keep using `image_url` /
+ * story-spec picture, which are already full-size.
+ */
 export async function getAdThumbnails(
   accessToken: string,
   adAccountId: string
 ): Promise<Map<string, string>> {
-  // The default thumbnail_url is ~64px and looks blurry when shown larger.
-  // Pull every higher-res source Meta exposes and pick the best: full image,
-  // the picture/video frame from object_story_spec, else the small thumbnail.
-  interface Creative {
-    image_url?: string;
-    thumbnail_url?: string;
-    object_story_spec?: {
-      link_data?: { picture?: string };
-      video_data?: { image_url?: string };
-    };
-  }
-  const bestUrl = (c?: Creative): string | undefined =>
-    c?.image_url ||
-    c?.object_story_spec?.video_data?.image_url ||
-    c?.object_story_spec?.link_data?.picture ||
-    c?.thumbnail_url;
-
-  // Rich query first (full image / story-spec picture / video frame). If Meta
+  // Rich query first (full image / story-spec picture / video id). If Meta
   // rejects any nested field, fall back to the basic query so the sync never
   // fails outright and leaves stale thumbnails.
   const RICH =
-    "id,creative{image_url,thumbnail_url,object_story_spec{link_data{picture},video_data{image_url}}}";
+    "id,creative{image_url,thumbnail_url,video_id,object_story_spec{link_data{picture},video_data{image_url,video_id}}}";
   const BASIC = "id,creative{image_url,thumbnail_url}";
 
   let data: Array<{ id?: string; creative?: Creative }> = [];
@@ -273,10 +350,42 @@ export async function getAdThumbnails(
   }
 
   const map = new Map<string, string>();
+
+  // First pass: static sources we already have, and collect the video ads that
+  // need a follow-up lookup (dedup by video id to avoid re-fetching shared
+  // videos across many ads).
+  const videoAds: Array<{ adId: string; videoId: string }> = [];
+  const seenVideoIds = new Set<string>();
   for (const ad of data) {
-    const url = bestUrl(ad.creative);
-    if (ad.id && url) map.set(ad.id, url);
+    if (!ad.id) continue;
+    const videoId = creativeVideoId(ad.creative);
+    if (videoId) {
+      videoAds.push({ adId: ad.id, videoId });
+      seenVideoIds.add(videoId);
+      // Seed with the static fallback in case the video lookup fails.
+      const fallback = bestStaticUrl(ad.creative);
+      if (fallback) map.set(ad.id, fallback);
+    } else {
+      const url = bestStaticUrl(ad.creative);
+      if (url) map.set(ad.id, url);
+    }
   }
+
+  // Second pass: resolve sharp frames for each unique video, then apply to ads.
+  const uniqueVideoIds = [...seenVideoIds];
+  const resolved = await mapLimit(uniqueVideoIds, 6, async (videoId) => ({
+    videoId,
+    uri: await resolveVideoThumbnail(accessToken, videoId),
+  }));
+  const videoThumb = new Map<string, string>();
+  for (const { videoId, uri } of resolved) {
+    if (uri) videoThumb.set(videoId, uri);
+  }
+  for (const { adId, videoId } of videoAds) {
+    const sharp = videoThumb.get(videoId);
+    if (sharp) map.set(adId, sharp);
+  }
+
   return map;
 }
 
