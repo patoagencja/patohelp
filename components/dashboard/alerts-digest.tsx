@@ -24,9 +24,11 @@ const SEVERITY_LABEL: Record<Anomaly["severity"], string> = {
 export function AlertsDigest({
   alerts,
   clientSlug,
+  linkless = false,
 }: {
   alerts: Anomaly[];
   clientSlug: string;
+  linkless?: boolean;
 }) {
   const top = alerts.slice(0, 4);
 
@@ -42,13 +44,15 @@ export function AlertsDigest({
           />
           Najważniejsze alerty
         </p>
-        <Link
-          href={`/${clientSlug}/alerty`}
-          className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-        >
-          Wszystkie alerty
-          <ArrowRight className="h-3 w-3" />
-        </Link>
+        {!linkless ? (
+          <Link
+            href={`/${clientSlug}/alerty`}
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            Wszystkie alerty
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        ) : null}
       </div>
 
       {top.length === 0 ? (
@@ -64,48 +68,57 @@ export function AlertsDigest({
               className="animate-[rise-in_0.4s_ease-out_both]"
               style={{ animationDelay: `${i * 70}ms` }}
             >
-              <Link
-                href={`/${clientSlug}/alerty`}
-                className="group flex items-center gap-3 py-2.5"
-              >
-                {/* Pulsing dot draws the eye to the urgent ones. */}
-                <span className="relative flex h-2 w-2 shrink-0">
-                  {a.severity !== "medium" ? (
+              {(() => {
+                const body = (
+                  <>
+                    {/* Pulsing dot draws the eye to the urgent ones. */}
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      {a.severity !== "medium" ? (
+                        <span
+                          className={cn(
+                            "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+                            SEVERITY_DOT[a.severity]
+                          )}
+                        />
+                      ) : null}
+                      <span
+                        className={cn(
+                          "relative inline-flex h-2 w-2 rounded-full",
+                          SEVERITY_DOT[a.severity]
+                        )}
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium group-hover:underline">
+                        {a.title}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {a.scopeLabel}
+                      </span>
+                    </span>
                     <span
                       className={cn(
-                        "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
-                        SEVERITY_DOT[a.severity]
+                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        a.severity === "critical"
+                          ? "animate-[soft-pulse_2.2s_ease-in-out_infinite] bg-red-600 text-white"
+                          : a.severity === "high"
+                            ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
+                            : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
                       )}
-                    />
-                  ) : null}
-                  <span
-                    className={cn(
-                      "relative inline-flex h-2 w-2 rounded-full",
-                      SEVERITY_DOT[a.severity]
-                    )}
-                  />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium group-hover:underline">
-                    {a.title}
-                  </span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {a.scopeLabel}
-                  </span>
-                </span>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    a.severity === "critical"
-                      ? "animate-[soft-pulse_2.2s_ease-in-out_infinite] bg-red-600 text-white"
-                      : a.severity === "high"
-                        ? "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400"
-                        : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
-                  )}
-                >
-                  {SEVERITY_LABEL[a.severity]}
-                </span>
-              </Link>
+                    >
+                      {SEVERITY_LABEL[a.severity]}
+                    </span>
+                  </>
+                );
+                const cls = "group flex items-center gap-3 py-2.5";
+                return linkless ? (
+                  <div className={cls}>{body}</div>
+                ) : (
+                  <Link href={`/${clientSlug}/alerty`} className={cls}>
+                    {body}
+                  </Link>
+                );
+              })()}
             </li>
           ))}
         </ul>

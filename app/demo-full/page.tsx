@@ -7,27 +7,22 @@ import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
-import { Devices } from "@/components/dashboard/website/devices";
-import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import { getDemoDashboard } from "@/lib/demo/data";
 
 export const dynamic = "force-dynamic";
 
-// Budget bar needs a form action prop; read-only in demo (isAgency=false).
 async function noop() {
   "use server";
 }
 
-export default function DemoOnePager() {
+export default function DemoFullOverview() {
   const d = getDemoDashboard();
-
   return (
     <>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cały Twój marketing w jednym miejscu — Meta, Google i GA4, odświeżane
-          automatycznie. (Widok demonstracyjny na przykładowych danych.)
+          Przegląd kampanii lokalnepomidorki (widok demonstracyjny).
         </p>
       </div>
 
@@ -37,24 +32,14 @@ export default function DemoOnePager() {
       <KpiCards kpis={d.kpis} trend={d.trend} />
       <BudgetProgress
         budget={d.budget}
-        clientSlug="demo"
+        clientSlug="demo-full"
         isAgency={false}
         setBudgetAction={noop}
       />
-      <AlertsDigest alerts={d.alerts} clientSlug="demo" linkless />
+      <AlertsDigest alerts={d.alerts} clientSlug="demo-full" />
       <CampaignPositions campaigns={d.campaigns} />
       <TopCreatives creatives={d.creatives} />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TrafficSources sources={d.website.sources} />
-        <Devices devices={d.website.devices} />
-      </div>
-
       <AiSummaryCard summary={d.summary} />
-
-      <p className="pb-6 pt-2 text-center text-xs text-muted-foreground">
-        Widok demonstracyjny · dane przykładowe
-      </p>
     </>
   );
 }

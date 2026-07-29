@@ -3,14 +3,27 @@ import { format, subDays } from "date-fns";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import type {
   CampaignRow,
+  CostTrendPoint,
   DashboardKpis,
   Kpi,
+  PlatformSplit,
   TrendPoint,
 } from "@/lib/dashboard/metrics";
 import type { AiSummary, BudgetStatus } from "@/lib/dashboard/overview";
+import type { WebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { DailyScore } from "@/lib/dashboard/score";
+import type { CreativeItem } from "@/components/dashboard/creatives-table";
 import type { CreativeRow } from "@/components/dashboard/top-creatives";
 import type { AdProvider } from "@/lib/types";
+
+export interface DemoNewsItem {
+  category: "meta" | "google" | "tiktok" | "ai";
+  publishedOn: string;
+  title: string;
+  summary: string;
+  sourceName: string;
+  sourceUrl: string;
+}
 
 // Fully synthetic dashboard data for the PUBLIC /demo showcase. No database, no
 // real client - just believable numbers so a prospect can see the whole product
@@ -32,9 +45,15 @@ interface DemoDashboard {
   campaigns: CampaignRow[];
   score: DailyScore;
   creatives: CreativeRow[];
+  creativesFull: CreativeItem[];
   alerts: Anomaly[];
+  alertsFull: Anomaly[];
   budget: BudgetStatus;
   summary: AiSummary;
+  costTrend: CostTrendPoint[];
+  platformSplit: PlatformSplit;
+  website: WebsiteData;
+  news: DemoNewsItem[];
   rangeLabel: string;
 }
 
@@ -249,15 +268,154 @@ export function getDemoDashboard(today = new Date()): DemoDashboard {
     periodEnd: format(today, "yyyy-MM-dd"),
   };
 
+  // --- Creatives (full fields, for the Kreacje table + podium) ---------------
+  const creativesFull: CreativeItem[] = [
+    ["Wideo | Poradnik montażu 30s", 184050, 2.6, 34, 11],
+    ["Karuzela | Nowa kolekcja", 152300, 2.5, 36, 22],
+    ["Grafika | Świadomość marki", 141200, 0.9, 49, 33],
+    ["Retargeting | Porzucony koszyk", 118900, 3.2, 39, 44],
+    ["Reels | Opinie klientów", 104500, 2.3, 32, 55],
+    ["Statyk | Promocja -20%", 96700, 2.2, 37, 66],
+    ["Wideo | Behind the scenes", 81200, 1.2, 44, 77],
+    ["Grafika | Bestsellery", 72400, 2.4, 34, 88],
+    ["Karuzela | Zestawy", 61300, 2.0, 41, 99],
+    ["Reels | Poradnik 3 kroki", 54900, 2.7, 30, 12],
+  ].map((c, i) => {
+    const spend = c[1] as number;
+    const ctr = c[2] as number;
+    const cpc = c[3] as number;
+    const clicks = Math.round(spend / cpc);
+    const impressions = Math.round((clicks / ctr) * 100);
+    return {
+      adId: `demo-ad${i + 1}`,
+      name: `DEMO | ${c[0]}`,
+      thumbnailUrl: `https://picsum.photos/seed/${c[4]}/600/600`,
+      spend,
+      impressions,
+      clicks,
+      ctr,
+      cpc,
+    };
+  });
+
+  // --- Cost trend (Meta vs Google CPC over the range) ------------------------
+  const costTrend: CostTrendPoint[] = trend.map((p, i) => ({
+    date: p.date,
+    metaCpcMinorUnits: Math.round(62 + Math.sin(i / 4) * 8 + rand() * 6),
+    googleCpcMinorUnits: Math.round(138 + Math.cos(i / 5) * 14 + rand() * 10),
+  }));
+
+  // --- Platform split (share of spend) --------------------------------------
+  const metaSpend = campaigns
+    .filter((c) => c.provider === "meta_ads")
+    .reduce((a, c) => a + c.spendMinorUnits, 0);
+  const googleSpend = campaigns
+    .filter((c) => c.provider === "google_ads")
+    .reduce((a, c) => a + c.spendMinorUnits, 0);
+  const platformSplit: PlatformSplit = {
+    metaSpendMinorUnits: metaSpend,
+    googleSpendMinorUnits: googleSpend,
+    tiktokSpendMinorUnits: 0,
+  };
+
+  // --- Website (GA4) --------------------------------------------------------
+  const S = curSessions;
+  const website: WebsiteData = {
+    hasData: true,
+    sources: [
+      { category: "Paid", sessions: Math.round(S * 0.4) },
+      { category: "Organic", sessions: Math.round(S * 0.3) },
+      { category: "Direct", sessions: Math.round(S * 0.14) },
+      { category: "Social", sessions: Math.round(S * 0.1) },
+      { category: "Referral/Inne", sessions: Math.round(S * 0.06) },
+    ],
+    devices: [
+      { device: "mobile", sessions: Math.round(S * 0.66) },
+      { device: "desktop", sessions: Math.round(S * 0.29) },
+      { device: "tablet", sessions: Math.round(S * 0.05) },
+    ],
+    topPages: [
+      { path: "/", views: Math.round(S * 0.9), engagementRate: 61 },
+      { path: "/produkty", views: Math.round(S * 0.62), engagementRate: 68 },
+      { path: "/kontakt", views: Math.round(S * 0.28), engagementRate: 72 },
+      { path: "/o-nas", views: Math.round(S * 0.21), engagementRate: 55 },
+      { path: "/blog/poradnik", views: Math.round(S * 0.18), engagementRate: 74 },
+    ],
+    engagement: {
+      engagementRate: 62,
+      bounceRate: 38,
+      avgDailySessions: Math.round(S / DAYS),
+    },
+    newVsReturning: {
+      newUsers: Math.round(S * 0.62),
+      returningUsers: Math.round(S * 0.38),
+    },
+    sessionsTrend: trend.map((p) => ({ date: p.date, sessions: p.sessions })),
+  };
+
+  // --- News feed ------------------------------------------------------------
+  const news: DemoNewsItem[] = [
+    { category: "meta", publishedOn: format(subDays(today, 1), "yyyy-MM-dd"), title: "Meta rozszerza Advantage+ o nowe formaty wideo", summary: "Nowe automatyczne umiejscowienia wideo w Advantage+ mają poprawić zasięg przy niższym CPM. Warto przetestować na kampaniach świadomościowych.", sourceName: "Meta for Business", sourceUrl: "https://www.facebook.com/business/news" },
+    { category: "google", publishedOn: format(subDays(today, 1), "yyyy-MM-dd"), title: "Google Ads: nowe raporty PMax na poziomie kanału", summary: "Performance Max dostaje bardziej szczegółowe raporty pokazujące udział YouTube, Search i Display. Ułatwia to optymalizację budżetu.", sourceName: "Google Ads Blog", sourceUrl: "https://blog.google/products/ads-commerce/" },
+    { category: "tiktok", publishedOn: format(subDays(today, 2), "yyyy-MM-dd"), title: "TikTok testuje dłuższe reklamy in-feed", summary: "Nowy format do 60 s ma sprzyjać storytellingowi marek. Wcześni testerzy raportują wyższy czas oglądania.", sourceName: "TikTok Newsroom", sourceUrl: "https://newsroom.tiktok.com" },
+    { category: "ai", publishedOn: format(subDays(today, 2), "yyyy-MM-dd"), title: "Nowe modele AI do generowania kreacji reklamowych", summary: "Kolejna generacja modeli obniża koszt produkcji wariantów kreacji. Dla agencji to szybsze testy A/B.", sourceName: "The Verge", sourceUrl: "https://www.theverge.com/ai-artificial-intelligence" },
+    { category: "google", publishedOn: format(subDays(today, 3), "yyyy-MM-dd"), title: "AI Overviews wpływa na ruch organiczny", summary: "Coraz więcej zapytań kończy się bez kliknięcia. Marki przenoszą część budżetu na płatny Search i treści eksperckie.", sourceName: "Search Engine Land", sourceUrl: "https://searchengineland.com" },
+    { category: "meta", publishedOn: format(subDays(today, 4), "yyyy-MM-dd"), title: "Instagram zmienia zasięgi Reels", summary: "Algorytm mocniej promuje oryginalne treści. Reposty tracą na zasięgu - warto stawiać na własne produkcje.", sourceName: "Instagram", sourceUrl: "https://about.instagram.com" },
+  ];
+
+  // --- Alerts (full list for the Alerty tab) --------------------------------
+  const alertsFull: Anomaly[] = [
+    ...alerts,
+    {
+      id: "a4",
+      severity: "high",
+      scope: "campaign",
+      scopeLabel: "SEARCH | Generyczne · Google",
+      metric: "cpc",
+      direction: "up",
+      changePct: 24,
+      title: "CPC wyższe o 24% (7 dni)",
+      description: "Rosnąca konkurencja w aukcji podbija koszt kliknięcia.",
+    },
+    {
+      id: "a5",
+      severity: "medium",
+      scope: "campaign",
+      scopeLabel: "ENGAGEMENT | Instagram · Meta",
+      metric: "ctr",
+      direction: "up",
+      changePct: 18,
+      title: "CTR rośnie na Instagramie: +18%",
+      description: "Nowe kreacje Reels pracują wyraźnie lepiej niż średnia.",
+    },
+    {
+      id: "a6",
+      severity: "medium",
+      scope: "client",
+      scopeLabel: "Cały profil",
+      metric: "sessions",
+      direction: "up",
+      changePct: 9,
+      title: "Sesje z ruchu płatnego +9%",
+      description: "Wzrost ruchu z kampanii przekłada się na sesje w GA4.",
+    },
+  ];
+
   return {
     kpis,
     trend,
     campaigns,
     score,
     creatives,
+    creativesFull,
     alerts,
+    alertsFull,
     budget,
     summary,
+    costTrend,
+    platformSplit,
+    website,
+    news,
     rangeLabel: "ostatnie 30 dni",
   };
 }
