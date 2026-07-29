@@ -16,16 +16,20 @@ export function BudgetProgress({
   clientSlug,
   isAgency,
   setBudgetAction,
+  lang = "pl",
 }: {
   budget: BudgetStatus;
   clientSlug: string;
   isAgency: boolean;
   setBudgetAction: (formData: FormData) => Promise<void>;
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
+  const title = en ? "Monthly budget" : "Budżet miesięczny";
   if (!budget.hasBudget) {
     return (
       <Card>
-        <Title>Budżet miesięczny</Title>
+        <Title>{title}</Title>
         <Text className="mt-2">
           Nie ustawiono budżetu na ten miesiąc.
         </Text>
@@ -55,7 +59,7 @@ export function BudgetProgress({
   return (
     <Card>
       <div className="flex items-start justify-between gap-4">
-        <Title>Budżet miesięczny</Title>
+        <Title>{title}</Title>
         {isAgency ? (
           <form action={setBudgetAction} className="flex items-center gap-2">
             <input type="hidden" name="client" value={clientSlug} />
@@ -91,11 +95,11 @@ export function BudgetProgress({
       </div>
 
       <Text className="mt-3 text-sm">
-        Wydane: {formatMoneyPLN(budget.spentMinorUnits)} z{" "}
-        {formatMoneyPLN(budget.budgetMinorUnits)} (
-        {Math.round(budget.spentPercent)}%). Dzień miesiąca:{" "}
+        {en ? "Spent" : "Wydane"}: {formatMoneyPLN(budget.spentMinorUnits)}{" "}
+        {en ? "of" : "z"} {formatMoneyPLN(budget.budgetMinorUnits)} (
+        {Math.round(budget.spentPercent)}%). {en ? "Day of month" : "Dzień miesiąca"}:{" "}
         {budget.dayOfMonth}/{budget.daysInMonth} (
-        {Math.round(budget.monthPercent)}%). Tempo: {budget.paceLabel}
+        {Math.round(budget.monthPercent)}%). {en ? "Pace" : "Tempo"}: {budget.paceLabel}
       </Text>
     </Card>
   );

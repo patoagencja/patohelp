@@ -14,14 +14,24 @@ export interface CreativeRow {
 }
 
 // Meta-only for now; Google Ads creatives are a TODO (no thumbnail API).
-export function TopCreatives({ creatives }: { creatives: CreativeRow[] }) {
+export function TopCreatives({
+  creatives,
+  lang = "pl",
+}: {
+  creatives: CreativeRow[];
+  lang?: "pl" | "en";
+}) {
+  const en = lang === "en";
   return (
     <Card>
-      <Title>Top 5 kreacji (Meta, ostatnie 30 dni)</Title>
+      <Title>
+        {en ? "Top 5 creatives (Meta, last 30 days)" : "Top 5 kreacji (Meta, ostatnie 30 dni)"}
+      </Title>
       {creatives.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Dane o kreacjach pojawią się po pierwszej synchronizacji kreacji
-          (cron co 6h).
+          {en
+            ? "Creative data appears after the first creatives sync."
+            : "Dane o kreacjach pojawią się po pierwszej synchronizacji kreacji (cron co 6h)."}
         </p>
       ) : (
         <Grid numItemsSm={2} numItemsLg={5} className="mt-4 gap-4">
@@ -49,7 +59,7 @@ export function TopCreatives({ creatives }: { creatives: CreativeRow[] }) {
                   {c.adName}
                 </p>
                 <Text className="text-xs">
-                  Wydatki: {formatMoneyPLN(c.spendMinorUnits)}
+                  {en ? "Spend" : "Wydatki"}: {formatMoneyPLN(c.spendMinorUnits)}
                 </Text>
                 <Text className="text-xs">
                   CTR: {c.ctr != null ? formatPercent(c.ctr) : "-"} · CPC:{" "}

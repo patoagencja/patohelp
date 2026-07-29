@@ -14,9 +14,12 @@ const COLORS = ["indigo", "sky", "slate"] as const;
 
 export function Devices({
   devices,
+  lang = "pl",
 }: {
   devices: Array<{ device: string; sessions: number }>;
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
   const data = devices.map((d) => ({
     name: DEVICE_LABEL[d.device] ?? d.device,
     value: d.sessions,
@@ -24,14 +27,14 @@ export function Devices({
 
   return (
     <Card>
-      <Title>Urządzenia</Title>
+      <Title>{en ? "Devices" : "Urządzenia"}</Title>
       <DonutChart
         className="mt-6 h-52"
         data={data}
         category="value"
         index="name"
         colors={[...COLORS]}
-        valueFormatter={(v) => `${formatNumberPL(v)} sesji`}
+        valueFormatter={(v) => `${formatNumberPL(v)} ${en ? "sessions" : "sesji"}`}
       />
       <Legend
         className="mt-4 justify-center"

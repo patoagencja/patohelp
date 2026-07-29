@@ -46,6 +46,7 @@ function KpiCard({
   direction,
   series,
   hint,
+  subtitle = "vs poprzedni okres",
 }: {
   label: string;
   value: number;
@@ -54,6 +55,7 @@ function KpiCard({
   direction: Direction;
   series: number[];
   hint?: string;
+  subtitle?: string;
 }) {
   const delta = hint ? null : deltaBadge(kpi, direction);
   const hasSpark = series.some((v) => v > 0);
@@ -105,7 +107,7 @@ function KpiCard({
       </Flex>
 
       <Text className={cn("mt-1 text-xs", hint && "text-muted-foreground")}>
-        {hint ?? "vs poprzedni okres"}
+        {hint ?? subtitle}
       </Text>
     </Card>
   );
@@ -114,10 +116,23 @@ function KpiCard({
 export function KpiCards({
   kpis,
   trend,
+  lang = "pl",
 }: {
   kpis: DashboardKpis;
   trend: TrendPoint[];
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
+  const L = {
+    spend: en ? "Spend" : "Wydatki",
+    clicks: en ? "Clicks" : "Kliknięcia",
+    sessions: en ? "Sessions (GA4)" : "Sesje (GA4)",
+    ctr: en ? "Avg CTR" : "Średni CTR",
+    cpc: en ? "Avg CPC" : "Średni CPC",
+    conversions: en ? "Conversions" : "Konwersje",
+    afterGa4: en ? "after connecting GA4" : "po podłączeniu GA4",
+    noConv: en ? "no conversion events" : "brak zdarzeń konwersji",
+  };
   const noSessions = kpis.sessions.value === 0 && kpis.sessions.previous === 0;
   const noConversions =
     kpis.conversions.value === 0 && kpis.conversions.previous === 0;
@@ -134,57 +149,65 @@ export function KpiCards({
     t.clicks > 0 ? t.spendMinorUnits / t.clicks / 100 : 0
   );
 
+  const sub = en ? "vs previous period" : "vs poprzedni okres";
+
   return (
     <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
       <KpiCard
-        label="Wydatki"
+        label={L.spend}
         value={kpis.spendMinorUnits.value}
         format={(n) => formatMoneyPLN(Math.round(n))}
         kpi={kpis.spendMinorUnits}
         direction="neutral"
         series={spendSeries}
+        subtitle={sub}
       />
       <KpiCard
-        label="Kliknięcia"
+        label={L.clicks}
         value={kpis.clicks.value}
         format={formatNumberPL}
         kpi={kpis.clicks}
         direction="good"
         series={clicksSeries}
+        subtitle={sub}
       />
       <KpiCard
-        label="Sesje (GA4)"
+        label={L.sessions}
         value={kpis.sessions.value}
         format={(n) => (noSessions ? "-" : formatNumberPL(n))}
         kpi={kpis.sessions}
         direction="good"
         series={sessionsSeries}
-        hint={noSessions ? "po podłączeniu GA4" : undefined}
+        hint={noSessions ? L.afterGa4 : undefined}
+        subtitle={sub}
       />
       <KpiCard
-        label="Średni CTR"
+        label={L.ctr}
         value={kpis.ctr.value}
         format={(n) => formatPercent(n)}
         kpi={kpis.ctr}
         direction="good"
         series={ctrSeries}
+        subtitle={sub}
       />
       <KpiCard
-        label="Średni CPC"
+        label={L.cpc}
         value={kpis.cpcMinorUnits.value}
         format={(n) => formatMoneyPLN(Math.round(n))}
         kpi={kpis.cpcMinorUnits}
         direction="bad"
         series={cpcSeries}
+        subtitle={sub}
       />
       <KpiCard
-        label="Konwersje"
+        label={L.conversions}
         value={kpis.conversions.value}
         format={(n) => (noConversions ? "-" : formatNumberPL(n))}
         kpi={kpis.conversions}
         direction="good"
         series={conversionsSeries}
-        hint={noConversions ? "brak zdarzeń konwersji" : undefined}
+        hint={noConversions ? L.noConv : undefined}
+        subtitle={sub}
       />
     </Grid>
   );

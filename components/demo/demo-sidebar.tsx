@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   BellRing,
   Globe,
@@ -24,6 +24,8 @@ const ITEMS = [
 
 export function DemoSidebar() {
   const pathname = usePathname();
+  const sp = useSearchParams();
+  const suffix = sp.get("lang") === "en" ? "?lang=en" : "";
   return (
     <nav className="flex flex-col gap-1 p-3">
       <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
@@ -34,7 +36,7 @@ export function DemoSidebar() {
         return (
           <Link
             key={href}
-            href={href}
+            href={`${href}${suffix}`}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
               active

@@ -6,7 +6,14 @@ import { formatMoneyPLN } from "@/lib/utils";
 // Inline-SVG donut (server component). Deliberately NOT Tremor's DonutChart -
 // Recharts-based charts repeatedly fail to render in this app; pure SVG always
 // paints and needs no hydration.
-export function PlatformSplit({ split }: { split: PlatformSplitData }) {
+export function PlatformSplit({
+  split,
+  lang = "pl",
+}: {
+  split: PlatformSplitData;
+  lang?: "pl" | "en";
+}) {
+  const en = lang === "en";
   const total =
     split.metaSpendMinorUnits +
     split.googleSpendMinorUnits +
@@ -43,7 +50,7 @@ export function PlatformSplit({ split }: { split: PlatformSplitData }) {
 
   return (
     <Card>
-      <Title>Podział wydatków</Title>
+      <Title>{en ? "Spend split" : "Podział wydatków"}</Title>
       {entries.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">
           Brak wydatków w tym okresie.

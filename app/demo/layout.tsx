@@ -1,5 +1,6 @@
 import { Sparkles } from "lucide-react";
 
+import { LangToggle } from "@/components/demo/lang-toggle";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 
 // Minimal chrome for the public one-pager demo: a top bar only, no sidebar.
@@ -20,6 +21,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
           DEMO · dane przykładowe
         </span>
         <span className="flex-1" />
+        <LangToggle />
         <ThemeToggle />
       </header>
 

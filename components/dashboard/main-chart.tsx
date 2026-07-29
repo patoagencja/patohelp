@@ -47,11 +47,18 @@ export function MainChart({
   trend,
   events,
   label,
+  lang = "pl",
 }: {
   trend: TrendPoint[];
   events: ClientEvent[];
   label?: string;
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
+  const metricLabel: Record<MetricKey, string> = en
+    ? { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions" }
+    : { spend: "Wydatki", sessions: "Sesje", clicks: "Kliknięcia", conversions: "Konwersje" };
+  const seriesKey = en ? "Value" : "Wartość";
   const [metric, setMetric] = useState<MetricKey>("spend");
 
   const isMoney = metric === "spend";
@@ -65,10 +72,10 @@ export function MainChart({
           : metric === "clicks"
             ? p.clicks
             : p.conversions;
-    return { date: `${day}.${month}`, Wartość: value };
+    return { date: `${day}.${month}`, [seriesKey]: value };
   });
 
-  const activeLabel = METRICS.find((m) => m.key === metric)?.label ?? "";
+  const activeLabel = metricLabel[metric];
 
   return (
     <Card>
@@ -90,7 +97,7 @@ export function MainChart({
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {m.label}
+              {metricLabel[m.key]}
             </button>
           ))}
         </div>
@@ -100,7 +107,7 @@ export function MainChart({
         className="mt-4 h-72"
         data={data}
         index="date"
-        categories={["Wartość"]}
+        categories={[seriesKey]}
         colors={["indigo"]}
         valueFormatter={(v) => (isMoney ? compactPln(v) : compactNum(v))}
         showLegend={false}

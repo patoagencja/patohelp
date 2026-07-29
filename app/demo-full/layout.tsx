@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 
 import { DemoSidebar } from "@/components/demo/demo-sidebar";
+import { LangToggle } from "@/components/demo/lang-toggle";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 
 // Full showcase with a working sidebar and clickable tabs. Public, synthetic.
@@ -32,6 +33,7 @@ export default function DemoFullLayout({
             DEMO · dane przykładowe
           </span>
           <span className="flex-1" />
+          <LangToggle />
           <ThemeToggle />
         </header>
 

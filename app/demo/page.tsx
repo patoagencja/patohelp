@@ -13,47 +13,56 @@ import { getDemoDashboard } from "@/lib/demo/data";
 
 export const dynamic = "force-dynamic";
 
-// Budget bar needs a form action prop; read-only in demo (isAgency=false).
 async function noop() {
   "use server";
 }
 
-export default function DemoOnePager() {
-  const d = getDemoDashboard();
+export default function DemoOnePager({
+  searchParams,
+}: {
+  searchParams: { lang?: string };
+}) {
+  const lang = searchParams.lang === "en" ? "en" : "pl";
+  const en = lang === "en";
+  const d = getDemoDashboard(lang);
 
   return (
     <>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {en ? "Hi 👋" : "Cześć 👋"}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cały Twój marketing w jednym miejscu — Meta, Google i GA4, odświeżane
-          automatycznie. (Widok demonstracyjny na przykładowych danych.)
+          {en
+            ? "All your marketing in one place — Meta, Google and GA4, refreshed automatically. (Demo view on sample data.)"
+            : "Cały Twój marketing w jednym miejscu — Meta, Google i GA4, odświeżane automatycznie. (Widok demonstracyjny na przykładowych danych.)"}
         </p>
       </div>
 
       <TickerBar campaigns={d.campaigns} />
-      <DailyScoreCard data={d.score} />
-      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} />
-      <KpiCards kpis={d.kpis} trend={d.trend} />
+      <DailyScoreCard data={d.score} lang={lang} />
+      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} />
+      <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} />
       <BudgetProgress
         budget={d.budget}
         clientSlug="demo"
         isAgency={false}
         setBudgetAction={noop}
+        lang={lang}
       />
-      <AlertsDigest alerts={d.alerts} clientSlug="demo" linkless />
-      <CampaignPositions campaigns={d.campaigns} />
-      <TopCreatives creatives={d.creatives} />
+      <AlertsDigest alerts={d.alerts} clientSlug="demo" linkless lang={lang} />
+      <CampaignPositions campaigns={d.campaigns} lang={lang} />
+      <TopCreatives creatives={d.creatives} lang={lang} />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <TrafficSources sources={d.website.sources} />
-        <Devices devices={d.website.devices} />
+        <TrafficSources sources={d.website.sources} lang={lang} />
+        <Devices devices={d.website.devices} lang={lang} />
       </div>
 
-      <AiSummaryCard summary={d.summary} />
+      <AiSummaryCard summary={d.summary} lang={lang} />
 
       <p className="pb-6 pt-2 text-center text-xs text-muted-foreground">
-        Widok demonstracyjny · dane przykładowe
+        {en ? "Demo view · sample data" : "Widok demonstracyjny · dane przykładowe"}
       </p>
     </>
   );

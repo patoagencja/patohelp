@@ -17,7 +17,14 @@ interface Series {
   points: Array<{ i: number; value: number }>;
 }
 
-export function CostTrends({ costTrend: raw }: { costTrend: CostTrendPoint[] }) {
+export function CostTrends({
+  costTrend: raw,
+  lang = "pl",
+}: {
+  costTrend: CostTrendPoint[];
+  lang?: "pl" | "en";
+}) {
+  const en = lang === "en";
   // Trim leading/trailing days with no data at all, so a range that starts
   // before the data does (e.g. before the backfill horizon) doesn't squash
   // the lines into a corner of an empty axis.
@@ -69,7 +76,7 @@ export function CostTrends({ costTrend: raw }: { costTrend: CostTrendPoint[] }) 
 
   return (
     <Card>
-      <Title>Średni CPC dziennie - Meta vs Google</Title>
+      <Title>{en ? "Avg daily CPC - Meta vs Google" : "Średni CPC dziennie - Meta vs Google"}</Title>
       {series.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
           Brak danych CPC w tym okresie.

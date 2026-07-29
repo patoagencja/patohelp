@@ -196,10 +196,16 @@ function Position({
 export function CampaignPositions({
   campaigns,
   initialFilter = "all",
+  lang = "pl",
 }: {
   campaigns: CampaignRow[];
   initialFilter?: PositionFilter;
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
+  const filterLabel: Record<PositionFilter, string> = en
+    ? { all: "All", active: "Open", attention: "Needs attention" }
+    : { all: "Wszystkie", active: "Otwarte", attention: "Wymagają uwagi" };
   // Client-side filtering: instant, no navigation, immune to stale-chunk errors
   // after a fresh deploy (which broke the previous URL-param approach).
   const [filter, setFilter] = useState<PositionFilter>(initialFilter);
@@ -238,16 +244,18 @@ export function CampaignPositions({
     <Card>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-baseline gap-4">
-          <Title>Pozycje</Title>
+          <Title>{en ? "Positions" : "Pozycje"}</Title>
           <span className="flex items-center gap-3 font-mono text-xs text-muted-foreground">
             <span>
-              Ekspozycja{" "}
+              {en ? "Exposure" : "Ekspozycja"}{" "}
               <span className="font-semibold text-foreground">
                 {formatMoneyPLN(totalExposure)}
               </span>
             </span>
             <span>
-              {filtered.length} otwart{filtered.length === 1 ? "a" : "ych"}
+              {en
+                ? `${filtered.length} open`
+                : `${filtered.length} otwart${filtered.length === 1 ? "a" : "ych"}`}
             </span>
             {netMomentum !== null ? (
               <span
@@ -278,7 +286,7 @@ export function CampaignPositions({
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {f.label}
+              {filterLabel[f.key]}
             </button>
           ))}
         </div>
@@ -286,20 +294,20 @@ export function CampaignPositions({
 
       {filtered.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          Brak pozycji w tym widoku.
+          {en ? "No positions in this view." : "Brak pozycji w tym widoku."}
         </p>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">Kier.</th>
+                <th className="py-2 pr-3 font-medium">{en ? "Dir." : "Kier."}</th>
                 <th className="py-2 pr-3 font-medium">Symbol</th>
-                <th className="py-2 pr-3 text-right font-medium">Rozmiar</th>
+                <th className="py-2 pr-3 text-right font-medium">{en ? "Size" : "Rozmiar"}</th>
                 <th className="py-2 pr-3 text-right font-medium">CTR</th>
                 <th className="py-2 pr-3 text-right font-medium">CPC</th>
-                <th className="py-2 pr-3 text-right font-medium">Zmiana</th>
-                <th className="py-2 pl-1 text-right font-medium">7 dni</th>
+                <th className="py-2 pr-3 text-right font-medium">{en ? "Change" : "Zmiana"}</th>
+                <th className="py-2 pl-1 text-right font-medium">{en ? "7 days" : "7 dni"}</th>
               </tr>
             </thead>
             <tbody>

@@ -5,24 +5,32 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const SEV = {
-  critical: { label: "Krytyczny", badge: "bg-red-600 text-white", dot: "bg-red-600" },
-  high: { label: "Wysoki", badge: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400", dot: "bg-red-400" },
-  medium: { label: "Średni", badge: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", dot: "bg-amber-400" },
-} as const;
+export default function DemoFullAlerty({
+  searchParams,
+}: {
+  searchParams: { lang?: string };
+}) {
+  const lang = searchParams.lang === "en" ? "en" : "pl";
+  const en = lang === "en";
+  const d = getDemoDashboard(lang);
 
-export default function DemoFullAlerty() {
-  const d = getDemoDashboard();
+  const SEV = {
+    critical: { label: en ? "Critical" : "Krytyczny", badge: "bg-red-600 text-white", dot: "bg-red-600" },
+    high: { label: en ? "High" : "Wysoki", badge: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400", dot: "bg-red-400" },
+    medium: { label: en ? "Medium" : "Średni", badge: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400", dot: "bg-amber-400" },
+  } as const;
+
   return (
     <>
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           <AlertTriangle className="h-5 w-5 text-red-500" />
-          Alerty
+          {en ? "Alerts" : "Alerty"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Automatyczne wykrywanie odchyleń wydatków i wyników · powiadomienia na
-          e-mail i Telegram
+          {en
+            ? "Automatic detection of spend and performance anomalies · email and Telegram notifications"
+            : "Automatyczne wykrywanie odchyleń wydatków i wyników · powiadomienia na e-mail i Telegram"}
         </p>
       </div>
 

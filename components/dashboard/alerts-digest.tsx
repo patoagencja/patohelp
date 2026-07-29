@@ -25,11 +25,18 @@ export function AlertsDigest({
   alerts,
   clientSlug,
   linkless = false,
+  lang = "pl",
 }: {
   alerts: Anomaly[];
   clientSlug: string;
   linkless?: boolean;
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
+  const sevLabel = (s: Anomaly["severity"]) =>
+    en
+      ? { critical: "Critical", high: "High", medium: "Medium" }[s]
+      : SEVERITY_LABEL[s];
   const top = alerts.slice(0, 4);
 
   return (
@@ -42,14 +49,14 @@ export function AlertsDigest({
               top.length > 0 ? "text-red-500" : "text-muted-foreground"
             )}
           />
-          Najważniejsze alerty
+          {en ? "Top alerts" : "Najważniejsze alerty"}
         </p>
         {!linkless ? (
           <Link
             href={`/${clientSlug}/alerty`}
             className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
           >
-            Wszystkie alerty
+            {en ? "All alerts" : "Wszystkie alerty"}
             <ArrowRight className="h-3 w-3" />
           </Link>
         ) : null}
@@ -58,7 +65,9 @@ export function AlertsDigest({
       {top.length === 0 ? (
         <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          Brak aktywnych alertów - wyniki w normie względem ostatnich 2 tygodni.
+          {en
+            ? "No active alerts - results are in line with the last 2 weeks."
+            : "Brak aktywnych alertów - wyniki w normie względem ostatnich 2 tygodni."}
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-border/60">
@@ -106,7 +115,7 @@ export function AlertsDigest({
                             : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
                       )}
                     >
-                      {SEVERITY_LABEL[a.severity]}
+                      {sevLabel(a.severity)}
                     </span>
                   </>
                 );

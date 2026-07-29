@@ -6,27 +6,30 @@ import { formatNumberPL, formatPercent } from "@/lib/utils";
 // daily sessions instead.
 export function EngagementMetrics({
   engagement,
+  lang = "pl",
 }: {
   engagement: {
     engagementRate: number;
     bounceRate: number;
     avgDailySessions: number;
   };
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
   return (
     <Grid numItemsSm={3} className="gap-4">
       <Card>
-        <Text>Współczynnik zaangażowania</Text>
+        <Text>{en ? "Engagement rate" : "Współczynnik zaangażowania"}</Text>
         <Metric className="mt-2">
           {formatPercent(engagement.engagementRate, 1)}
         </Metric>
       </Card>
       <Card>
-        <Text>Współczynnik odrzuceń</Text>
+        <Text>{en ? "Bounce rate" : "Współczynnik odrzuceń"}</Text>
         <Metric className="mt-2">{formatPercent(engagement.bounceRate, 1)}</Metric>
       </Card>
       <Card>
-        <Text>Średnio sesji dziennie</Text>
+        <Text>{en ? "Avg sessions / day" : "Średnio sesji dziennie"}</Text>
         <Metric className="mt-2">
           {formatNumberPL(engagement.avgDailySessions)}
         </Metric>

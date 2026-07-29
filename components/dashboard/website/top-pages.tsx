@@ -5,19 +5,22 @@ import { formatNumberPL, formatPercent } from "@/lib/utils";
 // TODO: avg session duration per page (not stored in ga4_daily yet).
 export function TopPages({
   pages,
+  lang = "pl",
 }: {
   pages: Array<{ path: string; views: number; engagementRate: number }>;
+  lang?: "pl" | "en";
 }) {
+  const en = lang === "en";
   return (
     <Card>
-      <Title>Najpopularniejsze strony</Title>
+      <Title>{en ? "Top pages" : "Najpopularniejsze strony"}</Title>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="py-2 font-medium">Strona</th>
-              <th className="py-2 text-right font-medium">Odsłony</th>
-              <th className="py-2 text-right font-medium">Zaangażowanie</th>
+              <th className="py-2 font-medium">{en ? "Page" : "Strona"}</th>
+              <th className="py-2 text-right font-medium">{en ? "Views" : "Odsłony"}</th>
+              <th className="py-2 text-right font-medium">{en ? "Engagement" : "Zaangażowanie"}</th>
             </tr>
           </thead>
           <tbody>

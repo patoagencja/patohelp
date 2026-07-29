@@ -105,7 +105,20 @@ function Ring({
   );
 }
 
-export function DailyScoreCard({ data }: { data: DailyScore }) {
+export function DailyScoreCard({
+  data,
+  lang = "pl",
+}: {
+  data: DailyScore;
+  lang?: "pl" | "en";
+}) {
+  const en = lang === "en";
+  const pulsLabel = en ? "Pulse · last 7 days" : "Puls · ostatnie 7 dni";
+  const vsLabel = en ? "vs last week" : "vs poprzedni tydzień";
+  const streakLabel = (n: number) =>
+    en
+      ? `${n} ${n === 1 ? "day" : "days"} streak`
+      : `${n} ${n === 1 ? "dzień" : "dni"} serii`;
   return (
     <div
       className={cn(
@@ -134,7 +147,7 @@ export function DailyScoreCard({ data }: { data: DailyScore }) {
         <div className="min-w-0 flex-1 text-center lg:text-left">
           <div className="flex items-center justify-center gap-2 lg:justify-start">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Puls · ostatnie 7 dni
+              {pulsLabel}
             </span>
             {data.delta !== null && data.delta !== 0 ? (
               <span
@@ -151,7 +164,7 @@ export function DailyScoreCard({ data }: { data: DailyScore }) {
                   <ArrowDownRight className="h-3 w-3" />
                 )}
                 {data.delta > 0 ? "+" : ""}
-                {data.delta} vs poprzedni tydzień
+                {data.delta} {vsLabel}
               </span>
             ) : null}
           </div>
@@ -162,7 +175,7 @@ export function DailyScoreCard({ data }: { data: DailyScore }) {
             {data.streak > 0 ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:text-orange-400">
                 <Flame className="h-3.5 w-3.5 animate-pulse" />
-                {data.streak} {data.streak === 1 ? "dzień" : "dni"} serii
+                {streakLabel(data.streak)}
               </span>
             ) : null}
             {data.factors

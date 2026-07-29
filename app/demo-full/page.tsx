@@ -15,31 +15,42 @@ async function noop() {
   "use server";
 }
 
-export default function DemoFullOverview() {
-  const d = getDemoDashboard();
+export default function DemoFullOverview({
+  searchParams,
+}: {
+  searchParams: { lang?: string };
+}) {
+  const lang = searchParams.lang === "en" ? "en" : "pl";
+  const en = lang === "en";
+  const d = getDemoDashboard(lang);
   return (
     <>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {en ? "Hi 👋" : "Cześć 👋"}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Przegląd kampanii lokalnepomidorki (widok demonstracyjny).
+          {en
+            ? "Campaign overview for lokalnepomidorki (demo view)."
+            : "Przegląd kampanii lokalnepomidorki (widok demonstracyjny)."}
         </p>
       </div>
 
       <TickerBar campaigns={d.campaigns} />
-      <DailyScoreCard data={d.score} />
-      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} />
-      <KpiCards kpis={d.kpis} trend={d.trend} />
+      <DailyScoreCard data={d.score} lang={lang} />
+      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} />
+      <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} />
       <BudgetProgress
         budget={d.budget}
         clientSlug="demo-full"
         isAgency={false}
         setBudgetAction={noop}
+        lang={lang}
       />
-      <AlertsDigest alerts={d.alerts} clientSlug="demo-full" />
-      <CampaignPositions campaigns={d.campaigns} />
-      <TopCreatives creatives={d.creatives} />
-      <AiSummaryCard summary={d.summary} />
+      <AlertsDigest alerts={d.alerts} clientSlug="demo-full" lang={lang} linkless />
+      <CampaignPositions campaigns={d.campaigns} lang={lang} />
+      <TopCreatives creatives={d.creatives} lang={lang} />
+      <AiSummaryCard summary={d.summary} lang={lang} />
     </>
   );
 }

@@ -12,15 +12,24 @@ const CAT = {
   ai: { label: "AI", cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
 } as const;
 
-export default function DemoFullNewsy() {
-  const d = getDemoDashboard();
+export default function DemoFullNewsy({
+  searchParams,
+}: {
+  searchParams: { lang?: string };
+}) {
+  const lang = searchParams.lang === "en" ? "en" : "pl";
+  const en = lang === "en";
+  const d = getDemoDashboard(lang);
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">Newsy — reklama & AI</h1>
+        <h1 className="text-xl font-semibold">
+          {en ? "News — ads & AI" : "Newsy — reklama & AI"}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Codzienny przegląd: Meta, Google/YouTube, TikTok i AI — zbierane
-          automatycznie z sieci.
+          {en
+            ? "Daily digest: Meta, Google/YouTube, TikTok and AI — gathered automatically from the web."
+            : "Codzienny przegląd: Meta, Google/YouTube, TikTok i AI — zbierane automatycznie z sieci."}
         </p>
       </div>
 

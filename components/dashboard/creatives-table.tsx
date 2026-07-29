@@ -54,9 +54,11 @@ function Thumb({ c, className }: { c: CreativeItem; className?: string }) {
 function CreativeModal({
   c,
   onClose,
+  en = false,
 }: {
   c: CreativeItem;
   onClose: () => void;
+  en?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,7 +86,7 @@ function CreativeModal({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Zamknij"
+          aria-label={en ? "Close" : "Zamknij"}
           className="absolute right-3 top-3 z-10 rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60"
         >
           <X className="h-4 w-4" />
@@ -109,9 +111,9 @@ function CreativeModal({
           <p className="text-sm font-semibold leading-snug">{c.name}</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Wydatki", value: formatMoneyPLN(c.spend) },
-              { label: "Wyświetlenia", value: formatNumberPL(c.impressions) },
-              { label: "Kliknięcia", value: formatNumberPL(c.clicks) },
+              { label: en ? "Spend" : "Wydatki", value: formatMoneyPLN(c.spend) },
+              { label: en ? "Impressions" : "Wyświetlenia", value: formatNumberPL(c.impressions) },
+              { label: en ? "Clicks" : "Kliknięcia", value: formatNumberPL(c.clicks) },
               { label: "CTR", value: formatPercent(c.ctr ?? 0) },
             ].map((s) => (
               <div key={s.label} className="rounded-lg bg-muted/50 p-2.5">
@@ -132,7 +134,7 @@ function CreativeModal({
               className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Otwórz grafikę w pełnym rozmiarze
+              {en ? "Open full-size image" : "Otwórz grafikę w pełnym rozmiarze"}
             </a>
           ) : null}
         </div>
@@ -141,7 +143,17 @@ function CreativeModal({
   );
 }
 
-export function CreativesTable({ creatives }: { creatives: CreativeItem[] }) {
+export function CreativesTable({
+  creatives,
+  lang = "pl",
+}: {
+  creatives: CreativeItem[];
+  lang?: "pl" | "en";
+}) {
+  const en = lang === "en";
+  const sortLabel: Record<SortKey, string> = en
+    ? { spend: "Spend", clicks: "Clicks", ctr: "CTR", cpc: "CPC" }
+    : { spend: "Wydatki", clicks: "Kliknięcia", ctr: "CTR", cpc: "CPC" };
   const [sort, setSort] = useState<SortKey>("spend");
   const [selected, setSelected] = useState<CreativeItem | null>(null);
 
@@ -158,10 +170,10 @@ export function CreativesTable({ creatives }: { creatives: CreativeItem[] }) {
     <section className="rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold">
-          Wszystkie kreacje ({Math.min(creatives.length, 50)}
-          {creatives.length > 50 ? ` z ${creatives.length}` : ""})
+          {en ? "All creatives" : "Wszystkie kreacje"} ({Math.min(creatives.length, 50)}
+          {creatives.length > 50 ? `${en ? " of " : " z "}${creatives.length}` : ""})
           <span className="ml-2 font-normal text-muted-foreground">
-            · kliknij wiersz, by zobaczyć kreację
+            {en ? "· click a row to view the creative" : "· kliknij wiersz, by zobaczyć kreację"}
           </span>
         </h2>
         <div className="flex rounded-lg bg-muted p-1">
@@ -177,7 +189,7 @@ export function CreativesTable({ creatives }: { creatives: CreativeItem[] }) {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {s.label}
+              {sortLabel[s.key]}
             </button>
           ))}
         </div>
@@ -187,10 +199,10 @@ export function CreativesTable({ creatives }: { creatives: CreativeItem[] }) {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-              <th className="py-2 pr-3 font-medium">Kreacja</th>
-              <th className="py-2 pr-3 text-right font-medium">Wydatki</th>
-              <th className="py-2 pr-3 text-right font-medium">Wyśw.</th>
-              <th className="py-2 pr-3 text-right font-medium">Klik.</th>
+              <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Kreacja"}</th>
+              <th className="py-2 pr-3 text-right font-medium">{en ? "Spend" : "Wydatki"}</th>
+              <th className="py-2 pr-3 text-right font-medium">{en ? "Impr." : "Wyśw."}</th>
+              <th className="py-2 pr-3 text-right font-medium">{en ? "Clicks" : "Klik."}</th>
               <th className="py-2 pr-3 text-right font-medium">CTR</th>
               <th className="py-2 text-right font-medium">CPC</th>
             </tr>
@@ -232,7 +244,7 @@ export function CreativesTable({ creatives }: { creatives: CreativeItem[] }) {
       </div>
 
       {selected ? (
-        <CreativeModal c={selected} onClose={() => setSelected(null)} />
+        <CreativeModal c={selected} onClose={() => setSelected(null)} en={en} />
       ) : null}
     </section>
   );

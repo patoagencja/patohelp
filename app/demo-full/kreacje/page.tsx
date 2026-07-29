@@ -6,22 +6,30 @@ import { formatMoneyPLN, formatPercent } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default function DemoFullKreacje() {
-  const d = getDemoDashboard();
+export default function DemoFullKreacje({
+  searchParams,
+}: {
+  searchParams: { lang?: string };
+}) {
+  const lang = searchParams.lang === "en" ? "en" : "pl";
+  const en = lang === "en";
+  const d = getDemoDashboard(lang);
   const top5 = [...d.creativesFull].sort((a, b) => b.spend - a.spend).slice(0, 5);
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">Kreacje</h1>
+        <h1 className="text-xl font-semibold">{en ? "Creatives" : "Kreacje"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Wyniki na poziomie pojedynczych reklam · {d.rangeLabel}
+          {en
+            ? `Per-ad performance · ${d.rangeLabel}`
+            : `Wyniki na poziomie pojedynczych reklam · ${d.rangeLabel}`}
         </p>
       </div>
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Trophy className="h-4 w-4 text-amber-500" />
-          Top 5 kreacji wg wydatków
+          {en ? "Top 5 creatives by spend" : "Top 5 kreacji wg wydatków"}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {top5.map((c, i) => (
@@ -46,7 +54,7 @@ export default function DemoFullKreacje() {
         </div>
       </section>
 
-      <CreativesTable creatives={d.creativesFull} />
+      <CreativesTable creatives={d.creativesFull} lang={lang} />
     </>
   );
 }
