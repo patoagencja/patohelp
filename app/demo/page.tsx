@@ -1,4 +1,13 @@
-import { Sparkles } from "lucide-react";
+import {
+  BellRing,
+  FileText,
+  Globe,
+  Image as ImageIcon,
+  LayoutDashboard,
+  Megaphone,
+  Newspaper,
+  Sparkles,
+} from "lucide-react";
 
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { AlertsDigest } from "@/components/dashboard/alerts-digest";
@@ -7,9 +16,11 @@ import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
+import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { cn } from "@/lib/utils";
 
 // Public, no-login showcase built entirely from synthetic data - a single link
 // to hand a prospect. Never touches the database, so no real client data can
@@ -17,7 +28,7 @@ import { getDemoDashboard } from "@/lib/demo/data";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Demo — Pato Dashboard",
+  title: "Demo — Dashboard klienta",
   description: "Przykładowy dashboard marketingowy (dane demonstracyjne).",
 };
 
@@ -27,63 +38,97 @@ async function noop() {
   "use server";
 }
 
+// Static nav (visual) - the demo is a single overview page, so tabs other than
+// Przegląd are shown for context but don't navigate.
+const NAV = [
+  { label: "Przegląd", icon: LayoutDashboard, active: true },
+  { label: "Reklamy", icon: Megaphone, active: false },
+  { label: "Kreacje", icon: ImageIcon, active: false },
+  { label: "Witryna", icon: Globe, active: false },
+  { label: "Alerty", icon: BellRing, active: false },
+  { label: "Raport", icon: FileText, active: false },
+  { label: "Newsy", icon: Newspaper, active: false },
+  { label: "Asystent AI", icon: Sparkles, active: false },
+];
+
 export default function DemoPage() {
   const d = getDemoDashboard();
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/95 px-6 backdrop-blur">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Sparkles className="h-4 w-4" />
-        </span>
-        <span className="font-semibold">Demo — Twoja Firma</span>
-        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-          DEMO · dane przykładowe
-        </span>
-        <span className="flex-1" />
-        <span className="hidden text-xs text-muted-foreground sm:inline">
-          patoagencja · dashboard klienta
-        </span>
-      </header>
-
-      <main className="mx-auto max-w-6xl space-y-6 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tak wygląda Twój marketing w jednym miejscu — Meta, Google i GA4,
-            odświeżane automatycznie. (To widok demonstracyjny na przykładowych
-            danych.)
-          </p>
+    <div className="flex min-h-screen bg-muted/20">
+      {/* Sidebar */}
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
+        <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <span className="font-semibold">Demo — Twoja Firma</span>
         </div>
+        <nav className="flex flex-col gap-1 p-3">
+          <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+            Menu
+          </p>
+          {NAV.map(({ label, icon: Icon, active }) => (
+            <span
+              key={label}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
+                active
+                  ? "bg-accent font-medium text-accent-foreground"
+                  : "cursor-default text-muted-foreground/80"
+              )}
+            >
+              <Icon className="h-[18px] w-[18px] shrink-0" />
+              {label}
+            </span>
+          ))}
+        </nav>
+      </aside>
 
-        <TickerBar campaigns={d.campaigns} />
+      {/* Content */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6">
+          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            DEMO · dane przykładowe
+          </span>
+          <span className="flex-1" />
+          <ThemeToggle />
+        </header>
 
-        <DailyScoreCard data={d.score} />
+        <main className="mx-auto w-full max-w-6xl space-y-6 p-6">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cały Twój marketing w jednym miejscu — Meta, Google i GA4,
+              odświeżane automatycznie. (Widok demonstracyjny na przykładowych
+              danych.)
+            </p>
+          </div>
 
-        <MainChart trend={d.trend} events={[]} label={d.rangeLabel} />
+          <TickerBar campaigns={d.campaigns} />
 
-        <KpiCards kpis={d.kpis} trend={d.trend} />
+          <DailyScoreCard data={d.score} />
 
-        <BudgetProgress
-          budget={d.budget}
-          clientSlug="demo"
-          isAgency={false}
-          setBudgetAction={noop}
-        />
+          <MainChart trend={d.trend} events={[]} label={d.rangeLabel} />
 
-        <AlertsDigest alerts={d.alerts} clientSlug="demo" />
+          <KpiCards kpis={d.kpis} trend={d.trend} />
 
-        <CampaignPositions campaigns={d.campaigns} />
+          <BudgetProgress
+            budget={d.budget}
+            clientSlug="demo"
+            isAgency={false}
+            setBudgetAction={noop}
+          />
 
-        <TopCreatives creatives={d.creatives} />
+          <AlertsDigest alerts={d.alerts} clientSlug="demo" />
 
-        <AiSummaryCard summary={d.summary} />
+          <CampaignPositions campaigns={d.campaigns} />
 
-        <p className="pb-8 pt-2 text-center text-xs text-muted-foreground">
-          Chcesz taki panel dla swojej firmy?{" "}
-          <span className="font-medium text-foreground">patoagencja.com</span>
-        </p>
-      </main>
+          <TopCreatives creatives={d.creatives} />
+
+          <AiSummaryCard summary={d.summary} />
+        </main>
+      </div>
     </div>
   );
 }
