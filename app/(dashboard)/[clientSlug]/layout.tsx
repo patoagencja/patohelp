@@ -3,6 +3,7 @@ import { LayoutDashboard } from "lucide-react";
 import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
+import { AutoSync } from "@/components/dashboard/auto-sync";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
@@ -87,6 +88,7 @@ export default async function ClientDashboardLayout({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {isAgency ? <AutoSync clientSlug={params.clientSlug} /> : null}
         <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6 print:hidden">
           <AutoRefresh />
           {lastSync ? (
