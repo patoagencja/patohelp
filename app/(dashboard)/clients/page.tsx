@@ -123,7 +123,8 @@ export default async function ClientsPage({
     );
   }
 
-  // Live alert count per client (spend spikes + anomalies), in parallel.
+  // Live CRITICAL alert count per client (spend spikes + anomalies), in
+  // parallel. Only critical severity is surfaced on the picker.
   const alertCounts = new Map<string, number>();
   await Promise.all(
     clientList.map(async (c) => {
@@ -132,7 +133,10 @@ export default async function ClientsPage({
           detectBudgetSpikes(c.id as string),
           detectAnomalies(c.id as string),
         ]);
-        alertCounts.set(c.id as string, spikes.length + anomalies.length);
+        const critical = [...spikes, ...anomalies].filter(
+          (a) => a.severity === "critical"
+        ).length;
+        alertCounts.set(c.id as string, critical);
       } catch {
         alertCounts.set(c.id as string, 0);
       }
@@ -232,7 +236,7 @@ export default async function ClientsPage({
                   totalAlerts > 0 ? "text-red-500" : "text-muted-foreground"
                 )}
               />
-              Aktywne alerty
+              Krytyczne alerty
             </p>
             <p
               className={cn(
@@ -276,7 +280,7 @@ export default async function ClientsPage({
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
                     </span>
-                    {alerts} {alerts === 1 ? "alert" : "alertów"}
+                    {alerts} {alerts === 1 ? "krytyczny" : "krytycznych"}
                   </span>
                 ) : null}
 
