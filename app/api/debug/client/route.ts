@@ -53,18 +53,30 @@ export async function GET(request: Request) {
     if (!secret) {
       runReport = `<p style="color:#b91c1c">Nie mogę odpalić syncu: brak CRON_SECRET w env.</p>`;
     } else {
+      // Self-check: does the cron's exact query (by client_id) see the meta
+      // integration from THIS process? Pinpoints an id mismatch vs a cron-path
+      // issue.
+      const { data: selfInt } = await admin
+        .from("integrations")
+        .select("provider, client_id")
+        .eq("client_id", cid);
+      const selfLine = `client_id = <code>${esc(cid)}</code> · bezpośrednie zapytanie integrations.eq(client_id) → ${
+        selfInt?.length ?? 0
+      } wierszy [${(selfInt ?? []).map((r) => esc(r.provider)).join(", ")}]`;
+
       const jobs = ["refresh-ads-meta", "refresh-ads-google", "refresh-ga4"];
       const results = await Promise.allSettled(
         jobs.map(async (job) => {
-          const res = await fetch(
-            `${origin}/api/cron/${job}?client=${cid}`,
-            { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" }
-          );
+          const url = `${origin}/api/cron/${job}?client=${encodeURIComponent(cid)}`;
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${secret}` },
+            cache: "no-store",
+          });
           const body = await res.json().catch(() => ({}));
           return `${job}: HTTP ${res.status} ${esc(JSON.stringify(body).slice(0, 300))}`;
         })
       );
-      runReport = `<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px;margin:12px 0"><b>Uruchomiono sync:</b><br>${results
+      runReport = `<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px;margin:12px 0"><b>Uruchomiono sync:</b><br>${selfLine}<br><br>${results
         .map((r) =>
           r.status === "fulfilled" ? esc(r.value) : `błąd: ${esc(String(r.reason))}`
         )
