@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // last sync per provider (with errors) and row counts - so we can see exactly
 // why a client has no data. Agency only. /api/debug/client?client=miracle
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 function html(body: string): Response {
   return new Response(
@@ -19,12 +19,58 @@ const esc = (s: unknown) =>
 
 export async function GET(request: Request) {
   const slug = new URL(request.url).searchParams.get("client") ?? "";
+  const admin = createAdminClient();
+
   if (!slug) return html("Podaj ?client=&lt;slug&gt;");
   const access = await requireAgencyClientAccess(slug);
-  if (!access.ok) return html(`Brak dostępu (${access.status}).`);
+  if (!access.ok) {
+    const { data: cs } = await admin
+      .from("clients")
+      .select("slug, name")
+      .order("name", { ascending: true });
+    const reason =
+      access.status === 401
+        ? "Niezalogowany (401) - wejdz najpierw na /clients (zaloguj sie), potem otworz ten link w tej samej karcie."
+        : access.status === 403
+          ? "To konto nie jest agencyjne (403)."
+          : `Nie ma klienta o slug "${esc(slug)}" (404).`;
+    const list = (cs ?? [])
+      .map((c) => `<code>${esc(c.slug)}</code> (${esc(c.name)})`)
+      .join(" · ");
+    return html(
+      `<h2>Brak dostępu</h2><p>${reason}</p><p style="margin-top:12px">Dostępni klienci (slug): ${list || "brak"}</p><p style="color:#64748b">Otwórz: <code>/api/debug/client?client=&lt;slug&gt;</code></p>`
+    );
+  }
 
-  const admin = createAdminClient();
   const cid = access.clientId;
+
+  // Optional: actually TRIGGER the sync for this client (server-side, with the
+  // CRON_SECRET, using this request's own origin) - bypasses the UI button.
+  let runReport = "";
+  if (new URL(request.url).searchParams.get("run") === "1") {
+    const origin = new URL(request.url).origin;
+    const secret = process.env.CRON_SECRET;
+    if (!secret) {
+      runReport = `<p style="color:#b91c1c">Nie mogę odpalić syncu: brak CRON_SECRET w env.</p>`;
+    } else {
+      const jobs = ["refresh-ads-meta", "refresh-ads-google", "refresh-ga4"];
+      const results = await Promise.allSettled(
+        jobs.map(async (job) => {
+          const res = await fetch(
+            `${origin}/api/cron/${job}?client=${cid}`,
+            { headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" }
+          );
+          const body = await res.json().catch(() => ({}));
+          return `${job}: HTTP ${res.status} ${esc(JSON.stringify(body).slice(0, 300))}`;
+        })
+      );
+      runReport = `<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px;margin:12px 0"><b>Uruchomiono sync:</b><br>${results
+        .map((r) =>
+          r.status === "fulfilled" ? esc(r.value) : `błąd: ${esc(String(r.reason))}`
+        )
+        .join("<br>")}</div>`;
+    }
+  }
 
   // Integrations.
   const { data: integrations } = await admin
@@ -88,6 +134,7 @@ export async function GET(request: Request) {
 
   return html(`
     <h1 style="font-size:20px">Diagnostyka klienta: ${esc(slug)}</h1>
+    ${runReport}
 
     <h2 style="font-size:15px;margin-top:20px">Integracje</h2>
     ${
