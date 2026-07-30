@@ -82,6 +82,7 @@ export function getDemoDashboard(
       clicks,
       impressions,
       conversions,
+      revenueMinorUnits: 0,
     });
   }
 

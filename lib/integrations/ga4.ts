@@ -280,7 +280,14 @@ export async function getDailyMetrics(
   propertyId: string,
   range: DateRange
 ): Promise<
-  Array<{ date: string; sessions: number; users: number; engagementRate: number }>
+  Array<{
+    date: string;
+    sessions: number;
+    users: number;
+    engagementRate: number;
+    revenue: number; // property currency (major unit, e.g. PLN)
+    transactions: number;
+  }>
 > {
   const data = await runReport(refreshToken, propertyId, {
     dateRanges: [range],
@@ -289,6 +296,8 @@ export async function getDailyMetrics(
       { name: "sessions" },
       { name: "totalUsers" },
       { name: "engagementRate" },
+      { name: "purchaseRevenue" },
+      { name: "transactions" },
     ],
     orderBys: [{ dimension: { dimensionName: "date" } }],
   });
@@ -297,5 +306,7 @@ export async function getDailyMetrics(
     sessions: metric(r, 0),
     users: metric(r, 1),
     engagementRate: metric(r, 2),
+    revenue: metric(r, 3),
+    transactions: metric(r, 4),
   }));
 }

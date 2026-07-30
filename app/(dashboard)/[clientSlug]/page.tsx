@@ -6,6 +6,7 @@ import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { CampaignRings } from "@/components/dashboard/campaign-rings";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
@@ -46,7 +47,7 @@ export default async function OverviewPage({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, client_type")
     .eq("slug", params.clientSlug)
     .single();
 
@@ -120,6 +121,10 @@ export default async function OverviewPage({
 
       {/* GA-style: the big picture first, details below. */}
       <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
+
+      {client.client_type === "ecommerce" ? (
+        <EcommerceKpis data={data.ecommerce} />
+      ) : null}
 
       <KpiCards kpis={data.kpis} trend={data.trend} />
 

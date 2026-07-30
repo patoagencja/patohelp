@@ -121,7 +121,8 @@ export async function GET(request: Request) {
 
       const rows: Record<string, unknown>[] = [];
 
-      // Daily totals (new/returning attached to the latest day).
+      // Daily totals (new/returning attached to the latest day). Revenue +
+      // transactions are for e-commerce clients (0 for engagement properties).
       for (const d of daily) {
         rows.push({
           client_id: integration.client_id,
@@ -130,6 +131,8 @@ export async function GET(request: Request) {
           users_new: d.date === until ? newUsers : 0,
           users_returning: d.date === until ? returningUsers : 0,
           engagement_rate: d.engagementRate,
+          revenue_minor_units: Math.round((d.revenue ?? 0) * 100),
+          transactions: Math.round(d.transactions ?? 0),
           source_medium: null,
           device_category: null,
           page_path: null,

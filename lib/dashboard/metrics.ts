@@ -98,6 +98,14 @@ export interface TrendPoint {
   clicks: number;
   impressions: number;
   conversions: number;
+  revenueMinorUnits: number;
+}
+
+export interface EcommerceKpis {
+  revenueMinorUnits: Kpi;
+  transactions: Kpi;
+  roas: Kpi; // ratio ×100 (UI divides by 100)
+  aovMinorUnits: Kpi;
 }
 
 export type CampaignStatus = "active" | "attention" | "critical" | "off";
@@ -131,6 +139,7 @@ export interface PlatformSplit {
 
 export interface DashboardData {
   kpis: DashboardKpis;
+  ecommerce: EcommerceKpis;
   trend: TrendPoint[];
   campaigns: CampaignRow[];
   costTrend: CostTrendPoint[];
@@ -219,10 +228,15 @@ export async function getDashboardData(
         .range(from, to)
     ),
     // GA4 daily totals only (dimension columns null).
-    fetchAll<{ date: string; sessions: number | string }>((from, to) =>
+    fetchAll<{
+      date: string;
+      sessions: number | string;
+      revenue_minor_units: number | string | null;
+      transactions: number | string | null;
+    }>((from, to) =>
       supabase
         .from("ga4_daily")
-        .select("date, sessions")
+        .select("date, sessions, revenue_minor_units, transactions")
         .eq("client_id", clientId)
         .is("source_medium", null)
         .is("device_category", null)
@@ -263,17 +277,27 @@ export async function getDashboardData(
 
   let curSessions = 0;
   let prevSessions = 0;
+  let curRevenue = 0, prevRevenue = 0;
+  let curTransactions = 0, prevTransactions = 0;
   const sessionsByDate = new Map<string, number>();
+  const revenueByDate = new Map<string, number>();
   for (const row of ga4Rows) {
     const sessions = Number(row.sessions);
+    const revenue = Number(row.revenue_minor_units ?? 0);
+    const transactions = Number(row.transactions ?? 0);
     if (inRange(row.date)) {
       curSessions += sessions;
+      curRevenue += revenue;
+      curTransactions += transactions;
       sessionsByDate.set(
         row.date,
         (sessionsByDate.get(row.date) ?? 0) + sessions
       );
+      revenueByDate.set(row.date, (revenueByDate.get(row.date) ?? 0) + revenue);
     } else if (inPrev(row.date)) {
       prevSessions += sessions;
+      prevRevenue += revenue;
+      prevTransactions += transactions;
     }
   }
 
@@ -284,6 +308,24 @@ export async function getDashboardData(
     ctr: kpi(ctrOf(curClicks, curImpr), ctrOf(prevClicks, prevImpr)),
     cpcMinorUnits: kpi(cpcOf(curSpend, curClicks), cpcOf(prevSpend, prevClicks)),
     conversions: kpi(curConv, prevConv),
+  };
+
+  // E-commerce KPIs (revenue from GA4; ROAS/AOV derived). Zero for engagement
+  // clients whose GA4 has no purchases.
+  const roasOf = (rev: number, spend: number) => (spend > 0 ? rev / spend : 0);
+  const aovOf = (rev: number, tx: number) => (tx > 0 ? rev / tx : 0);
+  const ecommerce = {
+    revenueMinorUnits: kpi(curRevenue, prevRevenue),
+    transactions: kpi(curTransactions, prevTransactions),
+    // ROAS as a ratio ×100 so the Kpi delta math works on a number; UI divides.
+    roas: kpi(
+      Math.round(roasOf(curRevenue, curSpend) * 100),
+      Math.round(roasOf(prevRevenue, prevSpend) * 100)
+    ),
+    aovMinorUnits: kpi(
+      Math.round(aovOf(curRevenue, curTransactions)),
+      Math.round(aovOf(prevRevenue, prevTransactions))
+    ),
   };
 
   // --- Per-day trend + per-platform CPC trend ---
@@ -330,6 +372,7 @@ export async function getDashboardData(
       clicks: agg?.clicks ?? 0,
       impressions: agg?.impressions ?? 0,
       conversions: agg?.conversions ?? 0,
+      revenueMinorUnits: revenueByDate.get(dateStr) ?? 0,
     });
 
     const meta = byDateProvider.get(`${dateStr}:meta_ads`);
@@ -481,6 +524,7 @@ export async function getDashboardData(
 
   return {
     kpis,
+    ecommerce,
     trend,
     campaigns,
     costTrend,
