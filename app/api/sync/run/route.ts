@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { GET as refreshMeta } from "@/app/api/cron/refresh-ads-meta/route";
+import { GET as refreshGoogle } from "@/app/api/cron/refresh-ads-google/route";
+import { GET as refreshTiktok } from "@/app/api/cron/refresh-ads-tiktok/route";
+import { GET as refreshGa4 } from "@/app/api/cron/refresh-ga4/route";
+import { GET as refreshDemographics } from "@/app/api/cron/refresh-demographics/route";
+import { GET as refreshCreatives } from "@/app/api/cron/refresh-creatives-meta/route";
 
 // On-demand data refresh triggered from the dashboard (agency users only).
-// Re-uses the cron endpoints server-side with the CRON_SECRET so we don't
-// duplicate the sync logic.
+// Runs each provider's refresh IN-PROCESS by calling the cron route handlers
+// directly - NOT via HTTP fetch. An internal fetch to the app's own URL could
+// land on a different environment that doesn't see freshly-connected clients
+// (integrations_processed: 0); calling the handlers in-process always uses this
+// deployment's env/DB.
 export const dynamic = "force-dynamic";
-// Waits on the Meta/Google/GA4 cron endpoints, whose per-day backfills can take
-// a few minutes for large accounts.
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
@@ -22,58 +29,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Brak dostępu" }, { status: access.status });
   }
 
-  const base = process.env.NEXT_PUBLIC_APP_URL;
   const secret = process.env.CRON_SECRET;
-  if (!base || !secret) {
+  if (!secret) {
     return NextResponse.json(
-      { ok: false, error: "Brak konfiguracji (NEXT_PUBLIC_APP_URL / CRON_SECRET)" },
+      { ok: false, error: "Brak konfiguracji (CRON_SECRET)" },
       { status: 500 }
     );
   }
 
-  const headers = { Authorization: `Bearer ${secret}` };
-  const jobs = [
-    "refresh-ads-meta",
-    "refresh-ads-google",
-    "refresh-ads-tiktok",
-    "refresh-ga4",
-    "refresh-demographics",
-    "refresh-creatives-meta",
+  // Build an in-process request carrying the cron auth + client scope, then call
+  // each handler directly.
+  const mkReq = (job: string) =>
+    new Request(
+      `https://internal/api/cron/${job}?client=${encodeURIComponent(access.clientId)}`,
+      { headers: { Authorization: `Bearer ${secret}` } }
+    );
+
+  const jobs: Array<[string, (r: Request) => Promise<Response>]> = [
+    ["refresh-ads-meta", refreshMeta],
+    ["refresh-ads-google", refreshGoogle],
+    ["refresh-ads-tiktok", refreshTiktok],
+    ["refresh-ga4", refreshGa4],
+    ["refresh-demographics", refreshDemographics],
+    ["refresh-creatives-meta", refreshCreatives],
   ];
 
-  // Scope the sync to just this client so large accounts don't compete with
-  // other clients in one function invocation (avoids timeouts).
-  //
-  // Wait at most ~45s per job: each cron endpoint is its own invocation and
-  // keeps running to completion even after we stop waiting, so a year-long
-  // backfill doesn't kill THIS request (which used to surface as a false
-  // "refresh failed" toast after 300s).
-  const WAIT_MS = 45_000;
-  const clientParam = `?client=${access.clientId}`;
   const results = await Promise.allSettled(
-    jobs.map(async (job) => {
-      const req = fetch(`${base}/api/cron/${job}${clientParam}`, {
-        headers,
-        cache: "no-store",
-      }).then((r) => r.json().catch(() => ({ ok: r.ok })));
-      const timeout = new Promise<{ ok: true; status: string }>((resolve) =>
-        setTimeout(() => resolve({ ok: true, status: "running_in_background" }), WAIT_MS)
-      );
-      return Promise.race([req, timeout]);
+    jobs.map(async ([name, fn]) => {
+      const res = await fn(mkReq(name));
+      const body = await res.json().catch(() => ({ ok: res.ok }));
+      return [name, body] as const;
     })
   );
 
   const jobResults = Object.fromEntries(
-    jobs.map((job, i) => [
-      job,
-      results[i].status === "fulfilled"
-        ? (results[i] as PromiseFulfilledResult<unknown>).value
-        : { error: "failed" },
-    ])
-  );
-  const stillRunning = Object.values(jobResults).some(
-    (r) => (r as { status?: string }).status === "running_in_background"
+    results.map((r, i) =>
+      r.status === "fulfilled" ? r.value : [jobs[i][0], { error: "failed" }]
+    )
   );
 
-  return NextResponse.json({ ok: true, still_running: stillRunning, jobs: jobResults });
+  return NextResponse.json({ ok: true, jobs: jobResults });
 }
