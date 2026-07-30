@@ -21,6 +21,11 @@ const tidyScope = (s: string) => {
   return clean.length > 64 ? `${clean.slice(0, 61)}…` : clean;
 };
 
+// Titles sometimes carry a leading status emoji; strip it so our own icon
+// tile is the only glyph.
+const stripLeadEmoji = (s: string) =>
+  s.replace(/^(?:🚨|📈|📊|🔴|🟡|🟢|⬆️|⬇️|🔻|▲|▼)\s*/u, "").trim();
+
 /** Build plaintext + email HTML + Telegram HTML digests (critical first). */
 export function buildDigest(clientName: string, items: AlertItem[]) {
   const sorted = [...items].sort(
@@ -36,31 +41,61 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
     sorted.length
   }):\n\n${lines.join("\n")}`;
 
-  // Email HTML.
+  // Email HTML - table-based, inline styles (email-client safe): a coloured
+  // header band, then one row per alert with an icon tile, title/scope/detail
+  // and a severity pill.
+  const headerBg = hasCritical ? "#dc2626" : "#4f46e5";
+  const rowsHtml = sorted
+    .map((i) => {
+      const icon = i.critical ? "🚨" : "⚠️";
+      const tileBg = i.critical ? "#fee2e2" : "#eef2ff";
+      const pillBg = i.critical ? "#dc2626" : "#f59e0b";
+      const pillText = i.critical ? "Krytyczny" : "Uwaga";
+      return `
+        <tr>
+          <td style="padding:0 24px">
+            <table role="presentation" width="100%" style="border-collapse:collapse">
+              <tr>
+                <td width="52" valign="top" style="padding:16px 0">
+                  <div style="width:38px;height:38px;border-radius:10px;background:${tileBg};text-align:center;line-height:38px;font-size:18px">${icon}</div>
+                </td>
+                <td valign="top" style="padding:16px 0 16px 12px;border-bottom:1px solid #f1f5f9">
+                  <div style="font-weight:700;font-size:15px;color:#0f172a">${esc(stripLeadEmoji(i.title))}</div>
+                  <div style="color:#64748b;font-size:12px;margin-top:2px">${esc(tidyScope(i.scope))}</div>
+                  <div style="color:#334155;font-size:13px;margin-top:6px;line-height:1.5">${esc(i.detail)}</div>
+                </td>
+                <td valign="top" align="right" style="padding:16px 0;border-bottom:1px solid #f1f5f9;white-space:nowrap">
+                  <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;color:#ffffff;background:${pillBg}">${pillText}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>`;
+    })
+    .join("");
+
   const html = `
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a">
-      <h2 style="margin:0 0 4px">${hasCritical ? "🚨 PILNE — " : ""}Alerty — ${clientName}</h2>
-      <p style="margin:0 0 16px;color:#64748b">${sorted.length} rzeczy wymaga uwagi</p>
-      <ul style="padding-left:18px;list-style:none;margin:0">
-        ${sorted
-          .map(
-            (i) =>
-              `<li style="margin-bottom:12px;padding:10px 12px;border-left:4px solid ${
-                i.critical ? "#dc2626" : "#e2e8f0"
-              };background:${i.critical ? "#fef2f2" : "#f8fafc"};border-radius:4px">
-               <strong>${i.title}</strong><br/>
-               <span style="color:#64748b">${i.scope}</span> — ${i.detail}</li>`
-          )
-          .join("")}
-      </ul>
-    </div>`;
+  <div style="background:#f1f5f9;padding:24px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
+    <table role="presentation" width="100%" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;border-collapse:separate;overflow:hidden">
+      <tr>
+        <td style="background:${headerBg};padding:22px 24px;color:#ffffff">
+          <div style="font-size:19px;font-weight:800;letter-spacing:-0.2px">${hasCritical ? "🚨 PILNE · " : "📊 "}Alerty — ${esc(clientName)}</div>
+          <div style="font-size:13px;margin-top:4px;color:#ffffff;opacity:0.9">${sorted.length} ${sorted.length === 1 ? "rzecz wymaga" : "rzeczy wymaga"} uwagi</div>
+        </td>
+      </tr>
+      ${rowsHtml}
+      <tr>
+        <td style="padding:16px 24px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #f1f5f9">
+          Wysłane automatycznie przez panel · patoagencja
+        </td>
+      </tr>
+    </table>
+  </div>`;
 
   // Telegram HTML (parse_mode=HTML): compact, scannable. Two lines per item -
   // bold title (already carries the key number) + dimmed short campaign name.
   // The full sentence lives in the email/panel; on a phone it's just noise.
   const TG_MAX = 10;
-  const stripLeadEmoji = (s: string) =>
-    s.replace(/^(?:🚨|📈|📊|🔴|🟡|🟢|⬆️|⬇️|🔻|▲|▼)\s*/u, "").trim();
 
   const tgHeader = hasCritical
     ? `🚨 <b>PILNE - Alerty ${esc(clientName)}</b>`
