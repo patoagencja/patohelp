@@ -34,14 +34,31 @@ function esc(s: unknown) {
 
 export async function GET(request: Request) {
   const clientSlug = new URL(request.url).searchParams.get("client") ?? "olx";
-  const access = await requireAgencyClientAccess(clientSlug);
-  if (!access.ok) return html(`Brak dostępu (${access.status}).`);
-
   const admin = createAdminClient();
+
+  // Auth: an agency session, OR a CRON_SECRET bearer (so it can be checked
+  // server-to-server without a login).
+  const secret = process.env.CRON_SECRET;
+  const bearerOk =
+    !!secret && request.headers.get("authorization") === `Bearer ${secret}`;
+  let clientId: string;
+  if (bearerOk) {
+    const { data: c } = await admin
+      .from("clients")
+      .select("id")
+      .eq("slug", clientSlug)
+      .maybeSingle();
+    if (!c) return html(`Nie ma klienta o slug "${esc(clientSlug)}".`);
+    clientId = c.id as string;
+  } else {
+    const access = await requireAgencyClientAccess(clientSlug);
+    if (!access.ok) return html(`Brak dostępu (${access.status}).`);
+    clientId = access.clientId;
+  }
   const { data: integration } = await admin
     .from("integrations")
     .select("credentials_encrypted, account_ids")
-    .eq("client_id", access.clientId)
+    .eq("client_id", clientId)
     .eq("provider", "ga4")
     .maybeSingle();
   if (!integration) return html("Brak integracji GA4 dla tego klienta.");
@@ -99,28 +116,30 @@ export async function GET(request: Request) {
   const rows: Record<string, unknown>[] = [];
   for (const d of daily) {
     rows.push({
-      client_id: access.clientId,
+      client_id: clientId,
       date: d.date,
       sessions: d.sessions,
       users_new: d.date === until ? newUsers : 0,
       users_returning: d.date === until ? returningUsers : 0,
       engagement_rate: d.engagementRate,
+      revenue_minor_units: Math.round((d.revenue ?? 0) * 100),
+      transactions: Math.round(d.transactions ?? 0),
       source_medium: null,
       device_category: null,
       page_path: null,
       page_views: 0,
     });
   }
-  for (const s of sourceMedium) rows.push({ client_id: access.clientId, date: until, sessions: s.sessions, users_new: 0, users_returning: 0, engagement_rate: s.engagementRate, source_medium: s.sourceMedium, page_views: 0 });
-  for (const dv of devices) rows.push({ client_id: access.clientId, date: until, sessions: dv.sessions, users_new: 0, users_returning: 0, device_category: dv.deviceCategory, page_views: 0 });
-  for (const p of pages) rows.push({ client_id: access.clientId, date: until, sessions: 0, users_new: 0, users_returning: 0, engagement_rate: p.engagementRate, page_path: p.pagePath, page_views: p.pageViews });
+  for (const s of sourceMedium) rows.push({ client_id: clientId, date: until, sessions: s.sessions, users_new: 0, users_returning: 0, engagement_rate: s.engagementRate, source_medium: s.sourceMedium, page_views: 0 });
+  for (const dv of devices) rows.push({ client_id: clientId, date: until, sessions: dv.sessions, users_new: 0, users_returning: 0, device_category: dv.deviceCategory, page_views: 0 });
+  for (const p of pages) rows.push({ client_id: clientId, date: until, sessions: 0, users_new: 0, users_returning: 0, engagement_rate: p.engagementRate, page_path: p.pagePath, page_views: p.pageViews });
   log.push(`ℹ️ zbudowano ${rows.length} wierszy do zapisu`);
 
   // 3) Write (delete window + insert), reporting the exact DB error.
   const { error: delErr } = await admin
     .from("ga4_daily")
     .delete()
-    .eq("client_id", access.clientId)
+    .eq("client_id", clientId)
     .gte("date", dailyRange.startDate)
     .lte("date", until);
   if (delErr) return html(`${log.join("<br>")}<br><br>❌ DELETE padł:<pre style="white-space:pre-wrap;background:#fee;padding:12px;border-radius:8px">${esc(delErr.message)}</pre>`);
@@ -136,7 +155,7 @@ export async function GET(request: Request) {
   const { count } = await admin
     .from("ga4_daily")
     .select("id", { count: "exact", head: true })
-    .eq("client_id", access.clientId)
+    .eq("client_id", clientId)
     .gte("date", snapshotStart)
     .lte("date", until);
 
