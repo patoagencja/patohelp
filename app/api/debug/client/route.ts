@@ -44,6 +44,45 @@ export async function GET(request: Request) {
 
   const cid = access.clientId;
 
+  // Optional: flag this client as e-commerce (needs migration 0016 columns).
+  let ecomReport = "";
+  if (new URL(request.url).searchParams.get("ecom") === "1") {
+    const { error } = await admin
+      .from("clients")
+      .update({ client_type: "ecommerce" })
+      .eq("id", cid);
+    ecomReport = error
+      ? `<div style="background:#fee;padding:10px;border-radius:8px;margin:12px 0">Nie mogę ustawić client_type='ecommerce': ${esc(error.message)} — najpierw uruchom migrację 0016 (dodaje kolumnę).</div>`
+      : `<div style="background:#ecfdf5;padding:10px;border-radius:8px;margin:12px 0">✅ Ustawiono client_type='ecommerce' dla tego klienta.</div>`;
+  }
+
+  // Current client_type (defensive - column may not exist yet).
+  const ctRes = await admin.from("clients").select("client_type").eq("id", cid).maybeSingle();
+  const clientType = ctRes.error ? "brak kolumny (migracja 0016 nie uruchomiona)" : ((ctRes.data as { client_type?: string } | null)?.client_type ?? "engagement");
+
+  // Revenue presence + sum.
+  const revRes = await admin
+    .from("ga4_daily")
+    .select("revenue_minor_units, transactions")
+    .eq("client_id", cid)
+    .is("source_medium", null)
+    .is("device_category", null)
+    .is("page_path", null);
+  let revLine: string;
+  if (revRes.error) {
+    revLine = `kolumny przychodu: <b>brak</b> (uruchom migrację 0016)`;
+  } else {
+    const totalRev = (revRes.data ?? []).reduce(
+      (a, r) => a + Number((r as { revenue_minor_units?: number }).revenue_minor_units ?? 0),
+      0
+    );
+    const totalTx = (revRes.data ?? []).reduce(
+      (a, r) => a + Number((r as { transactions?: number }).transactions ?? 0),
+      0
+    );
+    revLine = `kolumny przychodu: <b>są</b> · suma revenue: <b>${(totalRev / 100).toLocaleString("pl-PL")} zł</b> · transakcje: <b>${totalTx}</b>`;
+  }
+
   // Optional: actually TRIGGER the sync for this client (server-side, with the
   // CRON_SECRET, using this request's own origin) - bypasses the UI button.
   let runReport = "";
@@ -146,6 +185,12 @@ export async function GET(request: Request) {
 
   return html(`
     <h1 style="font-size:20px">Diagnostyka klienta: ${esc(slug)}</h1>
+    ${ecomReport}
+    <h2 style="font-size:15px;margin-top:20px">E-commerce</h2>
+    <ul>
+      <li>client_type: <b>${esc(clientType)}</b></li>
+      <li>${revLine}</li>
+    </ul>
     ${runReport}
 
     <h2 style="font-size:15px;margin-top:20px">Integracje</h2>
