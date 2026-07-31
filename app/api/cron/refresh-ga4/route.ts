@@ -41,6 +41,14 @@ export async function GET(request: Request) {
   const since = formatInTimeZone(subDays(now, 1), WARSAW_TZ, "yyyy-MM-dd");
   const range: DateRange = { startDate: since, endDate: until };
 
+  // Revenue columns arrive with migration 0016; skip them until then so the
+  // insert doesn't fail on an unknown column.
+  const revenueProbe = await admin
+    .from("ga4_daily")
+    .select("revenue_minor_units")
+    .limit(1);
+  const hasRevenueCols = !revenueProbe.error;
+
   const onlyClient = new URL(request.url).searchParams.get("client");
   let gq = admin
     .from("integrations")
@@ -131,8 +139,12 @@ export async function GET(request: Request) {
           users_new: d.date === until ? newUsers : 0,
           users_returning: d.date === until ? returningUsers : 0,
           engagement_rate: d.engagementRate,
-          revenue_minor_units: Math.round((d.revenue ?? 0) * 100),
-          transactions: Math.round(d.transactions ?? 0),
+          ...(hasRevenueCols
+            ? {
+                revenue_minor_units: Math.round((d.revenue ?? 0) * 100),
+                transactions: Math.round(d.transactions ?? 0),
+              }
+            : {}),
           source_medium: null,
           device_category: null,
           page_path: null,

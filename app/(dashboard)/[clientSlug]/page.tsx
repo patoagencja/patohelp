@@ -47,12 +47,26 @@ export default async function OverviewPage({
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, client_type")
+    .select("id, name")
     .eq("slug", params.clientSlug)
     .single();
 
   if (!client) {
     redirect("/login");
+  }
+
+  // client_type is optional until migration 0016 runs - fetch defensively so a
+  // missing column never breaks the page (which would loop back to /login).
+  let clientType = "engagement";
+  {
+    const { data: ct } = await supabase
+      .from("clients")
+      .select("client_type")
+      .eq("id", client.id)
+      .maybeSingle();
+    if (ct && (ct as { client_type?: string }).client_type) {
+      clientType = (ct as { client_type: string }).client_type;
+    }
   }
 
   const { data: profile } = user
@@ -122,7 +136,7 @@ export default async function OverviewPage({
       {/* GA-style: the big picture first, details below. */}
       <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
 
-      {client.client_type === "ecommerce" ? (
+      {clientType === "ecommerce" ? (
         <EcommerceKpis data={data.ecommerce} />
       ) : null}
 

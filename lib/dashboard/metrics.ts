@@ -210,6 +210,16 @@ export async function getDashboardData(
     range = resolveRange(rangeKey, today);
   }
 
+  // The revenue columns land with migration 0016; probe once so the whole GA4
+  // read doesn't error (and drop sessions) before the migration is applied.
+  const ga4Probe = await supabase
+    .from("ga4_daily")
+    .select("revenue_minor_units")
+    .limit(1);
+  const ga4Select = ga4Probe.error
+    ? "date, sessions"
+    : "date, sessions, revenue_minor_units, transactions";
+
   // Paginated reads: a long range on a large account easily exceeds
   // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
   const [rows, ga4Rows] = await Promise.all([
@@ -236,7 +246,9 @@ export async function getDashboardData(
     }>((from, to) =>
       supabase
         .from("ga4_daily")
-        .select("date, sessions, revenue_minor_units, transactions")
+        .select(
+          ga4Select as "date, sessions, revenue_minor_units, transactions"
+        )
         .eq("client_id", clientId)
         .is("source_medium", null)
         .is("device_category", null)
