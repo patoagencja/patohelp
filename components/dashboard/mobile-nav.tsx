@@ -12,6 +12,7 @@ import {
   Megaphone,
   Newspaper,
   Settings,
+  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 
@@ -22,15 +23,20 @@ import { cn } from "@/lib/utils";
 export function MobileNav({
   clientSlug,
   isAgency,
+  isEcommerce = false,
 }: {
   clientSlug: string;
   isAgency: boolean;
+  isEcommerce?: boolean;
 }) {
   const pathname = usePathname();
   const base = `/${clientSlug}`;
 
   const items = [
     { href: base, label: "Przegląd", icon: LayoutDashboard },
+    ...(isEcommerce
+      ? [{ href: `${base}/sprzedaz`, label: "Sprzedaż", icon: ShoppingBag }]
+      : []),
     { href: `${base}/reklamy`, label: "Reklamy", icon: Megaphone },
     { href: `${base}/kreacje`, label: "Kreacje", icon: ImageIcon },
     { href: `${base}/witryna`, label: "Witryna", icon: Globe },

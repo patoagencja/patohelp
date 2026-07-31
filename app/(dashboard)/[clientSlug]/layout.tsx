@@ -49,6 +49,18 @@ export default async function ClientDashboardLayout({
 
   const lastSync = client ? await getLastSyncLabel(client.id) : null;
 
+  // E-commerce clients get an extra "Sprzedaż" tab. Defensive: the column
+  // arrives with migration 0016, so a missing column just means engagement.
+  let isEcommerce = false;
+  if (client) {
+    const { data: ct } = await supabase
+      .from("clients")
+      .select("client_type")
+      .eq("id", client.id)
+      .maybeSingle();
+    isEcommerce = (ct as { client_type?: string } | null)?.client_type === "ecommerce";
+  }
+
   // Agency users get a client switcher in the sidebar.
   const { data: allClients } = isAgency
     ? await createAdminClient()
@@ -82,6 +94,7 @@ export default async function ClientDashboardLayout({
           </div>
         ) : null}
         <DashboardSidebar
+          isEcommerce={isEcommerce}
           clientSlug={params.clientSlug}
           isAgency={isAgency}
         />
@@ -116,7 +129,11 @@ export default async function ClientDashboardLayout({
           </form>
         </header>
 
-        <MobileNav clientSlug={params.clientSlug} isAgency={isAgency} />
+        <MobileNav
+          clientSlug={params.clientSlug}
+          isAgency={isAgency}
+          isEcommerce={isEcommerce}
+        />
 
         <main className="flex-1">{children}</main>
       </div>
