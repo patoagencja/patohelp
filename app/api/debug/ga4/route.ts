@@ -64,7 +64,18 @@ export async function GET(request: Request) {
   let daily, sourceMedium, devices, pages, newReturning;
   try {
     daily = await getDailyMetrics(refresh_token, propertyId, dailyRange);
+    const liveRevenue = daily.reduce((a, d) => a + (d.revenue ?? 0), 0);
+    const liveTx = daily.reduce((a, d) => a + (d.transactions ?? 0), 0);
     log.push(`✅ getDailyMetrics: ${daily.length} dni`);
+    log.push(
+      `💰 GA4 NA ŻYWO (30 dni): przychód = <b>${liveRevenue.toLocaleString(
+        "pl-PL"
+      )} zł</b>, transakcje = <b>${liveTx}</b> ${
+        liveRevenue === 0 && liveTx === 0
+          ? "→ ⚠️ property NIE zwraca zdarzeń zakupowych (purchase). To konfiguracja e-commerce w GA4 po stronie sklepu, nie panelu."
+          : "→ ✅ GA4 ma sprzedaż; po Odśwież wejdzie do panelu."
+      }`
+    );
   } catch (e) {
     return html(`❌ getDailyMetrics padło:<pre style="white-space:pre-wrap;background:#f4f4f4;padding:12px;border-radius:8px">${esc((e as Error).message)}</pre>`);
   }
