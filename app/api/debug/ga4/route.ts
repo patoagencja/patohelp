@@ -117,6 +117,24 @@ export async function GET(request: Request) {
           : ""
       }`
     );
+    // Per-month split so we can see from which month GA4 actually returns
+    // revenue - answers "did tracking work earlier or only from August?".
+    const byMonth = new Map<string, { rev: number; tx: number }>();
+    for (const d of daily) {
+      const m = d.date.slice(0, 7); // YYYY-MM
+      const cur = byMonth.get(m) ?? { rev: 0, tx: 0 };
+      cur.rev += d.revenue ?? 0;
+      cur.tx += d.transactions ?? 0;
+      byMonth.set(m, cur);
+    }
+    const monthly = [...byMonth.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(
+        ([m, v]) =>
+          `${m}: <b>${Math.round(v.rev).toLocaleString("pl-PL")} zł</b> (${v.tx} tx)`
+      )
+      .join(" · ");
+    log.push(`📅 przychód wg miesięcy (GA4 na żywo): ${monthly || "brak"}`);
   } catch (e) {
     return html(`❌ getDailyMetrics padło:<pre style="white-space:pre-wrap;background:#f4f4f4;padding:12px;border-radius:8px">${esc((e as Error).message)}</pre>`);
   }
