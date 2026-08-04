@@ -133,6 +133,13 @@ export async function GET(request: Request) {
   for (const s of sourceMedium) rows.push({ client_id: clientId, date: until, sessions: s.sessions, users_new: 0, users_returning: 0, engagement_rate: s.engagementRate, source_medium: s.sourceMedium, page_views: 0 });
   for (const dv of devices) rows.push({ client_id: clientId, date: until, sessions: dv.sessions, users_new: 0, users_returning: 0, device_category: dv.deviceCategory, page_views: 0 });
   for (const p of pages) rows.push({ client_id: clientId, date: until, sessions: 0, users_new: 0, users_returning: 0, engagement_rate: p.engagementRate, page_path: p.pagePath, page_views: p.pageViews });
+  // Homogenize: PostgREST fills keys a row is missing with explicit NULL, so
+  // the NOT NULL revenue/transactions columns must appear on the snapshot rows
+  // too (they carry no revenue).
+  for (const r of rows) {
+    if (r.revenue_minor_units == null) r.revenue_minor_units = 0;
+    if (r.transactions == null) r.transactions = 0;
+  }
   log.push(`ℹ️ zbudowano ${rows.length} wierszy do zapisu`);
 
   // 3) Write (delete window + insert), reporting the exact DB error.

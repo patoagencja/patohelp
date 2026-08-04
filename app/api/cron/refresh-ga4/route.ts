@@ -201,6 +201,17 @@ export async function GET(request: Request) {
         .gte("date", dailyRange.startDate)
         .lte("date", until);
 
+      // Homogenize the batch: a PostgREST bulk insert unions the keys across
+      // all objects and fills any a row is missing with an explicit NULL (not
+      // the column default), so the revenue/transactions NOT NULL columns must
+      // be present on EVERY row - the snapshot rows above omit them.
+      if (hasRevenueCols) {
+        for (const r of rows) {
+          if (r.revenue_minor_units == null) r.revenue_minor_units = 0;
+          if (r.transactions == null) r.transactions = 0;
+        }
+      }
+
       if (rows.length) {
         const { error } = await admin.from("ga4_daily").insert(rows);
         if (error) throw new Error(error.message);
