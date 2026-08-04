@@ -37,6 +37,14 @@ export async function generateEcomAnalysis(
     .join("\n");
   const totalRev = Math.round(daily.reduce((a, d) => a + d.revenue, 0));
   const totalSpend = Math.round(daily.reduce((a, d) => a + d.spend, 0));
+  // Where revenue actually starts. Leading zero-revenue days usually mean GA4
+  // e-commerce tracking was switched on later, NOT that sales/tracking broke -
+  // tell the model so it analyses the tracked period instead of raising a false
+  // "your conversion tracking is broken" alarm across the whole range.
+  const firstRevDate = daily.find((d) => d.revenue > 0)?.date;
+  const trackingNote = firstRevDate
+    ? `Przychód w danych zaczyna się ${firstRevDate}. Jeśli wcześniejsze dni mają 0 zł, to najpewniej GA4 e-commerce zaczął mierzyć sprzedaż dopiero od tej daty - NIE zakładaj, że sklep nie sprzedawał ani że "śledzenie jest zepsute". Analizuj okres, w którym są realne dane, i nie strasz klienta awarią, jeśli po prostu brak wcześniejszej historii.`
+    : `W całym oknie przychód wynosi 0 zł - napisz wprost, że GA4 nie przekazuje jeszcze sprzedaży (konfiguracja e-commerce po stronie sklepu), zamiast oceniać wyniki.`;
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
@@ -51,6 +59,8 @@ export async function generateEcomAnalysis(
 
 DANE DZIENNE:
 ${series}
+
+UWAGA O DANYCH: ${trackingNote}
 
 ZADANIE:
 1) Ustal branżę/kategorię tego sklepu (jeśli trzeba - poszukaj marki w sieci).

@@ -286,9 +286,13 @@ export async function getDailyMetrics(
     users: number;
     engagementRate: number;
     revenue: number; // property currency (major unit, e.g. PLN)
+    purchaseRevenue: number; // purchase-event revenue only (for diagnostics)
     transactions: number;
   }>
 > {
+  // Revenue = totalRevenue, which is what GA4's "Łączne przychody" card shows.
+  // purchaseRevenue only counts the standard `purchase` event, so stores that
+  // record sales via a custom event report 0 there while totalRevenue is right.
   const data = await runReport(refreshToken, propertyId, {
     dateRanges: [range],
     dimensions: [{ name: "date" }],
@@ -296,8 +300,9 @@ export async function getDailyMetrics(
       { name: "sessions" },
       { name: "totalUsers" },
       { name: "engagementRate" },
-      { name: "purchaseRevenue" },
+      { name: "totalRevenue" },
       { name: "transactions" },
+      { name: "purchaseRevenue" },
     ],
     orderBys: [{ dimension: { dimensionName: "date" } }],
   });
@@ -308,5 +313,6 @@ export async function getDailyMetrics(
     engagementRate: metric(r, 2),
     revenue: metric(r, 3),
     transactions: metric(r, 4),
+    purchaseRevenue: metric(r, 5),
   }));
 }

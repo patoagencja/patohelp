@@ -94,6 +94,7 @@ export async function GET(request: Request) {
   try {
     daily = await getDailyMetrics(refresh_token, propertyId, dailyRange);
     const liveRevenue = daily.reduce((a, d) => a + (d.revenue ?? 0), 0);
+    const livePurchase = daily.reduce((a, d) => a + (d.purchaseRevenue ?? 0), 0);
     const liveTx = daily.reduce((a, d) => a + (d.transactions ?? 0), 0);
     log.push(`✅ getDailyMetrics: ${daily.length} dni`);
     log.push(
@@ -101,8 +102,19 @@ export async function GET(request: Request) {
         "pl-PL"
       )} zł</b>, transakcje = <b>${liveTx}</b> ${
         liveRevenue === 0 && liveTx === 0
-          ? "→ ⚠️ property NIE zwraca zdarzeń zakupowych (purchase). To konfiguracja e-commerce w GA4 po stronie sklepu, nie panelu."
+          ? "→ ⚠️ property NIE zwraca przychodu (totalRevenue=0). To konfiguracja e-commerce w GA4 po stronie sklepu, nie panelu."
           : "→ ✅ GA4 ma sprzedaż; po Odśwież wejdzie do panelu."
+      }`
+    );
+    log.push(
+      `🔎 rozbicie: totalRevenue = <b>${liveRevenue.toLocaleString(
+        "pl-PL"
+      )} zł</b>, purchaseRevenue = <b>${livePurchase.toLocaleString(
+        "pl-PL"
+      )} zł</b> ${
+        liveRevenue > 0 && livePurchase === 0
+          ? "→ sprzedaż liczona przez zdarzenie inne niż standardowy <code>purchase</code> (dlatego wcześniej było 0)."
+          : ""
       }`
     );
   } catch (e) {
