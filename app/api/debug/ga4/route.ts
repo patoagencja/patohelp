@@ -71,8 +71,20 @@ export async function GET(request: Request) {
 
   const now = new Date();
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
+  // Daily totals can be backfilled arbitrarily far with ?days=N (default 30,
+  // capped at 365) - lets us pull months of revenue history on demand. The
+  // dimension snapshots stay a fixed 30-day window (that is what the report
+  // widgets represent).
+  const daysParam = Number(new URL(request.url).searchParams.get("days"));
+  const backfillDays =
+    Number.isFinite(daysParam) && daysParam > 0 ? Math.min(daysParam, 365) : 30;
+  const dailyStart = formatInTimeZone(
+    subDays(now, backfillDays - 1),
+    WARSAW_TZ,
+    "yyyy-MM-dd"
+  );
   const snapshotStart = formatInTimeZone(subDays(now, 29), WARSAW_TZ, "yyyy-MM-dd");
-  const dailyRange: DateRange = { startDate: snapshotStart, endDate: until };
+  const dailyRange: DateRange = { startDate: dailyStart, endDate: until };
   const snapshotRange: DateRange = { startDate: snapshotStart, endDate: until };
 
   const log: string[] = [];
@@ -85,7 +97,7 @@ export async function GET(request: Request) {
     const liveTx = daily.reduce((a, d) => a + (d.transactions ?? 0), 0);
     log.push(`✅ getDailyMetrics: ${daily.length} dni`);
     log.push(
-      `💰 GA4 NA ŻYWO (30 dni): przychód = <b>${liveRevenue.toLocaleString(
+      `💰 GA4 NA ŻYWO (${backfillDays} dni): przychód = <b>${liveRevenue.toLocaleString(
         "pl-PL"
       )} zł</b>, transakcje = <b>${liveTx}</b> ${
         liveRevenue === 0 && liveTx === 0
