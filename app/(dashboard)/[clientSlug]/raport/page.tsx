@@ -18,6 +18,7 @@ import {
 } from "@/components/dashboard/report/deck";
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
+import { SlidesReports } from "@/components/dashboard/slides-reports";
 import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
@@ -254,11 +255,14 @@ export default async function RaportPage({
         </div>
 
         {isAgency ? (
-          <ShareBox
-            clientSlug={params.clientSlug}
-            clientId={client.id}
-            status={searchParams.share}
-          />
+          <>
+            <SlidesReports clientId={client.id} clientSlug={params.clientSlug} />
+            <ShareBox
+              clientSlug={params.clientSlug}
+              clientId={client.id}
+              status={searchParams.share}
+            />
+          </>
         ) : null}
 
         <ReportDeck

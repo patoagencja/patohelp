@@ -7,7 +7,8 @@ export type IntegrationProvider =
   | "meta_ads"
   | "google_ads"
   | "ga4"
-  | "tiktok_ads";
+  | "tiktok_ads"
+  | "google_slides";
 
 /** Paid-ads providers (everything that lands in ads_daily). */
 export type AdProvider = "meta_ads" | "google_ads" | "tiktok_ads";
