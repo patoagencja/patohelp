@@ -37,14 +37,30 @@ export async function GET(request: Request) {
   let reportName = clientSlug;
   const templateId = searchParams.get("template");
   if (templateId) {
+    // Accept a row id or a (case-insensitive) template name - easier to link.
+    const isUuid = /^[0-9a-f-]{36}$/i.test(templateId);
     const { data: t } = await admin
       .from("report_templates")
       .select("name, campaign_filter")
-      .eq("id", templateId)
       .eq("client_id", access.clientId)
-      .single();
+      [isUuid ? "eq" : "ilike"](isUuid ? "id" : "name", templateId)
+      .limit(1)
+      .maybeSingle();
     if (!t) {
-      return NextResponse.json({ error: "Nieznany szablon" }, { status: 404 });
+      const { data: names } = await admin
+        .from("report_templates")
+        .select("name")
+        .eq("client_id", access.clientId)
+        .order("sort_order");
+      return NextResponse.json(
+        {
+          error: "Nieznany szablon",
+          hint: names?.length
+            ? `Dostępne: ${names.map((n) => n.name).join(", ")}`
+            : "Brak szablonów - uruchom migrację 0019 (zasieje 14 raportów OLX) albo użyj ?all_of=GOODS,CEP",
+        },
+        { status: 404 }
+      );
     }
     filter = t.campaign_filter as CampaignFilter;
     reportName = t.name as string;
