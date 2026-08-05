@@ -15,6 +15,11 @@ const nextConfig = {
       "google-ads-api",
       "googleapis",
     ],
+    // The OLX v3 report route reads the bundled PPTX template from disk at
+    // runtime; make sure Vercel's file tracing ships it with the function.
+    outputFileTracingIncludes: {
+      "/api/report/olx-v3": ["./lib/report/templates/*.pptx"],
+    },
   },
 };
 
