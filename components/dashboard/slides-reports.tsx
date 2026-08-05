@@ -17,8 +17,16 @@ export async function SlidesReports({
 }) {
   const admin = createAdminClient();
 
-  const [{ data: templates }, { data: runs }, { data: slidesInteg }] =
-    await Promise.all([
+  // Defensive: before migration 0018/0019 these tables don't exist. Whatever
+  // goes wrong here must degrade to a setup note, never crash the Raport tab.
+  let templates:
+    | Array<Record<string, unknown>>
+    | null = null;
+  let runs: Array<Record<string, unknown>> | null = null;
+  let connected = false;
+  let tablesMissing = false;
+  try {
+    const [tRes, rRes, iRes] = await Promise.all([
       admin
         .from("report_templates")
         .select("id, name, campaign_filter, active, sort_order")
@@ -38,8 +46,37 @@ export async function SlidesReports({
         .eq("provider", "google_slides")
         .maybeSingle(),
     ]);
+    templates = tRes.data;
+    runs = rRes.data;
+    connected = !!iRes.data;
+    tablesMissing = !!tRes.error;
+  } catch (err) {
+    console.error("[slides-reports] section failed", err);
+    tablesMissing = true;
+  }
 
-  const connected = !!slidesInteg;
+  if (tablesMissing) {
+    return (
+      <section className="rounded-xl border border-border bg-card p-5 print:hidden">
+        <div className="flex items-center gap-2">
+          <Presentation className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-base font-semibold">
+            Raporty miesięczne (szablon OLX v3)
+          </h2>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Aby aktywować: uruchom w Supabase migracje{" "}
+          <code className="rounded bg-muted px-1">0018_slides_reports.sql</code>{" "}
+          i{" "}
+          <code className="rounded bg-muted px-1">0019_templates_no_slides.sql</code>{" "}
+          (druga zasieje 14 raportów OLX). Raport ad-hoc działa już teraz:{" "}
+          <code className="rounded bg-muted px-1">
+            /api/report/olx-v3?client={clientSlug}&amp;all_of=GOODS,CEP
+          </code>
+        </p>
+      </section>
+    );
+  }
   const latestByTemplate = new Map<
     string,
     { month: string; url: string | null; status: string; error: string | null }
@@ -88,7 +125,10 @@ export async function SlidesReports({
             </thead>
             <tbody>
               {templates.map((t) => {
-                const f = t.campaign_filter as CampaignFilter;
+                const f = (t.campaign_filter ?? {
+                  all_of: [],
+                  any_of: [],
+                }) as CampaignFilter;
                 const last = latestByTemplate.get(t.id as string);
                 return (
                   <tr key={t.id as string} className="border-b border-border/50">
