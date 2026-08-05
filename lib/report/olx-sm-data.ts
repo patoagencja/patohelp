@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 
+import { matchesFilter, type CampaignFilter } from "@/lib/report/segment-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import type { AdProvider } from "@/lib/types";
@@ -216,7 +217,10 @@ async function generateAiSections(
 export async function getOlxSmReportData(
   clientId: string,
   clientName: string,
-  monthDate?: Date
+  monthDate?: Date,
+  // Optional per-segment scope (the 14 OLX decks): only campaigns whose name
+  // matches the filter feed the numbers, creatives and AI narrative.
+  filter?: CampaignFilter
 ): Promise<OlxSmReportData> {
   const admin = createAdminClient();
 
@@ -248,6 +252,9 @@ export async function getOlxSmReportData(
   const byCampaign = new Map<string, { provider: AdProvider; name: string; cost: number }>();
 
   for (const r of rows ?? []) {
+    if (filter && !matchesFilter((r.campaign_name as string) || "", filter)) {
+      continue;
+    }
     const key = `${r.provider}:${monthKey(r.date as string)}`;
     const agg = byProviderMonth.get(key) ?? emptyAgg();
     agg.cost += Number(r.spend_minor_units);
@@ -307,16 +314,20 @@ export async function getOlxSmReportData(
     ? withFreq.reduce((m, c) => (c.frequency! > m.frequency! ? c : m))
     : null;
 
-  // Creatives (Meta only in the creatives table today).
+  // Creatives (Meta only in the creatives table today). Ad names follow the
+  // same naming convention, so the segment filter applies to them too; fetch
+  // wide and narrow in JS since the filter is substring-based.
   const { data: creativeRows } = await admin
     .from("creatives")
     .select("ad_name, thumbnail_url, spend_minor_units, clicks, impressions, ctr")
     .eq("client_id", clientId)
     .eq("provider", "meta_ads")
     .order("spend_minor_units", { ascending: false })
-    .limit(12);
+    .limit(filter ? 200 : 12);
 
-  const creatives = creativeRows ?? [];
+  const creatives = (creativeRows ?? []).filter(
+    (c) => !filter || matchesFilter((c.ad_name as string) || "", filter)
+  );
   const creativesReach: CreativeCell[] = creatives.slice(0, 3).map((c) => ({
     name: (c.ad_name as string) || "(bez nazwy)",
     metricLabel: "Wyświetlenia",
@@ -340,7 +351,10 @@ export async function getOlxSmReportData(
   // AI sections are cached per client+month (report_cache) so viewing the
   // report tab doesn't re-run the LLM. Cache errors (e.g. table not yet
   // migrated) degrade to generating fresh each time.
-  const cacheKey = `olx-sm-ai:${targetKey}`;
+  const filterKey = filter
+    ? `:${[...(filter.all_of ?? []), "|", ...(filter.any_of ?? [])].join("+").toLowerCase()}`
+    : "";
+  const cacheKey = `olx-sm-ai:${targetKey}${filterKey}`;
   let ai: AiSections | null = null;
   try {
     const { data: cached } = await admin

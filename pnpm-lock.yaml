@@ -47,6 +47,9 @@ importers:
       googleapis:
         specifier: ^144.0.0
         version: 144.0.0
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
       lucide-react:
         specifier: ^0.469.0
         version: 0.469.0(react@18.3.1)

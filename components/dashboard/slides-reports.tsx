@@ -61,32 +61,18 @@ export async function SlidesReports({
         <div className="flex items-center gap-2">
           <Presentation className="h-5 w-5 text-muted-foreground" />
           <h2 className="text-base font-semibold">
-            Raporty Slides (automatyczne, co miesiąc)
+            Raporty miesięczne (szablon OLX v3)
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          {!connected ? (
-            <a
-              href={`/api/integrations/google-slides/connect?client=${clientSlug}`}
-              className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Połącz Google Slides
-            </a>
-          ) : (
-            <GenerateSlidesButton clientSlug={clientSlug} />
-          )}
-        </div>
+        {connected && <GenerateSlidesButton clientSlug={clientSlug} />}
       </div>
 
       <p className="mt-2 text-sm text-muted-foreground">
-        Każdy szablon to deck Google Slides z tokenami{" "}
-        <code className="rounded bg-muted px-1">{"{{spend}}"}</code>,{" "}
-        <code className="rounded bg-muted px-1">{"{{meta_cpm}}"}</code> itd.
-        Pierwszego dnia miesiąca panel kopiuje szablony i wypełnia je danymi
-        minionego miesiąca (Meta + Google). Audyt tokenów:{" "}
-        <code className="rounded bg-muted px-1">
-          /api/debug/slides?client={clientSlug}&amp;template_file=&lt;ID&gt;
-        </code>
+        Każdy raport = segment kampanii (filtr po nazwie). Panel wypełnia
+        oficjalny szablon OLX v3 danymi Meta/Google za dany miesiąc + analizą
+        AI i daje gotowy PPTX — bez Google, wszystko po naszej stronie.
+        Miniaturki kreacji na slajdzie 3 wklejasz ręcznie, cała reszta
+        wypełnia się sama.
       </p>
 
       {templates?.length ? (
@@ -132,18 +118,24 @@ export async function SlidesReports({
                       )}
                     </td>
                     <td className="py-2">
-                      {last?.url ? (
+                      <span className="flex items-center gap-3">
                         <a
-                          href={last.url}
-                          target="_blank"
-                          rel="noreferrer"
+                          href={`/api/report/olx-v3?client=${clientSlug}&template=${t.id as string}`}
                           className="text-primary underline-offset-2 hover:underline"
                         >
-                          Otwórz deck
+                          Pobierz PPTX
                         </a>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                        {last?.url && (
+                          <a
+                            href={last.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-muted-foreground underline-offset-2 hover:underline"
+                          >
+                            Slides
+                          </a>
+                        )}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -174,15 +166,6 @@ export async function SlidesReports({
             />
           </label>
           <label className="text-sm">
-            ID pliku szablonu Slides
-            <input
-              name="template_presentation_id"
-              required
-              placeholder="1BjsUsqk5bY1wUX7hYoo2-..."
-              className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-          </label>
-          <label className="text-sm">
             Kampania musi zawierać (przecinki)
             <input
               name="all_of"
@@ -198,11 +181,19 @@ export async function SlidesReports({
               className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </label>
-          <label className="text-sm sm:col-span-2">
-            Folder Google Drive na gotowe raporty (ID, opcjonalnie)
+          <label className="text-sm">
+            ID pliku Slides (opcjonalnie — tylko dla wersji Google)
+            <input
+              name="template_presentation_id"
+              placeholder="puste = wbudowany szablon OLX v3"
+              className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="text-sm">
+            Folder Google Drive (ID, opcjonalnie)
             <input
               name="drive_folder_id"
-              placeholder="ID folderu z adresu drive.google.com/drive/folders/<ID>"
+              placeholder="tylko dla wersji Google Slides"
               className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </label>

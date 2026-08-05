@@ -85,15 +85,20 @@ export async function POST(request: Request) {
   if (templateId) query = query.eq("id", templateId);
   const { data: templates } = await query;
 
-  if (!templates?.length) {
+  // Rows without a Slides file use the built-in PPTX engine (/api/report/olx-v3)
+  // and are not generated here.
+  const slidesTemplates = (templates ?? []).filter(
+    (t) => !!t.template_presentation_id
+  );
+  if (!slidesTemplates.length) {
     return NextResponse.json(
-      { ok: false, error: "Brak szablonów raportów dla tego klienta" },
+      { ok: false, error: "Brak szablonów Google Slides dla tego klienta (raporty PPTX pobierasz przyciskiem Pobierz PPTX)" },
       { status: 404 }
     );
   }
 
   const results: Array<Record<string, unknown>> = [];
-  for (const t of templates) {
+  for (const t of slidesTemplates) {
     try {
       const data = await getSegmentMonthData(
         clientId,
