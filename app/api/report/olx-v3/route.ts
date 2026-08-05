@@ -8,8 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Downloads a filled OLX SM Report v3 deck (official template, bundled) for
 // one segment - entirely server-side, no Google APIs.
-// GET /api/report/olx-v3?client=olx&template=<report_templates.id>[&month=YYYY-MM]
-// or ad-hoc: ?client=olx&all_of=GOODS,CEP[&any_of=...]
+// GET /api/report/olx-v3?client=olx&all_of=GOODS,CEP[&any_of=...][&month=YYYY-MM]
+// Stateless by design (filters live in the URL) - no panel UI, no DB tables.
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
@@ -32,47 +32,16 @@ export async function GET(request: Request) {
     .eq("id", access.clientId)
     .single();
 
-  // Resolve the segment filter: saved template row or ad-hoc query params.
+  // Segment filter straight from the query string - no DB state involved.
   let filter: CampaignFilter | undefined;
   let reportName = clientSlug;
-  const templateId = searchParams.get("template");
-  if (templateId) {
-    // Accept a row id or a (case-insensitive) template name - easier to link.
-    const isUuid = /^[0-9a-f-]{36}$/i.test(templateId);
-    const { data: t } = await admin
-      .from("report_templates")
-      .select("name, campaign_filter")
-      .eq("client_id", access.clientId)
-      [isUuid ? "eq" : "ilike"](isUuid ? "id" : "name", templateId)
-      .limit(1)
-      .maybeSingle();
-    if (!t) {
-      const { data: names } = await admin
-        .from("report_templates")
-        .select("name")
-        .eq("client_id", access.clientId)
-        .order("sort_order");
-      return NextResponse.json(
-        {
-          error: "Nieznany szablon",
-          hint: names?.length
-            ? `Dostępne: ${names.map((n) => n.name).join(", ")}`
-            : "Brak szablonów - uruchom migrację 0019 (zasieje 14 raportów OLX) albo użyj ?all_of=GOODS,CEP",
-        },
-        { status: 404 }
-      );
-    }
-    filter = t.campaign_filter as CampaignFilter;
-    reportName = t.name as string;
-  } else {
-    const split = (v: string | null) =>
-      (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-    const allOf = split(searchParams.get("all_of"));
-    const anyOf = split(searchParams.get("any_of"));
-    if (allOf.length || anyOf.length) {
-      filter = { all_of: allOf, any_of: anyOf };
-      reportName = allOf.join("-") || anyOf.join("-");
-    }
+  const split = (v: string | null) =>
+    (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const allOf = split(searchParams.get("all_of"));
+  const anyOf = split(searchParams.get("any_of"));
+  if (allOf.length || anyOf.length) {
+    filter = { all_of: allOf, any_of: anyOf };
+    reportName = allOf.join("-") || anyOf.join("-");
   }
 
   const monthParam = searchParams.get("month");

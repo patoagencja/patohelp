@@ -10,7 +10,6 @@
     { "path": "/api/cron/generate-summary", "schedule": "0 5 * * *" },
     { "path": "/api/cron/refresh-news", "schedule": "30 5 * * *" },
     { "path": "/api/cron/evaluate-alerts", "schedule": "0 */6 * * *" },
-    { "path": "/api/cron/notify-alerts", "schedule": "*/30 * * * *" },
-    { "path": "/api/cron/generate-slides-reports", "schedule": "0 7 1 * *" }
+    { "path": "/api/cron/notify-alerts", "schedule": "*/30 * * * *" }
   ]
 }
