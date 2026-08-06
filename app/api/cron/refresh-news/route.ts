@@ -18,6 +18,24 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
   const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const force = new URL(request.url).searchParams.get("force") === "1";
+
+  // The external scheduler pings this every 30 minutes; the route itself
+  // enforces "one prasówka per day, generated in the morning". ?force=1
+  // (manual refresh) bypasses both guards.
+  if (!force) {
+    const hourPl = Number(formatInTimeZone(new Date(), "Europe/Warsaw", "H"));
+    if (hourPl < 6) {
+      return NextResponse.json({ ok: true, items_inserted: 0, note: "before 6:00" });
+    }
+    const { count } = await admin
+      .from("news_items")
+      .select("id", { count: "exact", head: true })
+      .eq("published_on", today);
+    if (count) {
+      return NextResponse.json({ ok: true, items_inserted: 0, note: "already today" });
+    }
+  }
 
   // Titles from the last 5 days, so the model skips already-covered stories.
   const { data: recent } = await admin

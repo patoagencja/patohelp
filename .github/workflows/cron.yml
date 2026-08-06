@@ -4,12 +4,20 @@ name: External cron (data sync + alerts + news)
 # with the CRON_SECRET bearer token. Requires two repo secrets:
 #   CRON_SECRET   - same value as the Vercel env var
 #   APP_URL       - e.g. https://patohelp-two.vercel.app  (optional; defaults below)
-# GitHub schedules are UTC and best-effort (may lag a few minutes under load).
+#
+# ONE schedule on purpose. The previous setup had a second daily cron entry and
+# gated the news/summary step on `github.event.schedule == '30 4 * * *'` -
+# GitHub coalesces/drops extra schedules on busy workflows, so that step never
+# ran and nobody noticed (curl also swallowed HTTP 500s, keeping runs green).
+# Now every endpoint is pinged each run and the DAILY routes themselves are
+# idempotent per day (refresh-news: one prasówka/day, generated after 6:00 PL;
+# generate-summary: one summary per client per day), so the 30-minute cadence
+# costs one cheap DB check. A job that still fails after a retry turns the run
+# RED so breakage is visible instead of silently going stale for weeks.
 
 on:
   schedule:
-    - cron: "*/30 * * * *"   # every 30 min: ads + ga4 + alerts
-    - cron: "30 4 * * *"     # 04:30 UTC (~06:30 PL): daily news + summary
+    - cron: "*/30 * * * *"
   workflow_dispatch: {}      # manual "Run workflow" button
 
 concurrency:
@@ -29,22 +37,25 @@ jobs:
             echo "CRON_SECRET repo secret is missing"; exit 1
           fi
 
-      - name: Frequent sync (ads, ga4, alerts)
-        if: github.event.schedule == '*/30 * * * *' || github.event_name == 'workflow_dispatch'
+      - name: Sync all (ads, ga4, creatives, demographics, alerts, news, summary)
         run: |
-          for job in refresh-ads-meta refresh-ads-google refresh-ads-tiktok refresh-ga4 refresh-creatives-meta refresh-demographics notify-alerts; do
-            echo "-> $job"
-            curl -sS -m 300 -o /dev/null -w "   %{http_code}\n" \
-              -H "Authorization: Bearer $CRON_SECRET" \
-              "$APP_URL/api/cron/$job" || echo "   (failed, continuing)"
+          failed=""
+          for job in refresh-ads-meta refresh-ads-google refresh-ads-tiktok \
+                     refresh-ga4 refresh-creatives-meta refresh-demographics \
+                     evaluate-alerts notify-alerts refresh-news generate-summary; do
+            ok=""
+            for attempt in 1 2; do
+              code=$(curl -sS -m 300 -o /tmp/body -w "%{http_code}" \
+                -H "Authorization: Bearer $CRON_SECRET" \
+                "$APP_URL/api/cron/$job" || echo "000")
+              echo "-> $job (attempt $attempt): HTTP $code"
+              if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then ok=1; break; fi
+              echo "   body: $(head -c 300 /tmp/body 2>/dev/null)"
+              sleep 5
+            done
+            if [ -z "$ok" ]; then failed="$failed $job"; fi
           done
-
-      - name: Daily (news, summary)
-        if: github.event.schedule == '30 4 * * *' || github.event_name == 'workflow_dispatch'
-        run: |
-          for job in refresh-news generate-summary; do
-            echo "-> $job"
-            curl -sS -m 300 -o /dev/null -w "   %{http_code}\n" \
-              -H "Authorization: Bearer $CRON_SECRET" \
-              "$APP_URL/api/cron/$job" || echo "   (failed, continuing)"
-          done
+          if [ -n "$failed" ]; then
+            echo "::error::Cron jobs failed after retry:$failed"
+            exit 1
+          fi
