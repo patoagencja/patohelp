@@ -149,17 +149,32 @@ export async function getSessionsBySourceMedium(
   refreshToken: string,
   propertyId: string,
   range: DateRange
-): Promise<Array<{ sourceMedium: string; sessions: number; engagementRate: number }>> {
+): Promise<
+  Array<{
+    sourceMedium: string;
+    sessions: number;
+    engagementRate: number;
+    revenue: number; // property currency, major unit (0 for non-ecommerce)
+    transactions: number;
+  }>
+> {
   const data = await runReport(refreshToken, propertyId, {
     dateRanges: [range],
     dimensions: [{ name: "sessionSourceMedium" }],
-    metrics: [{ name: "sessions" }, { name: "engagementRate" }],
+    metrics: [
+      { name: "sessions" },
+      { name: "engagementRate" },
+      { name: "totalRevenue" },
+      { name: "transactions" },
+    ],
     limit: 100,
   });
   return rows(data).map((r) => ({
     sourceMedium: dim(r, 0),
     sessions: metric(r, 0),
     engagementRate: metric(r, 1),
+    revenue: metric(r, 2),
+    transactions: metric(r, 3),
   }));
 }
 

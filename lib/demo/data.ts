@@ -241,12 +241,13 @@ export function getDemoDashboard(
   const S = curSessions;
   const website: WebsiteData = {
     hasData: true,
+    // Demo is an engagement client: sessions only, no revenue per channel.
     sources: [
-      { category: "Paid", sessions: Math.round(S * 0.4) },
-      { category: "Organic", sessions: Math.round(S * 0.3) },
-      { category: "Direct", sessions: Math.round(S * 0.14) },
-      { category: "Social", sessions: Math.round(S * 0.1) },
-      { category: "Referral/Inne", sessions: Math.round(S * 0.06) },
+      { category: "Paid", sessions: Math.round(S * 0.4), revenueMinorUnits: 0, transactions: 0 },
+      { category: "Organic", sessions: Math.round(S * 0.3), revenueMinorUnits: 0, transactions: 0 },
+      { category: "Direct", sessions: Math.round(S * 0.14), revenueMinorUnits: 0, transactions: 0 },
+      { category: "Social", sessions: Math.round(S * 0.1), revenueMinorUnits: 0, transactions: 0 },
+      { category: "Referral/Inne", sessions: Math.round(S * 0.06), revenueMinorUnits: 0, transactions: 0 },
     ],
     devices: [
       { device: "mobile", sessions: Math.round(S * 0.66) },

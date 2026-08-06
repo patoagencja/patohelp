@@ -15,7 +15,12 @@ export type SourceCategory =
 
 export interface WebsiteData {
   hasData: boolean;
-  sources: Array<{ category: SourceCategory; sessions: number }>;
+  sources: Array<{
+    category: SourceCategory;
+    sessions: number;
+    revenueMinorUnits: number;
+    transactions: number;
+  }>;
   devices: Array<{ device: string; sessions: number }>;
   topPages: Array<{ path: string; views: number; engagementRate: number }>;
   engagement: {
@@ -159,11 +164,16 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
     "yyyy-MM-dd"
   );
 
+  const BASE =
+    "date, sessions, users_new, users_returning, engagement_rate, source_medium, device_category, page_path, page_views";
+  // Revenue columns arrive with migration 0016 - selecting an unknown column
+  // fails the whole query, so probe once and fall back to the base select.
+  const probe = await supabase.from("ga4_daily").select("revenue_minor_units").limit(1);
+  const select = probe.error ? BASE : `${BASE}, revenue_minor_units, transactions`;
+
   const { data } = await supabase
     .from("ga4_daily")
-    .select(
-      "date, sessions, users_new, users_returning, engagement_rate, source_medium, device_category, page_path, page_views"
-    )
+    .select(select as typeof BASE)
     .eq("client_id", clientId)
     .gte("date", start)
     .lte("date", todayStr);
@@ -193,13 +203,25 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
     list.reduce((max, r) => (r.date > max ? (r.date as string) : max), "");
 
   const srcDate = latestSnapshot(sourceRows);
-  const grouped = new Map<SourceCategory, number>();
+  const grouped = new Map<
+    SourceCategory,
+    { sessions: number; revenueMinorUnits: number; transactions: number }
+  >();
   for (const r of sourceRows.filter((r) => r.date === srcDate)) {
     const cat = categorize(r.source_medium as string);
-    grouped.set(cat, (grouped.get(cat) ?? 0) + Number(r.sessions));
+    const cur =
+      grouped.get(cat) ?? { sessions: 0, revenueMinorUnits: 0, transactions: 0 };
+    cur.sessions += Number(r.sessions);
+    // Revenue columns only exist post-0016 and are only populated for
+    // e-commerce properties; missing -> 0, so engagement clients are unaffected.
+    cur.revenueMinorUnits += Number(
+      (r as { revenue_minor_units?: number }).revenue_minor_units ?? 0
+    );
+    cur.transactions += Number((r as { transactions?: number }).transactions ?? 0);
+    grouped.set(cat, cur);
   }
   const sources = Array.from(grouped.entries())
-    .map(([category, sessions]) => ({ category, sessions }))
+    .map(([category, v]) => ({ category, ...v }))
     .sort((a, b) => b.sessions - a.sessions);
 
   const devDate = latestSnapshot(deviceRows);

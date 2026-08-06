@@ -171,6 +171,13 @@ export async function GET(request: Request) {
           engagement_rate: s.engagementRate,
           source_medium: s.sourceMedium,
           page_views: 0,
+          // Revenue per channel - powers "Sprzedaż wg źródeł" on the ecom tab.
+          ...(hasRevenueCols
+            ? {
+                revenue_minor_units: Math.round((s.revenue ?? 0) * 100),
+                transactions: Math.round(s.transactions ?? 0),
+              }
+            : {}),
         });
       }
       for (const dv of devices) {

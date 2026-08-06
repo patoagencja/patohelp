@@ -10,6 +10,7 @@ import {
 import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
+import { RevenueBySource } from "@/components/dashboard/ecom/revenue-by-source";
 import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
 import {
   TopProducts,
@@ -154,7 +155,7 @@ export default async function SprzedazPage({
 
       {website.hasData ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <TrafficSources sources={website.sources} />
+          <RevenueBySource sources={website.sources} />
           <TopPages pages={website.topPages.slice(0, 5)} />
         </div>
       ) : null}

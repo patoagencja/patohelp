@@ -137,7 +137,21 @@ export async function GET(request: Request) {
       .join(" · ");
     log.push(`📅 przychód wg miesięcy (GA4 na żywo): ${monthly || "brak"}`);
   } catch (e) {
-    return html(`❌ getDailyMetrics padło:<pre style="white-space:pre-wrap;background:#f4f4f4;padding:12px;border-radius:8px">${esc((e as Error).message)}</pre>`);
+    const msg = (e as Error).message ?? "";
+    const hint = msg.includes("invalid_grant")
+      ? `<p style="background:#fee;padding:12px;border-radius:8px">
+           <b>Token GA4 wygasł / został odwołany</b> (invalid_grant). Google unieważnia
+           refresh token, gdy zmieniono hasło, cofnięto dostęp aplikacji, albo projekt
+           OAuth jest w trybie <i>Testing</i> (tam tokeny żyją 7 dni).<br><br>
+           <b>Napraw:</b> wejdź w <b>Ustawienia</b> tego klienta → przy Google Analytics 4
+           kliknij <b>Rozłącz</b>, a potem <b>Połącz</b> i przejdź OAuth ponownie.
+           Żeby nie wygasało co tydzień: w Google Cloud Console → OAuth consent screen
+           ustaw aplikację na <b>In production</b>.
+         </p>`
+      : "";
+    return html(
+      `❌ getDailyMetrics padło:<pre style="white-space:pre-wrap;background:#f4f4f4;padding:12px;border-radius:8px">${esc(msg)}</pre>${hint}`
+    );
   }
   try {
     [sourceMedium, devices, pages, newReturning] = await Promise.all([
@@ -173,7 +187,7 @@ export async function GET(request: Request) {
       page_views: 0,
     });
   }
-  for (const s of sourceMedium) rows.push({ client_id: clientId, date: until, sessions: s.sessions, users_new: 0, users_returning: 0, engagement_rate: s.engagementRate, source_medium: s.sourceMedium, page_views: 0 });
+  for (const s of sourceMedium) rows.push({ client_id: clientId, date: until, sessions: s.sessions, users_new: 0, users_returning: 0, engagement_rate: s.engagementRate, source_medium: s.sourceMedium, page_views: 0, revenue_minor_units: Math.round((s.revenue ?? 0) * 100), transactions: Math.round(s.transactions ?? 0) });
   for (const dv of devices) rows.push({ client_id: clientId, date: until, sessions: dv.sessions, users_new: 0, users_returning: 0, device_category: dv.deviceCategory, page_views: 0 });
   for (const p of pages) rows.push({ client_id: clientId, date: until, sessions: 0, users_new: 0, users_returning: 0, engagement_rate: p.engagementRate, page_path: p.pagePath, page_views: p.pageViews });
   // Homogenize: PostgREST fills keys a row is missing with explicit NULL, so
