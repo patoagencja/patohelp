@@ -250,6 +250,58 @@ export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]
   return (await fetchDailyNewsWithDiag(recentTitles)).items;
 }
 
+/** The categories the daily sweep covers, in fill order. */
+export const NEWS_CATEGORIES = CATEGORY_BRIEFS.map((c) => c.key);
+
+/**
+ * Research ONE category. Researching all four in a single request exceeded the
+ * serverless time limit (each pass makes several web searches), which is why
+ * the daily refresh silently produced nothing - so the cron now fills one
+ * category per invocation instead.
+ */
+export async function fetchOneCategory(
+  category: NewsCategory,
+  recentTitles: string[],
+  opts: { backfill?: boolean } = {}
+): Promise<{ items: NewsItem[]; diags: CategoryDiag[] }> {
+  const diags: CategoryDiag[] = [];
+  if (!process.env.ANTHROPIC_API_KEY) return { items: [], diags };
+
+  const brief = CATEGORY_BRIEFS.find((c) => c.key === category)?.brief;
+  if (!brief) return { items: [], diags };
+
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const freshCutoff = formatInTimeZone(subDays(new Date(), 14), "Europe/Warsaw", "yyyy-MM-dd");
+  const widerCutoff = formatInTimeZone(subDays(new Date(), 30), "Europe/Warsaw", "yyyy-MM-dd");
+
+  const fresh = await fetchCategoryNews(
+    anthropic,
+    category,
+    brief,
+    today,
+    freshCutoff,
+    recentTitles,
+    "fresh",
+    diags
+  );
+  if (fresh.length >= MIN_PER_CATEGORY || opts.backfill === false) {
+    return { items: fresh.slice(0, MAX_PER_CATEGORY), diags };
+  }
+
+  const backfill = await fetchCategoryNews(
+    anthropic,
+    category,
+    brief,
+    today,
+    widerCutoff,
+    [...recentTitles, ...fresh.map((i) => i.title)],
+    "backfill",
+    diags
+  );
+  return { items: mergeUnique(fresh, backfill).slice(0, MAX_PER_CATEGORY), diags };
+}
+
 /** Same sweep, but also returns per-category diagnostics for /api/debug/news. */
 export async function fetchDailyNewsWithDiag(
   recentTitles: string[]

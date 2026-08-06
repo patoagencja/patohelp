@@ -2,7 +2,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
-import { fetchDailyNewsWithDiag } from "@/lib/news/fetch";
+import { fetchOneCategory, type NewsCategory } from "@/lib/news/fetch";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Diagnostic for the Newsy feed: runs each step of the refresh inline and
@@ -39,7 +39,16 @@ export async function GET(request: Request) {
 
   // 2. Fetch from Claude + web search.
   try {
-    const { items, diags } = await fetchDailyNewsWithDiag([]);
+    // ONE category (default: meta) and no backfill pass, so this returns in
+    // well under the function time limit. ?category=google|tiktok|ai to switch.
+    const category =
+      (searchParams.get("category") as NewsCategory | null) ?? "meta";
+    diag.category = category;
+    const started = Date.now();
+    const { items, diags } = await fetchOneCategory(category, [], {
+      backfill: false,
+    });
+    diag.took_ms = Date.now() - started;
     diag.fetched_items = items.length;
     // Per-category breakdown: stop_reason, parsed count, how many were dropped
     // by the freshness gate, and any API error - so an empty feed names its
@@ -67,7 +76,11 @@ export async function GET(request: Request) {
 
     // 3. Insert.
     const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
-    await admin.from("news_items").delete().eq("published_on", today);
+    await admin
+      .from("news_items")
+      .delete()
+      .eq("published_on", today)
+      .eq("category", category);
     const { error: insertError } = await admin.from("news_items").insert(
       items.map((i) => ({
         published_on: today,

@@ -2,7 +2,11 @@ import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
-import { fetchDailyNews } from "@/lib/news/fetch";
+import {
+  NEWS_CATEGORIES,
+  fetchOneCategory,
+  type NewsCategory,
+} from "@/lib/news/fetch";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // On-demand news refresh (agency only), run inline so the UI can surface the
@@ -43,16 +47,36 @@ export async function POST(request: Request) {
     });
   }
 
-  // 2. Research via Claude + web search.
+  // 2. Research ONE category per click. Doing all four in one request exceeded
+  // the serverless time limit, so the call died and nothing was ever written.
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const requested = new URL(request.url).searchParams.get(
+    "category"
+  ) as NewsCategory | null;
+
+  const { data: todayRows } = await admin
+    .from("news_items")
+    .select("category")
+    .eq("published_on", today);
+  const done = new Set((todayRows ?? []).map((r) => r.category as string));
+  // Nothing left for today -> refresh the first category again, so the button
+  // always does something useful.
+  const target =
+    requested ?? NEWS_CATEGORIES.find((c) => !done.has(c)) ?? NEWS_CATEGORIES[0];
+
   const { data: recent } = await admin
     .from("news_items")
     .select("title")
     .order("published_on", { ascending: false })
-    .limit(60);
+    .limit(40);
 
   let items;
+  let diags;
   try {
-    items = await fetchDailyNews((recent ?? []).map((r) => r.title as string));
+    ({ items, diags } = await fetchOneCategory(
+      target,
+      (recent ?? []).map((r) => r.title as string)
+    ));
   } catch (err) {
     return NextResponse.json({
       ok: false,
@@ -63,16 +87,21 @@ export async function POST(request: Request) {
   }
 
   if (items.length === 0) {
+    const apiErr = diags?.find((d) => d.error)?.error;
     return NextResponse.json({
       ok: false,
-      error:
-        "Claude nie zwrócił świeżych newsów (wszystko odpadło na filtrze świeżości albo research nic nie znalazł). Spróbuj ponownie za chwilę.",
+      error: apiErr
+        ? `Kategoria ${target}: ${apiErr}`
+        : `Kategoria ${target}: Claude nie zwrócił świeżych newsów (wszystko odpadło na filtrze świeżości albo research nic nie znalazł). Spróbuj ponownie.`,
     });
   }
 
-  // 3. Persist.
-  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
-  await admin.from("news_items").delete().eq("published_on", today);
+  // 3. Persist (only this category's rows for today).
+  await admin
+    .from("news_items")
+    .delete()
+    .eq("published_on", today)
+    .eq("category", target);
   const { error: insertError } = await admin.from("news_items").insert(
     items.map((i) => ({
       published_on: today,
@@ -90,5 +119,11 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, count: items.length });
+  const remaining = NEWS_CATEGORIES.filter((c) => c !== target && !done.has(c));
+  return NextResponse.json({
+    ok: true,
+    count: items.length,
+    category: target,
+    remaining,
+  });
 }

@@ -1,11 +1,23 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
-import { fetchDailyNews } from "@/lib/news/fetch";
+import {
+  NEWS_CATEGORIES,
+  fetchOneCategory,
+  type NewsCategory,
+} from "@/lib/news/fetch";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Vercel Cron (daily): refresh the "Newsy" industry feed via Claude + web
-// search. Replaces today's items so a manual re-run stays idempotent.
+// Refreshes the "Newsy" industry feed via Claude + web search.
+//
+// ONE CATEGORY PER INVOCATION on purpose. Researching all four in a single
+// request meant ~8 Claude calls with web search back to back, which ran past
+// the serverless time limit - the request died, nothing was written, and the
+// feed silently froze for weeks. The external cron pings this every 30 min, so
+// each run fills the next category still missing for today and all four are in
+// place shortly after 06:00 PL.
+//   ?category=meta  - refresh a specific category
+//   ?force=1        - ignore the "already done today" / before-06:00 guards
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
@@ -17,41 +29,66 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+  const { searchParams } = new URL(request.url);
   const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
-  const force = new URL(request.url).searchParams.get("force") === "1";
+  const force = searchParams.get("force") === "1";
+  const only = searchParams.get("category") as NewsCategory | null;
 
-  // The external scheduler pings this every 30 minutes; the route itself
-  // enforces "one prasówka per day, generated in the morning". ?force=1
-  // (manual refresh) bypasses both guards.
-  if (!force) {
+  if (!force && !only) {
     const hourPl = Number(formatInTimeZone(new Date(), "Europe/Warsaw", "H"));
     if (hourPl < 6) {
       return NextResponse.json({ ok: true, items_inserted: 0, note: "before 6:00" });
     }
-    const { count } = await admin
-      .from("news_items")
-      .select("id", { count: "exact", head: true })
-      .eq("published_on", today);
-    if (count) {
-      return NextResponse.json({ ok: true, items_inserted: 0, note: "already today" });
-    }
   }
 
-  // Titles from the last 5 days, so the model skips already-covered stories.
+  // Which categories already have items for today?
+  const { data: todayRows, error: todayErr } = await admin
+    .from("news_items")
+    .select("category")
+    .eq("published_on", today);
+  if (todayErr) {
+    return NextResponse.json({ ok: false, error: todayErr.message }, { status: 500 });
+  }
+  const done = new Set((todayRows ?? []).map((r) => r.category as string));
+
+  const target =
+    only ?? NEWS_CATEGORIES.find((c) => !done.has(c)) ?? null;
+  if (!target) {
+    return NextResponse.json({
+      ok: true,
+      items_inserted: 0,
+      note: "all categories done today",
+      done: [...done],
+    });
+  }
+
+  // Titles from recent days so the model skips already-covered stories.
   const { data: recent } = await admin
     .from("news_items")
     .select("title")
     .order("published_on", { ascending: false })
-    .limit(60);
+    .limit(40);
   const recentTitles = (recent ?? []).map((r) => r.title as string);
 
-  const items = await fetchDailyNews(recentTitles);
+  const { items, diags } = await fetchOneCategory(target, recentTitles);
 
   if (items.length === 0) {
-    return NextResponse.json({ ok: true, items_inserted: 0, note: "no items" });
+    return NextResponse.json({
+      ok: false,
+      category: target,
+      items_inserted: 0,
+      note: "no items for this category",
+      diags,
+    });
   }
 
-  await admin.from("news_items").delete().eq("published_on", today);
+  // Replace only this category's rows for today (other categories untouched).
+  await admin
+    .from("news_items")
+    .delete()
+    .eq("published_on", today)
+    .eq("category", target);
+
   const { error } = await admin.from("news_items").insert(
     items.map((i) => ({
       published_on: today,
@@ -66,5 +103,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, items_inserted: items.length });
+  const remaining = NEWS_CATEGORIES.filter(
+    (c) => c !== target && !done.has(c)
+  );
+  return NextResponse.json({
+    ok: true,
+    category: target,
+    items_inserted: items.length,
+    remaining,
+  });
 }
