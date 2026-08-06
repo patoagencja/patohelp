@@ -11,6 +11,10 @@ import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
 import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
+import {
+  TopProducts,
+  type ProductRow,
+} from "@/components/dashboard/ecom/top-products";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { Devices } from "@/components/dashboard/website/devices";
 import { TopPages } from "@/components/dashboard/website/top-pages";
@@ -23,6 +27,7 @@ import {
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -60,8 +65,10 @@ export default async function SprzedazPage({
   ]);
   const totalSessions = data.trend.reduce((a, p) => a + p.sessions, 0);
 
+  const admin = createAdminClient();
+
   // Latest cached AI analysis (service-role read).
-  const { data: cached } = await createAdminClient()
+  const { data: cached } = await admin
     .from("ecom_analyses")
     .select("content, generated_at")
     .eq("client_id", client.id)
@@ -69,6 +76,48 @@ export default async function SprzedazPage({
     .limit(1)
     .maybeSingle();
   const analysis = (cached?.content as EcomAnalysis | undefined) ?? null;
+
+  // Per-SKU sales for the selected range (table arrives with migration 0018 -
+  // absence degrades to a setup note inside the widget, never a crash).
+  const rangeStart = data.trend[0]?.date;
+  const rangeEnd = data.trend[data.trend.length - 1]?.date;
+  let products: ProductRow[] = [];
+  let itemsTableMissing = false;
+  if (rangeStart && rangeEnd) {
+    const probe = await admin.from("ga4_items_daily").select("id").limit(1);
+    if (probe.error) {
+      itemsTableMissing = true;
+    } else {
+      const itemRows = await fetchAll<Record<string, unknown>>((from, to) =>
+        admin
+          .from("ga4_items_daily")
+          .select("item_id, item_name, quantity, revenue_minor_units")
+          .eq("client_id", client.id)
+          .gte("date", rangeStart)
+          .lte("date", rangeEnd)
+          .order("date", { ascending: true })
+          .range(from, to)
+      );
+      const byItem = new Map<string, ProductRow>();
+      for (const r of itemRows ?? []) {
+        const key = `${r.item_id}:${r.item_name}`;
+        const cur =
+          byItem.get(key) ??
+          ({
+            itemId: (r.item_id as string) ?? "",
+            itemName: (r.item_name as string) || "(bez nazwy)",
+            quantity: 0,
+            revenueMinorUnits: 0,
+          } satisfies ProductRow);
+        cur.quantity += Number(r.quantity ?? 0);
+        cur.revenueMinorUnits += Number(r.revenue_minor_units ?? 0);
+        byItem.set(key, cur);
+      }
+      products = [...byItem.values()]
+        .sort((a, b) => b.revenueMinorUnits - a.revenueMinorUnits)
+        .slice(0, 10);
+    }
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -100,6 +149,8 @@ export default async function SprzedazPage({
         />
         {website.hasData ? <Devices devices={website.devices} /> : null}
       </div>
+
+      <TopProducts products={products} tableMissing={itemsTableMissing} />
 
       {website.hasData ? (
         <div className="grid gap-4 lg:grid-cols-2">

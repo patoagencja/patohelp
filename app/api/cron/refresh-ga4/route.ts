@@ -6,6 +6,7 @@ import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import {
   getDailyMetrics,
+  getItemsDaily,
   getNewVsReturning,
   getSessionsByDevice,
   getSessionsBySourceMedium,
@@ -48,6 +49,10 @@ export async function GET(request: Request) {
     .select("revenue_minor_units")
     .limit(1);
   const hasRevenueCols = !revenueProbe.error;
+
+  // Per-SKU sales land in ga4_items_daily (migration 0018); skip until it exists.
+  const itemsProbe = await admin.from("ga4_items_daily").select("id").limit(1);
+  const hasItemsTable = !itemsProbe.error;
 
   const onlyClient = new URL(request.url).searchParams.get("client");
   let gq = admin
@@ -216,6 +221,44 @@ export async function GET(request: Request) {
         const { error } = await admin.from("ga4_daily").insert(rows);
         if (error) throw new Error(error.message);
         rowsUpserted += rows.length;
+      }
+
+      // Per-SKU sales for the same window (e-commerce properties only return
+      // rows here; engagement properties yield nothing). Failures are logged
+      // but never break the main daily sync.
+      if (hasItemsTable) {
+        try {
+          const items = await getItemsDaily(refresh_token, propertyId, dailyRange);
+          await admin
+            .from("ga4_items_daily")
+            .delete()
+            .eq("client_id", integration.client_id)
+            .gte("date", dailyRange.startDate)
+            .lte("date", until);
+          if (items.length) {
+            const itemRows = items.map((it) => ({
+              client_id: integration.client_id,
+              date: it.date,
+              item_id: it.itemId,
+              item_name: it.itemName,
+              quantity: it.quantity,
+              revenue_minor_units: Math.round(it.revenue * 100),
+            }));
+            // Insert in chunks - a year's backfill for a large store can be
+            // tens of thousands of rows.
+            for (let i = 0; i < itemRows.length; i += 1000) {
+              const { error } = await admin
+                .from("ga4_items_daily")
+                .insert(itemRows.slice(i, i + 1000));
+              if (error) throw new Error(error.message);
+            }
+          }
+        } catch (err) {
+          console.error("[refresh-ga4] items sync failed", {
+            client: integration.client_id,
+            error: (err as Error).message,
+          });
+        }
       }
 
       await admin

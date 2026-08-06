@@ -4,6 +4,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { decrypt } from "@/lib/integrations/encryption";
 import {
   getDailyMetrics,
+  getItemsDaily,
   getNewVsReturning,
   getSessionsByDevice,
   getSessionsBySourceMedium,
@@ -198,6 +199,40 @@ export async function GET(request: Request) {
     return html(
       `${log.join("<br>")}<br><br>❌ <b>INSERT padł</b> - to jest przyczyna:<pre style="white-space:pre-wrap;background:#fee;padding:12px;border-radius:8px">${esc(insErr.message)}</pre>`
     );
+  }
+
+  // 3b) Per-SKU sales for the same window (needs migration 0018's table).
+  const itemsProbe = await admin.from("ga4_items_daily").select("id").limit(1);
+  if (itemsProbe.error) {
+    log.push(
+      "🛍️ produkty (SKU): pominięte - brak tabeli ga4_items_daily (migracja 0018)."
+    );
+  } else {
+    try {
+      const items = await getItemsDaily(refresh_token, propertyId, dailyRange);
+      await admin
+        .from("ga4_items_daily")
+        .delete()
+        .eq("client_id", clientId)
+        .gte("date", dailyRange.startDate)
+        .lte("date", until);
+      for (let i = 0; i < items.length; i += 1000) {
+        const { error } = await admin.from("ga4_items_daily").insert(
+          items.slice(i, i + 1000).map((it) => ({
+            client_id: clientId,
+            date: it.date,
+            item_id: it.itemId,
+            item_name: it.itemName,
+            quantity: it.quantity,
+            revenue_minor_units: Math.round(it.revenue * 100),
+          }))
+        );
+        if (error) throw new Error(error.message);
+      }
+      log.push(`🛍️ produkty (SKU): zapisano ${items.length} wierszy.`);
+    } catch (e) {
+      log.push(`🛍️ produkty (SKU): ❌ ${esc((e as Error).message)}`);
+    }
   }
 
   // 4) Confirm what's now in the DB.

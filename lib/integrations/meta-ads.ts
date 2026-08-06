@@ -232,7 +232,10 @@ interface Creative {
   video_id?: string;
   object_type?: string;
   object_story_spec?: {
-    link_data?: { picture?: string };
+    link_data?: {
+      picture?: string;
+      child_attachments?: Array<{ picture?: string }>;
+    };
     video_data?: { image_url?: string; video_id?: string };
   };
 }
@@ -253,6 +256,9 @@ function bestStaticUrl(c?: Creative): string | undefined {
     c?.image_url ||
     c?.object_story_spec?.video_data?.image_url ||
     c?.object_story_spec?.link_data?.picture ||
+    // Carousels: first card's picture (link_data.picture is empty for them).
+    c?.object_story_spec?.link_data?.child_attachments?.find((a) => a.picture)
+      ?.picture ||
     c?.thumbnail_url
   );
 }
@@ -333,14 +339,15 @@ export async function getAdThumbnails(
   // because sub-selecting a field Meta doesn't recognise makes the entire query
   // throw - which previously dropped us to BASIC and left every video ad on its
   // blurry 64px thumbnail_url. If it still fails, BASIC keeps the sync alive.
-  const RICH =
-    "id,creative{id,object_type,image_url,thumbnail_url,video_id,object_story_spec}";
-  const BASIC = "id,creative{id,image_url,thumbnail_url}";
-
-  // thumbnail_width/height ask Meta to render `thumbnail_url` larger than its
-  // ~64px default - the single biggest win against blur, and it applies to every
-  // ad (image and video) even if the per-video lookup below can't run.
-  const SIZE = { thumbnail_width: "1080", thumbnail_height: "1080" };
+  // thumbnail_width/height must be applied AS FIELD MODIFIERS on the nested
+  // creative request - as top-level query params on /ads they are silently
+  // ignored and thumbnail_url stays at its blurry ~64px default. With the
+  // modifier Meta renders the thumbnail at the requested size for EVERY
+  // creative type: static, video, carousel and catalog/DPA (where it picks a
+  // sample product image - the only image such creatives have).
+  const MOD = "creative.thumbnail_width(1080).thumbnail_height(1080)";
+  const RICH = `id,${MOD}{id,object_type,image_url,thumbnail_url,video_id,object_story_spec}`;
+  const BASIC = `id,${MOD}{id,image_url,thumbnail_url}`;
 
   let data: Array<{ id?: string; creative?: Creative }> = [];
   try {
@@ -348,7 +355,6 @@ export async function getAdThumbnails(
       fields: RICH,
       access_token: accessToken,
       limit: "500",
-      ...SIZE,
     });
     data = body.data ?? [];
   } catch {
@@ -356,7 +362,6 @@ export async function getAdThumbnails(
       fields: BASIC,
       access_token: accessToken,
       limit: "500",
-      ...SIZE,
     });
     data = body.data ?? [];
   }

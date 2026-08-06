@@ -275,6 +275,41 @@ export async function getRegions(
     .filter((r) => r.bucket && r.bucket !== "(not set)");
 }
 
+/**
+ * Daily per-product sales (SKU level): item name/id, units purchased and item
+ * revenue. Empty for properties without e-commerce events.
+ */
+export async function getItemsDaily(
+  refreshToken: string,
+  propertyId: string,
+  range: DateRange
+): Promise<
+  Array<{
+    date: string;
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    revenue: number; // property currency, major unit
+  }>
+> {
+  const data = await runReport(refreshToken, propertyId, {
+    dateRanges: [range],
+    dimensions: [{ name: "date" }, { name: "itemId" }, { name: "itemName" }],
+    metrics: [{ name: "itemsPurchased" }, { name: "itemRevenue" }],
+    orderBys: [{ dimension: { dimensionName: "date" } }],
+    limit: 100000,
+  });
+  return rows(data)
+    .map((r) => ({
+      date: normalizeGa4Date(dim(r, 0)),
+      itemId: dim(r, 1),
+      itemName: dim(r, 2) || dim(r, 1) || "(bez nazwy)",
+      quantity: metric(r, 0),
+      revenue: metric(r, 1),
+    }))
+    .filter((r) => r.quantity > 0 || r.revenue > 0);
+}
+
 export async function getDailyMetrics(
   refreshToken: string,
   propertyId: string,
