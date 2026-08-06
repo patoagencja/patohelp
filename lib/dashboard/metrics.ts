@@ -99,6 +99,7 @@ export interface TrendPoint {
   impressions: number;
   conversions: number;
   revenueMinorUnits: number;
+  transactions: number;
 }
 
 export interface EcommerceKpis {
@@ -293,6 +294,7 @@ export async function getDashboardData(
   let curTransactions = 0, prevTransactions = 0;
   const sessionsByDate = new Map<string, number>();
   const revenueByDate = new Map<string, number>();
+  const transactionsByDate = new Map<string, number>();
   for (const row of ga4Rows) {
     const sessions = Number(row.sessions);
     const revenue = Number(row.revenue_minor_units ?? 0);
@@ -306,6 +308,10 @@ export async function getDashboardData(
         (sessionsByDate.get(row.date) ?? 0) + sessions
       );
       revenueByDate.set(row.date, (revenueByDate.get(row.date) ?? 0) + revenue);
+      transactionsByDate.set(
+        row.date,
+        (transactionsByDate.get(row.date) ?? 0) + transactions
+      );
     } else if (inPrev(row.date)) {
       prevSessions += sessions;
       prevRevenue += revenue;
@@ -385,6 +391,7 @@ export async function getDashboardData(
       impressions: agg?.impressions ?? 0,
       conversions: agg?.conversions ?? 0,
       revenueMinorUnits: revenueByDate.get(dateStr) ?? 0,
+      transactions: transactionsByDate.get(dateStr) ?? 0,
     });
 
     const meta = byDateProvider.get(`${dateStr}:meta_ads`);

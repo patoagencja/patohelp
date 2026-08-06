@@ -83,6 +83,7 @@ export function getDemoDashboard(
       impressions,
       conversions,
       revenueMinorUnits: 0,
+      transactions: 0,
     });
   }
 

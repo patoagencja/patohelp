@@ -9,9 +9,14 @@ import {
 
 import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button";
-import { RevenueChart } from "@/components/dashboard/revenue-chart";
+import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
+import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { Devices } from "@/components/dashboard/website/devices";
+import { TopPages } from "@/components/dashboard/website/top-pages";
+import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import type { EcomAnalysis } from "@/lib/ecom/analysis";
+import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import {
   getDashboardData,
   normalizeRange,
@@ -49,7 +54,11 @@ export default async function SprzedazPage({
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const data = await getDashboardData(client.id, range, custom);
+  const [data, website] = await Promise.all([
+    getDashboardData(client.id, range, custom),
+    getWebsiteData(client.id),
+  ]);
+  const totalSessions = data.trend.reduce((a, p) => a + p.sessions, 0);
 
   // Latest cached AI analysis (service-role read).
   const { data: cached } = await createAdminClient()
@@ -80,8 +89,24 @@ export default async function SprzedazPage({
         />
       </div>
 
-      <EcommerceKpis data={data.ecommerce} />
-      <RevenueChart trend={data.trend} />
+      <EcommerceKpis data={data.ecommerce} trend={data.trend} />
+      <SalesOverview trend={data.trend} revenueKpi={data.ecommerce.revenueMinorUnits} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ConversionFunnel
+          sessions={totalSessions}
+          engagementRate={website.engagement.engagementRate}
+          transactions={data.ecommerce.transactions.value}
+        />
+        {website.hasData ? <Devices devices={website.devices} /> : null}
+      </div>
+
+      {website.hasData ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TrafficSources sources={website.sources} />
+          <TopPages pages={website.topPages.slice(0, 5)} />
+        </div>
+      ) : null}
 
       {/* AI analysis */}
       <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
