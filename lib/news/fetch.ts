@@ -46,6 +46,53 @@ const CATEGORY_BRIEFS: Array<{ key: NewsCategory; brief: string }> = [
   },
 ];
 
+/** Why a category came back empty - surfaced by /api/debug/news. */
+export interface CategoryDiag {
+  category: NewsCategory;
+  pass: "fresh" | "backfill";
+  stop_reason?: string | null;
+  text_len?: number;
+  parsed?: number;
+  dropped_stale?: number;
+  kept?: number;
+  repaired_json?: boolean;
+  error?: string;
+}
+
+/**
+ * Parse the model's JSON array, tolerating a response truncated by max_tokens:
+ * trim back to the last complete object and close the array.
+ */
+function parseItemsJson(text: string): {
+  parsed: Array<Record<string, unknown>>;
+  repaired: boolean;
+} {
+  const start = text.indexOf("[");
+  if (start === -1) return { parsed: [], repaired: false };
+  const end = text.lastIndexOf("]");
+
+  if (end > start) {
+    try {
+      return { parsed: JSON.parse(text.slice(start, end + 1)), repaired: false };
+    } catch {
+      // fall through to repair
+    }
+  }
+
+  // Truncated (or malformed tail): keep everything up to the last closed object.
+  const body = text.slice(start);
+  const lastObj = body.lastIndexOf("}");
+  if (lastObj === -1) return { parsed: [], repaired: false };
+  try {
+    return {
+      parsed: JSON.parse(`${body.slice(0, lastObj + 1)}]`),
+      repaired: true,
+    };
+  } catch {
+    return { parsed: [], repaired: false };
+  }
+}
+
 /** One research pass for a single category, gated to `freshCutoff`. */
 async function fetchCategoryNews(
   anthropic: Anthropic,
@@ -53,7 +100,9 @@ async function fetchCategoryNews(
   brief: string,
   today: string,
   freshCutoff: string,
-  recentTitles: string[]
+  recentTitles: string[],
+  pass: "fresh" | "backfill",
+  diags: CategoryDiag[]
 ): Promise<NewsItem[]> {
   const avoid = recentTitles.length
     ? `\n\nTe tematy JUŻ opisaliśmy - pomiń, chyba że jest nowy rozwój:\n${recentTitles
@@ -62,16 +111,24 @@ async function fetchCategoryNews(
         .join("\n")}`
     : "";
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 3500,
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 8 }],
-    system:
-      "Jesteś researcherem newsów dla polskiej agencji marketingowej (patoagencja). Piszesz po polsku, zwięźle, rzeczowo, bez clickbaitu i bez długich myślników.",
-    messages: [
-      {
-        role: "user",
-        content: `DZIŚ JEST ${today}. Poszukaj najważniejszych, NAJŚWIEŻSZYCH newsów w temacie:
+  const diag: CategoryDiag = { category, pass };
+  diags.push(diag);
+
+  let response;
+  try {
+    response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      // Generous budget: the model narrates between web searches, so a tight
+      // limit truncated the JSON mid-array and the whole category was silently
+      // dropped (parse error -> empty feed).
+      max_tokens: 8000,
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
+      system:
+        "Jesteś researcherem newsów dla polskiej agencji marketingowej (patoagencja). Piszesz po polsku, zwięźle, rzeczowo, bez clickbaitu i bez długich myślników.",
+      messages: [
+        {
+          role: "user",
+          content: `DZIŚ JEST ${today}. Poszukaj najważniejszych, NAJŚWIEŻSZYCH newsów w temacie:
 
 ${brief}
 
@@ -79,46 +136,53 @@ ${brief}
 
 Zwróć ${MIN_PER_CATEGORY}-${MAX_PER_CATEGORY} newsów. Dla każdego: data publikacji, rzeczowy tytuł PO POLSKU (max 90 znaków), 2-3 zdania podsumowania PO POLSKU (co się stało i CO TO ZNACZY dla agencji reklamowej), nazwa źródła i URL.${avoid}
 
-Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
+WAŻNE: gdy skończysz wyszukiwać, napisz WYŁĄCZNIE tablicę JSON i nic poza nią (bez markdown, bez komentarza przed ani po):
 [{"published":"yyyy-mm-dd","title":"...","summary":"...","source_name":"...","source_url":"https://..."}]`,
-      },
-    ],
-  });
+        },
+      ],
+    });
+  } catch (err) {
+    diag.error = err instanceof Error ? err.message : String(err);
+    console.error("[news] category call failed", category, pass, diag.error);
+    return [];
+  }
 
   const text = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n");
 
-  const jsonStart = text.indexOf("[");
-  const jsonEnd = text.lastIndexOf("]");
-  if (jsonStart === -1 || jsonEnd === -1) return [];
+  diag.stop_reason = response.stop_reason;
+  diag.text_len = text.length;
 
-  try {
-    const parsed = JSON.parse(text.slice(jsonStart, jsonEnd + 1)) as Array<
-      Record<string, unknown>
-    >;
-    return parsed
-      .filter((i) => i && typeof i.title === "string" && typeof i.summary === "string")
-      // Freshness gate: publish date must be within the requested window.
-      .filter((i) => {
-        const pub = typeof i.published === "string" ? i.published.slice(0, 10) : "";
-        return /^\d{4}-\d{2}-\d{2}$/.test(pub) && pub >= freshCutoff && pub <= today;
-      })
-      .map((i) => ({
-        category,
-        title: String(i.title).replace(/[–—]/g, "-").slice(0, 200),
-        summary: String(i.summary).replace(/[–—]/g, "-").slice(0, 1000),
-        source_name: i.source_name ? String(i.source_name).slice(0, 120) : null,
-        source_url:
-          typeof i.source_url === "string" && /^https?:\/\//.test(i.source_url)
-            ? i.source_url.slice(0, 500)
-            : null,
-      }))
-      .slice(0, MAX_PER_CATEGORY);
-  } catch {
-    return [];
-  }
+  const { parsed, repaired } = parseItemsJson(text);
+  diag.parsed = parsed.length;
+  diag.repaired_json = repaired;
+
+  const withFields = parsed.filter(
+    (i) => i && typeof i.title === "string" && typeof i.summary === "string"
+  );
+  // Freshness gate: publish date must be within the requested window.
+  const fresh = withFields.filter((i) => {
+    const pub = typeof i.published === "string" ? i.published.slice(0, 10) : "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(pub) && pub >= freshCutoff && pub <= today;
+  });
+  diag.dropped_stale = withFields.length - fresh.length;
+
+  const items = fresh
+    .map((i) => ({
+      category,
+      title: String(i.title).replace(/[–—]/g, "-").slice(0, 200),
+      summary: String(i.summary).replace(/[–—]/g, "-").slice(0, 1000),
+      source_name: i.source_name ? String(i.source_name).slice(0, 120) : null,
+      source_url:
+        typeof i.source_url === "string" && /^https?:\/\//.test(i.source_url)
+          ? i.source_url.slice(0, 500)
+          : null,
+    }))
+    .slice(0, MAX_PER_CATEGORY);
+  diag.kept = items.length;
+  return items;
 }
 
 /** Merge two item lists, dropping duplicates by normalized title. */
@@ -148,7 +212,8 @@ async function fetchCategoryWithBackfill(
   today: string,
   freshCutoff: string,
   widerCutoff: string,
-  recentTitles: string[]
+  recentTitles: string[],
+  diags: CategoryDiag[]
 ): Promise<NewsItem[]> {
   const fresh = await fetchCategoryNews(
     anthropic,
@@ -156,7 +221,9 @@ async function fetchCategoryWithBackfill(
     brief,
     today,
     freshCutoff,
-    recentTitles
+    recentTitles,
+    "fresh",
+    diags
   );
   if (fresh.length >= MIN_PER_CATEGORY) return fresh.slice(0, MAX_PER_CATEGORY);
 
@@ -167,7 +234,9 @@ async function fetchCategoryWithBackfill(
     today,
     widerCutoff,
     // Avoid repeating what the fresh pass already returned.
-    [...recentTitles, ...fresh.map((i) => i.title)]
+    [...recentTitles, ...fresh.map((i) => i.title)],
+    "backfill",
+    diags
   );
   return mergeUnique(fresh, backfill).slice(0, MAX_PER_CATEGORY);
 }
@@ -178,7 +247,15 @@ async function fetchCategoryWithBackfill(
  * covered on previous days. One failed category doesn't sink the rest.
  */
 export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]> {
-  if (!process.env.ANTHROPIC_API_KEY) return [];
+  return (await fetchDailyNewsWithDiag(recentTitles)).items;
+}
+
+/** Same sweep, but also returns per-category diagnostics for /api/debug/news. */
+export async function fetchDailyNewsWithDiag(
+  recentTitles: string[]
+): Promise<{ items: NewsItem[]; diags: CategoryDiag[] }> {
+  const diags: CategoryDiag[] = [];
+  if (!process.env.ANTHROPIC_API_KEY) return { items: [], diags };
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
@@ -202,15 +279,24 @@ export async function fetchDailyNews(recentTitles: string[]): Promise<NewsItem[]
         today,
         freshCutoff,
         widerCutoff,
-        recentTitles
+        recentTitles,
+        diags
       )
     )
   );
 
-  return results
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error("[news] category rejected", r.reason);
+    }
+  }
+
+  const items = results
     .filter(
       (r): r is PromiseFulfilledResult<NewsItem[]> => r.status === "fulfilled"
     )
     .flatMap((r) => r.value)
     .slice(0, MAX_PER_CATEGORY * CATEGORY_BRIEFS.length);
+
+  return { items, diags };
 }

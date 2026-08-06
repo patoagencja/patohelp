@@ -2,7 +2,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
-import { fetchDailyNews } from "@/lib/news/fetch";
+import { fetchDailyNewsWithDiag } from "@/lib/news/fetch";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Diagnostic for the Newsy feed: runs each step of the refresh inline and
@@ -39,8 +39,12 @@ export async function GET(request: Request) {
 
   // 2. Fetch from Claude + web search.
   try {
-    const items = await fetchDailyNews([]);
+    const { items, diags } = await fetchDailyNewsWithDiag([]);
     diag.fetched_items = items.length;
+    // Per-category breakdown: stop_reason, parsed count, how many were dropped
+    // by the freshness gate, and any API error - so an empty feed names its
+    // own cause instead of "0 items".
+    diag.per_category = diags;
     diag.sample = items.slice(0, 3).map((i) => ({
       category: i.category,
       title: i.title,
@@ -48,8 +52,16 @@ export async function GET(request: Request) {
     }));
 
     if (items.length === 0) {
-      diag.verdict =
-        "Claude zwrócił 0 świeżych newsów (albo wszystko odpadło na filtrze świeżości / JSON się nie sparsował).";
+      const errs = diags.filter((d) => d.error).map((d) => `${d.category}: ${d.error}`);
+      const stale = diags.reduce((a, d) => a + (d.dropped_stale ?? 0), 0);
+      const trunc = diags.some((d) => d.stop_reason === "max_tokens");
+      diag.verdict = errs.length
+        ? `Wywołania Claude padły -> ${errs.join(" | ")}`
+        : trunc
+          ? "Odpowiedź ucięta na max_tokens - JSON niekompletny."
+          : stale > 0
+            ? `Wszystkie ${stale} newsów odpadło na filtrze świeżości (model podał stare daty).`
+            : "Claude nie zwrócił żadnych pozycji (parsed=0) - zobacz per_category.";
       return NextResponse.json(diag);
     }
 
