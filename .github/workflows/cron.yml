@@ -20,13 +20,20 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch: {}      # manual "Run workflow" button
 
-concurrency:
-  group: patohelp-cron
-  cancel-in-progress: false
+# No concurrency group on purpose. With one, a tick that arrived while another
+# run was still going got QUEUED and then cancelled by the next tick - the
+# "All jobs were cancelled" failure alerts. timeout-minutes (12) is far below
+# the 30-minute cadence, so runs cannot overlap in practice, and every endpoint
+# is idempotent even if they did.
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # Hard cap well under the 30-minute cadence. Without it a hanging endpoint
+    # (curl -m 300, retried) burned 10+ minutes, runs started overlapping the
+    # schedule, and the concurrency group then CANCELLED the queued run -
+    # the "All jobs were cancelled" notifications.
+    timeout-minutes: 12
     env:
       APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -37,15 +44,17 @@ jobs:
             echo "CRON_SECRET repo secret is missing"; exit 1
           fi
 
-      - name: Sync all (ads, ga4, creatives, demographics, alerts, news, summary)
+      # Fast, idempotent data pulls. These must stay green - a failure here
+      # means the dashboard is going stale, so it turns the run red.
+      - name: Data sync (ads, ga4, creatives, demographics, alerts)
         run: |
           failed=""
           for job in refresh-ads-meta refresh-ads-google refresh-ads-tiktok \
                      refresh-ga4 refresh-creatives-meta refresh-demographics \
-                     evaluate-alerts notify-alerts refresh-news generate-summary; do
+                     evaluate-alerts notify-alerts; do
             ok=""
             for attempt in 1 2; do
-              code=$(curl -sS -m 300 -o /tmp/body -w "%{http_code}" \
+              code=$(curl -sS -m 90 -o /tmp/body -w "%{http_code}" \
                 -H "Authorization: Bearer $CRON_SECRET" \
                 "$APP_URL/api/cron/$job" || echo "000")
               echo "-> $job (attempt $attempt): HTTP $code"
@@ -56,6 +65,24 @@ jobs:
             if [ -z "$ok" ]; then failed="$failed $job"; fi
           done
           if [ -n "$failed" ]; then
-            echo "::error::Cron jobs failed after retry:$failed"
+            echo "::error::Data sync failed:$failed"
             exit 1
           fi
+
+      # AI jobs: slower (Claude + web search) and self-healing - each tick fills
+      # the next missing news category and the summary is once per client per
+      # day. A miss here is retried 30 minutes later, so it warns instead of
+      # failing the run. No retry: a second call would double the wall time.
+      - name: AI jobs (news, summary) - best effort
+        if: always()
+        run: |
+          for job in refresh-news generate-summary; do
+            code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$APP_URL/api/cron/$job" || echo "000")
+            echo "-> $job: HTTP $code"
+            echo "   body: $(head -c 400 /tmp/body 2>/dev/null)"
+            if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+              echo "::warning::$job returned HTTP $code (retried next tick)"
+            fi
+          done
