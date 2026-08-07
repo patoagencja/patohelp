@@ -121,8 +121,11 @@ async function fetchCategoryNews(
       // Generous budget: the model narrates between web searches, so a tight
       // limit truncated the JSON mid-array and the whole category was silently
       // dropped (parse error -> empty feed).
-      max_tokens: 8000,
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
+      max_tokens: 5000,
+      // Few searches on purpose: every extra one adds seconds, and the whole
+      // request has to finish inside the serverless limit or it is killed
+      // mid-flight (the UI then spins forever with no error).
+      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }],
       system:
         "Jesteś researcherem newsów dla polskiej agencji marketingowej (patoagencja). Piszesz po polsku, zwięźle, rzeczowo, bez clickbaitu i bez długich myślników.",
       messages: [

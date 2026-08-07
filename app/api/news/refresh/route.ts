@@ -73,9 +73,12 @@ export async function POST(request: Request) {
   let items;
   let diags;
   try {
+    // No backfill pass here: the user is watching a spinner, so this must be a
+    // single Claude call. The cron does the wider top-up unattended.
     ({ items, diags } = await fetchOneCategory(
       target,
-      (recent ?? []).map((r) => r.title as string)
+      (recent ?? []).map((r) => r.title as string),
+      { backfill: false }
     ));
   } catch (err) {
     return NextResponse.json({

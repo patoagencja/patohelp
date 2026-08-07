@@ -14,18 +14,29 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
 
   async function refresh() {
     setLoading(true);
-    toast.loading("Szukam świeżych newsów (1-2 min)…", { id: "news" });
+    toast.loading("Szukam świeżych newsów (ok. 1 min)…", { id: "news" });
     try {
+      // Hard client-side cap: if the serverless function is killed mid-flight
+      // the response never arrives, and without this the spinner hangs forever.
       const res = await fetch(`/api/news/refresh?client=${clientSlug}`, {
         method: "POST",
+        signal: AbortSignal.timeout(150_000),
       });
       const body = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         count?: number;
+        category?: string;
+        remaining?: string[];
         error?: string;
       };
       if (body.ok) {
-        toast.success(`Pobrano ${body.count} newsów`, { id: "news" });
+        const left = body.remaining?.length
+          ? ` Zostało: ${body.remaining.join(", ")} - kliknij ponownie.`
+          : "";
+        toast.success(
+          `Pobrano ${body.count} newsów (${body.category}).${left}`,
+          { id: "news", duration: 8000 }
+        );
         router.refresh();
       } else {
         toast.error(body.error ?? `Błąd ${res.status}`, {
@@ -33,11 +44,14 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
           duration: 15000,
         });
       }
-    } catch {
-      toast.error("Nie udało się połączyć z serwerem (timeout?)", {
-        id: "news",
-        duration: 10000,
-      });
+    } catch (err) {
+      const timedOut = err instanceof Error && err.name === "TimeoutError";
+      toast.error(
+        timedOut
+          ? "Research trwał za długo i został przerwany. Spróbuj ponownie - cron też dobija newsy co 30 min."
+          : "Nie udało się połączyć z serwerem.",
+        { id: "news", duration: 10000 }
+      );
     } finally {
       setLoading(false);
     }
