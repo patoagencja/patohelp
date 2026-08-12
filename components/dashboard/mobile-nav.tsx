@@ -13,7 +13,6 @@ import {
   Newspaper,
   Settings,
   ShoppingBag,
-  Sparkles,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -43,7 +42,6 @@ export function MobileNav({
     { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
     { href: `${base}/raport`, label: "Raport", icon: FileText },
     { href: `${base}/newsy`, label: "Newsy", icon: Newspaper },
-    { href: `${base}/asystent`, label: "Asystent", icon: Sparkles },
     ...(isAgency
       ? [
           { href: `${base}/settings`, label: "Ustawienia", icon: Settings },
