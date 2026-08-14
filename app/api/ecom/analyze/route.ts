@@ -22,6 +22,32 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const cid = access.clientId;
+  const force = new URL(request.url).searchParams.get("force") === "1";
+
+  // Cost guard: this call does real web search + Sonnet, so a re-click (agency
+  // checking back, or just curiosity) must not silently re-bill. One real
+  // generation per client per ~20h; ?force=1 bypasses for when it's genuinely
+  // needed sooner (e.g. right after a data fix).
+  if (!force) {
+    const { data: recent } = await admin
+      .from("ecom_analyses")
+      .select("content, generated_at")
+      .eq("client_id", cid)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recent?.generated_at) {
+      const ageMs = Date.now() - new Date(recent.generated_at as string).getTime();
+      if (ageMs < 20 * 60 * 60 * 1000) {
+        return NextResponse.json({
+          ok: true,
+          analysis: recent.content,
+          cached: true,
+          generated_at: recent.generated_at,
+        });
+      }
+    }
+  }
 
   const { data: client } = await admin
     .from("clients")

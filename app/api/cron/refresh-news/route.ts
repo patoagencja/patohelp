@@ -70,7 +70,14 @@ export async function GET(request: Request) {
     .limit(40);
   const recentTitles = (recent ?? []).map((r) => r.title as string);
 
-  const { items, diags } = await fetchOneCategory(target, recentTitles);
+  // No backfill pass here either: this runs unattended every 30 min with no
+  // human watching the cost. A thin category some day (fewer than 4 fresh
+  // items) is fine - it is NOT worth silently doubling the Claude spend on an
+  // automated path. Use ?category= manually if a category genuinely needs the
+  // wider sweep.
+  const { items, diags } = await fetchOneCategory(target, recentTitles, {
+    backfill: false,
+  });
 
   if (items.length === 0) {
     return NextResponse.json({
