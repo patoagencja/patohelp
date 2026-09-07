@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { AutoSync } from "@/components/dashboard/auto-sync";
 import { clientLogo } from "@/components/dashboard/client-logo";
+import { IntegrationHealthBanner } from "@/components/dashboard/integration-health-banner";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
@@ -135,7 +136,15 @@ export default async function ClientDashboardLayout({
           isEcommerce={isEcommerce}
         />
 
-        <main className="flex-1">{children}</main>
+        <main className="flex-1">
+          {client ? (
+            <IntegrationHealthBanner
+              clientId={client.id}
+              clientSlug={params.clientSlug}
+            />
+          ) : null}
+          {children}
+        </main>
       </div>
 
       <Toaster richColors position="top-right" />
