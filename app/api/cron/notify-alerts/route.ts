@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
+import { getUnhealthyIntegrations } from "@/lib/dashboard/integration-health";
 import {
   buildDigest,
   sendEmail,
@@ -85,6 +86,28 @@ export async function GET(request: Request) {
     ]);
 
     const items: AlertItem[] = [];
+
+    // A dead integration is urgent and self-hiding: the dashboard keeps looking
+    // "LIVE" off the other providers while one source silently stops (SUNEW's
+    // GA4 went unnoticed for 19 days). Critical, so it ignores quiet hours, and
+    // deduped to once per day per provider by the notifications_sent key below.
+    for (const h of await getUnhealthyIntegrations(s.client_id)) {
+      const downFor =
+        h.hoursSinceSuccess === null
+          ? "nigdy się nie zsynchronizowało"
+          : h.hoursSinceSuccess >= 24
+            ? `brak danych od ${Math.floor(h.hoursSinceSuccess / 24)} dni`
+            : `brak danych od ${Math.max(1, Math.round(h.hoursSinceSuccess))} godz.`;
+      items.push({
+        key: `integration-down-${h.provider}`,
+        title: `${h.label} nie dostarcza danych`,
+        detail: h.tokenExpired
+          ? `${downFor}. Token wygasł - rozłącz i połącz ponownie w Ustawieniach.`
+          : `${downFor}.${h.lastError ? ` Błąd: ${h.lastError}` : ""}`,
+        scope: "Integracje",
+        critical: true,
+      });
+    }
 
     // Single-day blowouts (critical) always fire, even outside the window.
     // Weekly elevated-spend (high) is a slower signal - respect the window.

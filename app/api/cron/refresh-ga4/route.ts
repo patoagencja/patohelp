@@ -67,7 +67,21 @@ export async function GET(request: Request) {
 
   for (const integration of integrations ?? []) {
     const propertyId = (integration.account_ids as Ga4AccountIds)?.propertyId;
-    if (!propertyId) continue;
+    if (!propertyId) {
+      // GA4 is connected but no property was picked (the reconnect flow sends
+      // you to a picker when the account has several). Silently skipping here
+      // meant NO sync_run was written at all, so the health banner kept showing
+      // the previous, now-wrong error and the client just never synced again.
+      await admin.from("sync_runs").insert({
+        client_id: integration.client_id,
+        provider: "ga4",
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_message:
+          "GA4 połączone, ale nie wybrano property - dokończ wybór w Ustawieniach.",
+      });
+      continue;
+    }
 
     const { data: run } = await admin
       .from("sync_runs")
