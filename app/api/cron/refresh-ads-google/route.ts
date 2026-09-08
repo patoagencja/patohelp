@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
+import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import { getCampaignMetrics } from "@/lib/integrations/google-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -160,11 +161,12 @@ export async function GET(request: Request) {
       await admin
         .from("sync_runs")
         .update({
-          status: "success",
+          ...resolveSyncOutcome({
+            accountsSelected: accounts.length,
+            rowsWritten: rows.length,
+            accountErrors,
+          }),
           finished_at: new Date().toISOString(),
-          error_message: accountErrors.length
-            ? accountErrors.slice(0, 5).join(" | ")
-            : null,
         })
         .eq("id", run?.id);
       integrationsProcessed += 1;

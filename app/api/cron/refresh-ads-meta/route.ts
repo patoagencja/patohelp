@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
+import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import {
   extractConversions,
   getCampaignInsights,
@@ -140,6 +141,9 @@ export async function GET(request: Request) {
       ).filter((a) => a.selected === true);
 
       const accountErrors: string[] = [];
+      // Per-integration count: campaignsUpserted spans every client, so it
+      // can't tell us whether THIS client actually received any data.
+      let writtenForClient = 0;
 
       // Isolate each ad account so one disabled/error account doesn't sink all.
       for (const account of accounts) {
@@ -188,6 +192,7 @@ export async function GET(request: Request) {
                 .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
               if (error) throw new Error(error.message);
               campaignsUpserted += dayRows.length;
+              writtenForClient += dayRows.length;
             }
           }
         } catch (accErr) {
@@ -203,11 +208,12 @@ export async function GET(request: Request) {
       await admin
         .from("sync_runs")
         .update({
-          status: "success",
+          ...resolveSyncOutcome({
+            accountsSelected: accounts.length,
+            rowsWritten: writtenForClient,
+            accountErrors,
+          }),
           finished_at: new Date().toISOString(),
-          error_message: accountErrors.length
-            ? accountErrors.slice(0, 5).join(" | ")
-            : null,
         })
         .eq("id", run?.id);
       integrationsProcessed += 1;
