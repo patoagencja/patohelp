@@ -51,8 +51,14 @@ export async function GET(request: Request) {
   }
   const done = new Set((todayRows ?? []).map((r) => r.category as string));
 
+  // Rotate through the MISSING categories instead of always taking the first
+  // one. Picking `find(...)` meant a category that keeps coming back empty was
+  // retried on every tick forever and the ones after it in the list were never
+  // attempted at all - which is why the feed only ever had Meta items.
+  const missing = NEWS_CATEGORIES.filter((c) => !done.has(c));
+  const slot = Math.floor(Date.now() / (30 * 60 * 1000)); // advances each tick
   const target =
-    only ?? NEWS_CATEGORIES.find((c) => !done.has(c)) ?? null;
+    only ?? (missing.length ? missing[slot % missing.length] : null);
   if (!target) {
     return NextResponse.json({
       ok: true,

@@ -56,6 +56,9 @@ export interface CategoryDiag {
   dropped_stale?: number;
   kept?: number;
   repaired_json?: boolean;
+  /** Every item failed the date gate, so the gate was ignored to avoid an
+   *  empty category (which would otherwise be retried forever). */
+  date_gate_bypassed?: boolean;
   error?: string;
 }
 
@@ -172,7 +175,14 @@ WAŻNE: gdy skończysz wyszukiwać, napisz WYŁĄCZNIE tablicę JSON i nic poza 
   });
   diag.dropped_stale = withFields.length - fresh.length;
 
-  const items = fresh
+  // If the gate rejected EVERYTHING (unparseable or slightly older dates), keep
+  // what the model actually found rather than leaving the category empty. An
+  // empty category is retried forever and the tab just stays blank; a story a
+  // few days past the cutoff is still worth showing.
+  const usable = fresh.length > 0 ? fresh : withFields;
+  diag.date_gate_bypassed = fresh.length === 0 && withFields.length > 0;
+
+  const items = usable
     .map((i) => ({
       category,
       title: String(i.title).replace(/[–—]/g, "-").slice(0, 200),

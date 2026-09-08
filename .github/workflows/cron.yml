@@ -69,12 +69,28 @@ jobs:
             exit 1
           fi
 
-      # AI jobs: slower (Claude + web search) and self-healing - each tick fills
-      # the next missing news category and the summary is once per client per
-      # day. A miss here is retried 30 minutes later, so it warns instead of
-      # failing the run. No retry: a second call would double the wall time.
+  # SEPARATE JOB on purpose. These used to be a final step of `sync`, where a
+  # slow data sync (8 endpoints x up to 90s x 2 attempts = up to 24 min) could
+  # blow the 12-minute job timeout and kill the run BEFORE news ever ran - which
+  # is why the feed filled only every few days. Running in parallel means data
+  # sync can never starve them.
+  ai:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Guard - secret present
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET repo secret is missing"; exit 1
+          fi
+
+      # Self-healing: each tick fills the next missing news category, and the
+      # summary is once per client per day. A miss is retried 30 minutes later,
+      # so this warns instead of failing. No retry - it would double wall time.
       - name: AI jobs (news, summary) - best effort
-        if: always()
         run: |
           for job in refresh-news generate-summary; do
             code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
