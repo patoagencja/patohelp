@@ -24,17 +24,29 @@ function attempt(h: ProviderHealth): string | null {
   return `ostatnia próba ${Math.round(h.hoursSinceAttempt)} godz. temu`;
 }
 
+/** Providers we can re-authorise straight from here in one click. */
+const RECONNECT_PATH: Partial<Record<ProviderHealth["provider"], string>> = {
+  ga4: "/api/integrations/ga4/connect",
+  google_ads: "/api/integrations/google-ads/connect",
+  meta_ads: "/api/integrations/meta/connect",
+  tiktok_ads: "/api/integrations/tiktok/connect",
+};
+
 function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
-  if (h.tokenExpired) {
+  const reconnect = RECONNECT_PATH[h.provider];
+
+  // Reconnecting overwrites the stored credentials, so there is no need to
+  // disconnect first - link straight at the OAuth flow.
+  if (h.tokenExpired && reconnect) {
     return (
       <>
         token wygasł -{" "}
-        <Link
-          href={`/${clientSlug}/settings`}
+        <a
+          href={`${reconnect}?client=${clientSlug}`}
           className="font-medium underline underline-offset-2"
         >
-          rozłącz i połącz ponownie w Ustawieniach
-        </Link>
+          połącz ponownie jednym kliknięciem
+        </a>
         .
       </>
     );
@@ -48,6 +60,18 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
       >
         Ustawieniach
       </Link>
+      {reconnect ? (
+        <>
+          {" "}
+          lub{" "}
+          <a
+            href={`${reconnect}?client=${clientSlug}`}
+            className="font-medium underline underline-offset-2"
+          >
+            połącz ponownie
+          </a>
+        </>
+      ) : null}
       .
     </>
   );

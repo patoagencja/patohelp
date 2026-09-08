@@ -47,7 +47,27 @@ export async function GET(request: Request) {
     const { refresh_token } = await exchangeCodeForTokens(code);
     const properties = await listAccessibleProperties(refresh_token);
 
-    const autoProperty = properties.length === 1 ? properties[0].propertyId : null;
+    // Keep the property that was already chosen. Overwriting account_ids
+    // unconditionally meant every reconnect wiped the selection whenever the
+    // account has more than one property - and since the cron skips a client
+    // with no propertyId, a routine "token expired -> reconnect" silently
+    // switched the sync off until someone noticed weeks later.
+    const { data: existing } = await admin
+      .from("integrations")
+      .select("account_ids")
+      .eq("client_id", consumed.clientId)
+      .eq("provider", "ga4")
+      .maybeSingle();
+    const previousProperty = (
+      existing?.account_ids as { propertyId?: string | null } | null
+    )?.propertyId;
+    const stillAccessible =
+      previousProperty && properties.some((p) => p.propertyId === previousProperty)
+        ? previousProperty
+        : null;
+
+    const autoProperty =
+      stillAccessible ?? (properties.length === 1 ? properties[0].propertyId : null);
 
     await upsertIntegration(
       admin,
