@@ -14,6 +14,16 @@ function since(h: ProviderHealth): string {
   return `brak danych od ${hours} godz.`;
 }
 
+/** When the last attempt happened - "failing now" vs "nothing even tried". */
+function attempt(h: ProviderHealth): string | null {
+  if (h.hoursSinceAttempt === null) return null;
+  if (h.hoursSinceAttempt < 1.5) return "ostatnia próba przed chwilą";
+  const days = Math.floor(h.hoursSinceAttempt / 24);
+  if (days >= 1)
+    return `ostatnia próba ${days} ${days === 1 ? "dzień" : "dni"} temu`;
+  return `ostatnia próba ${Math.round(h.hoursSinceAttempt)} godz. temu`;
+}
+
 function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
   if (h.tokenExpired) {
     return (
@@ -72,8 +82,8 @@ export async function IntegrationHealthBanner({
           <ul className="mt-1 space-y-0.5 text-amber-800 dark:text-amber-300/90">
             {unhealthy.map((h) => (
               <li key={h.provider}>
-                <span className="font-medium">{h.label}</span>: {since(h)},{" "}
-                {advice(h, clientSlug)}
+                <span className="font-medium">{h.label}</span>: {since(h)}
+                {attempt(h) ? ` (${attempt(h)})` : ""}, {advice(h, clientSlug)}
               </li>
             ))}
           </ul>
