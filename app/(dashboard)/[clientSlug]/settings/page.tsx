@@ -193,6 +193,18 @@ async function saveNotificationSettings(formData: FormData) {
     { onConflict: "client_id" }
   );
 
+  // Separate write on purpose: the weekly-digest columns arrive with migration
+  // 0022, and folding them into the upsert above would make the whole save
+  // fail before it's applied. The row exists now, so a failure here (missing
+  // column) only drops the digest toggle.
+  await admin
+    .from("notification_settings")
+    .update({
+      weekly_digest_enabled: formData.get("weekly_digest_enabled") === "on",
+      weekly_digest_emails: parseList(formData.get("weekly_digest_emails")),
+    })
+    .eq("client_id", access.clientId);
+
   revalidatePath(`/${clientSlug}/settings`);
   redirect(`/${clientSlug}/settings?saved=notifications`);
 }
@@ -223,6 +235,19 @@ export default async function SettingsPage({
     )
     .eq("client_id", access.clientId)
     .maybeSingle();
+
+  // Read apart from the main settings so a missing 0022 migration can't blank
+  // out the alert form; an error just hides the digest toggle.
+  const digestRes = await createAdminClient()
+    .from("notification_settings")
+    .select("weekly_digest_enabled, weekly_digest_emails")
+    .eq("client_id", access.clientId)
+    .maybeSingle();
+  const digestAvailable = !digestRes.error;
+  const digest = (digestRes.data ?? null) as {
+    weekly_digest_enabled?: boolean;
+    weekly_digest_emails?: string[] | null;
+  } | null;
 
   const byProvider = new Map(
     (integrations ?? []).map((row) => [row.provider as string, row])
@@ -543,6 +568,38 @@ export default async function SettingsPage({
                   pobierz chat ID (np. przez @userinfobot). Wymaga
                   TELEGRAM_BOT_TOKEN na serwerze.
                 </p>
+              </div>
+
+              {/* Weekly digest e-mail */}
+              <div className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    name="weekly_digest_enabled"
+                    defaultChecked={digest?.weekly_digest_enabled ?? false}
+                    disabled={!digestAvailable}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  Wysyłaj co poniedziałek podsumowanie tygodnia
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  E-mail „Twój tydzień w skrócie” w poniedziałek rano: najważniejsze
+                  liczby z poprzedniego tygodnia prostym językiem, dobre wiadomości,
+                  rekordy i przycisk do panelu.
+                </p>
+                <textarea
+                  name="weekly_digest_emails"
+                  rows={2}
+                  disabled={!digestAvailable}
+                  placeholder="odbiorcy podsumowania (puste = adresy z pola E-mail powyżej)"
+                  defaultValue={(digest?.weekly_digest_emails ?? []).join(", ")}
+                  className="rounded-md border border-input bg-background p-2 text-sm"
+                />
+                {!digestAvailable ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Wymaga migracji 0022_weekly_digest.sql w Supabase.
+                  </p>
+                ) : null}
               </div>
 
               {/* Window + severity */}

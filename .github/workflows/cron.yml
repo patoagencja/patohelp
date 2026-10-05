@@ -90,9 +90,11 @@ jobs:
       # Self-healing: each tick fills the next missing news category, and the
       # summary is once per client per day. A miss is retried 30 minutes later,
       # so this warns instead of failing. No retry - it would double wall time.
-      - name: AI jobs (news, summary) - best effort
+      # weekly-digest self-gates to Monday 8-11 Warsaw and dedupes per ISO week,
+      # so every other tick is a cheap no-op (and it uses no AI at all).
+      - name: AI jobs (news, summary) + weekly digest - best effort
         run: |
-          for job in refresh-news generate-summary; do
+          for job in refresh-news generate-summary weekly-digest; do
             code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
               -H "Authorization: Bearer $CRON_SECRET" \
               "$APP_URL/api/cron/$job" || echo "000")
