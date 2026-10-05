@@ -11,7 +11,8 @@ import {
   type Lang,
   type Verdict,
 } from "@/lib/dashboard/creatives";
-import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
+import { cn, formatMoneyPLN,
+  formatPlnWhole, formatPercent } from "@/lib/utils";
 
 const VERDICT_TONE: Record<Verdict, string> = {
   better: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -77,7 +78,7 @@ export function GalleryCard({
   const reason = score.verdict === "unknown" ? "" : verdictReason(score, lang);
 
   const stats = [
-    { label: en ? "Spend" : "Wydatki", value: formatMoneyPLN(c.spend), cls: "" },
+    { label: en ? "Spend" : "Wydatki", value: formatPlnWhole(c.spend), cls: "" },
     {
       label: en ? "Click rate" : "Klikalność",
       value: ctr != null ? formatPercent(ctr, 1) : "-",

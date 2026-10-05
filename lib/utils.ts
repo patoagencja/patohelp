@@ -10,23 +10,29 @@ export function cn(...inputs: ClassValue[]) {
 
 const WARSAW_TZ = "Europe/Warsaw";
 
-const PLN_FORMATTER = new Intl.NumberFormat("pl-PL", {
-  style: "currency",
-  currency: "PLN",
-});
+// pl-PL leaves 4-digit numbers ungrouped ("9868" next to "43 443"), which
+// reads as inconsistent on one screen; group every thousand, with a
+// non-breaking space so amounts never wrap mid-number.
+function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+}
 
 /**
  * Format a money amount stored as bigint minor units (grosze) into a PLN
  * string. All money in the DB is minor units - divide by 100 for display only.
  */
 export function formatMoneyPLN(minorUnits: number | bigint): string {
-  const major = Number(minorUnits) / 100;
-  return PLN_FORMATTER.format(major);
+  const minor = Math.round(Number(minorUnits));
+  const sign = minor < 0 ? "-" : "";
+  const abs = Math.abs(minor);
+  const zl = Math.floor(abs / 100);
+  const gr = String(abs % 100).padStart(2, "0");
+  return `${sign}${groupThousands(String(zl))},${gr}\u00a0zł`;
 }
 
 /** Whole-złoty PLN for headline figures (grosze in, "272 800 zł" out). */
 export function formatPlnWhole(minorUnits: number): string {
-  return `${Math.round(minorUnits / 100).toLocaleString("pl-PL")} zł`;
+  return `${formatNumberPL(minorUnits / 100)}\u00a0zł`;
 }
 
 /** Ratio like ROAS/POAS with a Polish decimal comma: 4.256 -> "4,26×". */
@@ -43,11 +49,10 @@ export function formatSignedPct(ratio: number): string {
   return `${v > 0 ? "+" : ""}${v}%`;
 }
 
-const NUMBER_FORMATTER = new Intl.NumberFormat("pl-PL");
-
-/** Format an integer-ish number with Polish grouping (e.g. 12 345). */
+/** Format an integer-ish number with Polish grouping (e.g. 1 234, 12 345). */
 export function formatNumberPL(value: number): string {
-  return NUMBER_FORMATTER.format(Math.round(value));
+  const r = Math.round(value);
+  return `${r < 0 ? "-" : ""}${groupThousands(String(Math.abs(r)))}`;
 }
 
 /** Format a percentage value (already in percent units), e.g. 2.4 -> "2,40%". */

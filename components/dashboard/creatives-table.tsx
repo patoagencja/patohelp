@@ -10,7 +10,8 @@ import {
   type CreativeItem,
   type CreativeScore,
 } from "@/lib/dashboard/creatives";
-import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import { cn, formatMoneyPLN,
+  formatPlnWhole, formatNumberPL, formatPercent } from "@/lib/utils";
 
 // Re-exported so existing imports (demo data, pages) keep working.
 export type { CreativeItem } from "@/lib/dashboard/creatives";
@@ -92,7 +93,7 @@ export function CreativeModal({
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {[
-              { label: en ? "Spend" : "Wydatki", value: formatMoneyPLN(c.spend) },
+              { label: en ? "Spend" : "Wydatki", value: formatPlnWhole(c.spend) },
               { label: en ? "Views" : "Wyświetlenia", value: formatNumberPL(c.impressions) },
               { label: en ? "Clicks" : "Kliknięcia", value: formatNumberPL(c.clicks) },
               {
@@ -227,7 +228,7 @@ export function CreativesTable({
                   </div>
                 </td>
                 <td className="py-2 pr-3 text-right text-sm tabular-nums">
-                  {formatMoneyPLN(c.spend)}
+                  {formatPlnWhole(c.spend)}
                 </td>
                 <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
                   {formatNumberPL(c.impressions)}

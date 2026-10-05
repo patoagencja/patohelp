@@ -14,7 +14,8 @@ import {
   type Lang,
   type PodiumEntry,
 } from "@/lib/dashboard/creatives";
-import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import { cn, formatMoneyPLN,
+  formatPlnWhole, formatNumberPL, formatPercent } from "@/lib/utils";
 
 const AWARD_ICON: Record<AwardKind, typeof Eye> = {
   ctr: MousePointerClick,
@@ -148,7 +149,7 @@ export function CreativesPodium({
                 </div>
               ) : null}
               <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border pt-2">
-                <MiniStat label={en ? "Spend" : "Wydatki"} value={formatMoneyPLN(c.spend)} />
+                <MiniStat label={en ? "Spend" : "Wydatki"} value={formatPlnWhole(c.spend)} />
                 <MiniStat
                   label={en ? "Click rate" : "Klikalność"}
                   value={ctr != null ? formatPercent(ctr, 1) : "-"}

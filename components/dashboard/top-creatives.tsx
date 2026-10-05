@@ -1,7 +1,7 @@
 import { Card, Grid, Text, Title } from "@tremor/react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
-import { formatMoneyPLN, formatPercent } from "@/lib/utils";
+import { formatMoneyPLN, formatPlnWhole, formatPercent } from "@/lib/utils";
 
 export interface CreativeRow {
   adId: string;
@@ -53,7 +53,7 @@ export function TopCreatives({
                   {c.adName}
                 </p>
                 <Text className="text-xs">
-                  {en ? "Spend" : "Wydatki"}: {formatMoneyPLN(c.spendMinorUnits)}
+                  {en ? "Spend" : "Wydatki"}: {formatPlnWhole(c.spendMinorUnits)}
                 </Text>
                 <Text className="text-xs">
                   {en ? "Click rate" : "Klikalność"}:{" "}
