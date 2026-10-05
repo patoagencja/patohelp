@@ -1,3 +1,4 @@
+import { Audience } from "@/components/dashboard/website/audience";
 import { Devices } from "@/components/dashboard/website/devices";
 import { EngagementMetrics } from "@/components/dashboard/website/engagement-metrics";
 import { NewVsReturning } from "@/components/dashboard/website/new-vs-returning";
@@ -40,6 +41,35 @@ export default function DemoFullWitryna({
         <TopPages pages={w.topPages} lang={lang} />
         <NewVsReturning data={w.newVsReturning} lang={lang} />
       </div>
+      {en ? null : (
+        <Audience
+          data={{
+            hasData: true,
+            ageSource: "meta",
+            genderSource: "meta",
+            age: [
+              { bucket: "18-24", value: 182_000 },
+              { bucket: "25-34", value: 611_000 },
+              { bucket: "35-44", value: 548_000 },
+              { bucket: "45-54", value: 402_000 },
+              { bucket: "55-64", value: 251_000 },
+              { bucket: "65+", value: 139_000 },
+            ],
+            gender: [
+              { bucket: "female", value: 1_214_000 },
+              { bucket: "male", value: 919_000 },
+            ],
+            geo: [
+              { bucket: "Masovian Voivodeship", value: 9120 },
+              { bucket: "Silesian Voivodeship", value: 5480 },
+              { bucket: "Lesser Poland Voivodeship", value: 4310 },
+              { bucket: "Greater Poland Voivodeship", value: 3920 },
+              { bucket: "Lower Silesian Voivodeship", value: 3150 },
+              { bucket: "Pomeranian Voivodeship", value: 2470 },
+            ],
+          }}
+        />
+      )}
     </>
   );
 }

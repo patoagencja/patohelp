@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ExternalLink, Newspaper } from "lucide-react";
 
@@ -106,15 +107,16 @@ export default async function NewsyPage({
             Newsy - reklama & AI
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Codzienny prasówka: Meta, Google/YouTube, TikTok i AI - mielone
-            automatycznie z sieci.
+            Codzienna prasówka: co nowego w Mecie, Google/YouTube, TikToku i AI -
+            zbierana automatycznie każdego ranka.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg bg-muted p-1">
             {FILTERS.map((f) => (
-              <a
+              <Link
                 key={f.key}
+                scroll={false}
                 href={`/${params.clientSlug}/newsy${f.key === "all" ? "" : `?cat=${f.key}`}`}
                 className={cn(
                   "rounded-md px-3 py-1 text-xs font-medium transition-colors",
@@ -124,7 +126,7 @@ export default async function NewsyPage({
                 )}
               >
                 {f.label}
-              </a>
+              </Link>
             ))}
           </div>
           <NewsRefreshButton clientSlug={params.clientSlug} />

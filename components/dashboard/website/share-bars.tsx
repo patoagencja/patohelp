@@ -30,6 +30,7 @@ export function ShareBars({
   insight,
   rows,
   unit,
+  keepOrder = false,
   className,
 }: {
   title: string;
@@ -37,10 +38,13 @@ export function ShareBars({
   insight?: string | null;
   rows: ShareRow[];
   unit: (n: number) => string;
+  /** Keep the given order (age brackets read better young -> old). */
+  keepOrder?: boolean;
   className?: string;
 }) {
   const total = rows.reduce((a, r) => a + r.value, 0);
-  const sorted = [...rows].filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+  const visible = rows.filter((r) => r.value > 0);
+  const sorted = keepOrder ? visible : [...visible].sort((a, b) => b.value - a.value);
 
   return (
     <Card className={cn("flex flex-col", className)}>

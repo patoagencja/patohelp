@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import { Globe } from "lucide-react";
 
+import { Audience } from "@/components/dashboard/website/audience";
 import { Devices } from "@/components/dashboard/website/devices";
 import { EngagementMetrics } from "@/components/dashboard/website/engagement-metrics";
 import { NewVsReturning } from "@/components/dashboard/website/new-vs-returning";
 import { SessionsTrend } from "@/components/dashboard/website/sessions-trend";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
+import { getDemographics } from "@/lib/dashboard/demographics";
 import { getGa4Status, getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,7 +31,10 @@ export default async function WebsitePage({
     redirect("/login");
   }
 
-  const data = await getWebsiteData(client.id);
+  const [data, demographics] = await Promise.all([
+    getWebsiteData(client.id),
+    getDemographics(client.id),
+  ]);
 
   if (!data.hasData) {
     const status = await getGa4Status(client.id);
@@ -113,6 +118,8 @@ export default async function WebsitePage({
         <TopPages pages={data.topPages} />
         <NewVsReturning data={data.newVsReturning} />
       </div>
+
+      <Audience data={demographics} />
     </div>
   );
 }
