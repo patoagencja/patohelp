@@ -270,7 +270,7 @@ export function buildStory({
     else if (cpcDelta !== null && cpcDelta >= 15)
       watch = `Kliknięcie podrożało o ${Math.round(
         cpcDelta
-      )}% - pracujemy nad obniżeniem kosztu.`;
+      )}% - sprawdzamy, co podbija koszt.`;
   }
 
   return { headline, facts: facts.slice(0, 4), wins: wins.slice(0, 4), watch };

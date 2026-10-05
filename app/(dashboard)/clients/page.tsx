@@ -2,11 +2,26 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { AlertTriangle, ArrowRight, LayoutDashboard, Plus, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  LayoutDashboard,
+  Plug,
+  Plus,
+  Sparkles,
+} from "lucide-react";
 
+import { RECONNECT_PATH } from "@/components/dashboard/integration-health-banner";
 import { Button } from "@/components/ui/button";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
+import {
+  getExpiringTokens,
+  getUnhealthyIntegrations,
+  type ExpiringToken,
+  type ProviderHealth,
+} from "@/lib/dashboard/integration-health";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -126,8 +141,19 @@ export default async function ClientsPage({
   // Live CRITICAL alert count per client (spend spikes + anomalies), in
   // parallel. Only critical severity is surfaced on the picker.
   const alertCounts = new Map<string, number>();
+  // Integration health per client: the one place to see every broken or
+  // soon-to-expire connection across the agency, with a one-click fix.
+  const healthByClient = new Map<
+    string,
+    { down: ProviderHealth[]; expiring: ExpiringToken[] }
+  >();
   await Promise.all(
     clientList.map(async (c) => {
+      const [down, expiring] = await Promise.all([
+        getUnhealthyIntegrations(c.id as string),
+        getExpiringTokens(c.id as string),
+      ]);
+      healthByClient.set(c.id as string, { down, expiring });
       try {
         const [spikes, anomalies] = await Promise.all([
           detectBudgetSpikes(c.id as string),
@@ -145,6 +171,11 @@ export default async function ClientsPage({
 
   const totalYesterday = [...spendByClient.values()].reduce((a, b) => a + b, 0);
   const totalAlerts = [...alertCounts.values()].reduce((a, b) => a + b, 0);
+  const totalBroken = [...healthByClient.values()].reduce((a, h) => a + h.down.length, 0);
+  const totalExpiring = [...healthByClient.values()].reduce(
+    (a, h) => a + h.expiring.length,
+    0
+  );
 
   // A distinct gradient per client tile, cycled by index - the pop of colour
   // that makes the picker feel alive.
@@ -204,7 +235,7 @@ export default async function ClientsPage({
         </div>
 
         {/* Summary strip across all clients */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-3xl border border-border/70 bg-card p-5 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Klienci
@@ -247,6 +278,37 @@ export default async function ClientsPage({
               {totalAlerts}
             </p>
           </div>
+          <div
+            className={cn(
+              "rounded-3xl border p-5 shadow-sm",
+              totalBroken > 0
+                ? "border-amber-500/40 bg-amber-500/5"
+                : "border-border/70 bg-card"
+            )}
+          >
+            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Plug
+                className={cn(
+                  "h-3.5 w-3.5",
+                  totalBroken > 0 ? "text-amber-500" : "text-emerald-500"
+                )}
+              />
+              Połączenia
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-2xl font-bold tabular-nums",
+                totalBroken > 0 && "text-amber-600 dark:text-amber-400"
+              )}
+            >
+              {totalBroken > 0 ? `${totalBroken} do naprawy` : "Wszystkie działają"}
+            </p>
+            {totalExpiring > 0 ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {totalExpiring} {totalExpiring === 1 ? "token wygasa" : "tokeny wygasają"} w ciągu 14 dni
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -254,17 +316,26 @@ export default async function ClientsPage({
             const grad = GRADIENTS[i % GRADIENTS.length];
             const spend = spendByClient.get(c.id as string) ?? 0;
             const alerts = alertCounts.get(c.id as string) ?? 0;
+            const health = healthByClient.get(c.id as string) ?? { down: [], expiring: [] };
             return (
-              <Link
+              <div
                 key={c.slug}
-                href={`/${c.slug}`}
                 className={cn(
                   "group relative overflow-hidden rounded-3xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/10",
                   alerts > 0
                     ? "border-red-500/40"
-                    : "border-border/70 hover:border-transparent"
+                    : health.down.length > 0
+                      ? "border-amber-500/40"
+                      : "border-border/70 hover:border-transparent"
                 )}
               >
+                {/* Whole tile opens the client; the reconnect links below sit
+                    above this layer so they stay clickable on their own. */}
+                <Link
+                  href={`/${c.slug}`}
+                  aria-label={`Otwórz panel ${c.name}`}
+                  className="absolute inset-0 z-0"
+                />
                 <div
                   aria-hidden
                   className={cn(
@@ -314,7 +385,54 @@ export default async function ClientsPage({
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </span>
                 </div>
-              </Link>
+
+                <div className="relative z-10 mt-4 border-t border-border/60 pt-3 text-xs">
+                  {health.down.length === 0 && health.expiring.length === 0 ? (
+                    <p className="pointer-events-none flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Wszystkie połączenia działają
+                    </p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {health.down.map((h) => {
+                        const path = RECONNECT_PATH[h.provider];
+                        return (
+                          <li key={h.provider} className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">
+                                {h.label}:{" "}
+                                {h.tokenExpired ? "token wygasł" : "brak danych"}
+                              </span>
+                            </span>
+                            {path ? (
+                              <a
+                                href={`${path}?client=${c.slug}`}
+                                className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-800 hover:bg-amber-500/25 dark:text-amber-300"
+                              >
+                                Połącz
+                              </a>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                      {health.expiring.map((e) => (
+                        <li key={`exp-${e.provider}`} className="flex items-center justify-between gap-2">
+                          <span className="truncate text-muted-foreground">
+                            {e.label}: token wygasa za {e.daysLeft} dni
+                          </span>
+                          <Link
+                            href={`/${c.slug}/settings#polaczenia`}
+                            className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium hover:bg-muted/70"
+                          >
+                            Napraw
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             );
           })}
         </div>

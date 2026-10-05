@@ -8,7 +8,12 @@ import {
   subMonths,
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  detectCampaignEvents,
+  type ChartEvent,
+} from "@/lib/dashboard/chart-events";
 import {
   RANGE_LABELS,
   type CustomRange,
@@ -149,6 +154,13 @@ export interface DashboardData {
   rangeLabel: string;
   rangeStart: string;
   rangeEnd: string;
+  /**
+   * Comparison period day by day (same shape as `trend`, aligned by index).
+   * Optional so hand-built DashboardData (demo, reports) stays valid.
+   */
+  prevTrend?: TrendPoint[];
+  /** Campaign starts/pauses/budget jumps derived from ads_daily (chart markers). */
+  autoEvents?: ChartEvent[];
 }
 
 interface AdsRow {
@@ -177,6 +189,58 @@ function cpcOf(spend: number, clicks: number): number {
   return clicks > 0 ? spend / clicks : 0;
 }
 
+// Zero-filled daily series for the comparison period, so the chart can draw
+// "previous period" aligned by day index without a second round-trip.
+function buildPrevTrend(
+  rows: AdsRow[],
+  ga4Rows: Array<{
+    date: string;
+    sessions: number | string;
+    revenue_minor_units?: number | string | null;
+    transactions?: number | string | null;
+  }>,
+  prevStart: string,
+  prevEnd: string
+): TrendPoint[] {
+  const start = new Date(`${prevStart}T00:00:00`);
+  const days =
+    differenceInCalendarDays(new Date(`${prevEnd}T00:00:00`), start) + 1;
+  if (days <= 0) return [];
+
+  const byDate = new Map<string, TrendPoint>();
+  const out: TrendPoint[] = [];
+  for (let i = 0; i < days; i++) {
+    const point: TrendPoint = {
+      date: fmt(addDays(start, i)),
+      spendMinorUnits: 0,
+      sessions: 0,
+      clicks: 0,
+      impressions: 0,
+      conversions: 0,
+      revenueMinorUnits: 0,
+      transactions: 0,
+    };
+    byDate.set(point.date, point);
+    out.push(point);
+  }
+  for (const r of rows) {
+    const p = byDate.get(r.date);
+    if (!p) continue;
+    p.spendMinorUnits += Number(r.spend_minor_units);
+    p.clicks += Number(r.clicks);
+    p.impressions += Number(r.impressions);
+    p.conversions += Number(r.conversions ?? 0);
+  }
+  for (const r of ga4Rows) {
+    const p = byDate.get(r.date);
+    if (!p) continue;
+    p.sessions += Number(r.sessions);
+    p.revenueMinorUnits += Number(r.revenue_minor_units ?? 0);
+    p.transactions += Number(r.transactions ?? 0);
+  }
+  return out;
+}
+
 /**
  * Everything the dashboard needs for a date range: period-over-period KPIs
  * (ads + GA4 sessions), per-day trend, campaign list with health status and
@@ -185,9 +249,12 @@ function cpcOf(spend: number, clicks: number): number {
 export async function getDashboardData(
   clientId: string,
   rangeKey: RangeKey = "30d",
-  custom?: CustomRange | null
+  custom?: CustomRange | null,
+  // Background jobs (cron) have no user session/cookies, so they pass the
+  // service-role client. Pages omit it and keep reading through RLS.
+  db?: SupabaseClient
 ): Promise<DashboardData> {
-  const supabase = createClient();
+  const supabase: SupabaseClient = db ?? createClient();
 
   const todayStr = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
   const today = new Date(`${todayStr}T00:00:00`);
@@ -405,6 +472,22 @@ export async function getDashboardData(
     });
   }
 
+  // --- Previous-period trend + chart annotations (from rows already read) ---
+  const prevTrend = buildPrevTrend(rows, ga4Rows, range.prevStart, range.prevEnd);
+  const autoEvents = detectCampaignEvents({
+    rows: rows.map((r) => ({
+      provider: r.provider,
+      campaignId: r.campaign_id,
+      campaignName: r.campaign_name,
+      date: r.date,
+      spendMinorUnits: Number(r.spend_minor_units),
+    })),
+    dataStart: range.prevStart,
+    rangeStart: range.start,
+    rangeEnd: range.end,
+    today: todayStr,
+  });
+
   // --- Platform split ---
   let metaSpend = 0;
   let googleSpend = 0;
@@ -556,5 +639,7 @@ export async function getDashboardData(
     rangeLabel: label,
     rangeStart: range.start,
     rangeEnd: range.end,
+    prevTrend,
+    autoEvents,
   };
 }

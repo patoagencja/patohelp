@@ -1,6 +1,6 @@
 "use client";
 
-import { AreaChart, Card, Title } from "@tremor/react";
+import { AreaChart, Card } from "@tremor/react";
 
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 
@@ -12,29 +12,32 @@ const compactPln = (zl: number) => {
   return `${Math.round(zl)} zł`;
 };
 
-// Revenue vs ad spend over the range - the client's own sales curve (peaks
-// visible) with spend overlaid.
+// Sales vs ad spend over the range - the client's own sales curve (peaks
+// visible) with spend overlaid, so "did spending more sell more?" is one look.
 export function RevenueChart({ trend }: { trend: TrendPoint[] }) {
   const data = trend.map((p) => {
     const [, month, day] = p.date.split("-");
     return {
       date: `${day}.${month}`,
-      Przychód: p.revenueMinorUnits / 100,
-      Wydatki: p.spendMinorUnits / 100,
+      Sprzedaż: p.revenueMinorUnits / 100,
+      "Wydatki na reklamy": p.spendMinorUnits / 100,
     };
   });
   return (
     <Card>
-      <Title>Przychód vs wydatki</Title>
+      <h3 className="text-base font-semibold">Sprzedaż a wydatki na reklamy</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Dzień po dniu - sprzedaż według Google Analytics, wydatki z Meta i Google.
+      </p>
       <AreaChart
-        className="mt-4 h-72"
+        className="mt-4 h-64 sm:h-72"
         data={data}
         index="date"
-        categories={["Przychód", "Wydatki"]}
+        categories={["Sprzedaż", "Wydatki na reklamy"]}
         colors={["emerald", "indigo"]}
         valueFormatter={compactPln}
         showLegend
-        yAxisWidth={76}
+        yAxisWidth={64}
         curveType="monotone"
       />
     </Card>

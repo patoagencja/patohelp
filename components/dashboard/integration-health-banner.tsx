@@ -26,7 +26,7 @@ function attempt(h: ProviderHealth): string | null {
 }
 
 /** Providers we can re-authorise straight from here in one click. */
-const RECONNECT_PATH: Partial<Record<ProviderHealth["provider"], string>> = {
+export const RECONNECT_PATH: Partial<Record<ProviderHealth["provider"], string>> = {
   ga4: "/api/integrations/ga4/connect",
   google_ads: "/api/integrations/google-ads/connect",
   meta_ads: "/api/integrations/meta/connect",

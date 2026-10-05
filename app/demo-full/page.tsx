@@ -49,7 +49,7 @@ export default function DemoFullOverview({
       {en ? null : <RecordsCard records={getDemoRecords({ ecommerce: false })} />}
       <TickerBar campaigns={d.campaigns} />
       <DailyScoreCard data={d.score} lang={lang} />
-      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} />
+      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} demo />
       <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} />
       <BudgetProgress
         budget={d.budget}

@@ -2,8 +2,13 @@
 
 import { AreaChart, BadgeDelta, Card } from "@tremor/react";
 
+import { InfoTip } from "@/components/dashboard/info-tip";
+import { describeChange } from "@/lib/dashboard/glossary";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN } from "@/lib/utils";
+import { dayMonthPL } from "@/lib/dashboard/story";
+import { cn, formatMoneyPLN } from "@/lib/utils";
+
+import { aboutPln, Takeaway } from "./plain";
 
 const compactPln = (zl: number) => {
   if (Math.abs(zl) >= 1_000_000)
@@ -18,24 +23,26 @@ function SummaryRow({
   label,
   value,
   strong,
+  explain,
 }: {
   dot: string;
   label: string;
   value: string;
   strong?: boolean;
+  explain?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-2">
-      <span className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className={`h-2 w-2 rounded-full ${dot}`} />
+      <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
         {label}
+        {explain ? <InfoTip label={label} text={explain} /> : null}
       </span>
       <span
-        className={
-          strong
-            ? "text-sm font-bold text-foreground"
-            : "text-sm font-semibold text-foreground"
-        }
+        className={cn(
+          "shrink-0 text-sm tabular-nums text-foreground",
+          strong ? "font-bold" : "font-semibold"
+        )}
       >
         {value}
       </span>
@@ -43,9 +50,9 @@ function SummaryRow({
   );
 }
 
-// "Your sales report" panel: big revenue number + delta on the left with an
-// income / ad spend / net breakdown and best-day highlight, revenue-vs-spend
-// area chart on the right.
+// "How sales went, day by day": total + change on the left with a sales / ad
+// spend / what's left breakdown, the sales-vs-spend curve on the right (with
+// last year overlaid when it's well covered).
 export function SalesOverview({
   trend,
   revenueKpi,
@@ -63,9 +70,9 @@ export function SalesOverview({
   const net = totalRev - totalSpend;
   const daysWithRevenue = trend.filter((p) => p.revenueMinorUnits > 0).length;
   const avgDaily = daysWithRevenue > 0 ? totalRev / daysWithRevenue : 0;
-  const best = trend.reduce(
-    (m, p) => (p.revenueMinorUnits > m.revenueMinorUnits ? p : m),
-    trend[0] ?? { date: "", revenueMinorUnits: 0 }
+  const best = trend.reduce<TrendPoint | null>(
+    (m, p) => (p.revenueMinorUnits > (m?.revenueMinorUnits ?? 0) ? p : m),
+    null
   );
 
   const deltaPct = revenueKpi.deltaPercent;
@@ -76,84 +83,123 @@ export function SalesOverview({
         ? "increase"
         : "decrease";
 
+  // Ad cost as a share of sales is the plainest "is this sane" number for a
+  // board: "z każdych 100 zł sprzedaży 18 zł poszło na reklamy".
+  const adShare = totalRev > 0 ? (totalSpend / totalRev) * 100 : null;
+  let takeaway: string;
+  if (totalRev <= 0) {
+    takeaway =
+      totalSpend > 0
+        ? `Google Analytics nie zanotował w tym okresie sprzedaży, choć na reklamy wydano ${aboutPln(
+            totalSpend
+          )}.`
+        : "W tym okresie nie ma jeszcze danych o sprzedaży.";
+  } else {
+    const parts: string[] = [];
+    if (adShare !== null && totalSpend > 0) {
+      const share = adShare.toLocaleString("pl-PL", {
+        maximumFractionDigits: adShare < 10 ? 1 : 0,
+      });
+      parts.push(`Z każdych 100 zł sprzedaży ok. ${share} zł poszło na reklamy`);
+    }
+    if (best) {
+      parts.push(
+        `najlepszym dniem był ${dayMonthPL(best.date)} (${aboutPln(best.revenueMinorUnits)})`
+      );
+    }
+    takeaway = parts.length
+      ? `${parts[0].charAt(0).toUpperCase()}${parts.join(", a ").slice(1)}.`
+      : `Sklep sprzedał w tym okresie za ok. ${aboutPln(totalRev)}.`;
+  }
+
   const chart = trend.map((p) => {
     const [, month, day] = p.date.split("-");
     const ly = lyByDate.get(p.date);
     return {
       date: `${day}.${month}`,
-      Przychód: p.revenueMinorUnits / 100,
-      Wydatki: p.spendMinorUnits / 100,
-      ...(showLy ? { "Przychód rok temu": ly != null ? ly / 100 : null } : {}),
+      Sprzedaż: p.revenueMinorUnits / 100,
+      "Wydatki na reklamy": p.spendMinorUnits / 100,
+      ...(showLy ? { "Sprzedaż rok temu": ly != null ? ly / 100 : null } : {}),
     };
   });
 
-  const bestLabel = best?.date
-    ? `${best.date.slice(8, 10)}.${best.date.slice(5, 7)}`
-    : "—";
-
   return (
     <Card>
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <div>
-          <p className="text-sm text-muted-foreground">Raport sprzedaży</p>
-          <p className="mt-1 text-3xl font-bold tracking-tight text-foreground">
+      <h3 className="text-base font-semibold">Sprzedaż dzień po dniu</h3>
+      <Takeaway className="mt-3">{takeaway}</Takeaway>
+
+      <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]">
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">Sprzedaż w wybranym okresie</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-foreground">
             {formatMoneyPLN(totalRev)}
           </p>
           {deltaPct !== null ? (
-            <BadgeDelta deltaType={deltaType} size="xs" className="mt-2">
-              {`${deltaPct > 0 ? "+" : ""}${(Math.round(deltaPct * 10) / 10).toLocaleString("pl-PL")}% vs poprzedni okres`}
-            </BadgeDelta>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <BadgeDelta deltaType={deltaType} size="xs" className="tabular-nums">
+                {`${deltaPct > 0 ? "+" : ""}${(Math.round(deltaPct * 10) / 10).toLocaleString(
+                  "pl-PL"
+                )}%`}
+              </BadgeDelta>
+              <span className="text-xs text-muted-foreground">
+                {describeChange(deltaPct, "amount")}
+              </span>
+            </div>
           ) : null}
 
           <div className="mt-5 divide-y divide-border/60 border-y border-border/60">
-            <SummaryRow
-              dot="bg-emerald-500"
-              label="Przychód"
-              value={compactPln(totalRev / 100)}
-            />
+            <SummaryRow dot="bg-emerald-500" label="Sprzedaż" value={compactPln(totalRev / 100)} />
             <SummaryRow
               dot="bg-indigo-500"
-              label="Wydatki na reklamę"
+              label="Wydatki na reklamy"
               value={compactPln(totalSpend / 100)}
             />
             {/* Not profit (no margin applied) - the profit card does that. */}
             <SummaryRow
               dot={net >= 0 ? "bg-emerald-600" : "bg-rose-500"}
-              label="Przychód po odjęciu reklam"
+              label="Po odjęciu reklam"
               value={compactPln(net / 100)}
               strong
+              explain="Sprzedaż minus wydatki na reklamy. To jeszcze nie zysk - nie odjęliśmy kosztu towaru ani VAT. Zysk liczymy w karcie „Zysk po reklamach”."
             />
           </div>
 
           <div className="mt-4 space-y-1.5 text-xs text-muted-foreground">
             <p>
-              Śr. dzienny przychód:{" "}
-              <span className="font-semibold text-foreground">
+              Średnio dziennie:{" "}
+              <span className="font-semibold tabular-nums text-foreground">
                 {compactPln(avgDaily / 100)}
               </span>
             </p>
-            <p>
-              Najlepszy dzień:{" "}
-              <span className="font-semibold text-foreground">
-                {bestLabel} · {compactPln((best?.revenueMinorUnits ?? 0) / 100)}
-              </span>
-            </p>
+            {best ? (
+              <p>
+                Najlepszy dzień:{" "}
+                <span className="font-semibold tabular-nums text-foreground">
+                  {dayMonthPL(best.date)} · {compactPln(best.revenueMinorUnits / 100)}
+                </span>
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <AreaChart
-          className="h-72 lg:h-80"
-          data={chart}
-          index="date"
-          categories={
-            showLy ? ["Przychód", "Przychód rok temu", "Wydatki"] : ["Przychód", "Wydatki"]
-          }
-          colors={showLy ? ["emerald", "slate", "indigo"] : ["emerald", "indigo"]}
-          valueFormatter={compactPln}
-          showLegend
-          showAnimation
-          curveType="monotone"
-        />
+        <div className="min-w-0">
+          <AreaChart
+            className="h-64 sm:h-72 lg:h-80"
+            data={chart}
+            index="date"
+            categories={
+              showLy
+                ? ["Sprzedaż", "Sprzedaż rok temu", "Wydatki na reklamy"]
+                : ["Sprzedaż", "Wydatki na reklamy"]
+            }
+            colors={showLy ? ["emerald", "slate", "indigo"] : ["emerald", "indigo"]}
+            valueFormatter={compactPln}
+            yAxisWidth={64}
+            showLegend
+            showAnimation
+            curveType="monotone"
+          />
+        </div>
       </div>
     </Card>
   );

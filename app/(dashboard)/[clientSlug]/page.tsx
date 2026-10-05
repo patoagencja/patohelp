@@ -135,7 +135,13 @@ export default async function OverviewPage({
       {isDre && pacing.length > 0 ? <CampaignRings flights={pacing} /> : null}
 
       {/* GA-style: the big picture first, details below. */}
-      <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
+      <MainChart
+        trend={data.trend}
+        prevTrend={data.prevTrend}
+        events={events}
+        autoEvents={data.autoEvents}
+        label={data.rangeLabel}
+      />
 
       {monthPacing ? (
         <MonthPacingCard
