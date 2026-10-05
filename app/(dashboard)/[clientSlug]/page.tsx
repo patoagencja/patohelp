@@ -82,21 +82,28 @@ export default async function OverviewPage({
       return detectBudgetSpikes(client.id, undefined, budgetConfig);
     });
 
-  const data = await getDashboardData(client.id, range, custom);
+  // Everything that doesn't need the range data starts now, alongside it,
+  // instead of queueing behind getDashboardData.
+  const anomaliesPromise = Promise.all([spikesPromise, detectAnomalies(client.id)]).then(
+    ([spikes, anomalies]): Anomaly[] => [...spikes, ...anomalies]
+  );
+  // Rejections surface where the promise is awaited (inside Suspense); this
+  // only stops Node from flagging it as unhandled while it waits.
+  anomaliesPromise.catch(() => {});
+  const sidePromise = Promise.all([
+    getBudgetStatus(client.id),
+    getLatestSummary(client.id),
+    isDre ? getPacing(client.id) : Promise.resolve([] as PacingFlight[]),
+    getDailyScore(client.id),
+    // E-commerce: "where will this month land" belongs on the first screen.
+    clientType === "ecommerce" ? getMonthPacing(client.id) : Promise.resolve(null),
+  ]);
 
-  const [budget, summary, events, spikes, anomalies, pacing, score, monthPacing] =
-    await Promise.all([
-      getBudgetStatus(client.id),
-      getLatestSummary(client.id),
-      getEvents(client.id, data.rangeStart, data.rangeEnd),
-      spikesPromise,
-      detectAnomalies(client.id),
-      isDre ? getPacing(client.id) : Promise.resolve([] as PacingFlight[]),
-      getDailyScore(client.id),
-      // E-commerce: "where will this month land" belongs on the first screen.
-      clientType === "ecommerce" ? getMonthPacing(client.id) : Promise.resolve(null),
-    ]);
-  const digest: Anomaly[] = [...spikes, ...anomalies];
+  const data = await getDashboardData(client.id, range, custom);
+  const [[budget, summary, pacing, score, monthPacing], events] = await Promise.all([
+    sidePromise,
+    getEvents(client.id, data.rangeStart, data.rangeEnd),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -164,9 +171,23 @@ export default async function OverviewPage({
         setBudgetAction={setMonthlyBudget}
       />
 
-      <AlertsDigest alerts={digest} clientSlug={params.clientSlug} />
+      {/* Anomaly detection scans weeks of rows - stream it in last. */}
+      <Suspense fallback={null}>
+        <DigestSection alerts={anomaliesPromise} clientSlug={params.clientSlug} />
+      </Suspense>
 
       <AiSummaryCard summary={summary} />
     </div>
   );
+}
+
+async function DigestSection({
+  alerts,
+  clientSlug,
+}: {
+  alerts: Promise<Anomaly[]>;
+  clientSlug: string;
+}) {
+  const list = await alerts.catch(() => [] as Anomaly[]);
+  return <AlertsDigest alerts={list} clientSlug={clientSlug} />;
 }
