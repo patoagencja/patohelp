@@ -1,7 +1,9 @@
-import { Card, Title } from "@tremor/react";
+import { Card } from "@tremor/react";
 
+import { InfoTip } from "@/components/dashboard/info-tip";
+import { GLOSSARY, describeChange } from "@/lib/dashboard/glossary";
 import type { CostTrendPoint } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN } from "@/lib/utils";
+import { cn, formatMoneyPLN } from "@/lib/utils";
 
 // Inline-SVG dual line chart (server component). Deliberately NOT Tremor's
 // LineChart - Recharts-based charts repeatedly fail to render in this app;
@@ -11,10 +13,84 @@ const W = 640;
 const H = 280;
 const PAD = { top: 12, right: 12, bottom: 28, left: 56 };
 
+type Lang = "pl" | "en";
+
 interface Series {
   name: string;
-  hex: string;
+  /** Tailwind stroke-* / bg-* classes - same blue/amber as the platform pills. */
+  stroke: string;
+  dot: string;
   points: Array<{ i: number; value: number }>;
+}
+
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+// Fewer days than this on either end and a "cheaper/pricier" claim is noise.
+const MIN_EDGE_DAYS = 3;
+
+/**
+ * Change between the first and the last week of the period (or thirds, for
+ * short ranges). Comparing edges rather than two single days keeps one odd
+ * day from flipping the story.
+ */
+function edgeChange(values: number[]): number | null {
+  const edge = Math.min(7, Math.floor(values.length / 3));
+  if (edge < MIN_EDGE_DAYS) return null;
+  const start = mean(values.slice(0, edge));
+  const end = mean(values.slice(-edge));
+  if (start <= 0) return null;
+  return ((end - start) / start) * 100;
+}
+
+/**
+ * The sentence above the chart: which platform's click is cheaper, by how
+ * much, and whether clicks got cheaper or pricier over the period. Averages
+ * are plain means of daily CPC - "średnio" is honest about that.
+ */
+function takeaway(series: Series[], lang: Lang): string {
+  const en = lang === "en";
+  const stats = series.map((s) => {
+    const values = s.points.map((p) => p.value);
+    return { name: s.name, avg: mean(values), change: edgeChange(values) };
+  });
+
+  const trendPart = (st: (typeof stats)[number]) =>
+    `${st.name} ${describeChange(st.change, "cost", { lang })}`;
+  // describeChange's "no previous data" wording doesn't fit here; drop it.
+  const trends = stats.filter((st) => st.change !== null).map(trendPart);
+  const trendSentence = trends.length
+    ? en
+      ? ` By the end of the period: ${trends.join("; ")}.`
+      : ` Pod koniec okresu: ${trends.join("; ")}.`
+    : "";
+
+  if (stats.length === 1) {
+    const [only] = stats;
+    return en
+      ? `A click on ${only.name} costs ${formatMoneyPLN(Math.round(only.avg))} on average.${trendSentence}`
+      : `Kliknięcie w reklamę ${only.name} kosztuje średnio ${formatMoneyPLN(Math.round(only.avg))}.${trendSentence}`;
+  }
+
+  const [cheap, dear] = [...stats].sort((a, b) => a.avg - b.avg);
+  const ratio = cheap.avg > 0 ? dear.avg / cheap.avg : 1;
+  const prices = `${formatMoneyPLN(Math.round(cheap.avg))} vs ${formatMoneyPLN(Math.round(dear.avg))}`;
+  let lead: string;
+  if (ratio < 1.1) {
+    lead = en
+      ? `A click costs about the same on ${cheap.name} and ${dear.name} (${prices}).`
+      : `Kliknięcie kosztuje podobnie w ${cheap.name} i ${dear.name} (${prices}).`;
+  } else if (ratio >= 1.8) {
+    const times = ratio.toLocaleString(en ? "en-GB" : "pl-PL", { maximumFractionDigits: 1 });
+    lead = en
+      ? `A click on ${cheap.name} is about ${times}× cheaper than on ${dear.name} (${prices}).`
+      : `Kliknięcie w ${cheap.name} jest ok. ${times}× tańsze niż w ${dear.name} (${prices}).`;
+  } else {
+    const pct = Math.round((1 - cheap.avg / dear.avg) * 100);
+    lead = en
+      ? `A click on ${cheap.name} is about ${pct}% cheaper than on ${dear.name} (${prices}).`
+      : `Kliknięcie w ${cheap.name} jest ok. ${pct}% tańsze niż w ${dear.name} (${prices}).`;
+  }
+  return lead + trendSentence;
 }
 
 export function CostTrends({
@@ -22,9 +98,10 @@ export function CostTrends({
   lang = "pl",
 }: {
   costTrend: CostTrendPoint[];
-  lang?: "pl" | "en";
+  lang?: Lang;
 }) {
   const en = lang === "en";
+  const cpc = GLOSSARY.cpc;
   // Trim leading/trailing days with no data at all, so a range that starts
   // before the data does (e.g. before the backfill horizon) doesn't squash
   // the lines into a corner of an empty axis.
@@ -37,15 +114,17 @@ export function CostTrends({
 
   const series: Series[] = [
     {
-      name: "CPC Meta",
-      hex: "#3b82f6",
+      name: "Meta",
+      stroke: "stroke-blue-500",
+      dot: "bg-blue-500",
       points: costTrend
         .map((p, i) => ({ i, value: p.metaCpcMinorUnits }))
         .filter((p): p is { i: number; value: number } => p.value != null),
     },
     {
-      name: "CPC Google",
-      hex: "#f59e0b",
+      name: "Google",
+      stroke: "stroke-amber-500",
+      dot: "bg-amber-500",
       points: costTrend
         .map((p, i) => ({ i, value: p.googleCpcMinorUnits }))
         .filter((p): p is { i: number; value: number } => p.value != null),
@@ -76,19 +155,29 @@ export function CostTrends({
 
   return (
     <Card>
-      <Title>{en ? "Avg daily CPC - Meta vs Google" : "Średni CPC dziennie - Meta vs Google"}</Title>
+      <h3 className="flex items-center gap-1.5 text-base font-semibold">
+        {en ? "What one click costs - Meta vs Google" : "Ile kosztuje jedno kliknięcie - Meta vs Google"}
+        <InfoTip
+          label={en ? cpc.en.name : cpc.name}
+          text={en ? cpc.en.explain : cpc.explain}
+          lang={lang}
+        />
+      </h3>
       {series.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Brak danych CPC w tym okresie.
+        <p className="mt-2 text-sm text-muted-foreground">
+          {en ? "No click cost data in this period." : "Brak danych o koszcie kliknięcia w tym okresie."}
         </p>
       ) : (
         <>
+          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+            {takeaway(series, lang)}
+          </p>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="mt-4 h-64 w-full"
             preserveAspectRatio="none"
             role="img"
-            aria-label="Średni CPC dziennie"
+            aria-label={en ? "Daily cost per click" : "Dzienny koszt kliknięcia"}
           >
             {ticks.map((t) => (
               <g key={t}>
@@ -132,7 +221,7 @@ export function CostTrends({
                 key={s.name}
                 d={path(s)}
                 fill="none"
-                stroke={s.hex}
+                className={s.stroke}
                 strokeWidth="2"
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -146,10 +235,7 @@ export function CostTrends({
                 key={s.name}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground"
               >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: s.hex }}
-                />
+                <span className={cn("h-2 w-2 rounded-full", s.dot)} />
                 {s.name}
               </span>
             ))}

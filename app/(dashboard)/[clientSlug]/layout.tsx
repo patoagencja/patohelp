@@ -134,7 +134,7 @@ export default async function ClientDashboardLayout({
           />
         </div>
 
-        <main className="flex-1">
+        <main className="flex-1 pb-24 md:pb-0">
           {client ? (
             // Health checks take a few queries per provider; never hold the
             // page back for them. Hidden on the TV: it's connection

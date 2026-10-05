@@ -1,112 +1,90 @@
-import { Card, Title } from "@tremor/react";
-
+import { ShareBars, type ShareRow } from "@/components/dashboard/website/share-bars";
 import type { PlatformSplit as PlatformSplitData } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN } from "@/lib/utils";
 
-// Inline-SVG donut (server component). Deliberately NOT Tremor's DonutChart -
-// Recharts-based charts repeatedly fail to render in this app; pure SVG always
-// paints and needs no hydration.
+type Lang = "pl" | "en";
+
+// Always group thousands ("7 581 zł"): pl-PL Intl skips grouping for 4-digit
+// numbers, which looks inconsistent next to "50 000 zł" in the same card.
+function wholePln(minorUnits: number): string {
+  const n = Math.round(minorUnits / 100)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${n} zł`;
+}
+
+/**
+ * One-line takeaway above the bars. Shares within ~10 points of each other
+ * read as "roughly even" - "52% vs 48%" isn't a story worth telling the board.
+ */
+function takeaway(rows: ShareRow[], total: number, lang: Lang): string {
+  const en = lang === "en";
+  const sorted = [...rows].sort((a, b) => b.value - a.value);
+  const top = sorted[0];
+  const second = sorted[1];
+  const totalText = wholePln(total);
+
+  if (!second) {
+    return en
+      ? `The whole budget (${totalText}) went to ${top.label}.`
+      : `Cały budżet (${totalText}) poszedł na ${top.label}.`;
+  }
+  const topShare = Math.round((top.value / total) * 100);
+  const secondShare = Math.round((second.value / total) * 100);
+  if (topShare - secondShare <= 10) {
+    return en
+      ? `${totalText} in total, split roughly evenly between ${top.label} and ${second.label}.`
+      : `Łącznie ${totalText}, podzielone mniej więcej po równo między ${top.label} i ${second.label}.`;
+  }
+  return en
+    ? `${totalText} in total - most of it (${topShare}%) went to ${top.label}.`
+    : `Łącznie ${totalText} - większość (${topShare}%) poszła na ${top.label}.`;
+}
+
+/**
+ * Where the ad money went, as ranked share bars ("Meta 62% · 7 400 zł").
+ * Replaced a donut: people squinted at the legend to work out who got more,
+ * and bars with the % printed survive a projector.
+ */
 export function PlatformSplit({
   split,
   lang = "pl",
 }: {
   split: PlatformSplitData;
-  lang?: "pl" | "en";
+  lang?: Lang;
 }) {
   const en = lang === "en";
-  const total =
-    split.metaSpendMinorUnits +
-    split.googleSpendMinorUnits +
-    split.tiktokSpendMinorUnits;
-  const pct = (v: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
-
-  // Only show platforms that actually have spend.
-  const entries = [
-    { short: "Meta", value: split.metaSpendMinorUnits, hex: "#3b82f6" },
-    { short: "Google", value: split.googleSpendMinorUnits, hex: "#f59e0b" },
-    { short: "TikTok", value: split.tiktokSpendMinorUnits, hex: "#fe2c55" },
-  ].filter((e) => e.value > 0);
-
-  // Compact amount for the donut hole so it never overflows the ring.
-  const compact = (grosze: number) => {
-    const zl = grosze / 100;
-    if (zl >= 1_000_000)
-      return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 2 })} mln zł`;
-    if (zl >= 10_000)
-      return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} tys. zł`;
-    return formatMoneyPLN(grosze);
-  };
-
-  // Donut geometry: stroke-dasharray segments on a circle.
-  const R = 76;
-  const CIRC = 2 * Math.PI * R;
-  let offset = 0;
-  const segments = entries.map((e) => {
-    const frac = total > 0 ? e.value / total : 0;
-    const seg = { ...e, dash: frac * CIRC, offset };
-    offset += frac * CIRC;
-    return seg;
-  });
+  // Bar colours match the platform pills in the campaigns list.
+  const rows: ShareRow[] = [
+    {
+      key: "meta",
+      label: "Meta",
+      hint: en ? "Facebook and Instagram" : "Facebook i Instagram",
+      value: split.metaSpendMinorUnits,
+      barClass: "bg-blue-500",
+    },
+    {
+      key: "google",
+      label: "Google",
+      hint: en ? "search and YouTube" : "wyszukiwarka i YouTube",
+      value: split.googleSpendMinorUnits,
+      barClass: "bg-amber-500",
+    },
+    {
+      key: "tiktok",
+      label: "TikTok",
+      value: split.tiktokSpendMinorUnits,
+      barClass: "bg-pink-500",
+    },
+  ].filter((r) => r.value > 0);
+  const total = rows.reduce((a, r) => a + r.value, 0);
 
   return (
-    <Card>
-      <Title>{en ? "Spend split" : "Podział wydatków"}</Title>
-      {entries.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">
-          Brak wydatków w tym okresie.
-        </p>
-      ) : (
-        <>
-          <div className="mt-6 flex justify-center">
-            <div className="relative h-52 w-52">
-              <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
-                <circle
-                  cx="100"
-                  cy="100"
-                  r={R}
-                  fill="none"
-                  className="stroke-muted"
-                  strokeWidth="18"
-                />
-                {segments.map((s) => (
-                  <circle
-                    key={s.short}
-                    cx="100"
-                    cy="100"
-                    r={R}
-                    fill="none"
-                    stroke={s.hex}
-                    strokeWidth="18"
-                    strokeDasharray={`${Math.max(s.dash, 0.1)} ${CIRC}`}
-                    strokeDashoffset={-s.offset}
-                    strokeLinecap="butt"
-                  />
-                ))}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-                <span className="text-base font-semibold tabular-nums">
-                  {compact(total)}
-                </span>
-                <span className="text-[11px] text-muted-foreground">łącznie</span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1">
-            {entries.map((e) => (
-              <span
-                key={e.short}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground"
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: e.hex }}
-                />
-                {e.short}: {formatMoneyPLN(e.value)} ({pct(e.value)}%)
-              </span>
-            ))}
-          </div>
-        </>
-      )}
-    </Card>
+    <ShareBars
+      title={en ? "Where the ad money goes" : "Na co idą pieniądze"}
+      // ShareBars renders its own empty-state line when there are no rows.
+      insight={rows.length > 0 ? takeaway(rows, total, lang) : null}
+      rows={rows}
+      unit={wholePln}
+    />
   );
 }

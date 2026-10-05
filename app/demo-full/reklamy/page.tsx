@@ -1,9 +1,12 @@
+import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { AD_PROVIDER_SHORT } from "@/lib/types";
+import { AdsPageIntro } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
 import { getDemoDashboard } from "@/lib/demo/data";
-import { formatMoneyPLN, formatPercent } from "@/lib/utils";
+import { GLOSSARY } from "@/lib/dashboard/glossary";
+import { formatMoneyPLN, formatPercent, formatPlnWhole } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +27,13 @@ export default function DemoFullReklamy({
 
   return (
     <>
-      <div>
-        <h1 className="text-xl font-semibold">{en ? "Ads" : "Reklamy"}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {en
-            ? `Meta and Google campaigns in one place · ${d.rangeLabel}`
-            : `Kampanie Meta i Google w jednym miejscu · ${d.rangeLabel}`}
-        </p>
+      <AdsPageIntro kpis={d.kpis} rangeLabel={d.rangeLabel} lang={lang} />
+
+      {/* The two short answers first, campaign detail below - same order as
+          the real Reklamy tab. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PlatformSplit split={d.platformSplit} lang={lang} />
+        <CostTrends costTrend={d.costTrend} lang={lang} />
       </div>
 
       <CampaignPositions campaigns={d.campaigns} lang={lang} />
@@ -46,38 +49,39 @@ export default function DemoFullReklamy({
               key={c.adId}
               className="overflow-hidden rounded-xl border border-border bg-card"
             >
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={c.thumbnailUrl ?? ""}
-                  alt={c.name}
-                  className="aspect-square w-full bg-muted object-cover"
-                />
+              <CreativeThumb
+                src={c.thumbnailUrl ?? null}
+                name={c.name}
+                lang={lang}
+                className="aspect-square w-full"
+              >
                 <span className="absolute left-2 top-2 rounded-md bg-black/55 px-1.5 py-0.5 tabular-nums text-[10px] font-semibold text-white">
                   {AD_PROVIDER_SHORT[c.provider]}
                 </span>
-              </div>
+              </CreativeThumb>
               <div className="space-y-1.5 p-3">
                 <p className="truncate text-sm font-medium" title={c.name}>
                   {c.name}
                 </p>
-                <p className="tabular-nums text-sm font-bold tabular-nums">
-                  {formatMoneyPLN(c.spend)}
+                <p className="text-sm font-bold tabular-nums">
+                  {formatPlnWhole(c.spend)}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {en ? "spent" : "wydane"}
+                  </span>
                 </p>
-                <div className="flex items-center justify-between tabular-nums text-xs text-muted-foreground">
-                  <span>CTR {formatPercent(c.ctr ?? 0)}</span>
-                  <span>CPC {c.cpc != null ? formatMoneyPLN(c.cpc) : "-"}</span>
+                <div className="flex flex-wrap items-center justify-between gap-x-2 text-xs tabular-nums text-muted-foreground">
+                  <span>
+                    {en ? GLOSSARY.ctr.en.name : GLOSSARY.ctr.name} {formatPercent(c.ctr ?? 0)}
+                  </span>
+                  <span>
+                    {en ? "Per click" : "Za kliknięcie"} {c.cpc != null ? formatMoneyPLN(c.cpc) : "-"}
+                  </span>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </section>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CostTrends costTrend={d.costTrend} lang={lang} />
-        <PlatformSplit split={d.platformSplit} lang={lang} />
-      </div>
     </>
   );
 }

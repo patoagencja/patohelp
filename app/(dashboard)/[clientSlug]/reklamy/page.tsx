@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { AdsPageIntro } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
@@ -65,13 +66,19 @@ export default async function AdsPage({
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-semibold">Reklamy - {client.name}</h1>
+      <AdsPageIntro kpis={data.kpis} rangeLabel={data.rangeLabel}>
         <DateRangePicker
           value={range}
           customFrom={custom?.start}
           customTo={custom?.end}
         />
+      </AdsPageIntro>
+
+      {/* The two short answers first (where the money goes, what a click
+          costs); the per-campaign detail follows for anyone who wants it. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PlatformSplit split={data.platformSplit} />
+        <CostTrends costTrend={data.costTrend} />
       </div>
 
       <CampaignPositions
@@ -84,11 +91,6 @@ export default async function AdsPage({
       />
 
       <TopCreatives creatives={creatives} />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CostTrends costTrend={data.costTrend} />
-        <PlatformSplit split={data.platformSplit} />
-      </div>
     </div>
   );
 }

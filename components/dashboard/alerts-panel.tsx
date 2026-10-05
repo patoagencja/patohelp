@@ -1,5 +1,5 @@
 import { Callout, Card, Title } from "@tremor/react";
-import { AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { ClientAlert } from "@/lib/dashboard/overview";
@@ -28,8 +28,9 @@ export function AlertsPanel({
     <Card>
       <Title>Wymaga uwagi</Title>
       {alerts.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Brak aktywnych alertów - wszystko wygląda dobrze. ✅
+        <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+          Wszystko w porządku - nic nie wymaga uwagi.
         </p>
       ) : (
         <div className="mt-4 space-y-3">
