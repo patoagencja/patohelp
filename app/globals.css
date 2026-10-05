@@ -27,25 +27,28 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Cards sit one step above the page so sections read as layers (the old
+       palette used one colour for both and the page looked flat), and the
+       brand indigo survives dark mode instead of turning white. */
+    --background: 224 40% 5%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 224 32% 8.5%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 224 32% 10%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 26% 15%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --muted: 222 26% 14%;
+    --muted-foreground: 217 16% 66%;
+    --accent: 238 40% 18%;
+    --accent-foreground: 230 90% 85%;
+    --destructive: 0 62.8% 45%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 222 22% 17%;
+    --input: 222 22% 19%;
+    --ring: 239 84% 67%;
   }
 }
 
