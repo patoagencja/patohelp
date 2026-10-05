@@ -130,7 +130,9 @@ export function ConversionFunnel({
                   {pctText(share(s.value))}
                 </span>
               </div>
-              {i > 0 && prev > 0 ? (
+              {/* Step 2's "of previous" equals its share of visits, already
+                  printed beside the bar - only later steps need it. */}
+              {i > 1 && prev > 0 ? (
                 <p className="mt-1 text-xs tabular-nums text-muted-foreground">
                   {pctText(s.value / prev)} z poprzedniego kroku
                 </p>

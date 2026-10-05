@@ -210,10 +210,9 @@ export function SalesOverview({
           />
           {todayPoint ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              Wykres kończy się na wczoraj - dzisiejszy dzień jeszcze trwa (do tej
-              pory{" "}
-              <span className="tabular-nums">{formatPlnWhole(todayPoint.revenueMinorUnits)}</span>{" "}
-              sprzedaży), więc pokazalibyśmy fałszywy spadek.
+              Wykres bez dzisiejszego, niepełnego dnia (do tej pory{" "}
+              <span className="tabular-nums">{formatPlnWhole(todayPoint.revenueMinorUnits)}</span>
+              ) - doliczymy go jutro.
             </p>
           ) : null}
         </div>
