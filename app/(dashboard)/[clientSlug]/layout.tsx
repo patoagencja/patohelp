@@ -8,6 +8,7 @@ import { AutoSync } from "@/components/dashboard/auto-sync";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { IntegrationHealthBanner } from "@/components/dashboard/integration-health-banner";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
+import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
@@ -106,6 +107,7 @@ export default async function ClientDashboardLayout({
         >
           <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
           <span className="flex-1" />
+          <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
           <PresentationMode />
           <ThemeToggle />
           {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}

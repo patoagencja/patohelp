@@ -20,6 +20,7 @@ import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
 import { clientLogo } from "@/components/dashboard/client-logo";
+import { regionPL } from "@/components/dashboard/website/audience";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
@@ -741,7 +742,7 @@ export default async function RaportPage({
               >
                 <BarList
                   items={demo.geo.map((r) => ({
-                    label: r.bucket,
+                    label: regionPL(r.bucket),
                     value: r.value,
                     display: formatNumberPL(r.value),
                   }))}
