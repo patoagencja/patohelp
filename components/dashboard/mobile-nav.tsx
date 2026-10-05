@@ -31,10 +31,13 @@ export function MobileNav({
   clientSlug,
   isAgency,
   isEcommerce = false,
+  omit = [],
 }: {
   clientSlug: string;
   isAgency: boolean;
   isEcommerce?: boolean;
+  /** Tab hrefs to leave out (the public demo has no report tab). */
+  omit?: string[];
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -63,7 +66,8 @@ export function MobileNav({
         ]
       : []),
   ];
-  const moreActive = more.some((i) => i.href === pathname);
+  const moreItems = more.filter((i) => !omit.includes(i.href));
+  const moreActive = moreItems.some((i) => i.href === pathname);
 
   return (
     <>
@@ -89,7 +93,7 @@ export function MobileNav({
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              {more.map(({ href, label, icon: Icon }) => (
+              {moreItems.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}

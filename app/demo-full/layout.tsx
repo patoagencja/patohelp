@@ -3,6 +3,7 @@ import { Sparkles } from "lucide-react";
 import { DemoSidebar } from "@/components/demo/demo-sidebar";
 import { LangToggle } from "@/components/demo/lang-toggle";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
+import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 
@@ -35,10 +36,10 @@ export default function DemoFullLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <header
           data-present-hide
-          className="flex h-14 items-center gap-3 border-b border-border bg-card px-6"
+          className="flex h-14 items-center gap-2 border-b border-border bg-card px-4 sm:gap-3 sm:px-6"
         >
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-            DEMO · dane przykładowe
+          <span className="whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            DEMO<span className="hidden sm:inline"> · dane przykładowe</span>
           </span>
           <span className="flex-1" />
           <LangToggle />
@@ -47,7 +48,16 @@ export default function DemoFullLayout({
           <ThemeToggle />
         </header>
 
-        <main className="mx-auto w-full max-w-6xl space-y-6 p-6">{children}</main>
+        <div data-present-hide>
+          <MobileNav
+            clientSlug="demo-full"
+            isAgency={false}
+            isEcommerce
+            omit={["/demo-full/raport"]}
+          />
+        </div>
+
+        <main className="mx-auto w-full max-w-6xl space-y-6 p-6 pb-24 md:pb-6">{children}</main>
       </div>
     </div>
   );

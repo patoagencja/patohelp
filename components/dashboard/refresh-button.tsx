@@ -48,7 +48,7 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
       className="gap-1.5"
     >
       <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-      {loading ? "Odświeżam…" : "Odśwież"}
+      <span className="hidden sm:inline">{loading ? "Odświeżam…" : "Odśwież"}</span>
     </Button>
   );
 }

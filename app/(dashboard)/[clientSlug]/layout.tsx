@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, LogOut } from "lucide-react";
 import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
@@ -103,7 +103,7 @@ export default async function ClientDashboardLayout({
             (portaled to <body>) takes over the controls. */}
         <header
           data-present-hide
-          className="flex h-14 items-center gap-3 border-b border-border bg-card px-6 print:hidden"
+          className="flex h-14 items-center gap-2 border-b border-border bg-card px-4 sm:gap-3 sm:px-6 print:hidden"
         >
           <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
           <span className="flex-1" />
@@ -112,7 +112,7 @@ export default async function ClientDashboardLayout({
           <ThemeToggle />
           {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
           {user?.email ? (
-            <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 sm:flex">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-medium text-accent-foreground">
                 {user.email.charAt(0).toUpperCase()}
               </span>
@@ -122,8 +122,9 @@ export default async function ClientDashboardLayout({
             </div>
           ) : null}
           <form action={signOut}>
-            <Button type="submit" variant="outline" size="sm">
-              Wyloguj
+            <Button type="submit" variant="outline" size="sm" className="gap-1.5" title="Wyloguj">
+              <LogOut className="h-3.5 w-3.5 sm:hidden" />
+              <span className="hidden sm:inline">Wyloguj</span>
             </Button>
           </form>
         </header>
