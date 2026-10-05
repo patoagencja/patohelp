@@ -1,3 +1,4 @@
+import { decrypt } from "@/lib/integrations/encryption";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Per-provider sync health. The header's "Zaktualizowano X temu" label takes the
@@ -29,6 +30,9 @@ export interface ProviderHealth {
   failing: boolean;
   /** Expired/revoked OAuth token - needs a reconnect, not a retry. */
   tokenExpired: boolean;
+  /** Google token died ~7 days after it was granted: the OAuth app is almost
+   *  certainly still in "Testing", which caps refresh tokens at 7 days. */
+  testingModeSuspected: boolean;
 }
 
 /** Stale threshold: crons run every 30 min, so 12h means genuinely broken. */
@@ -41,7 +45,10 @@ function isTokenError(message: string | null): boolean {
     m.includes("invalid_grant") ||
     m.includes("invalid grant") ||
     m.includes("token has been expired") ||
-    m.includes("revoked")
+    m.includes("revoked") ||
+    // Meta: "Error validating access token: Session has expired on ..."
+    m.includes("session has expired") ||
+    m.includes("error validating access token")
   );
 }
 
@@ -58,7 +65,7 @@ export async function getUnhealthyIntegrations(
 
     const { data: integrations, error: intErr } = await admin
       .from("integrations")
-      .select("provider")
+      .select("provider, updated_at")
       .eq("client_id", clientId);
     if (intErr || !integrations?.length) return [];
 
@@ -115,6 +122,26 @@ export async function getUnhealthyIntegrations(
       if (!failing && !stale) continue;
 
       const lastError = (newest.error_message as string | null) ?? null;
+      const tokenExpired = failing && isTokenError(lastError);
+
+      // Testing-mode tokens die 7 days after consent. If the last success
+      // landed 6-8 days after the integration was (re)connected, that is the
+      // signature - point at the permanent fix instead of another reconnect.
+      let testingModeSuspected = false;
+      const connectedAt = integrations.find((i) => i.provider === provider)
+        ?.updated_at as string | undefined;
+      if (
+        tokenExpired &&
+        (provider === "ga4" || provider === "google_ads") &&
+        connectedAt &&
+        successRes.data?.finished_at
+      ) {
+        const days =
+          (new Date(successRes.data.finished_at as string).getTime() -
+            new Date(connectedAt).getTime()) /
+          86_400_000;
+        testingModeSuspected = days >= 6 && days <= 8;
+      }
 
       out.push({
         provider,
@@ -126,11 +153,52 @@ export async function getUnhealthyIntegrations(
         // Only claim "token expired" when that is the CURRENT failure. A stale
         // error from an old run must not keep telling you to reconnect after
         // you already have.
-        tokenExpired: failing && isTokenError(lastError),
+        tokenExpired,
+        testingModeSuspected,
       });
     }
 
     return out;
+  } catch {
+    return [];
+  }
+}
+
+export interface ExpiringToken {
+  provider: ProviderKey;
+  label: string;
+  daysLeft: number;
+}
+
+/** Warn this many days ahead - enough to swap in a permanent token calmly. */
+const EXPIRY_WARN_DAYS = 14;
+
+/**
+ * Integrations whose stored token has a known expiry date coming up. Today
+ * only Meta stores one (OAuth user tokens live ~60 days; system user tokens
+ * have none). Catching it before it dies means no gap in the data.
+ */
+export async function getExpiringTokens(
+  clientId: string
+): Promise<ExpiringToken[]> {
+  try {
+    const { data } = await createAdminClient()
+      .from("integrations")
+      .select("provider, credentials_encrypted")
+      .eq("client_id", clientId)
+      .eq("provider", "meta_ads")
+      .maybeSingle();
+    if (!data?.credentials_encrypted) return [];
+    const creds = JSON.parse(decrypt(data.credentials_encrypted as string)) as {
+      expires_at?: string | null;
+    };
+    if (!creds.expires_at) return [];
+    const daysLeft = Math.ceil(
+      (new Date(creds.expires_at).getTime() - Date.now()) / 86_400_000
+    );
+    // Already expired is reported by getUnhealthyIntegrations as a failure.
+    if (daysLeft <= 0 || daysLeft > EXPIRY_WARN_DAYS) return [];
+    return [{ provider: "meta_ads", label: PROVIDER_LABEL.meta_ads, daysLeft }];
   } catch {
     return [];
   }

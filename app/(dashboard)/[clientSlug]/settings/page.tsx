@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/lib/types";
 
 import { ConnectedToast } from "./connected-toast";
+import { ConnectionStability } from "./connection-stability";
 import { EcomSettingsSection } from "./ecom-settings";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
@@ -455,6 +456,8 @@ export default async function SettingsPage({
           );
         })()}
       </div>
+
+      <ConnectionStability clientId={access.clientId} clientSlug={params.clientSlug} />
 
       {isEcommerce ? (
         <EcomSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} />

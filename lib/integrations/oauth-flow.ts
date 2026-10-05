@@ -41,12 +41,39 @@ export async function upsertIntegration(
   credentials: unknown,
   accountIds: unknown
 ): Promise<void> {
+  // Reconnecting returns a fresh account list with no `selected` flags, and
+  // every cron syncs only selected accounts - so a routine "token expired ->
+  // reconnect" used to switch the sync off until someone re-ticked the
+  // accounts by hand. Carry the per-account choices over by id.
+  let merged = accountIds;
+  if (Array.isArray(accountIds)) {
+    const { data: existing } = await admin
+      .from("integrations")
+      .select("account_ids")
+      .eq("client_id", clientId)
+      .eq("provider", provider)
+      .maybeSingle();
+    const previous = Array.isArray(existing?.account_ids)
+      ? (existing.account_ids as Array<Record<string, unknown>>)
+      : [];
+    const byId = new Map(previous.map((a) => [String(a.id), a]));
+    merged = (accountIds as Array<Record<string, unknown>>).map((a) => {
+      const prev = byId.get(String(a.id));
+      if (!prev) return a;
+      return {
+        ...a,
+        ...(prev.selected !== undefined ? { selected: prev.selected } : {}),
+        ...(prev.video_only !== undefined ? { video_only: prev.video_only } : {}),
+      };
+    });
+  }
+
   const { error } = await admin.from("integrations").upsert(
     {
       client_id: clientId,
       provider,
       credentials_encrypted: encrypt(JSON.stringify(credentials)),
-      account_ids: accountIds,
+      account_ids: merged,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "client_id,provider" }

@@ -7,7 +7,9 @@ import type { IntegrationProvider } from "@/lib/types";
 // JSON in integrations.credentials_encrypted.
 export interface MetaCredentials {
   access_token: string;
-  expires_at: string;
+  /** null for Business Manager system user tokens, which never expire. */
+  expires_at: string | null;
+  kind?: "system_user";
 }
 export interface GoogleAdsCredentials {
   refresh_token: string;

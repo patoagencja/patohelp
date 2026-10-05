@@ -4,7 +4,10 @@ import { NextResponse } from "next/server";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
-import { getUnhealthyIntegrations } from "@/lib/dashboard/integration-health";
+import {
+  getExpiringTokens,
+  getUnhealthyIntegrations,
+} from "@/lib/dashboard/integration-health";
 import {
   buildDigest,
   sendEmail,
@@ -102,11 +105,29 @@ export async function GET(request: Request) {
         key: `integration-down-${h.provider}`,
         title: `${h.label} nie dostarcza danych`,
         detail: h.tokenExpired
-          ? `${downFor}. Token wygasł - rozłącz i połącz ponownie w Ustawieniach.`
+          ? h.provider === "meta_ads"
+            ? `${downFor}. Token wygasł - połącz ponownie albo wklej w Ustawieniach token System User, który nie wygasa.`
+            : h.testingModeSuspected
+              ? `${downFor}. Token wygasł po 7 dniach - aplikacja Google OAuth jest w trybie Testing. Opublikuj ją (instrukcja w Ustawieniach → Połączenia) i połącz ponownie.`
+              : `${downFor}. Token wygasł - połącz ponownie w Ustawieniach.`
           : `${downFor}.${h.lastError ? ` Błąd: ${h.lastError}` : ""}`,
         scope: "Integracje",
         critical: true,
       });
+    }
+
+    // Heads-up before a token dies, so the data never has a gap. Not
+    // critical - waits for the allowed window, once per day.
+    if (inWindow) {
+      for (const e of await getExpiringTokens(s.client_id)) {
+        items.push({
+          key: `token-expiring-${e.provider}`,
+          title: `${e.label}: token wygaśnie za ${e.daysLeft} dni`,
+          detail:
+            "Wklej w Ustawieniach → Połączenia token System User, który nie wygasa.",
+          scope: "Integracje",
+        });
+      }
     }
 
     // Single-day blowouts (critical) always fire, even outside the window.

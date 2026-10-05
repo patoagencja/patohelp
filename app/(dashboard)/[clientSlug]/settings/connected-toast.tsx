@@ -30,9 +30,21 @@ export function ConnectedToast({
 
     if (connected) {
       toast.success(`Połączono z ${PROVIDER_LABELS[connected] ?? connected}`);
+    } else if (error === "meta_token_invalid") {
+      toast.error(
+        "Meta odrzuciła ten token. Sprawdź, czy skopiowałeś cały token System User i czy ma uprawnienie ads_read."
+      );
+    } else if (error === "meta_token_empty") {
+      toast.error("Wklej token, zanim zapiszesz.");
     } else if (error) {
       toast.error(
         `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
+      );
+    } else if (saved === "meta_token") {
+      toast.success("Meta połączona tokenem, który nie wygasa - koniec rozłączeń.");
+    } else if (saved === "meta_token_expiring") {
+      toast.warning(
+        "Token zapisany, ale ma datę ważności. Przy generowaniu tokenu System User wybierz „Nigdy”."
       );
     } else if (saved === "ecommerce") {
       toast.success("Zapisano marżę i cele sprzedaży");

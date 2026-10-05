@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 import {
+  getExpiringTokens,
   getUnhealthyIntegrations,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
@@ -38,6 +39,14 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
   // Reconnecting overwrites the stored credentials, so there is no need to
   // disconnect first - link straight at the OAuth flow.
   if (h.tokenExpired && reconnect) {
+    // Reconnecting alone just restarts the clock; point at the permanent fix
+    // where one exists so this is the last time.
+    const permanent =
+      h.provider === "meta_ads"
+        ? "wklej token, który nie wygasa"
+        : h.testingModeSuspected
+          ? "Google kasuje token co 7 dni (aplikacja w trybie Testing) - napraw na stałe"
+          : null;
     return (
       <>
         token wygasł -{" "}
@@ -47,6 +56,18 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
         >
           połącz ponownie jednym kliknięciem
         </a>
+        {permanent ? (
+          <>
+            {" "}
+            albo{" "}
+            <Link
+              href={`/${clientSlug}/settings#polaczenia`}
+              className="font-medium underline underline-offset-2"
+            >
+              {permanent}
+            </Link>
+          </>
+        ) : null}
         .
       </>
     );
@@ -85,12 +106,44 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
 export async function IntegrationHealthBanner({
   clientId,
   clientSlug,
+  isAgency = false,
 }: {
   clientId: string;
   clientSlug: string;
+  isAgency?: boolean;
 }) {
-  const unhealthy = await getUnhealthyIntegrations(clientId);
-  if (!unhealthy.length) return null;
+  const [unhealthy, expiring] = await Promise.all([
+    getUnhealthyIntegrations(clientId),
+    // Upcoming expiry is our housekeeping - clients don't need to see it.
+    isAgency ? getExpiringTokens(clientId) : Promise.resolve([]),
+  ]);
+  const upcoming = expiring.filter(
+    (e) => !unhealthy.some((u) => u.provider === e.provider)
+  );
+
+  if (!unhealthy.length) {
+    if (!upcoming.length) return null;
+    return (
+      <div className="border-b border-amber-500/30 bg-amber-500/5 px-6 py-2 text-sm text-amber-800 dark:text-amber-300/90 print:hidden">
+        {upcoming.map((e) => (
+          <p key={e.provider} className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <span className="font-medium">{e.label}</span>: token wygaśnie za{" "}
+              {e.daysLeft} {e.daysLeft === 1 ? "dzień" : "dni"} -{" "}
+              <Link
+                href={`/${clientSlug}/settings#polaczenia`}
+                className="font-medium underline underline-offset-2"
+              >
+                wklej token, który nie wygasa
+              </Link>
+              , żeby dane się nie urwały.
+            </span>
+          </p>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="border-b border-amber-500/30 bg-amber-500/10 px-6 py-3 print:hidden">

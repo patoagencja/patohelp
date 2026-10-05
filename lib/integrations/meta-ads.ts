@@ -101,6 +101,28 @@ export async function exchangeCodeForLongLivedToken(
 }
 
 /** List ad accounts the token can read. Ids keep their `act_` prefix. */
+/**
+ * Validate a pasted token and read its real expiry via /debug_token (app token
+ * auth). Business Manager System User tokens can be issued with no expiry
+ * (expires_at = 0), which is what stops Meta from disconnecting every 60 days.
+ */
+export async function inspectMetaToken(
+  accessToken: string
+): Promise<{ valid: boolean; expiresAt: Date | null; type: string | null }> {
+  const body = await graphGet<{
+    data?: { is_valid?: boolean; expires_at?: number; type?: string };
+  }>("/debug_token", {
+    input_token: accessToken,
+    access_token: `${appId()}|${appSecret()}`,
+  });
+  const d = body.data ?? {};
+  return {
+    valid: d.is_valid === true,
+    expiresAt: d.expires_at ? new Date(d.expires_at * 1000) : null,
+    type: d.type ?? null,
+  };
+}
+
 export async function listAdAccounts(
   accessToken: string
 ): Promise<MetaAdAccount[]> {

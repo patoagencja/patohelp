@@ -141,6 +141,7 @@ export default async function ClientDashboardLayout({
             <IntegrationHealthBanner
               clientId={client.id}
               clientSlug={params.clientSlug}
+              isAgency={isAgency}
             />
           ) : null}
           {children}
