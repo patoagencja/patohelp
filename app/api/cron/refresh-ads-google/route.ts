@@ -5,7 +5,10 @@ import { NextResponse } from "next/server";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
-import { getCampaignMetrics } from "@/lib/integrations/google-ads";
+import {
+  getCampaignMetrics,
+  syncSearchTermsSnapshot,
+} from "@/lib/integrations/google-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull Google Ads campaign metrics for yesterday+today into
@@ -170,6 +173,23 @@ export async function GET(request: Request) {
         })
         .eq("id", run?.id);
       integrationsProcessed += 1;
+
+      // Extra once-a-day snapshot after the run is closed: it must never
+      // change the sync's outcome or its health status.
+      try {
+        await syncSearchTermsSnapshot(
+          admin,
+          integration.client_id,
+          refresh_token,
+          accounts,
+          until
+        );
+      } catch (stErr) {
+        console.error(
+          "[cron/refresh-ads-google] search terms failed",
+          describeError(stErr)
+        );
+      }
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ads-google] integration failed", message);

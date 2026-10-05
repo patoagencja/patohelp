@@ -5,6 +5,7 @@ import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
+import { SearchTerms } from "@/components/dashboard/search-terms";
 import {
   TopCreatives,
   type CreativeRow,
@@ -14,6 +15,7 @@ import {
   normalizeRange,
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
+import { getSearchTerms } from "@/lib/dashboard/search-terms";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +61,10 @@ export default async function AdsPage({
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const [data, creatives] = await Promise.all([
+  const [data, creatives, searchTerms] = await Promise.all([
     getDashboardData(client.id, range, custom),
     getTopCreatives(client.id),
+    getSearchTerms(client.id),
   ]);
 
   return (
@@ -89,6 +92,8 @@ export default async function AdsPage({
             : "all"
         }
       />
+
+      <SearchTerms terms={searchTerms} />
 
       <TopCreatives creatives={creatives} />
     </div>

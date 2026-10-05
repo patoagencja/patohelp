@@ -4,6 +4,10 @@
 // Math.round(micros / 10_000).
 import { GoogleAdsApi } from "google-ads-api";
 
+import type { createAdminClient } from "@/lib/supabase/admin";
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
 function clientId(): string {
   return process.env.GOOGLE_ADS_CLIENT_ID!;
 }
@@ -217,4 +221,163 @@ export async function getCampaignMetrics(
     conversions:
       row.metrics?.conversions != null ? Number(row.metrics.conversions) : null,
   }));
+}
+
+export interface GoogleSearchTermMetric {
+  search_term: string;
+  campaign_name: string;
+  impressions: number;
+  clicks: number;
+  cost_micros: number;
+  conversions: number;
+}
+
+/**
+ * What people actually typed into Google before seeing the ads, aggregated
+ * over the last 30 days. segments.date is only filtered on (not selected) so
+ * Google returns one row per term instead of one per term per day - keeps the
+ * payload small enough for the cron's time budget.
+ *
+ * search_term_view is keyed per ad group, so the same term can come back
+ * several times within one campaign; we fold those into one row per
+ * (term, campaign) because that's the grain we store.
+ */
+export async function getSearchTermMetrics(
+  refreshToken: string,
+  customerId: string
+): Promise<GoogleSearchTermMetric[]> {
+  const client = apiClient();
+  const gaql = `
+    SELECT
+      search_term_view.search_term,
+      campaign.name,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros,
+      metrics.conversions
+    FROM search_term_view
+    WHERE segments.date DURING LAST_30_DAYS
+      AND metrics.impressions > 0
+    ORDER BY metrics.clicks DESC
+    LIMIT 500
+  `;
+
+  const rows = await queryWithFallback(client, refreshToken, customerId, gaql);
+
+  const byKey = new Map<string, GoogleSearchTermMetric>();
+  for (const row of rows as Array<Record<string, any>>) {
+    const term = String(row.search_term_view?.search_term ?? "").trim();
+    if (!term) continue;
+    const campaign = String(row.campaign?.name ?? "");
+    const key = `${term}\u0000${campaign}`;
+    const cur =
+      byKey.get(key) ??
+      ({
+        search_term: term,
+        campaign_name: campaign,
+        impressions: 0,
+        clicks: 0,
+        cost_micros: 0,
+        conversions: 0,
+      } satisfies GoogleSearchTermMetric);
+    cur.impressions += Number(row.metrics?.impressions ?? 0);
+    cur.clicks += Number(row.metrics?.clicks ?? 0);
+    cur.cost_micros += Number(row.metrics?.cost_micros ?? 0);
+    cur.conversions += Number(row.metrics?.conversions ?? 0);
+    byKey.set(key, cur);
+  }
+  return Array.from(byKey.values());
+}
+
+/**
+ * Daily snapshot of search terms into google_search_terms for one client.
+ * Returns the number of rows written, or null when skipped (already synced
+ * today, table not migrated yet, or every account failed).
+ *
+ * Runs at most once per Warsaw day: the ads cron fires every 30 min and a
+ * 30-day aggregate barely moves within a day, so re-pulling would only burn
+ * API quota and cron time. When no account has any search terms we still
+ * write a single empty-term marker row so the "already done today" check
+ * holds; readers filter it out.
+ */
+export async function syncSearchTermsSnapshot(
+  admin: AdminClient,
+  clientId: string,
+  refreshToken: string,
+  accounts: Array<{ id: string; video_only?: boolean }>,
+  periodEnd: string
+): Promise<number | null> {
+  // Doubles as a probe: an error here means migration 0023 hasn't run.
+  const existing = await admin
+    .from("google_search_terms")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("period_end", periodEnd)
+    .limit(1);
+  if (existing.error) return null;
+  if ((existing.data ?? []).length > 0) return null;
+
+  const rows: Array<Record<string, unknown>> = [];
+  let succeeded = 0;
+  for (const account of accounts) {
+    // video_only accounts are run by another agency except for YouTube, which
+    // has no search terms - pulling them would leak someone else's campaigns.
+    if (account.video_only === true) continue;
+    try {
+      const terms = await getSearchTermMetrics(refreshToken, account.id);
+      succeeded += 1;
+      for (const t of terms) {
+        rows.push({
+          client_id: clientId,
+          customer_id: account.id,
+          search_term: t.search_term,
+          campaign_name: t.campaign_name,
+          impressions: t.impressions,
+          clicks: t.clicks,
+          cost_minor_units: Math.round(t.cost_micros / 10_000),
+          conversions: t.conversions,
+          period_end: periodEnd,
+        });
+      }
+    } catch (err) {
+      console.error(
+        "[google-ads] search terms failed",
+        account.id,
+        (err as Error)?.message ?? err
+      );
+    }
+  }
+  // Nothing fetched at all - leave the day open so the next run retries.
+  if (succeeded === 0) return null;
+
+  if (rows.length === 0) {
+    rows.push({
+      client_id: clientId,
+      customer_id: "",
+      search_term: "",
+      campaign_name: "",
+      impressions: 0,
+      clicks: 0,
+      cost_minor_units: 0,
+      conversions: 0,
+      period_end: periodEnd,
+    });
+  }
+
+  // A manual sync can race the cron past the "already today" check; clearing
+  // first keeps the snapshot whole instead of the unique key rejecting it.
+  const del = await admin
+    .from("google_search_terms")
+    .delete()
+    .eq("client_id", clientId)
+    .eq("period_end", periodEnd);
+  if (del.error) throw new Error(del.error.message);
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin
+      .from("google_search_terms")
+      .insert(rows.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+  }
+  return rows.length;
 }
