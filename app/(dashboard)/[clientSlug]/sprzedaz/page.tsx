@@ -12,6 +12,7 @@ import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button"
 import { ChannelEfficiency } from "@/components/dashboard/ecom/channel-efficiency";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
+import { NewVsReturning } from "@/components/dashboard/ecom/new-vs-returning";
 import { ProfitCard } from "@/components/dashboard/ecom/profit-card";
 import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
 import { SeasonPlanner } from "@/components/dashboard/ecom/season-planner";
@@ -31,6 +32,7 @@ import {
   getSeasonPlan,
   getYearOverYear,
 } from "@/lib/ecom/insights";
+import { getNewVsReturning } from "@/lib/ecom/new-vs-returning";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import {
@@ -63,7 +65,7 @@ export default async function SprzedazPage({
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
   const admin = createAdminClient();
-  const [data, website, settings, pacing, season, channels, cached, itemsProbe] =
+  const [data, website, settings, pacing, season, channels, cached, itemsProbe, buyers] =
     await Promise.all([
       getDashboardData(client.id, range, custom),
       getWebsiteData(client.id),
@@ -81,6 +83,7 @@ export default async function SprzedazPage({
         .maybeSingle()
         .then((r) => r.data),
       admin.from("ga4_items_daily").select("id").limit(1),
+      getNewVsReturning(client.id),
     ]);
   const totalSessions = data.trend.reduce((a, p) => a + p.sessions, 0);
   const rangeSpend = data.kpis.spendMinorUnits.value;
@@ -212,6 +215,7 @@ export default async function SprzedazPage({
         description="Które kanały przynoszą zamówienia, ile kosztują i jak wizyty zamieniają się w zakupy."
       >
         {channels ? <ChannelEfficiency data={channels} settings={settings} /> : null}
+        <NewVsReturning data={buyers} />
         {/* grid-cols-1 (= minmax(0,1fr)) so wide content can't stretch the
             track past a phone screen; min-w-0 lets cards shrink in it. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">

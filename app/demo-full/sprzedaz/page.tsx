@@ -4,6 +4,7 @@ import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { ChannelEfficiency } from "@/components/dashboard/ecom/channel-efficiency";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
+import { NewVsReturning } from "@/components/dashboard/ecom/new-vs-returning";
 import { ProfitCard } from "@/components/dashboard/ecom/profit-card";
 import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
 import { SeasonPlanner } from "@/components/dashboard/ecom/season-planner";
@@ -13,7 +14,7 @@ import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { Devices } from "@/components/dashboard/website/devices";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { normalizeRange, parseCustomRange } from "@/lib/dashboard/ranges";
-import { getDemoEcom } from "@/lib/demo/ecom";
+import { getDemoEcom, getDemoNewVsReturning } from "@/lib/demo/ecom";
 import { formatDateWarsaw } from "@/lib/utils";
 
 // Public e-commerce showcase: the same widgets as
@@ -103,6 +104,7 @@ export default function DemoSprzedazPage({
         description="Które kanały przynoszą zamówienia, ile kosztują i jak wizyty zamieniają się w zakupy."
       >
         <ChannelEfficiency data={d.channels} settings={d.settings} />
+        <NewVsReturning data={getDemoNewVsReturning(d.today)} />
         {/* grid-cols-1 (= minmax(0,1fr)) so wide content can't stretch the
             track past a phone screen; min-w-0 lets cards shrink in it. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">

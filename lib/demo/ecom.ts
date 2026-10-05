@@ -2,6 +2,7 @@ import { fromZonedTime } from "date-fns-tz";
 
 import type { ProductRow } from "@/components/dashboard/ecom/top-products";
 import type { EcomAnalysis } from "@/lib/ecom/analysis";
+import { buildNewVsReturning, type NewVsReturning } from "@/lib/ecom/new-vs-returning";
 import {
   addDays,
   blackFriday,
@@ -744,4 +745,44 @@ export function getDemoEcom(
     analysis: demoAnalysis(dayLabelPl(addDays(blackFriday(Number(today.slice(0, 4))), -21))),
     analysisGeneratedAt: lastDailyRun(today),
   };
+}
+
+/**
+ * "Nowi czy stali klienci" for the demo shop: the same 30-day snapshot window
+ * as the live GA4 sync (30daysAgo..yesterday). A growing fashion shop - most
+ * orders from new buyers, returning ones spend a bit more per basket.
+ */
+export function getDemoNewVsReturning(today = todayWarsaw()): NewVsReturning | null {
+  const windowStart = addDays(today, -30);
+  const windowEnd = addDays(today, -1);
+  const total = (pick: (v: DemoDay) => number) =>
+    sumRange(windowStart, windowEnd, today, pick).total;
+  const revenue = total((v) => v.revenue);
+  const orders = total((v) => v.transactions);
+  const sessions = total((v) => v.sessions);
+  if (orders <= 0) return null;
+
+  const r = rng(`demo-ecom-nvr:${windowEnd}`);
+  const newOrderShare = 0.58 * jitter(r, 0.04);
+  const newOrders = Math.round(orders * newOrderShare);
+  const newRevenue = Math.round(newOrders * (revenue / orders) * 0.91);
+  const newSessions = Math.round(sessions * 0.66);
+  return buildNewVsReturning(
+    today,
+    {
+      new: {
+        revenueMinorUnits: newRevenue,
+        transactions: newOrders,
+        users: Math.round(newSessions * 0.97),
+        sessions: newSessions,
+      },
+      returning: {
+        revenueMinorUnits: revenue - newRevenue,
+        transactions: orders - newOrders,
+        users: Math.round((sessions - newSessions) * 0.55),
+        sessions: sessions - newSessions,
+      },
+    },
+    total((v) => v.spend)
+  );
 }
