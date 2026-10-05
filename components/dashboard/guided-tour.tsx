@@ -335,6 +335,13 @@ export function GuidedTour({
     return () => clearTimeout(timer);
   }, [isAgency, pathname, overviewPath, start]);
 
+  // Replay from the ⌘K command palette ("Jak czytać panel").
+  useEffect(() => {
+    const onReplay = () => void start();
+    window.addEventListener("pato:tour", onReplay);
+    return () => window.removeEventListener("pato:tour", onReplay);
+  }, [start]);
+
   // Navigating away mid-tour leaves nothing to point at.
   useEffect(() => {
     setOpen(false);

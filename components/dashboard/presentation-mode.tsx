@@ -166,6 +166,15 @@ export function PresentationMode() {
     enteredFullscreenRef.current = await requestFullscreen();
   }, []);
 
+  // Started from the ⌘K command palette ("Prezentuj"). Dispatched inside the
+  // keypress/click, so the fullscreen request still has user activation.
+  useEffect(() => {
+    if (active) return;
+    const onPresent = () => void enter();
+    window.addEventListener("pato:present", onPresent);
+    return () => window.removeEventListener("pato:present", onPresent);
+  }, [active, enter]);
+
   // Apply / undo the page-wide state. Kept in one effect so every way out
   // (button, Escape, fullscreenchange, unmount on navigation) restores it.
   useEffect(() => {

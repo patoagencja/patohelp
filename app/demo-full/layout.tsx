@@ -2,6 +2,7 @@ import { Sparkles } from "lucide-react";
 
 import { DemoSidebar } from "@/components/demo/demo-sidebar";
 import { LangToggle } from "@/components/demo/lang-toggle";
+import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
@@ -43,6 +44,12 @@ export default function DemoFullLayout({
           </span>
           <span className="flex-1" />
           <LangToggle />
+          <CommandPalette
+            clientSlug="demo-full"
+            isAgency={false}
+            isEcommerce
+            omit={["/demo-full/raport"]}
+          />
           <GuidedTour isAgency={false} overviewPath="/demo-full" />
           <PresentationMode />
           <ThemeToggle />
