@@ -125,7 +125,7 @@ export function InfoTip({
         role="tooltip"
         style={{ transform: `translateX(calc(-50% + ${place.shift}px))` }}
         className={cn(
-          "absolute left-1/2 z-50 w-max max-w-[min(16rem,calc(100vw-1rem))] rounded-lg border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-relaxed text-popover-foreground shadow-lg",
+          "absolute left-1/2 z-50 w-max max-w-[min(16rem,calc(100vw-1rem))] whitespace-normal break-words rounded-lg border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-relaxed text-popover-foreground shadow-lg",
           place.side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
           // display:none (not just invisible) so a closed bubble near the
           // right edge can't widen the page and cause horizontal scroll.

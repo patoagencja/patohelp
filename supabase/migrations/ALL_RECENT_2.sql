@@ -1,5 +1,5 @@
 -- =============================================================================
--- KOMPLET migracji z października 2026 (0018, 0020-0024).
+-- KOMPLET migracji z października 2026 (0018, 0020-0028).
 -- Wklej w Supabase -> SQL Editor w całości i uruchom. Wszystko jest
 -- idempotentne (IF NOT EXISTS / DROP POLICY IF EXISTS / CREATE OR REPLACE),
 -- więc ponowne uruchomienie niczego nie psuje.
@@ -10,6 +10,10 @@
 --   0022  cotygodniowy e-mail „Twój tydzień w skrócie”
 --   0023  frazy z Google Ads („Czego szukają Twoi klienci”)
 --   0024  mapa aktywności na stronie (dzień tygodnia × godzina)
+--   0025  metryki kreacji z Mety (jakość, wideo, zmęczenie reklamy)
+--   0026  link dla zarządu (podgląd tylko do odczytu)
+--   0027  widoczność w Google (udział w wyświetleniach)
+--   0028  nowi i stali klienci sklepu
 -- =============================================================================
 
 -- ---------------------------------------------------------------- 0018_ga4_items.sql
@@ -241,5 +245,158 @@ alter table public.ga4_activity_heatmap enable row level security;
 -- from the cron's service-role client (bypasses RLS), so no write policy.
 drop policy if exists ga4_activity_heatmap_select on public.ga4_activity_heatmap;
 create policy ga4_activity_heatmap_select on public.ga4_activity_heatmap
+  for select to authenticated
+  using (public.is_agency_user() or client_id = public.current_client_id());
+
+-- ---------------------------------------------------------------- 0025_creative_metrics.sql
+-- Richer per-ad creative insight for the "Kreacje" tab: Meta's ad relevance
+-- diagnostics (rankings), reach/frequency for fatigue detection, and video
+-- retention counts for hook / hold / completion rates.
+--
+-- Every column is nullable on purpose: NULL means "Meta did not report it"
+-- (e.g. video columns on a static image ad, rankings below 500 impressions),
+-- which the UI must keep distinct from a real zero.
+--
+-- Safe to re-run. The sync (/api/cron/refresh-creatives-meta) probes for
+-- these columns and keeps working without them until this migration runs.
+
+alter table public.creatives
+  add column if not exists reach bigint,
+  add column if not exists frequency numeric,
+  -- Raw Meta enum strings: ABOVE_AVERAGE, AVERAGE, BELOW_AVERAGE_35,
+  -- BELOW_AVERAGE_20, BELOW_AVERAGE_10, UNKNOWN. Kept raw (no check
+  -- constraint) so a new value from Meta never fails the whole upsert.
+  add column if not exists quality_ranking text,
+  add column if not exists engagement_rate_ranking text,
+  add column if not exists conversion_rate_ranking text,
+  -- video_play_actions: plays started (autoplay counts, so ~= impressions).
+  add column if not exists video_plays bigint,
+  -- actions[action_type = video_view]: Meta's "3-second video plays".
+  add column if not exists video_3s_views bigint,
+  -- video_thruplay_watched_actions: watched to completion or 15s+.
+  add column if not exists video_thruplays bigint,
+  add column if not exists video_p25 bigint,
+  add column if not exists video_p50 bigint,
+  add column if not exists video_p75 bigint,
+  add column if not exists video_p100 bigint,
+  add column if not exists video_avg_watch_seconds numeric;
+
+-- ---------------------------------------------------------------- 0026_share_overview.sql
+-- "Udostępnij zarządowi": share_links now also carries read-only overview
+-- links (/s/<token>), not just report decks (/r/<token>). Existing rows keep
+-- working as report links thanks to the 'report' default.
+--
+-- The table stays service-role only (RLS on, no policies): the public pages
+-- look tokens up through the admin client, and the agency settings page
+-- creates/revokes them through server actions guarded by
+-- requireAgencyClientAccess. Never add an anon/authenticated SELECT policy -
+-- the token column IS the credential.
+
+alter table public.share_links
+  add column if not exists kind text not null default 'report';
+
+-- Guarded so the migration can be re-run safely (no IF NOT EXISTS for
+-- constraints in Postgres).
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'share_links_kind_check'
+  ) then
+    alter table public.share_links
+      add constraint share_links_kind_check check (kind in ('report', 'overview'));
+  end if;
+end $$;
+
+-- NULL = never expires. Checked by the public page on every request.
+alter table public.share_links
+  add column if not exists expires_at timestamptz;
+
+-- Audit trail: who minted the link, when it was killed and whether it is
+-- actually being opened (helps decide whether a leaked link needs revoking).
+alter table public.share_links
+  add column if not exists created_by uuid references auth.users (id) on delete set null;
+alter table public.share_links
+  add column if not exists revoked_at timestamptz;
+alter table public.share_links
+  add column if not exists last_viewed_at timestamptz;
+
+create index if not exists share_links_client_kind_active_idx
+  on public.share_links (client_id, kind)
+  where not revoked;
+
+-- ---------------------------------------------------------------- 0027_impression_share.sql
+-- "Jak bardzo jesteś widoczny w Google": Search impression share per Google
+-- Ads Search campaign over the last 30 days, plus how much of the missed
+-- visibility was lost to budget vs ad rank. Gives the client a fact-based way
+-- to talk about budget. One snapshot per client per Warsaw day (period_end);
+-- the refresh-ads-google cron replaces it at most once a day and skips
+-- silently until this migration has run.
+--
+-- Shares are stored exactly as Google returns them: fractions 0-1, null when
+-- Google has too little data. Google caps reporting, so 0.0999 means "<10%"
+-- and 0.9001 means ">90%" - readers treat those as approximate.
+--
+-- A row with campaign_id = '' is a "checked today, no Search campaigns"
+-- marker so the cron doesn't re-query every run. Readers ignore it.
+create table if not exists public.google_impression_share (
+  client_id uuid not null references public.clients (id) on delete cascade,
+  customer_id text not null,
+  campaign_id text not null,
+  campaign_name text not null default '',
+  impression_share numeric,
+  budget_lost numeric,
+  rank_lost numeric,
+  impressions bigint not null default 0,
+  clicks bigint not null default 0,
+  cost_minor_units bigint not null default 0,
+  period_end date not null,
+  synced_at timestamptz not null default now(),
+  primary key (client_id, customer_id, campaign_id, period_end)
+);
+
+create index if not exists google_impression_share_client_period_idx
+  on public.google_impression_share (client_id, period_end desc);
+
+alter table public.google_impression_share enable row level security;
+
+-- Read scoped by client_id like every other domain table. Writes come only
+-- from the cron's service-role client (bypasses RLS), so no write policy.
+drop policy if exists google_impression_share_select on public.google_impression_share;
+create policy google_impression_share_select on public.google_impression_share
+  for select to authenticated
+  using (public.is_agency_user() or client_id = public.current_client_id());
+
+-- ---------------------------------------------------------------- 0028_new_vs_returning.sql
+-- "Nowi czy stali klienci" (e-commerce clients only): GA4 revenue, orders,
+-- users and sessions split by newVsReturning ("new" / "returning" /
+-- "(not set)"), aggregated over the last 30 full days (30daysAgo..yesterday).
+-- One snapshot per client per Warsaw day; refresh-ga4 writes it at most once a
+-- day (both "new" and "returning" rows always, zero-filled, so an existing
+-- snapshot doubles as the "already synced today" marker) and skips silently
+-- until this migration has run.
+--
+-- Money in grosze like everywhere else. Snapshots are kept (3 tiny rows a
+-- day) so the split can later be shown as a trend.
+create table if not exists public.ga4_new_vs_returning (
+  client_id uuid not null references public.clients (id) on delete cascade,
+  snapshot_date date not null,
+  segment text not null check (segment in ('new', 'returning', '(not set)')),
+  revenue_minor_units bigint not null default 0,
+  transactions bigint not null default 0,
+  users bigint not null default 0,
+  sessions bigint not null default 0,
+  synced_at timestamptz not null default now(),
+  primary key (client_id, snapshot_date, segment)
+);
+
+create index if not exists ga4_new_vs_returning_client_snapshot_idx
+  on public.ga4_new_vs_returning (client_id, snapshot_date desc);
+
+alter table public.ga4_new_vs_returning enable row level security;
+
+-- Read scoped by client_id like every other domain table. Writes come only
+-- from the cron's service-role client (bypasses RLS), so no write policy.
+drop policy if exists ga4_new_vs_returning_select on public.ga4_new_vs_returning;
+create policy ga4_new_vs_returning_select on public.ga4_new_vs_returning
   for select to authenticated
   using (public.is_agency_user() or client_id = public.current_client_id());
