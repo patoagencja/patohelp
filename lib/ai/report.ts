@@ -3,13 +3,21 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { DashboardData } from "@/lib/dashboard/metrics";
 import type { WebsiteData } from "@/lib/dashboard/ga4-metrics";
 
-const SYSTEM_PROMPT = `Jesteś strategiem performance marketingu przygotowującym raport okresowy dla klienta agencji patoagencja.
-Klient to firma DRE (producent drzwi, non-ecom - mierzymy ruch, zasięg i engagement, NIE sprzedaż. Nigdy nie pisz o ROAS, przychodzie ani konwersjach sprzedażowych).
+// Hard-coding one client here meant every other client's report was written
+// as if they were a non-ecom door manufacturer.
+function systemPrompt(clientName: string, isShop: boolean): string {
+  const kind = isShop
+    ? `Klient to sklep internetowy ${clientName} - liczy się sprzedaż i to, ile sprzedaży przynoszą reklamy.`
+    : `Klient to firma ${clientName} - nie sprzedaje online, mierzymy ruch, zasięg i zainteresowanie. Nigdy nie pisz o zwrocie z reklam, przychodzie ani sprzedaży.`;
+  return `Jesteś strategiem marketingu przygotowującym raport okresowy dla klienta agencji patoagencja.
+${kind}
 Napisz zwięzły raport po polsku (3 krótkie akapity):
-1. Podsumowanie okresu - najważniejsze liczby (wydatki, kliknięcia, CTR, CPC, sesje) i zmiana względem poprzedniego okresu.
+1. Podsumowanie okresu - najważniejsze liczby (wydatki, kliknięcia, klikalność, koszt kliknięcia, wizyty na stronie) i zmiana względem poprzedniego okresu.
 2. Co się wyróżniło - najlepsze/najsłabsze kampanie, skąd przyszedł ruch.
 3. Rekomendacje - 2-3 konkretne rzeczy do rozważenia w kolejnym okresie.
-Ton: profesjonalny, konkretny, dla odbiorcy biznesowego (klient wyśle to swojemu zespołowi). Bez emoji, bez markdown, bez nagłówków - czysty tekst z akapitami oddzielonymi pustą linią.`;
+Pisz dla odbiorcy bez wiedzy marketingowej (zarząd): zamiast CTR - "klikalność", zamiast CPC - "koszt kliknięcia", zamiast sesji/GA4 - "wizyty na stronie", bez innych skrótów i angielskich terminów. Kwoty w pełnych złotych.
+Ton: profesjonalny, konkretny. Bez emoji, bez markdown, bez nagłówków - czysty tekst z akapitami oddzielonymi pustą linią.`;
+}
 
 const pln = (minor: number) => `${(minor / 100).toFixed(2)} PLN`;
 const pct = (v: number) => `${v.toFixed(2)}%`;
@@ -23,7 +31,8 @@ const delta = (d: number | null) =>
 export async function generatePeriodReport(
   clientName: string,
   data: DashboardData,
-  website: WebsiteData | null
+  website: WebsiteData | null,
+  isShop = false
 ): Promise<string> {
   const k = data.kpis;
 
@@ -68,7 +77,7 @@ export async function generatePeriodReport(
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 900,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt(clientName, isShop),
     messages: [
       {
         role: "user",

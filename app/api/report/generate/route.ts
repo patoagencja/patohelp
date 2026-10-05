@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, client_type")
     .eq("slug", clientSlug)
     .single();
   if (!client) {
@@ -73,7 +73,12 @@ export async function POST(request: Request) {
       getDashboardData(client.id, range),
       getWebsiteData(client.id),
     ]);
-    const summary = await generatePeriodReport(client.name as string, data, website);
+    const summary = await generatePeriodReport(
+      client.name as string,
+      data,
+      website,
+      (client as { client_type?: string }).client_type === "ecommerce"
+    );
     try {
       await admin.from("report_cache").upsert(
         {

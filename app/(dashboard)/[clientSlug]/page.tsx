@@ -114,9 +114,9 @@ export default async function OverviewPage({
         className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
       >
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">{greeting()}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Przegląd kampanii {client.name}
+            Oto co słychać w kampaniach {client.name}.
           </p>
         </div>
         <div className="flex items-start gap-2">
@@ -198,4 +198,17 @@ async function DigestSection({
 }) {
   const list = await alerts.catch(() => [] as Anomaly[]);
   return <AlertsDigest alerts={list} clientSlug={clientSlug} />;
+}
+
+/** Time-of-day greeting in Warsaw - a small human touch on the first screen. */
+function greeting(): string {
+  const hour = Number(
+    new Intl.DateTimeFormat("pl-PL", {
+      hour: "numeric",
+      hourCycle: "h23",
+      timeZone: "Europe/Warsaw",
+    }).format(new Date())
+  );
+  if (hour >= 5 && hour < 18) return "Dzień dobry 👋";
+  return "Dobry wieczór 👋";
 }

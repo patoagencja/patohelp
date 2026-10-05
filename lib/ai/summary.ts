@@ -5,15 +5,31 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
-const SYSTEM_PROMPT = `Jesteś ekspertem od performance marketingu piszącym cotygodniowe podsumowanie dla klienta agencji.
-Klient to firma DRE (producent drzwi, non-ecom - mierzymy ruch i engagement, nie sprzedaż).
+// Client-facing copy is read by marketing managers and their boards, not by
+// ad specialists - jargon makes the summary useless to the person paying.
+const PLAIN_LANGUAGE = `Pisz dla osoby bez wiedzy marketingowej (np. menedżer, zarząd):
+- zamiast "CTR" pisz "klikalność" (ile osób na 100, które zobaczyły reklamę, kliknęło),
+- zamiast "CPC" pisz "koszt jednego kliknięcia",
+- zamiast "sesje", "GA4" pisz "wizyty na stronie",
+- zamiast "ROAS" pisz "ile złotych sprzedaży przyniosła każda złotówka wydana na reklamy",
+- żadnych innych skrótów i angielskich terminów (spend, performance, PMax itp.).
+Kwoty zaokrąglaj do pełnych złotych. Nie obiecuj działań w imieniu agencji ("zrobimy", "zmienimy") - sugestię formułuj jako rzecz do omówienia.`;
+
+function systemPrompt(clientName: string, isShop: boolean): string {
+  const kind = isShop
+    ? `Klient to sklep internetowy ${clientName} - liczy się sprzedaż (przychód, liczba zamówień) i to, ile sprzedaży przynoszą reklamy.`
+    : `Klient to firma ${clientName} - nie sprzedaje online, mierzymy ruch i zainteresowanie (kliknięcia, wizyty na stronie, koszt kliknięcia). Nigdy nie pisz o sprzedaży, przychodzie ani zwrocie z reklam.`;
+  return `Jesteś opiekunem klienta w agencji marketingowej i piszesz cotygodniowe podsumowanie dla klienta.
+${kind}
 Pisz 3-4 zdania po polsku, konkretnie, bez ogólników agencyjnych typu "kontynuujemy optymalizację".
 Zawsze zawieraj:
-- KONKRETNĄ liczbę / metrykę (spend, CTR, CPC)
-- Porównanie do poprzedniego okresu
-- Jedną obserwację o tym co warte uwagi
-- Jedną sugestię co warto omówić / zmienić
-Ton: profesjonalny ale nie sztywny. Bez emoji. Bez markdown formatting.`;
+- konkretną liczbę z danych,
+- porównanie do poprzedniego tygodnia,
+- jedną obserwację, co warte uwagi,
+- jedną sugestię, co warto omówić.
+${PLAIN_LANGUAGE}
+Ton: życzliwy, profesjonalny, nie sztywny. Bez emoji. Bez markdown.`;
+}
 
 const pln = (minor: number) => `${(minor / 100).toFixed(2)} PLN`;
 const pct = (v: number) => `${v.toFixed(1)}%`;
@@ -35,6 +51,15 @@ export async function generateWeeklySummary(
   const prevEnd = formatInTimeZone(subDays(now, 7), WARSAW_TZ, "yyyy-MM-dd");
   const prevStart = formatInTimeZone(subDays(now, 13), WARSAW_TZ, "yyyy-MM-dd");
 
+  const { data: clientRow } = await admin
+    .from("clients")
+    .select("name, client_type")
+    .eq("id", clientId)
+    .maybeSingle();
+  const clientName = (clientRow?.name as string | undefined) ?? "klient";
+  const isShop =
+    (clientRow as { client_type?: string } | null)?.client_type === "ecommerce";
+
   const [adsRes, ga4Res, eventsRes] = await Promise.all([
     admin
       .from("ads_daily")
@@ -46,7 +71,7 @@ export async function generateWeeklySummary(
       .lte("date", end),
     admin
       .from("ga4_daily")
-      .select("date, sessions")
+      .select(isShop ? "date, sessions, revenue_minor_units, transactions" : "date, sessions")
       .eq("client_id", clientId)
       .is("source_medium", null)
       .is("device_category", null)
@@ -87,7 +112,12 @@ export async function generateWeeklySummary(
       campaigns.get(key) ??
       ({
         name: (r.campaign_name as string) || (r.campaign_id as string),
-        provider: r.provider === "meta_ads" ? "Meta" : "Google",
+        provider:
+          r.provider === "meta_ads"
+            ? "Meta"
+            : r.provider === "tiktok_ads"
+              ? "TikTok"
+              : "Google",
         cur: 0,
         prev: 0,
         clicks: 0,
@@ -112,9 +142,23 @@ export async function generateWeeklySummary(
 
   let curSessions = 0;
   let prevSessions = 0;
-  for (const r of ga4Res.data ?? []) {
-    if (inCur(r.date as string)) curSessions += Number(r.sessions);
-    else if (inPrev(r.date as string)) prevSessions += Number(r.sessions);
+  let curRevenue = 0;
+  let prevRevenue = 0;
+  let curOrders = 0;
+  let prevOrders = 0;
+  for (const r of (ga4Res.data ?? []) as unknown as Array<Record<string, unknown>>) {
+    const d = r.date as string;
+    const rev = Number(r.revenue_minor_units ?? 0);
+    const ord = Number(r.transactions ?? 0);
+    if (inCur(d)) {
+      curSessions += Number(r.sessions);
+      curRevenue += rev;
+      curOrders += ord;
+    } else if (inPrev(d)) {
+      prevSessions += Number(r.sessions);
+      prevRevenue += rev;
+      prevOrders += ord;
+    }
   }
 
   const list = Array.from(campaigns.values());
@@ -138,6 +182,13 @@ export async function generateWeeklySummary(
     curSessions > 0 || prevSessions > 0
       ? `- Sesje GA4: ${curSessions} (poprzednio: ${prevSessions}, zmiana: ${delta(curSessions, prevSessions)})`
       : `- Sesje GA4: brak danych`,
+    ...(isShop && (curRevenue > 0 || prevRevenue > 0)
+      ? [
+          `- Sprzedaż (GA4): ${pln(curRevenue)} (poprzednio: ${pln(prevRevenue)}, zmiana: ${delta(curRevenue, prevRevenue)})`,
+          `- Zamówienia: ${curOrders} (poprzednio: ${prevOrders}, zmiana: ${delta(curOrders, prevOrders)})`,
+          `- Sprzedaż na 1 zł reklam: ${curSpend > 0 ? (curRevenue / curSpend).toFixed(2) : "-"} zł (poprzednio: ${prevSpend > 0 ? (prevRevenue / prevSpend).toFixed(2) : "-"} zł)`,
+        ]
+      : []),
     "",
     "TOP 3 KAMPANIE (wydatki 7 dni):",
     ...topSpend.map(
@@ -163,7 +214,7 @@ export async function generateWeeklySummary(
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 500,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt(clientName, isShop),
     messages: [
       {
         role: "user",
