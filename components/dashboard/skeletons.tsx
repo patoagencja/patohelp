@@ -31,19 +31,32 @@ function Card({ className }: { className?: string }) {
   );
 }
 
-/** Overview / generic dashboard skeleton: KPI row + chart + list. */
+/** Overview / generic dashboard skeleton - mirrors the real first screen
+ *  (summary card with four numbers, records, chart) so nothing jumps when
+ *  the data arrives. */
 export function DashboardSkeleton() {
   return (
     <div className="space-y-6 p-6">
       <Header />
-      <Shimmer className="h-8 w-full" />
-      <Shimmer className="h-72 w-full rounded-xl" />
+      <div className="rounded-2xl border border-primary/15 bg-card p-5 sm:p-7">
+        <Shimmer className="h-3 w-48" />
+        <Shimmer className="mt-3 h-7 w-3/4" />
+        <div className="mt-6 grid grid-cols-2 gap-5 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i}>
+              <Shimmer className="h-8 w-28" />
+              <Shimmer className="mt-2 h-3 w-32" />
+              <Shimmer className="mt-2 h-3 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i} />
+          <Card key={i} className="h-36" />
         ))}
       </div>
-      <Shimmer className="h-40 w-full rounded-xl" />
+      <Shimmer className="h-80 w-full rounded-xl" />
     </div>
   );
 }
