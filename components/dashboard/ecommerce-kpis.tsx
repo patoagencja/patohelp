@@ -178,7 +178,7 @@ export function EcommerceKpis({
     <div>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <ShoppingBag className="h-4 w-4 text-emerald-500" />
-        Sprzedaż (e-commerce)
+        Wyniki sklepu w wybranym okresie
       </h2>
       <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
         <KpiTile
