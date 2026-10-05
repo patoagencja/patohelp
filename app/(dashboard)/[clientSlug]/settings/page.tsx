@@ -18,6 +18,7 @@ import type { IntegrationProvider } from "@/lib/types";
 import { ConnectedToast } from "./connected-toast";
 import { ConnectionStability } from "./connection-stability";
 import { EcomSettingsSection } from "./ecom-settings";
+import { GoalsSettingsSection } from "./goals-settings";
 import { ShareOverviewSection } from "./share-overview";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
@@ -282,6 +283,7 @@ export default async function SettingsPage({
           { href: "#integracje", label: "Integracje" },
           { href: "#polaczenia", label: "Połączenia bez rozłączeń" },
           ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
+          ...(isEcommerce ? [] : [{ href: "#cele", label: "Cele miesięczne" }]),
           { href: "#powiadomienia", label: "Powiadomienia" },
           { href: "#udostepnianie", label: "Link dla zarządu" },
         ].map((l) => (
@@ -506,7 +508,9 @@ export default async function SettingsPage({
 
       {isEcommerce ? (
         <EcomSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} />
-      ) : null}
+      ) : (
+        <GoalsSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} />
+      )}
 
       {/* Alert notifications */}
       <div id="powiadomienia" className="mt-8 scroll-mt-6">

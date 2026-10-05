@@ -2,6 +2,10 @@ import { getISOWeek, getISOWeekYear } from "date-fns";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDashboardData } from "@/lib/dashboard/metrics";
+import {
+  getAgencyWorkEntries,
+  type AgencyWorkCategory,
+} from "@/lib/dashboard/overview";
 import { getRecords, type RecordIcon, type RecordItem } from "@/lib/dashboard/records";
 import { buildStory, type Story, type StoryFact, type Tone } from "@/lib/dashboard/story";
 import { formatPlnWhole } from "@/lib/utils";
@@ -94,6 +98,8 @@ export interface WeeklyDigestContent {
   spendMinorUnits: number;
   prevSpendMinorUnits: number;
   dashboardUrl: string;
+  /** "Co zrobiliśmy w tym tygodniu": manual, client-visible entries (max 5). */
+  agencyWork?: { date: string; title: string; category: AgencyWorkCategory }[];
 }
 
 // buildStory() compares against "the previous period"; in a weekly e-mail the
@@ -148,6 +154,17 @@ export async function loadWeeklyDigest(
     .filter((r) => r.achievedOn !== null && r.achievedOn >= week.start)
     .slice(0, 3);
 
+  // Only what someone logged by hand and marked visible: automatic campaign
+  // detections are heuristics, and a wrong one in an e-mail can't be undone.
+  // A failed read just drops the section - the digest matters more.
+  const agencyWork = (
+    await getAgencyWorkEntries(client.id, week.start, week.end, admin).catch(() => [])
+  )
+    .filter((e) => e.visibleToClient)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5)
+    .map(({ date, title, category }) => ({ date, title, category }));
+
   return {
     clientName: client.name,
     week,
@@ -162,6 +179,7 @@ export async function loadWeeklyDigest(
     spendMinorUnits: kpis.spendMinorUnits.value,
     prevSpendMinorUnits: kpis.spendMinorUnits.previous,
     dashboardUrl: `${appUrl.replace(/\/+$/, "")}/${client.slug}`,
+    agencyWork,
   };
 }
 
@@ -284,6 +302,35 @@ function recordsList(records: RecordItem[]): string {
     .join("");
 }
 
+const WORK_ICON: Record<AgencyWorkCategory, string> = {
+  kampania: "📣",
+  kreacja: "🎨",
+  optymalizacja: "🛠️",
+  raport: "📄",
+  strona: "🌐",
+  inne: "✨",
+};
+
+const DOW_SHORT = ["nd", "pon", "wt", "śr", "czw", "pt", "sob"];
+
+function workList(items: NonNullable<WeeklyDigestContent["agencyWork"]>): string {
+  const rows = items
+    .map((w) => {
+      const d = toDate(w.date);
+      const day = `${DOW_SHORT[d.getUTCDay()]} ${d.getUTCDate()}.${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      return `
+      <tr>
+        <td width="34" valign="top" style="padding:8px 0">
+          <div style="width:24px;height:24px;border-radius:8px;background:#eef2ff;text-align:center;line-height:24px;font-size:13px">${WORK_ICON[w.category] ?? "✨"}</div>
+        </td>
+        <td valign="top" style="padding:9px 0 8px;font-size:15px;line-height:1.5;color:#334155">${esc(w.title)}</td>
+        <td valign="top" align="right" style="padding:10px 0 8px 12px;font-size:12px;line-height:1.5;color:#94a3b8;white-space:nowrap">${esc(day)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${rows}</table>`;
+}
+
 function spendRow(current: number, previous: number): string {
   const prev =
     previous > 0
@@ -322,6 +369,9 @@ export function buildWeeklyDigestEmail(c: WeeklyDigestContent): WeeklyDigestEmai
 
   const winsHtml = c.story.wins.length
     ? section(`${sectionTitle("Dobre wiadomości")}${winsList(c.story.wins)}`)
+    : "";
+  const workHtml = c.agencyWork?.length
+    ? section(`${sectionTitle("Co zrobiliśmy w tym tygodniu")}${workList(c.agencyWork)}`)
     : "";
   const recordsHtml = c.records.length
     ? section(`${sectionTitle("Rekordy i kamienie milowe")}${recordsList(c.records)}`)
@@ -382,6 +432,7 @@ export function buildWeeklyDigestEmail(c: WeeklyDigestContent): WeeklyDigestEmai
         <tr><td class="gridwrap" style="padding:18px 22px 0">${factsGrid(c.story.facts)}</td></tr>
         ${section(spendRow(c.spendMinorUnits, c.prevSpendMinorUnits), 14)}
         ${winsHtml}
+        ${workHtml}
         ${recordsHtml}
         ${watchHtml}
         <tr>

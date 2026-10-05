@@ -78,12 +78,20 @@ export async function generateWeeklySummary(
       .is("page_path", null)
       .gte("date", prevStart)
       .lte("date", end),
-    admin
-      .from("client_events")
-      .select("event_date, title")
-      .eq("client_id", clientId)
-      .order("event_date", { ascending: false })
-      .limit(3),
+    // The service-role client bypasses RLS, so agency-only notes must be
+    // filtered here or they'd end up in text the client reads. Before
+    // migration 0029 the column doesn't exist and every event is visible.
+    (async () => {
+      const base = () =>
+        admin
+          .from("client_events")
+          .select("event_date, title")
+          .eq("client_id", clientId)
+          .order("event_date", { ascending: false })
+          .limit(3);
+      const visible = await base().eq("visible_to_client", true);
+      return visible.error ? base() : visible;
+    })(),
   ]);
 
   const rows = adsRes.data ?? [];

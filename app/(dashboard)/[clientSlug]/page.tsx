@@ -1,6 +1,10 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
+import {
+  AddActivityButton,
+  AgencyActivity,
+} from "@/components/dashboard/agency-activity";
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
@@ -9,6 +13,7 @@ import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
+import { GoalsCard } from "@/components/dashboard/goals-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
@@ -28,9 +33,11 @@ import {
   getBudgetStatus,
   getEvents,
   getLatestSummary,
+  getRecentAgencyWork,
 } from "@/lib/dashboard/overview";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDailyScore } from "@/lib/dashboard/score";
+import { getEngagementGoals } from "@/lib/dashboard/goals";
 import { buildStory } from "@/lib/dashboard/story";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -100,12 +107,22 @@ export default async function OverviewPage({
     // E-commerce: "where will this month land" belongs on the first screen.
     clientType === "ecommerce" ? getMonthPacing(client.id) : Promise.resolve(null),
   ]);
+  // Engagement clients pace monthly goals instead (shops have revenue pacing).
+  // A failed read just hides the card rather than failing the overview.
+  const goalsPromise =
+    clientType === "ecommerce"
+      ? Promise.resolve([])
+      : getEngagementGoals(client.id).catch(() => []);
 
   const data = await getDashboardData(client.id, range, custom);
-  const [[budget, summary, pacing, score, monthPacing], events] = await Promise.all([
-    sidePromise,
-    getEvents(client.id, data.rangeStart, data.rangeEnd),
-  ]);
+  const [[budget, summary, pacing, score, monthPacing], events, agencyWork] =
+    await Promise.all([
+      sidePromise,
+      getEvents(client.id, data.rangeStart, data.rangeEnd),
+      // A failed read just hides the "Co dla Ciebie zrobiliśmy" card.
+      getRecentAgencyWork(client.id).catch(() => undefined),
+    ]);
+  const engagementGoals = await goalsPromise;
 
   return (
     <div className="space-y-6 p-6">
@@ -121,6 +138,7 @@ export default async function OverviewPage({
           </p>
         </div>
         <div className="flex items-start gap-2">
+          {isAgency ? <AddActivityButton clientSlug={params.clientSlug} /> : null}
           <PrintButton />
           <DateRangePicker
             value={range}
@@ -150,6 +168,16 @@ export default async function OverviewPage({
         </Suspense>
       </SectionBoundary>
 
+      {clientType !== "ecommerce" ? (
+        <SectionBoundary name="overview/goals">
+          <GoalsCard
+            goals={engagementGoals}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+          />
+        </SectionBoundary>
+      ) : null}
+
       {score ? (
         <SectionBoundary name="overview/score">
           <DailyScoreCard data={score} />
@@ -174,6 +202,15 @@ export default async function OverviewPage({
           events={events}
           autoEvents={data.autoEvents}
           label={data.rangeLabel}
+        />
+      </SectionBoundary>
+
+      <SectionBoundary name="overview/agency-activity">
+        <AgencyActivity
+          work={agencyWork}
+          autoEvents={data.autoEvents}
+          isAgency={isAgency}
+          clientSlug={params.clientSlug}
         />
       </SectionBoundary>
 

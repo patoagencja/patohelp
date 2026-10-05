@@ -129,13 +129,19 @@ async function getEventsFor(
   start: string,
   end: string
 ): Promise<ClientEvent[]> {
-  const { data } = await admin
-    .from("client_events")
-    .select("id, event_date, title, description, event_type")
-    .eq("client_id", clientId)
-    .gte("event_date", start)
-    .lte("event_date", end)
-    .order("event_date", { ascending: false });
+  // Service-role reads bypass RLS: agency-only notes must be filtered here or
+  // they'd be shown on a public board link. Before migration 0029 the column
+  // doesn't exist and every event is visible.
+  const base = () =>
+    admin
+      .from("client_events")
+      .select("id, event_date, title, description, event_type")
+      .eq("client_id", clientId)
+      .gte("event_date", start)
+      .lte("event_date", end)
+      .order("event_date", { ascending: false });
+  const visible = await base().eq("visible_to_client", true);
+  const { data } = visible.error ? await base() : visible;
   return (data ?? []).map((e) => ({
     id: e.id as string,
     eventDate: e.event_date as string,

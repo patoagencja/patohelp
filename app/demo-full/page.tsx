@@ -1,8 +1,10 @@
+import { AgencyActivity } from "@/components/dashboard/agency-activity";
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
+import { GoalsCard } from "@/components/dashboard/goals-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
@@ -13,6 +15,7 @@ import { TopCreatives } from "@/components/dashboard/top-creatives";
 import { buildStory } from "@/lib/dashboard/story";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { getDemoRecords } from "@/lib/demo/records";
+import { demoEngagementGoals } from "@/lib/dashboard/goals";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +55,13 @@ export default function DemoFullOverview({
         />
       )}
       {en ? null : <RecordsCard records={getDemoRecords({ ecommerce: false })} />}
+      {en ? null : (
+        <GoalsCard goals={demoEngagementGoals()} clientSlug="demo-full" isAgency={false} />
+      )}
       <TickerBar campaigns={d.campaigns} />
       <DailyScoreCard data={d.score} lang={lang} />
       <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} demo />
+      {en ? null : <AgencyActivity demo isAgency={false} clientSlug="demo-full" />}
       <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} />
       <BudgetProgress
         budget={d.budget}

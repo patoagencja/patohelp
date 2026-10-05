@@ -1,5 +1,6 @@
-import { format, getDaysInMonth, startOfMonth } from "date-fns";
+import { addDays, format, getDaysInMonth, startOfMonth } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
 
@@ -201,4 +202,117 @@ export async function getEvents(
     description: e.description as string | null,
     eventType: e.event_type as string | null,
   }));
+}
+
+// ---- "Co dla Ciebie zrobiliśmy" (agency work log on client_events) ----
+
+export const AGENCY_WORK_CATEGORIES = [
+  "kampania",
+  "kreacja",
+  "optymalizacja",
+  "raport",
+  "strona",
+  "inne",
+] as const;
+
+export type AgencyWorkCategory = (typeof AGENCY_WORK_CATEGORIES)[number];
+
+export interface AgencyWorkEntry {
+  id: string;
+  date: string; // yyyy-MM-dd (Warsaw day)
+  title: string;
+  description: string | null;
+  category: AgencyWorkCategory;
+  visibleToClient: boolean;
+}
+
+export interface AgencyWork {
+  /** Warsaw "today" the window was computed for. */
+  today: string;
+  /** First day of the window (inclusive). */
+  since: string;
+  entries: AgencyWorkEntry[];
+}
+
+/** Category the form writes -> event_type, so the chart marker keeps a tag. */
+export function eventTypeForCategory(category: AgencyWorkCategory): string {
+  if (category === "kampania") return "campaign_launch";
+  if (category === "optymalizacja") return "strategy_change";
+  return "other";
+}
+
+function categoryFor(category: unknown, eventType: unknown): AgencyWorkCategory | null {
+  if (
+    typeof category === "string" &&
+    (AGENCY_WORK_CATEGORIES as readonly string[]).includes(category)
+  ) {
+    return category as AgencyWorkCategory;
+  }
+  // Rows from before 0029 only have event_type. A "sale_period" is the
+  // client's own promotion, not something we did - keep it off the work log.
+  switch (eventType) {
+    case "campaign_launch":
+      return "kampania";
+    case "budget_change":
+    case "strategy_change":
+      return "optymalizacja";
+    case "sale_period":
+      return null;
+    default:
+      return "inne";
+  }
+}
+
+/**
+ * Manual work-log entries in [start, end], newest first. Works before
+ * migration 0029 too (no category / visible_to_client columns): the first
+ * select fails and the legacy one runs, every row counting as visible.
+ * `supabase` lets the weekly e-mail cron pass its service-role client.
+ */
+export async function getAgencyWorkEntries(
+  clientId: string,
+  start: string,
+  end: string,
+  supabase: SupabaseClient = createClient()
+): Promise<AgencyWorkEntry[]> {
+  const query = (columns: string) =>
+    supabase
+      .from("client_events")
+      .select(columns)
+      .eq("client_id", clientId)
+      .gte("event_date", start)
+      .lte("event_date", end)
+      .order("event_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+  let res = await query(
+    "id, event_date, title, description, event_type, category, visible_to_client"
+  );
+  if (res.error) {
+    res = await query("id, event_date, title, description, event_type");
+  }
+
+  const out: AgencyWorkEntry[] = [];
+  for (const raw of (res.data ?? []) as unknown as Record<string, unknown>[]) {
+    const category = categoryFor(raw.category, raw.event_type);
+    if (!category) continue;
+    out.push({
+      id: raw.id as string,
+      date: raw.event_date as string,
+      title: raw.title as string,
+      description: (raw.description as string | null) ?? null,
+      category,
+      visibleToClient: raw.visible_to_client !== false,
+    });
+  }
+  return out;
+}
+
+/** The last 30 Warsaw days (today included) of the work log. */
+export async function getRecentAgencyWork(clientId: string): Promise<AgencyWork> {
+  const today = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
+  const since = format(addDays(new Date(`${today}T12:00:00`), -29), "yyyy-MM-dd");
+  const entries = await getAgencyWorkEntries(clientId, since, today);
+  return { today, since, entries };
 }

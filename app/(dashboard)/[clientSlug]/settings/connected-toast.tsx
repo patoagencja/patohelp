@@ -46,6 +46,8 @@ export function ConnectedToast({
       toast.warning(
         "Token zapisany, ale ma datę ważności. Przy generowaniu tokenu System User wybierz „Nigdy”."
       );
+    } else if (saved === "goals") {
+      toast.success("Zapisano cele miesięczne");
     } else if (saved === "ecommerce") {
       toast.success("Zapisano marżę i cele sprzedaży");
     } else if (saved === "notifications") {
