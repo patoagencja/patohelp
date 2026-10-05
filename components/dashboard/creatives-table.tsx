@@ -1,64 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, ImageOff, X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 
+import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
+import {
+  verdictLabel,
+  verdictReason,
+  type CreativeItem,
+  type CreativeScore,
+} from "@/lib/dashboard/creatives";
 import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
-export interface CreativeItem {
-  adId: string;
-  name: string;
-  thumbnailUrl: string | null;
-  spend: number;
-  impressions: number;
-  clicks: number;
-  ctr: number | null;
-  cpc: number | null;
-}
+// Re-exported so existing imports (demo data, pages) keep working.
+export type { CreativeItem } from "@/lib/dashboard/creatives";
 
 type SortKey = "spend" | "ctr" | "cpc" | "clicks";
 
-const SORTS: Array<{ key: SortKey; label: string }> = [
-  { key: "spend", label: "Wydatki" },
-  { key: "clicks", label: "Kliknięcia" },
-  { key: "ctr", label: "CTR" },
-  { key: "cpc", label: "CPC" },
-];
+const SORT_KEYS: SortKey[] = ["spend", "clicks", "ctr", "cpc"];
 
-function Thumb({ c, className }: { c: CreativeItem; className?: string }) {
-  return (
-    <div
-      className={cn(
-        "relative shrink-0 overflow-hidden rounded-md bg-muted",
-        className
-      )}
-    >
-      {c.thumbnailUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={c.thumbnailUrl}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-        />
-      ) : (
-        <span className="flex h-full w-full items-center justify-center text-muted-foreground">
-          <ImageOff className="h-4 w-4" />
-        </span>
-      )}
-    </div>
-  );
-}
-
-// Modal preview of a single creative - the "click a row, see which ad it is".
-function CreativeModal({
+// Modal preview of a single creative - "click an ad, see it big".
+export function CreativeModal({
   c,
   onClose,
   en = false,
+  score,
 }: {
   c: CreativeItem;
   onClose: () => void;
   en?: boolean;
+  /** Optional verdict vs the client's average, shown under the name. */
+  score?: CreativeScore;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -74,13 +46,19 @@ function CreativeModal({
     };
   }, [onClose]);
 
+  const lang = en ? "en" : "pl";
+  const reason = score ? verdictReason(score, lang) : "";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={c.name}
     >
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -92,35 +70,43 @@ function CreativeModal({
           <X className="h-4 w-4" />
         </button>
 
-        <div className="flex max-h-[55vh] items-center justify-center bg-black/90">
-          {c.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={c.thumbnailUrl}
-              alt={c.name}
-              className="max-h-[55vh] w-auto max-w-full object-contain"
-            />
-          ) : (
-            <div className="flex h-48 w-full items-center justify-center text-muted-foreground">
-              <ImageOff className="h-8 w-8" />
-            </div>
-          )}
-        </div>
+        <CreativeThumb
+          src={c.thumbnailUrl}
+          name={c.name}
+          lang={lang}
+          fit="contain"
+          className="h-[50vh] max-h-[28rem] min-h-48 w-full rounded-none bg-black/90"
+        />
 
-        <div className="space-y-3 p-4">
-          <p className="text-sm font-semibold leading-snug">{c.name}</p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="space-y-3 overflow-y-auto p-4">
+          <div>
+            <p className="break-words text-sm font-semibold leading-snug">{c.name}</p>
+            {score ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {verdictLabel(score, lang)}
+                </span>
+                {reason ? ` · ${reason}` : ""}
+              </p>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {[
               { label: en ? "Spend" : "Wydatki", value: formatMoneyPLN(c.spend) },
-              { label: en ? "Impressions" : "Wyświetlenia", value: formatNumberPL(c.impressions) },
+              { label: en ? "Views" : "Wyświetlenia", value: formatNumberPL(c.impressions) },
               { label: en ? "Clicks" : "Kliknięcia", value: formatNumberPL(c.clicks) },
-              { label: "CTR", value: formatPercent(c.ctr ?? 0) },
+              {
+                label: en ? "Click rate (CTR)" : "Klikalność (CTR)",
+                value: c.ctr != null ? formatPercent(c.ctr) : "-",
+              },
+              {
+                label: en ? "Cost per click" : "Koszt kliknięcia",
+                value: c.cpc != null ? formatMoneyPLN(Math.round(c.cpc)) : "-",
+              },
             ].map((s) => (
               <div key={s.label} className="rounded-lg bg-muted/50 p-2.5">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  {s.label}
-                </p>
-                <p className="font-mono text-sm font-semibold tabular-nums">
+                <p className="text-[11px] text-muted-foreground">{s.label}</p>
+                <p className="tabular-nums text-sm font-semibold">
                   {s.value}
                 </p>
               </div>
@@ -143,12 +129,18 @@ function CreativeModal({
   );
 }
 
+/**
+ * Dense table for agency power users. Embedded under the gallery's "Tabela"
+ * toggle, so it carries no card chrome of its own when `embedded`.
+ */
 export function CreativesTable({
   creatives,
   lang = "pl",
+  embedded = false,
 }: {
   creatives: CreativeItem[];
   lang?: "pl" | "en";
+  embedded?: boolean;
 }) {
   const en = lang === "en";
   const sortLabel: Record<SortKey, string> = en
@@ -167,7 +159,12 @@ export function CreativesTable({
     .slice(0, 50);
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
+    <section
+      className={cn(
+        "min-w-0",
+        embedded ? "" : "rounded-xl border border-border bg-card p-4"
+      )}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold">
           {en ? "All creatives" : "Wszystkie kreacje"} ({Math.min(creatives.length, 50)}
@@ -176,29 +173,30 @@ export function CreativesTable({
             {en ? "· click a row to view the creative" : "· kliknij wiersz, by zobaczyć kreację"}
           </span>
         </h2>
-        <div className="flex rounded-lg bg-muted p-1">
-          {SORTS.map((s) => (
+        <div className="flex self-start rounded-lg bg-muted p-1 sm:self-auto">
+          {SORT_KEYS.map((key) => (
             <button
-              key={s.key}
+              key={key}
               type="button"
-              onClick={() => setSort(s.key)}
+              onClick={() => setSort(key)}
+              aria-pressed={sort === key}
               className={cn(
                 "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                sort === s.key
+                sort === key
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {sortLabel[s.key]}
+              {sortLabel[key]}
             </button>
           ))}
         </div>
       </div>
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[34rem]">
           <thead>
-            <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b border-border text-left tabular-nums text-[11px] uppercase tracking-wide text-muted-foreground">
               <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Kreacja"}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Spend" : "Wydatki"}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Impr." : "Wyśw."}</th>
@@ -216,25 +214,31 @@ export function CreativesTable({
               >
                 <td className="max-w-[22rem] py-2 pr-3">
                   <div className="flex items-center gap-2.5">
-                    <Thumb c={c} className="h-9 w-9" />
+                    <CreativeThumb
+                      src={c.thumbnailUrl}
+                      name={c.name}
+                      lang={lang}
+                      compact
+                      className="h-9 w-9 rounded-md"
+                    />
                     <span className="truncate text-sm" title={c.name}>
                       {c.name}
                     </span>
                   </div>
                 </td>
-                <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums">
+                <td className="py-2 pr-3 text-right text-sm tabular-nums">
                   {formatMoneyPLN(c.spend)}
                 </td>
-                <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
                   {formatNumberPL(c.impressions)}
                 </td>
-                <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
                   {formatNumberPL(c.clicks)}
                 </td>
-                <td className="py-2 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-                  {formatPercent(c.ctr ?? 0)}
+                <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
+                  {c.ctr != null ? formatPercent(c.ctr) : "-"}
                 </td>
-                <td className="py-2 text-right font-mono text-sm tabular-nums text-muted-foreground">
+                <td className="py-2 text-right text-sm tabular-nums text-muted-foreground">
                   {c.cpc != null ? formatMoneyPLN(Math.round(c.cpc)) : "-"}
                 </td>
               </tr>

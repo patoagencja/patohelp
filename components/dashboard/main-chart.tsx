@@ -12,9 +12,9 @@ type MetricKey = "spend" | "sessions" | "clicks" | "conversions";
 
 const METRICS: Array<{ key: MetricKey; label: string }> = [
   { key: "spend", label: "Wydatki" },
-  { key: "sessions", label: "Sesje" },
+  { key: "sessions", label: "Wizyty na stronie" },
   { key: "clicks", label: "Kliknięcia" },
-  { key: "conversions", label: "Konwersje" },
+  { key: "conversions", label: "Działania" },
 ];
 
 // Compact axis labels so wide amounts ("140 000,00 zł") don't get clipped.
@@ -57,7 +57,7 @@ export function MainChart({
   const en = lang === "en";
   const metricLabel: Record<MetricKey, string> = en
     ? { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions" }
-    : { spend: "Wydatki", sessions: "Sesje", clicks: "Kliknięcia", conversions: "Konwersje" };
+    : { spend: "Wydatki", sessions: "Wizyty na stronie", clicks: "Kliknięcia", conversions: "Działania na stronie" };
   const seriesKey = en ? "Value" : "Wartość";
   const [metric, setMetric] = useState<MetricKey>("spend");
 

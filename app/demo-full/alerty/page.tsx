@@ -52,7 +52,7 @@ export default function DemoFullAlerty({
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", s.badge)}>{s.label}</span>
-                <span className={cn("inline-flex items-center gap-0.5 font-mono text-xs font-semibold", a.direction === "up" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
+                <span className={cn("inline-flex items-center gap-0.5 tabular-nums text-xs font-semibold", a.direction === "up" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
                   {a.direction === "up" ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                   {a.changePct > 0 ? "+" : ""}{a.changePct}%
                 </span>

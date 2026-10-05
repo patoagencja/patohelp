@@ -4,62 +4,81 @@ import { useEffect, useRef, useState } from "react";
 import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
 
 import { AnimatedNumber } from "@/components/dashboard/animated-number";
+import { MetricLabel } from "@/components/dashboard/info-tip";
+import {
+  GLOSSARY,
+  describeChange,
+  type ChangeTone,
+  type GlossaryKey,
+  type GoodWhen,
+} from "@/lib/dashboard/glossary";
 import type { DashboardKpis, Kpi, TrendPoint } from "@/lib/dashboard/metrics";
-import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import {
+  cn,
+  formatMoneyPLN,
+  formatNumberPL,
+  formatPercent,
+  formatPlnWhole,
+} from "@/lib/utils";
 
-// How an increase should be judged for each metric.
-type Direction = "good" | "bad" | "neutral";
+// Same cut-off as the sentence ("podobnie jak wcześniej"), so the badge and
+// the text under the number never tell two different stories.
+const FLAT_THRESHOLD = 3;
 
-// Green when the change is good for the client, red when bad, gray for
-// neutral metrics (spend) - the arrow still shows the direction.
-function deltaBadge(kpi: Kpi, direction: Direction) {
+// Tremor picks the arrow from deltaType and the colour from deltaType +
+// isIncreasePositive, so a pricier click shows an UP arrow in RED. Neutral
+// metrics (spend) and tiny moves get a gray badge - direction without verdict.
+function deltaBadge(kpi: Kpi, goodWhen: GoodWhen) {
   if (kpi.deltaPercent === null) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
-
-  const deltaType =
-    rounded === 0 || direction === "neutral"
-      ? "unchanged"
-      : (direction === "good" ? rounded > 0 : rounded < 0)
-        ? "increase" // green
-        : "decrease"; // red
-
+  const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
+  const muted = goodWhen === "neutral" || Math.abs(rounded) < FLAT_THRESHOLD;
   return {
     deltaType,
-    showArrow: rounded > 0 ? "▲" : rounded < 0 ? "▼" : "",
+    isIncreasePositive: goodWhen !== "lower",
+    className: muted
+      ? "bg-slate-50 text-slate-600 ring-slate-500 dark:text-slate-300"
+      : undefined,
     label: `${rounded > 0 ? "+" : ""}${formatPercent(rounded, 1)}`,
   };
 }
 
 // Sparkline colour mirrors the delta judgement: green = good move, red = bad,
 // indigo for neutral (spend). Keeps the whole card reading as one signal.
-function sparkColor(kpi: Kpi, direction: Direction) {
-  if (direction === "neutral" || kpi.deltaPercent === null) return "indigo";
-  const good = direction === "good" ? kpi.deltaPercent >= 0 : kpi.deltaPercent <= 0;
+function sparkColor(kpi: Kpi, goodWhen: GoodWhen) {
+  if (goodWhen === "neutral" || kpi.deltaPercent === null) return "indigo";
+  const good = goodWhen === "higher" ? kpi.deltaPercent >= 0 : kpi.deltaPercent <= 0;
   return good ? "emerald" : "red";
 }
 
 function KpiCard({
-  label,
+  metric,
+  tone,
   value,
   format,
   kpi,
-  direction,
   series,
   hint,
-  subtitle = "vs poprzedni okres",
+  thinBase = false,
+  lang,
 }: {
-  label: string;
+  metric: GlossaryKey;
+  tone: ChangeTone;
   value: number;
   format: (n: number) => string;
   kpi: Kpi;
-  direction: Direction;
   series: number[];
   hint?: string;
-  subtitle?: string;
+  /** Previous period too small for a meaningful % - hide it. */
+  thinBase?: boolean;
+  lang: "pl" | "en";
 }) {
-  const delta = hint ? null : deltaBadge(kpi, direction);
+  const g = GLOSSARY[metric];
+  const en = lang === "en";
+  const delta = hint || thinBase ? null : deltaBadge(kpi, g.goodWhen);
   const hasSpark = series.some((v) => v > 0);
   const data = series.map((v, i) => ({ i, v }));
+  const subtitle = hint ?? describeChange(kpi.deltaPercent, tone, { thinBase, lang });
 
   // Flash the whole card green/red when the value changes (e.g. auto-refresh).
   const prevRef = useRef(value);
@@ -75,16 +94,27 @@ function KpiCard({
   return (
     <Card
       className={cn(
-        "group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20",
+        // z-index lift keeps an open ⓘ bubble above the neighbouring cards.
+        "group transition-all duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20",
         cardFlash === "up" && "ring-2 ring-emerald-500/60",
         cardFlash === "down" && "ring-2 ring-red-500/60"
       )}
     >
-      <Flex justifyContent="between" alignItems="start">
-        <Text>{label}</Text>
+      <Flex justifyContent="between" alignItems="start" className="gap-2">
+        <MetricLabel
+          name={en ? g.en.name : g.name}
+          tag={en ? (g.en.short ?? g.short) : g.short}
+          explain={en ? g.en.explain : g.explain}
+          lang={lang}
+        />
         {delta ? (
-          <BadgeDelta deltaType={delta.deltaType as never} size="xs">
-            {`${delta.showArrow} ${delta.label}`.trim()}
+          <BadgeDelta
+            deltaType={delta.deltaType}
+            isIncreasePositive={delta.isIncreasePositive}
+            size="xs"
+            className={cn("tabular-nums", delta.className)}
+          >
+            {delta.label}
           </BadgeDelta>
         ) : null}
       </Flex>
@@ -93,25 +123,31 @@ function KpiCard({
         <AnimatedNumber
           value={value}
           format={format}
-          className="min-w-0 flex-1 truncate text-2xl font-bold tracking-tight text-foreground"
+          className="min-w-0 flex-1 truncate text-2xl font-bold tabular-nums tracking-tight text-foreground"
         />
         {hasSpark ? (
           <SparkAreaChart
             data={data}
             index="i"
             categories={["v"]}
-            colors={[sparkColor(kpi, direction)]}
+            colors={[sparkColor(kpi, g.goodWhen)]}
             className="h-8 w-16 shrink-0 animate-[soft-pulse_2.8s_ease-in-out_infinite] sm:w-20"
           />
         ) : null}
       </Flex>
 
-      <Text className={cn("mt-1 text-xs", hint && "text-muted-foreground")}>
-        {hint ?? subtitle}
+      <Text className={cn("mt-1 text-xs", (hint || thinBase) && "text-muted-foreground")}>
+        {subtitle}
       </Text>
     </Card>
   );
 }
+
+// Below these previous-period counts a % change is mostly noise (+200% on
+// 3 conversions), so the card says "not enough data" instead.
+const MIN_PREV_CLICKS = 50;
+const MIN_PREV_SESSIONS = 50;
+const MIN_PREV_CONVERSIONS = 10;
 
 export function KpiCards({
   kpis,
@@ -124,18 +160,14 @@ export function KpiCards({
 }) {
   const en = lang === "en";
   const L = {
-    spend: en ? "Spend" : "Wydatki",
-    clicks: en ? "Clicks" : "Kliknięcia",
-    sessions: en ? "Sessions (GA4)" : "Sesje (GA4)",
-    ctr: en ? "Avg CTR" : "Średni CTR",
-    cpc: en ? "Avg CPC" : "Średni CPC",
-    conversions: en ? "Conversions" : "Konwersje",
     afterGa4: en ? "after connecting GA4" : "po podłączeniu GA4",
     noConv: en ? "no conversion events" : "brak zdarzeń konwersji",
   };
   const noSessions = kpis.sessions.value === 0 && kpis.sessions.previous === 0;
   const noConversions =
     kpis.conversions.value === 0 && kpis.conversions.previous === 0;
+  // CTR and CPC are ratios over clicks, so they inherit the clicks guard.
+  const thinClicks = kpis.clicks.previous < MIN_PREV_CLICKS;
 
   // Per-day series for each metric so every card carries its own sparkline.
   const spendSeries = trend.map((t) => t.spendMinorUnits / 100);
@@ -149,65 +181,70 @@ export function KpiCards({
     t.clicks > 0 ? t.spendMinorUnits / t.clicks / 100 : 0
   );
 
-  const sub = en ? "vs previous period" : "vs poprzedni okres";
-
   return (
     <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
       <KpiCard
-        label={L.spend}
+        metric="spend"
+        tone="amount"
         value={kpis.spendMinorUnits.value}
-        format={(n) => formatMoneyPLN(Math.round(n))}
+        // Headline in whole złoty - grosze on a five-digit budget is noise.
+        format={(n) => formatPlnWhole(Math.round(n))}
         kpi={kpis.spendMinorUnits}
-        direction="neutral"
         series={spendSeries}
-        subtitle={sub}
+        lang={lang}
       />
       <KpiCard
-        label={L.clicks}
+        metric="clicks"
+        tone="amount"
         value={kpis.clicks.value}
         format={formatNumberPL}
         kpi={kpis.clicks}
-        direction="good"
         series={clicksSeries}
-        subtitle={sub}
+        thinBase={thinClicks}
+        lang={lang}
       />
       <KpiCard
-        label={L.sessions}
+        metric="sessions"
+        tone="amount"
         value={kpis.sessions.value}
         format={(n) => (noSessions ? "-" : formatNumberPL(n))}
         kpi={kpis.sessions}
-        direction="good"
         series={sessionsSeries}
         hint={noSessions ? L.afterGa4 : undefined}
-        subtitle={sub}
+        thinBase={kpis.sessions.previous < MIN_PREV_SESSIONS}
+        lang={lang}
       />
       <KpiCard
-        label={L.ctr}
+        metric="ctr"
+        tone="rate"
         value={kpis.ctr.value}
         format={(n) => formatPercent(n)}
         kpi={kpis.ctr}
-        direction="good"
         series={ctrSeries}
-        subtitle={sub}
+        thinBase={thinClicks}
+        lang={lang}
       />
       <KpiCard
-        label={L.cpc}
+        metric="cpc"
+        tone="cost"
         value={kpis.cpcMinorUnits.value}
+        // CPC stays with grosze: 1,47 zł vs 1,52 zł is the whole story here.
         format={(n) => formatMoneyPLN(Math.round(n))}
         kpi={kpis.cpcMinorUnits}
-        direction="bad"
         series={cpcSeries}
-        subtitle={sub}
+        thinBase={thinClicks}
+        lang={lang}
       />
       <KpiCard
-        label={L.conversions}
+        metric="conversions"
+        tone="amount"
         value={kpis.conversions.value}
         format={(n) => (noConversions ? "-" : formatNumberPL(n))}
         kpi={kpis.conversions}
-        direction="good"
         series={conversionsSeries}
         hint={noConversions ? L.noConv : undefined}
-        subtitle={sub}
+        thinBase={kpis.conversions.previous < MIN_PREV_CONVERSIONS}
+        lang={lang}
       />
     </Grid>
   );

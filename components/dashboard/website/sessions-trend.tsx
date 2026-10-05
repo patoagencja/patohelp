@@ -14,7 +14,7 @@ export function SessionsTrend({
   lang?: "pl" | "en";
 }) {
   const en = lang === "en";
-  const key = en ? "Sessions" : "Sesje";
+  const key = en ? "Sessions" : "Wizyty";
   const data = trend.map((p) => {
     const [, month, day] = p.date.split("-");
     return { date: `${day}.${month}`, [key]: p.sessions };
@@ -22,7 +22,7 @@ export function SessionsTrend({
 
   return (
     <Card>
-      <Title>{en ? "Sessions - last 30 days" : "Sesje - ostatnie 30 dni"}</Title>
+      <Title>{en ? "Sessions - last 30 days" : "Wizyty na stronie dzień po dniu"}</Title>
       <AreaChart
         className="mt-4 h-64"
         data={data}

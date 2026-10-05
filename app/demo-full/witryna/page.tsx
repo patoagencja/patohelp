@@ -20,11 +20,13 @@ export default function DemoFullWitryna({
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">{en ? "Website (GA4)" : "Witryna (GA4)"}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {en ? "Your website" : "Twoja strona internetowa"}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {en
             ? `Traffic and engagement · ${d.rangeLabel}`
-            : `Ruch i zaangażowanie na stronie · ${d.rangeLabel}`}
+            : `Kto odwiedza stronę, skąd przychodzi i co ogląda · ${d.rangeLabel}`}
         </p>
       </div>
 

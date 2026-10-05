@@ -169,7 +169,7 @@ export default async function NewsyPage({
                           <div className="flex flex-wrap items-center gap-2">
                             <span
                               className={cn(
-                                "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-wide",
+                                "rounded px-1.5 py-0.5 tabular-nums text-[10px] font-bold tracking-wide",
                                 meta.chip
                               )}
                             >

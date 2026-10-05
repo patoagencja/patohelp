@@ -9,6 +9,7 @@ import { clientLogo } from "@/components/dashboard/client-logo";
 import { IntegrationHealthBanner } from "@/components/dashboard/integration-health-banner";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
@@ -63,7 +64,10 @@ export default async function ClientDashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-muted/20">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden">
+      <aside
+        data-present-hide
+        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden"
+      >
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
           {(() => {
             const Logo = clientLogo(params.clientSlug);
@@ -94,9 +98,15 @@ export default async function ClientDashboardLayout({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {isAgency ? <AutoSync clientSlug={params.clientSlug} /> : null}
-        <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6 print:hidden">
+        {/* Presentation mode hides the whole header; its own floating bar
+            (portaled to <body>) takes over the controls. */}
+        <header
+          data-present-hide
+          className="flex h-14 items-center gap-3 border-b border-border bg-card px-6 print:hidden"
+        >
           <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
           <span className="flex-1" />
+          <PresentationMode />
           <ThemeToggle />
           {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
           {user?.email ? (
@@ -116,23 +126,28 @@ export default async function ClientDashboardLayout({
           </form>
         </header>
 
-        <MobileNav
-          clientSlug={params.clientSlug}
-          isAgency={isAgency}
-          isEcommerce={isEcommerce}
-        />
+        <div data-present-hide>
+          <MobileNav
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+            isEcommerce={isEcommerce}
+          />
+        </div>
 
         <main className="flex-1">
           {client ? (
             // Health checks take a few queries per provider; never hold the
-            // page back for them.
-            <Suspense fallback={null}>
-              <IntegrationHealthBanner
-                clientId={client.id}
-                clientSlug={params.clientSlug}
-                isAgency={isAgency}
-              />
-            </Suspense>
+            // page back for them. Hidden on the TV: it's connection
+            // housekeeping, not board material.
+            <div data-present-hide>
+              <Suspense fallback={null}>
+                <IntegrationHealthBanner
+                  clientId={client.id}
+                  clientSlug={params.clientSlug}
+                  isAgency={isAgency}
+                />
+              </Suspense>
+            </div>
           ) : null}
           {children}
         </main>

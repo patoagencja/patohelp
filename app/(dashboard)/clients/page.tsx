@@ -209,7 +209,7 @@ export default async function ClientsPage({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Klienci
             </p>
-            <p className="mt-1 font-mono text-2xl font-bold tabular-nums">
+            <p className="mt-1 tabular-nums text-2xl font-bold tabular-nums">
               {clientList.length}
             </p>
           </div>
@@ -217,7 +217,7 @@ export default async function ClientsPage({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Wydatki wczoraj (łącznie)
             </p>
-            <p className="mt-1 font-mono text-2xl font-bold tabular-nums">
+            <p className="mt-1 tabular-nums text-2xl font-bold tabular-nums">
               {formatMoneyPLN(totalYesterday)}
             </p>
           </div>
@@ -240,7 +240,7 @@ export default async function ClientsPage({
             </p>
             <p
               className={cn(
-                "mt-1 font-mono text-2xl font-bold tabular-nums",
+                "mt-1 tabular-nums text-2xl font-bold tabular-nums",
                 totalAlerts > 0 && "text-red-600 dark:text-red-400"
               )}
             >
@@ -295,7 +295,7 @@ export default async function ClientsPage({
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-lg font-semibold">{c.name}</p>
-                    <p className="truncate font-mono text-xs text-muted-foreground">
+                    <p className="truncate tabular-nums text-xs text-muted-foreground">
                       /{c.slug}
                     </p>
                   </div>
@@ -306,7 +306,7 @@ export default async function ClientsPage({
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                       Wydatki wczoraj
                     </p>
-                    <p className="font-mono text-lg font-bold tabular-nums">
+                    <p className="tabular-nums text-lg font-bold tabular-nums">
                       {formatMoneyPLN(spend)}
                     </p>
                   </div>

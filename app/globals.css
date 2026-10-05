@@ -204,3 +204,47 @@ main {
   opacity: 0.55;
   pointer-events: none;
 }
+
+/* ===== Presentation mode ("Prezentuj") =====================================
+   Owned by components/dashboard/presentation-mode.tsx. Managers show the
+   dashboard on a TV/projector to their board, so chrome goes away and
+   everything gets bigger and roomier. Attribute conventions:
+   - [data-present="true"] on <html>: set only while presenting.
+   - [data-present-hide]: any element that should disappear while presenting
+     (navigation, admin-only controls, data-health banners). Prefer this over
+     reusing print:hidden - the report deck's slide controls are print-only
+     hidden but are exactly what a presenter needs.
+   - [data-present-deck]: optional; marks the container whose children are
+     the keyboard "slides". Otherwise the first multi-child level in <main>.
+   - [data-present-slide]: set by the component on detected slides. */
+html[data-present="true"] {
+  /* Tailwind sizes are rem-based, so one knob scales text, cards and charts
+     for viewers sitting across the room. */
+  font-size: 18px;
+}
+
+[data-present="true"] aside,
+[data-present="true"] [data-present-hide] {
+  display: none !important;
+}
+
+[data-present="true"] main {
+  width: 100%;
+  max-width: 110rem;
+  margin-inline: auto;
+  padding-top: 1.5rem;
+  padding-inline: clamp(0.5rem, 3vw, 4rem);
+  /* Keep the last section clear of the floating control bar. */
+  padding-bottom: 6rem;
+}
+
+[data-present="true"] [data-present-slide] {
+  scroll-margin-top: 1.5rem;
+}
+
+/* Same specificity as Tailwind's space-y-* but declared later, so the extra
+   breathing room between sections wins only while presenting. */
+[data-present="true"] [data-present-slide] ~ [data-present-slide] {
+  margin-top: 2.5rem;
+}
+/* ===== End presentation mode ============================================ */

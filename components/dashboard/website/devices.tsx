@@ -1,16 +1,12 @@
-"use client";
-
-import { Card, DonutChart, Legend, Title } from "@tremor/react";
-
 import { formatNumberPL } from "@/lib/utils";
 
-const DEVICE_LABEL: Record<string, string> = {
-  mobile: "Mobile",
-  desktop: "Desktop",
-  tablet: "Tablet",
-};
+import { outOfTen, ShareBars, visitsUnit, type ShareRow } from "./share-bars";
 
-const COLORS = ["indigo", "sky", "slate"] as const;
+const DEVICE: Record<string, { pl: string; en: string; bar: string }> = {
+  mobile: { pl: "Telefon", en: "Mobile", bar: "bg-indigo-500" },
+  desktop: { pl: "Komputer", en: "Desktop", bar: "bg-sky-500" },
+  tablet: { pl: "Tablet", en: "Tablet", bar: "bg-slate-400" },
+};
 
 export function Devices({
   devices,
@@ -20,27 +16,28 @@ export function Devices({
   lang?: "pl" | "en";
 }) {
   const en = lang === "en";
-  const data = devices.map((d) => ({
-    name: DEVICE_LABEL[d.device] ?? d.device,
+  const rows: ShareRow[] = devices.map((d) => ({
+    key: d.device,
+    label: DEVICE[d.device]?.[en ? "en" : "pl"] ?? d.device,
     value: d.sessions,
+    barClass: DEVICE[d.device]?.bar ?? "bg-slate-400",
   }));
+  const total = rows.reduce((a, r) => a + r.value, 0);
+  const mobile = rows.find((r) => r.key === "mobile")?.value ?? 0;
+  // The practical takeaway: is the site judged on a phone or a laptop?
+  const insight =
+    total > 0 && !en
+      ? mobile / total >= 0.5
+        ? `${outOfTen(mobile / total)} gości ogląda stronę na telefonie - to wersja mobilna robi pierwsze wrażenie.`
+        : `Większość gości ogląda stronę na komputerze (${outOfTen(1 - mobile / total)}).`
+      : null;
 
   return (
-    <Card>
-      <Title>{en ? "Devices" : "Urządzenia"}</Title>
-      <DonutChart
-        className="mt-6 h-52"
-        data={data}
-        category="value"
-        index="name"
-        colors={[...COLORS]}
-        valueFormatter={(v) => `${formatNumberPL(v)} ${en ? "sessions" : "sesji"}`}
-      />
-      <Legend
-        className="mt-4 justify-center"
-        categories={data.map((d) => `${d.name}: ${formatNumberPL(d.value)}`)}
-        colors={[...COLORS]}
-      />
-    </Card>
+    <ShareBars
+      title={en ? "Devices" : "Na czym oglądają"}
+      insight={insight}
+      rows={rows}
+      unit={en ? (n) => `${formatNumberPL(n)} sessions` : visitsUnit}
+    />
   );
 }

@@ -1,31 +1,42 @@
 import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
 import { ShoppingBag } from "lucide-react";
 
+import { MetricLabel } from "@/components/dashboard/info-tip";
+import {
+  GLOSSARY,
+  describeChange,
+  type ChangeTone,
+  type GlossaryKey,
+} from "@/lib/dashboard/glossary";
 import type {
   EcommerceKpis as EcommerceKpisData,
   Kpi,
   TrendPoint,
 } from "@/lib/dashboard/metrics";
 import {
+  cn,
   formatMoneyPLN,
   formatNumberPL,
   formatPlnWhole,
   formatSignedPct,
 } from "@/lib/utils";
 
-type Direction = "good" | "bad";
+// Matches the "podobnie jak wcześniej" cut-off in describeChange so the badge
+// and the sentence under the number agree.
+const FLAT_THRESHOLD = 3;
 
-function delta(kpi: Kpi, direction: Direction) {
+// Every e-commerce KPI here is "higher is better", so Tremor's default
+// increase=green / decrease=red mapping is right; tiny moves go gray.
+function delta(kpi: Kpi) {
   if (kpi.deltaPercent === null) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
-  const deltaType =
-    rounded === 0
-      ? "unchanged"
-      : (direction === "good" ? rounded > 0 : rounded < 0)
-        ? "increase"
-        : "decrease";
+  const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
   return {
     deltaType,
+    className:
+      Math.abs(rounded) < FLAT_THRESHOLD
+        ? "bg-slate-50 text-slate-600 ring-slate-500 dark:text-slate-300"
+        : undefined,
     label: `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("pl-PL", {
       maximumFractionDigits: 1,
     })}%`,
@@ -33,30 +44,39 @@ function delta(kpi: Kpi, direction: Direction) {
 }
 
 function KpiTile({
-  label,
+  metric,
+  tone,
   value,
   kpi,
-  direction,
   spark,
   sparkColor,
   yoyRatio,
+  thinBase = false,
 }: {
-  label: string;
+  metric: GlossaryKey;
+  tone: ChangeTone;
   value: string;
   kpi: Kpi;
-  direction: Direction;
   spark?: number[];
   sparkColor?: "emerald" | "indigo" | "amber" | "sky";
   yoyRatio?: number | null;
+  /** Previous period too small for a meaningful % - hide it. */
+  thinBase?: boolean;
 }) {
-  const d = delta(kpi, direction);
+  const g = GLOSSARY[metric];
+  const d = thinBase ? null : delta(kpi);
   const sparkData = (spark ?? []).map((v, i) => ({ i, v }));
   return (
-    <Card className="transition-all hover:-translate-y-0.5 hover:shadow-md">
-      <Flex justifyContent="between" alignItems="start">
-        <Text>{label}</Text>
+    // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
+    <Card className="transition-all focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md">
+      <Flex justifyContent="between" alignItems="start" className="gap-2">
+        <MetricLabel name={g.name} tag={g.short} explain={g.explain} />
         {d ? (
-          <BadgeDelta deltaType={d.deltaType as never} size="xs">
+          <BadgeDelta
+            deltaType={d.deltaType}
+            size="xs"
+            className={cn("tabular-nums", d.className)}
+          >
             {d.label}
           </BadgeDelta>
         ) : null}
@@ -64,7 +84,7 @@ function KpiTile({
       {/* Value gets the full width; the sparkline sits under it. Side by side,
           four tiles next to the sidebar left the value ~5 characters and
           truncated it ("292 0…"). */}
-      <p className="mt-2 whitespace-nowrap text-2xl font-bold tracking-tight text-foreground">
+      <p className="mt-2 whitespace-nowrap text-2xl font-bold tabular-nums tracking-tight text-foreground">
         {value}
       </p>
       {sparkData.length > 1 ? (
@@ -76,14 +96,14 @@ function KpiTile({
           className="mt-2 h-8 w-full"
         />
       ) : null}
-      <Text className="mt-1 text-xs">
-        vs poprzedni okres
+      <Text className={cn("mt-1 text-xs", thinBase && "text-muted-foreground")}>
+        {describeChange(kpi.deltaPercent, tone, { thinBase })}
         {yoyRatio != null ? (
           <span
             className={
               yoyRatio >= 0
-                ? "ml-2 inline-block whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400"
-                : "ml-2 inline-block whitespace-nowrap font-medium text-rose-600 dark:text-rose-400"
+                ? "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-emerald-600 dark:text-emerald-400"
+                : "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-rose-600 dark:text-rose-400"
             }
             title="Ten sam okres rok temu (wyrównany do dni tygodnia)"
           >
@@ -94,6 +114,10 @@ function KpiTile({
     </Card>
   );
 }
+
+// Fewer orders than this last period and every e-commerce % (revenue, ROAS,
+// AOV) swings on one or two baskets - say "not enough data" instead.
+const MIN_PREV_TRANSACTIONS = 10;
 
 /** Same window last year, used for the r/r line under each tile. */
 export interface EcommerceYoY {
@@ -133,6 +157,7 @@ export function EcommerceKpis({
     yoy && curTx > 0 && yoy.transactions > 0
       ? ratio(curRevenue / curTx, yoy.revenue / yoy.transactions)
       : null;
+  const thinBase = data.transactions.previous < MIN_PREV_TRANSACTIONS;
   const t = trend ?? [];
   const revSeries = t.map((p) => p.revenueMinorUnits / 100);
   const roasSeries = t.map((p) =>
@@ -150,37 +175,41 @@ export function EcommerceKpis({
       </h2>
       <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
         <KpiTile
-          label="Przychód"
+          metric="revenue"
+          tone="amount"
           value={formatPlnWhole(data.revenueMinorUnits.value)}
           kpi={data.revenueMinorUnits}
-          direction="good"
+          thinBase={thinBase}
           spark={revSeries}
           sparkColor="emerald"
           yoyRatio={yoyRevenue}
         />
         <KpiTile
-          label="ROAS"
+          metric="roas"
+          tone="rate"
           value={`${roas.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}×`}
           kpi={data.roas}
-          direction="good"
+          thinBase={thinBase}
           spark={roasSeries}
           sparkColor="indigo"
           yoyRatio={yoyRoas}
         />
         <KpiTile
-          label="Transakcje"
+          metric="transactions"
+          tone="amount"
           value={formatNumberPL(data.transactions.value)}
           kpi={data.transactions}
-          direction="good"
+          thinBase={thinBase}
           spark={txSeries}
           sparkColor="sky"
           yoyRatio={yoyTx}
         />
         <KpiTile
-          label="Śr. wartość zamówienia"
+          metric="aov"
+          tone="amount"
           value={formatMoneyPLN(data.aovMinorUnits.value)}
           kpi={data.aovMinorUnits}
-          direction="good"
+          thinBase={thinBase}
           spark={aovSeries}
           sparkColor="amber"
           yoyRatio={yoyAov}

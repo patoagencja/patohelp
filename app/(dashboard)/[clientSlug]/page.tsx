@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
@@ -10,6 +11,8 @@ import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
+import { RecordsSection } from "@/components/dashboard/records-section";
+import { StoryHero } from "@/components/dashboard/story-hero";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
@@ -26,6 +29,7 @@ import {
 } from "@/lib/dashboard/overview";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDailyScore } from "@/lib/dashboard/score";
+import { buildStory } from "@/lib/dashboard/story";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -109,6 +113,20 @@ export default async function OverviewPage({
           customTo={custom?.end}
         />
       </div>
+
+      <StoryHero
+        story={buildStory({
+          kpis: data.kpis,
+          trend: data.trend,
+          ecommerce: clientType === "ecommerce" ? data.ecommerce : null,
+        })}
+        periodLabel={data.rangeLabel}
+      />
+
+      {/* History scan is cached but can be cold - never hold the page for it. */}
+      <Suspense fallback={null}>
+        <RecordsSection clientId={client.id} ecommerce={clientType === "ecommerce"} />
+      </Suspense>
 
       {score ? <DailyScoreCard data={score} /> : null}
 

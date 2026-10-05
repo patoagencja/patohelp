@@ -5,24 +5,123 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { Card, Title } from "@tremor/react";
 
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
-import { AD_PROVIDER_SHORT } from "@/lib/types";
-import { cn, formatMoneyPLN, formatPercent } from "@/lib/utils";
+import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
+import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 type PositionFilter = "all" | "active" | "attention";
+type Lang = "pl" | "en";
 
-const FILTERS: Array<{ key: PositionFilter; label: string }> = [
-  { key: "all", label: "Wszystkie" },
-  { key: "active", label: "Otwarte" },
-  { key: "attention", label: "Wymagają uwagi" },
-];
+const FILTER_KEYS: PositionFilter[] = ["all", "active", "attention"];
+
+const FILTER_LABEL: Record<Lang, Record<PositionFilter, string>> = {
+  pl: { all: "Wszystkie", active: "Aktywne", attention: "Wymagają uwagi" },
+  en: { all: "All", active: "Active", attention: "Need attention" },
+};
+
+const STATUS_DOT: Record<CampaignStatus, string> = {
+  active: "bg-emerald-500",
+  attention: "bg-amber-500",
+  critical: "bg-red-500",
+  off: "bg-slate-400",
+};
+
+const STATUS_LABEL: Record<Lang, Record<CampaignStatus, string>> = {
+  pl: {
+    active: "Działa dobrze",
+    attention: "Do obejrzenia",
+    critical: "Wymaga uwagi",
+    off: "Wstrzymana",
+  },
+  en: {
+    active: "Doing well",
+    attention: "Worth a look",
+    critical: "Needs attention",
+    off: "Paused",
+  },
+};
+
+const PLATFORM_PILL: Record<AdProvider, string> = {
+  meta_ads: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  google_ads: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  tiktok_ads: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
+};
+
+const COPY = {
+  pl: {
+    title: "Kampanie",
+    campaign: "Kampania",
+    spend: "Wydatki",
+    clicks: "Kliknięcia",
+    ctr: "Klikalność",
+    cpc: "Koszt kliknięcia",
+    change: "Zmiana",
+    trend: "Trend 7 dni",
+    changeHint:
+      "Zmiana wydatków: ostatnie dni w porównaniu z wcześniejszymi dniami tygodnia",
+    trendHint: "Dzienne wydatki z ostatnich 7 dni",
+    ctrHint: "Klikalność (CTR): jaki odsetek osób, które zobaczyły reklamę, kliknął w nią",
+    spent: "wydane",
+    empty: "Brak kampanii w tym widoku.",
+    legend: "Status kampanii:",
+  },
+  en: {
+    title: "Campaigns",
+    campaign: "Campaign",
+    spend: "Spend",
+    clicks: "Clicks",
+    ctr: "Click rate",
+    cpc: "Cost per click",
+    change: "Change",
+    trend: "7-day trend",
+    changeHint: "Spend change: the last few days compared with earlier in the week",
+    trendHint: "Daily spend over the last 7 days",
+    ctrHint: "Click rate (CTR): share of people who saw the ad and clicked it",
+    spent: "spent",
+    empty: "No campaigns in this view.",
+    legend: "Campaign status:",
+  },
+} as const;
+
+// Polish has three plural forms (1 / 2-4 / 5+, with 12-14 behaving like 5+).
+function plPlural(n: number, one: string, few: string, many: string): string {
+  if (n === 1) return one;
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+// Always group thousands ("7 581 zł"): pl-PL Intl skips grouping for 4-digit
+// numbers, which looks inconsistent next to 5-digit figures in the same line.
+function wholePln(minorUnits: number): string {
+  const n = Math.round(minorUnits / 100)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${n} zł`;
+}
+
+function summaryText(lang: Lang, filter: PositionFilter, count: number): string {
+  if (lang === "en") {
+    const noun = count === 1 ? "campaign" : "campaigns";
+    if (filter === "active") return `${count} active ${noun}`;
+    if (filter === "attention")
+      return `${count} ${noun} ${count === 1 ? "needs" : "need"} attention`;
+    return `${count} ${noun}`;
+  }
+  const noun = plPlural(count, "kampania", "kampanie", "kampanii");
+  if (filter === "active")
+    return `${count} ${plPlural(count, "aktywna", "aktywne", "aktywnych")} ${noun}`;
+  if (filter === "attention")
+    return `${count} ${noun} ${plPlural(count, "wymaga", "wymagają", "wymaga")} uwagi`;
+  return `${count} ${noun}`;
+}
 
 // Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart -
 // rendering dozens of Recharts instances in an interactive table blocks clicks
 // and is slow. This is pure SVG: no deps, no re-render cost, can't throw.
 function Sparkline({ values, up }: { values: number[]; up: boolean }) {
-  const w = 96;
-  const h = 32;
-  const color = up ? "#10b981" : "#ef4444";
+  const w = 88;
+  const h = 28;
   const max = Math.max(...values);
   const min = Math.min(...values);
   const range = max - min || 1;
@@ -41,14 +140,18 @@ function Sparkline({ values, up }: { values: number[]; up: boolean }) {
       height={h}
       viewBox={`0 0 ${w} ${h}`}
       preserveAspectRatio="none"
-      className="ml-auto block"
+      className={cn(
+        "ml-auto block",
+        up
+          ? "fill-emerald-500 stroke-emerald-500"
+          : "fill-red-500 stroke-red-500"
+      )}
       aria-hidden
     >
-      <polygon points={area} fill={color} opacity={0.12} />
+      <polygon points={area} opacity={0.1} stroke="none" />
       <polyline
         points={line}
         fill="none"
-        stroke={color}
         strokeWidth={1.5}
         strokeLinejoin="round"
         strokeLinecap="round"
@@ -58,9 +161,9 @@ function Sparkline({ values, up }: { values: number[]; up: boolean }) {
   );
 }
 
-// Momentum of a position = recent-half spend vs earlier-half spend (from the
-// 7-day spark). It's the "P&L %" tag that drives the LONG/SHORT colouring.
-function momentum(spark: number[]): number | null {
+// Spend change = recent half vs earlier half of the 7-day spark. A simple,
+// explainable "is this campaign spending more or less than a few days ago".
+function spendChange(spark: number[]): number | null {
   if (spark.length < 4) return null;
   const half = Math.floor(spark.length / 2);
   const prior = spark.slice(0, half).reduce((a, b) => a + b, 0);
@@ -69,129 +172,160 @@ function momentum(spark: number[]): number | null {
   return ((recent - prior) / prior) * 100;
 }
 
-const STATUS_DOT: Record<CampaignStatus, string> = {
-  active: "bg-emerald-500",
-  attention: "bg-amber-500",
-  critical: "bg-red-500",
-  off: "bg-slate-400",
-};
+function PlatformPill({ provider }: { provider: AdProvider }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+        PLATFORM_PILL[provider]
+      )}
+    >
+      {AD_PROVIDER_LABEL[provider]}
+    </span>
+  );
+}
 
-function Position({
-  c,
-  maxSpend,
+function StatusDot({ c, lang }: { c: CampaignRow; lang: Lang }) {
+  const label = STATUS_LABEL[lang][c.status];
+  const hint = c.statusReason ? `${label} - ${c.statusReason}` : label;
+  return (
+    <span className="inline-flex shrink-0 items-center" title={hint}>
+      <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[c.status])} />
+      <span className="sr-only">{hint}</span>
+    </span>
+  );
+}
+
+function ChangeValue({
+  value,
+  className,
 }: {
-  c: CampaignRow;
-  maxSpend: number;
+  value: number | null;
+  className?: string;
 }) {
-  const mom = momentum(c.spark);
-  const up = (mom ?? 0) >= 0;
-  const long = up; // rising spend = LONG, falling = SHORT (trading metaphor)
-  const sizePct = maxSpend > 0 ? (c.spendMinorUnits / maxSpend) * 100 : 0;
+  if (value === null) {
+    return <span className={cn("text-muted-foreground", className)}>-</span>;
+  }
+  const up = value >= 0;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 font-medium tabular-nums",
+        up
+          ? "text-emerald-600 dark:text-emerald-400"
+          : "text-red-600 dark:text-red-400",
+        className
+      )}
+    >
+      {up ? (
+        <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+      ) : (
+        <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
+      )}
+      {up ? "+" : ""}
+      {Math.round(value)}%
+    </span>
+  );
+}
+
+function cpcText(c: CampaignRow): string {
+  return c.cpcMinorUnits != null ? formatMoneyPLN(Math.round(c.cpcMinorUnits)) : "-";
+}
+
+function TableRow({ c, lang }: { c: CampaignRow; lang: Lang }) {
+  const change = spendChange(c.spark);
   const hasSpark = c.spark.some((v) => v > 0);
 
   return (
-    <tr className="group border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40">
-      {/* Direction */}
-      <td className="py-2.5 pr-3">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[11px] font-bold",
-            long
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              : "bg-red-500/10 text-red-600 dark:text-red-400"
-          )}
-        >
-          {long ? "LONG" : "SHORT"}
-        </span>
-      </td>
-
-      {/* Symbol: platform + name + status */}
-      <td className="max-w-[18rem] py-2.5 pr-3">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "h-2 w-2 shrink-0 rounded-full",
-              STATUS_DOT[c.status]
-            )}
-            title={c.statusReason ?? undefined}
-          />
-          <span className="font-mono text-[11px] font-semibold text-muted-foreground">
-            {AD_PROVIDER_SHORT[c.provider]}
-          </span>
-          <span className="truncate text-sm" title={c.name}>
+    <tr className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40">
+      <td className="max-w-[22rem] py-3.5 pr-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <StatusDot c={c} lang={lang} />
+          <PlatformPill provider={c.provider} />
+          <span className="truncate text-sm font-medium" title={c.name}>
             {c.name}
           </span>
         </div>
       </td>
-
-      {/* Size (spend) with exposure bar */}
-      <td className="py-2.5 pr-3">
-        <div className="flex flex-col items-end gap-1">
-          <span className="font-mono text-sm tabular-nums">
-            {formatMoneyPLN(c.spendMinorUnits)}
-          </span>
-          <span className="h-1 w-24 overflow-hidden rounded-full bg-muted">
-            <span
-              className={cn(
-                "block h-full rounded-full",
-                long ? "bg-emerald-500/70" : "bg-red-500/70"
-              )}
-              style={{ width: `${Math.max(sizePct, 3)}%` }}
-            />
-          </span>
-        </div>
+      <td className="py-3.5 pr-4 text-right text-sm font-medium tabular-nums">
+        {wholePln(c.spendMinorUnits)}
       </td>
-
-      {/* CTR */}
-      <td className="py-2.5 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
+      <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
+        {formatNumberPL(c.clicks)}
+      </td>
+      <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
         {formatPercent(c.ctr)}
       </td>
-
-      {/* CPC */}
-      <td className="py-2.5 pr-3 text-right font-mono text-sm tabular-nums text-muted-foreground">
-        {c.cpcMinorUnits != null ? formatMoneyPLN(Math.round(c.cpcMinorUnits)) : "-"}
+      <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
+        {cpcText(c)}
       </td>
-
-      {/* Change (momentum) */}
-      <td className="py-2.5 pr-3 text-right">
-        {mom !== null ? (
-          <span
-            className={cn(
-              "inline-flex items-center justify-end gap-0.5 font-mono text-sm font-semibold tabular-nums",
-              up ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-            )}
-          >
-            {up ? (
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            ) : (
-              <ArrowDownRight className="h-3.5 w-3.5" />
-            )}
-            {up ? "+" : ""}
-            {mom.toFixed(1)}%
-          </span>
-        ) : (
-          <span className="font-mono text-sm text-muted-foreground">-</span>
-        )}
+      <td className="py-3.5 pr-4 text-right text-sm">
+        <ChangeValue value={change} className="justify-end" />
       </td>
-
-      {/* 7d chart */}
-      <td className="py-2.5 pl-1">
+      <td className="py-3.5">
         {hasSpark ? (
-          <Sparkline values={c.spark} up={up} />
+          <Sparkline values={c.spark} up={(change ?? 0) >= 0} />
         ) : (
-          <span className="block text-right font-mono text-xs text-muted-foreground">
-            -
-          </span>
+          <span className="block text-right text-sm text-muted-foreground">-</span>
         )}
       </td>
     </tr>
   );
 }
 
+// Small screens get stacked cards instead of a squeezed 7-column table - the
+// table would otherwise force the whole page to scroll sideways at ~390px.
+function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
+  const t = COPY[lang];
+  const change = spendChange(c.spark);
+  const hasSpark = c.spark.some((v) => v > 0);
+
+  return (
+    <li className="py-4 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-2">
+        <StatusDot c={c} lang={lang} />
+        <PlatformPill provider={c.provider} />
+        <span className="ml-auto text-xs text-muted-foreground">
+          {STATUS_LABEL[lang][c.status]}
+        </span>
+      </div>
+      <p className="mt-2 break-words text-sm font-medium leading-snug">{c.name}</p>
+
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">{t.spend}</p>
+          <p className="flex items-baseline gap-2">
+            <span className="text-lg font-semibold tabular-nums">
+              {wholePln(c.spendMinorUnits)}
+            </span>
+            <ChangeValue value={change} className="text-sm" />
+          </p>
+        </div>
+        {hasSpark ? <Sparkline values={c.spark} up={(change ?? 0) >= 0} /> : null}
+      </div>
+
+      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3 text-sm">
+        <div className="min-w-0">
+          <dt className="truncate text-xs text-muted-foreground">{t.clicks}</dt>
+          <dd className="font-medium tabular-nums">{formatNumberPL(c.clicks)}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="truncate text-xs text-muted-foreground">{t.ctr}</dt>
+          <dd className="font-medium tabular-nums">{formatPercent(c.ctr)}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="truncate text-xs text-muted-foreground">{t.cpc}</dt>
+          <dd className="font-medium tabular-nums">{cpcText(c)}</dd>
+        </div>
+      </dl>
+    </li>
+  );
+}
+
 /**
- * Campaigns rendered as open trading positions - LONG/SHORT by spend momentum,
- * exposure (spend) with a size bar, % change and a 7-day chart. Header shows
- * aggregate exposure and net momentum like a portfolio summary.
+ * Combined Meta/Google/TikTok campaign list in plain language: spend, clicks,
+ * click rate, cost per click, recent spend change and a 7-day trend line.
+ * Table on desktop, stacked cards on phones.
  */
 export function CampaignPositions({
   campaigns,
@@ -200,12 +334,9 @@ export function CampaignPositions({
 }: {
   campaigns: CampaignRow[];
   initialFilter?: PositionFilter;
-  lang?: "pl" | "en";
+  lang?: Lang;
 }) {
-  const en = lang === "en";
-  const filterLabel: Record<PositionFilter, string> = en
-    ? { all: "All", active: "Open", attention: "Needs attention" }
-    : { all: "Wszystkie", active: "Otwarte", attention: "Wymagają uwagi" };
+  const t = COPY[lang];
   // Client-side filtering: instant, no navigation, immune to stale-chunk errors
   // after a fresh deploy (which broke the previous URL-param approach).
   const [filter, setFilter] = useState<PositionFilter>(initialFilter);
@@ -221,107 +352,103 @@ export function CampaignPositions({
   const filtered = [...base].sort(
     (a, b) => b.spendMinorUnits - a.spendMinorUnits
   );
+  const totalSpend = filtered.reduce((s, c) => s + c.spendMinorUnits, 0);
 
-  const maxSpend = filtered.reduce(
-    (m, c) => Math.max(m, c.spendMinorUnits),
-    0
-  );
-  const totalExposure = filtered.reduce((s, c) => s + c.spendMinorUnits, 0);
-
-  // Net momentum: exposure-weighted average of per-position momentum.
-  let weight = 0;
-  let acc = 0;
-  for (const c of filtered) {
-    const m = momentum(c.spark);
-    if (m === null) continue;
-    weight += c.spendMinorUnits;
-    acc += m * c.spendMinorUnits;
-  }
-  const netMomentum = weight > 0 ? acc / weight : null;
-  const netUp = (netMomentum ?? 0) >= 0;
+  // Only list the statuses that actually appear, so the legend stays short.
+  const presentStatuses = (
+    ["active", "attention", "critical", "off"] as CampaignStatus[]
+  ).filter((s) => campaigns.some((c) => c.status === s));
 
   return (
-    <Card>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-baseline gap-4">
-          <Title>{en ? "Positions" : "Pozycje"}</Title>
-          <span className="flex items-center gap-3 font-mono text-xs text-muted-foreground">
-            <span>
-              {en ? "Exposure" : "Ekspozycja"}{" "}
-              <span className="font-semibold text-foreground">
-                {formatMoneyPLN(totalExposure)}
-              </span>
-            </span>
-            <span>
-              {en
-                ? `${filtered.length} open`
-                : `${filtered.length} otwart${filtered.length === 1 ? "a" : "ych"}`}
-            </span>
-            {netMomentum !== null ? (
-              <span
-                className={cn(
-                  "font-semibold",
-                  netUp
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400"
-                )}
-              >
-                {netUp ? "▲ +" : "▼ "}
-                {netMomentum.toFixed(1)}%
-              </span>
-            ) : null}
-          </span>
+    <Card className="p-5 sm:p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <Title>{t.title}</Title>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {summaryText(lang, filter, filtered.length)}
+            <span aria-hidden> · </span>
+            <span className="font-medium tabular-nums text-foreground">
+              {wholePln(totalSpend)}
+            </span>{" "}
+            {t.spent}
+          </p>
         </div>
 
-        <div className="flex rounded-lg bg-muted p-1">
-          {FILTERS.map((f) => (
+        <div
+          className="flex w-full rounded-lg bg-muted p-1 md:w-auto"
+          role="group"
+          aria-label={t.title}
+        >
+          {FILTER_KEYS.map((key) => (
             <button
-              key={f.key}
+              key={key}
               type="button"
-              onClick={() => setFilter(f.key)}
+              aria-pressed={filter === key}
+              onClick={() => setFilter(key)}
               className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                filter === f.key
+                "flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors md:flex-none",
+                filter === key
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {filterLabel[f.key]}
+              {FILTER_LABEL[lang][key]}
             </button>
           ))}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          {en ? "No positions in this view." : "Brak pozycji w tym widoku."}
-        </p>
+        <p className="mt-6 text-sm text-muted-foreground">{t.empty}</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-left font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">{en ? "Dir." : "Kier."}</th>
-                <th className="py-2 pr-3 font-medium">Symbol</th>
-                <th className="py-2 pr-3 text-right font-medium">{en ? "Size" : "Rozmiar"}</th>
-                <th className="py-2 pr-3 text-right font-medium">CTR</th>
-                <th className="py-2 pr-3 text-right font-medium">CPC</th>
-                <th className="py-2 pr-3 text-right font-medium">{en ? "Change" : "Zmiana"}</th>
-                <th className="py-2 pl-1 text-right font-medium">{en ? "7 days" : "7 dni"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => (
-                <Position
-                  key={`${c.provider}:${c.campaignId}`}
-                  c={c}
-                  maxSpend={maxSpend}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <ul className="mt-5 divide-y divide-border/60 md:hidden">
+            {filtered.map((c) => (
+              <MobileCard key={`${c.provider}:${c.campaignId}`} c={c} lang={lang} />
+            ))}
+          </ul>
+
+          {/* Inner scroll as a safety net for mid-size screens with long names. */}
+          <div className="mt-5 hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[720px]">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="pb-3 pr-4 font-medium">{t.campaign}</th>
+                  <th className="pb-3 pr-4 text-right font-medium">{t.spend}</th>
+                  <th className="pb-3 pr-4 text-right font-medium">{t.clicks}</th>
+                  <th className="pb-3 pr-4 text-right font-medium" title={t.ctrHint}>
+                    {t.ctr}
+                  </th>
+                  <th className="pb-3 pr-4 text-right font-medium">{t.cpc}</th>
+                  <th className="pb-3 pr-4 text-right font-medium" title={t.changeHint}>
+                    {t.change}
+                  </th>
+                  <th className="pb-3 text-right font-medium" title={t.trendHint}>
+                    {t.trend}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => (
+                  <TableRow key={`${c.provider}:${c.campaignId}`} c={c} lang={lang} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
+
+      {presentStatuses.length > 0 ? (
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/60 pt-4 text-xs text-muted-foreground">
+          <span>{t.legend}</span>
+          {presentStatuses.map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5">
+              <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} />
+              {STATUS_LABEL[lang][s]}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </Card>
   );
 }

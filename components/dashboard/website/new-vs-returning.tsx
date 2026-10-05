@@ -1,8 +1,6 @@
-"use client";
-
-import { Card, DonutChart, Legend, Title } from "@tremor/react";
-
 import { formatNumberPL } from "@/lib/utils";
+
+import { outOfTen, ShareBars } from "./share-bars";
 
 export function NewVsReturning({
   data,
@@ -12,27 +10,36 @@ export function NewVsReturning({
   lang?: "pl" | "en";
 }) {
   const en = lang === "en";
-  const chartData = [
-    { name: en ? "New users" : "Nowi użytkownicy", value: data.newUsers },
-    { name: en ? "Returning" : "Powracający", value: data.returningUsers },
-  ];
+  const total = data.newUsers + data.returningUsers;
+  const newShare = total > 0 ? data.newUsers / total : 0;
+  // Spin it the way it matters to the client: new people = reach working,
+  // returning people = the brand is remembered.
+  const insight =
+    total > 0 && !en
+      ? newShare >= 0.5
+        ? `${outOfTen(newShare)} gości to nowe osoby - reklamy docierają do ludzi, którzy wcześniej Was nie znali.`
+        : `${outOfTen(1 - newShare)} gości wraca na stronę - marka zostaje w pamięci.`
+      : null;
 
   return (
-    <Card>
-      <Title>{en ? "New vs returning" : "Nowi vs powracający"}</Title>
-      <DonutChart
-        className="mt-6 h-52"
-        data={chartData}
-        category="value"
-        index="name"
-        colors={["indigo", "emerald"]}
-        valueFormatter={(v) => formatNumberPL(v)}
-      />
-      <Legend
-        className="mt-4 justify-center"
-        categories={chartData.map((d) => `${d.name}: ${formatNumberPL(d.value)}`)}
-        colors={["indigo", "emerald"]}
-      />
-    </Card>
+    <ShareBars
+      title={en ? "New vs returning" : "Nowi i powracający goście"}
+      insight={insight}
+      rows={[
+        {
+          key: "new",
+          label: en ? "New users" : "Pierwszy raz na stronie",
+          value: data.newUsers,
+          barClass: "bg-indigo-500",
+        },
+        {
+          key: "returning",
+          label: en ? "Returning" : "Wracają kolejny raz",
+          value: data.returningUsers,
+          barClass: "bg-emerald-500",
+        },
+      ]}
+      unit={(n) => `${formatNumberPL(n)} ${en ? "users" : "os."}`}
+    />
   );
 }

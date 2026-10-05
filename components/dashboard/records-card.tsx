@@ -1,0 +1,89 @@
+import { Flag, Sparkles, TrendingUp, Trophy, type LucideIcon } from "lucide-react";
+
+import type { RecordIcon, RecordItem } from "@/lib/dashboard/records";
+import { cn } from "@/lib/utils";
+
+const ICONS: Record<RecordIcon, LucideIcon> = {
+  trophy: Trophy,
+  flag: Flag,
+  sparkles: Sparkles,
+  trending: TrendingUp,
+};
+
+// Full class strings (not interpolated) so Tailwind's scanner keeps them; the
+// grid never leaves empty columns when there are fewer than four wins.
+const COLS: Record<number, string> = {
+  1: "",
+  2: "sm:grid-cols-2",
+  3: "sm:grid-cols-2 lg:grid-cols-3",
+  4: "sm:grid-cols-2 lg:grid-cols-4",
+};
+
+const MONTHS_GEN = [
+  "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+  "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
+];
+
+/** yyyy-MM-dd is already a Warsaw-local day, so format the parts directly. */
+function dayLabel(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return `${d} ${MONTHS_GEN[m - 1]} ${y}`;
+}
+
+/**
+ * Celebratory strip of records and milestones ("najlepszy tydzień",
+ * "1 mln wyświetleń") - the numbers a marketing manager can take straight to
+ * their board. Renders nothing when there is nothing honest to celebrate.
+ */
+export function RecordsCard({ records }: { records: RecordItem[] }) {
+  if (!records.length) return null;
+  const items = records.slice(0, 4);
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-amber-500/25 bg-card">
+      <div className="flex items-center gap-3 border-b border-amber-500/15 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent px-5 py-4">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30">
+          <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        </span>
+        <div>
+          <h2 className="text-base font-semibold">Rekordy i kamienie milowe</h2>
+          <p className="text-xs text-muted-foreground">
+            Policzone na Waszych danych - warte pokazania zarządowi
+          </p>
+        </div>
+      </div>
+
+      <ul className={cn("grid gap-3 p-4 sm:p-5", COLS[items.length])}>
+        {items.map((r) => {
+          const Icon = ICONS[r.icon] ?? Trophy;
+          return (
+            <li
+              key={r.id}
+              className="group relative flex flex-col overflow-hidden rounded-lg border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-card to-card p-4 transition-colors hover:border-amber-500/40"
+            >
+              {/* Oversized faded icon: decoration only, keeps tiles from feeling flat. */}
+              <Icon
+                aria-hidden
+                className="pointer-events-none absolute -right-3 -top-3 h-20 w-20 text-amber-500/[0.07] transition-transform group-hover:scale-105"
+              />
+              <span className="relative flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <Icon className="h-4 w-4" />
+              </span>
+              <p className="relative mt-3 text-sm font-semibold leading-snug text-foreground">
+                {r.title}
+              </p>
+              <p className="relative mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                {r.detail}
+              </p>
+              {r.achievedOn ? (
+                <p className="relative mt-auto pt-3 text-[11px] font-medium uppercase tracking-wide text-amber-700/80 dark:text-amber-400/80">
+                  {dayLabel(r.achievedOn)}
+                </p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}

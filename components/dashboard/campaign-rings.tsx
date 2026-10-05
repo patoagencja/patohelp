@@ -101,7 +101,7 @@ function Ring({ flight, index }: { flight: PacingFlight; index: number }) {
       >
         {flight.campaignName}
       </p>
-      <p className="mt-1 font-mono text-xs text-muted-foreground">
+      <p className="mt-1 tabular-nums text-xs text-muted-foreground">
         {fmt(flight.metric, flight.realized)} / {fmt(flight.metric, flight.target)}
       </p>
       <p

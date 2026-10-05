@@ -5,9 +5,13 @@ import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
+import { RecordsCard } from "@/components/dashboard/records-card";
+import { StoryHero } from "@/components/dashboard/story-hero";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
+import { buildStory } from "@/lib/dashboard/story";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { getDemoRecords } from "@/lib/demo/records";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +40,13 @@ export default function DemoFullOverview({
         </p>
       </div>
 
+      {en ? null : (
+        <StoryHero
+          story={buildStory({ kpis: d.kpis, trend: d.trend })}
+          periodLabel={d.rangeLabel}
+        />
+      )}
+      {en ? null : <RecordsCard records={getDemoRecords({ ecommerce: false })} />}
       <TickerBar campaigns={d.campaigns} />
       <DailyScoreCard data={d.score} lang={lang} />
       <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} />

@@ -1,7 +1,6 @@
-/* eslint-disable @next/next/no-img-element */
 import { Card, Grid, Text, Title } from "@tremor/react";
-import { ImageOff } from "lucide-react";
 
+import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { formatMoneyPLN, formatPercent } from "@/lib/utils";
 
 export interface CreativeRow {
@@ -38,19 +37,14 @@ export function TopCreatives({
           {creatives.map((c) => (
             <div
               key={c.adId}
-              className="overflow-hidden rounded-lg border border-border"
+              className="min-w-0 overflow-hidden rounded-lg border border-border"
             >
-              {c.thumbnailUrl ? (
-                <img
-                  src={c.thumbnailUrl}
-                  alt={c.adName}
-                  className="h-28 w-full bg-muted object-cover"
-                />
-              ) : (
-                <div className="flex h-28 w-full items-center justify-center bg-muted">
-                  <ImageOff className="h-6 w-6 text-muted-foreground" />
-                </div>
-              )}
+              <CreativeThumb
+                src={c.thumbnailUrl}
+                name={c.adName}
+                lang={lang}
+                className="h-28 w-full rounded-none"
+              />
               <div className="space-y-1 p-3">
                 <p
                   className="truncate text-sm font-medium"
@@ -62,7 +56,9 @@ export function TopCreatives({
                   {en ? "Spend" : "Wydatki"}: {formatMoneyPLN(c.spendMinorUnits)}
                 </Text>
                 <Text className="text-xs">
-                  CTR: {c.ctr != null ? formatPercent(c.ctr) : "-"} · CPC:{" "}
+                  {en ? "Click rate" : "Klikalność"}:{" "}
+                  {c.ctr != null ? formatPercent(c.ctr) : "-"} ·{" "}
+                  {en ? "Per click" : "Za klik"}:{" "}
                   {c.cpcMinorUnits != null
                     ? formatMoneyPLN(c.cpcMinorUnits)
                     : "-"}

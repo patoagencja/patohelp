@@ -1,22 +1,87 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Flame, Sparkles } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarCheck } from "lucide-react";
 
-import type { DailyScore, ScoreRing, ScoreTier } from "@/lib/dashboard/score";
+import type {
+  DailyScore,
+  ScoreFactor,
+  ScoreRing,
+  ScoreTier,
+} from "@/lib/dashboard/score";
 import { cn } from "@/lib/utils";
 
-const TIER: Record<ScoreTier, { ring: string; text: string }> = {
-  high: { ring: "#10b981", text: "text-emerald-500" },
-  mid: { ring: "#f59e0b", text: "text-amber-500" },
-  low: { ring: "#f43f5e", text: "text-rose-500" },
+type Lang = "pl" | "en";
+
+const TIER: Record<ScoreTier, { stroke: string; text: string }> = {
+  high: { stroke: "stroke-emerald-500", text: "text-emerald-600 dark:text-emerald-400" },
+  mid: { stroke: "stroke-amber-500", text: "text-amber-600 dark:text-amber-400" },
+  low: { stroke: "stroke-rose-500", text: "text-rose-600 dark:text-rose-400" },
 };
 
-const CARD_GLOW: Record<ScoreTier, string> = {
-  high: "shadow-[0_0_40px_-8px_rgba(16,185,129,0.5)]",
-  mid: "shadow-[0_0_40px_-12px_rgba(245,158,11,0.4)]",
-  low: "shadow-[0_0_40px_-12px_rgba(244,63,94,0.35)]",
+// Plain-language meaning of each dial. Wording mirrors lib/dashboard/score.ts:
+// every ring compares the last 7 days with the client's own average from the
+// weeks before, so "norma" is theirs, not an industry benchmark.
+const RING_COPY: Record<Lang, Record<ScoreRing["key"], { label: string; hint: string }>> = {
+  pl: {
+    form: {
+      label: "Forma",
+      hint: "Ogólna ocena ostatnich 7 dni: klikalność, kliknięcia, wizyty na stronie i zasięg na tle Twojej normy.",
+    },
+    engagement: {
+      label: "Zaangażowanie",
+      hint: "Jak chętnie ludzie klikają w reklamy, które widzą - w porównaniu z Twoją normą.",
+    },
+    traffic: {
+      label: "Ruch",
+      hint: "Ile było kliknięć w reklamy i wizyt na stronie w ostatnich 7 dniach względem normy.",
+    },
+  },
+  en: {
+    form: {
+      label: "Form",
+      hint: "Overall rating of the last 7 days: click rate, clicks, website visits and reach versus your usual level.",
+    },
+    engagement: {
+      label: "Engagement",
+      hint: "How willingly people click the ads they see, compared with your usual level.",
+    },
+    traffic: {
+      label: "Traffic",
+      hint: "How many ad clicks and website visits you had in the last 7 days versus your usual level.",
+    },
+  },
 };
+
+const FACTOR_LABEL: Record<Lang, Record<ScoreFactor["key"], string>> = {
+  pl: { ctr: "Klikalność", clicks: "Kliknięcia", sessions: "Wizyty na stronie", reach: "Wyświetlenia" },
+  en: { ctr: "Click rate", clicks: "Clicks", sessions: "Website visits", reach: "Impressions" },
+};
+
+const COPY = {
+  pl: {
+    title: "Puls · ostatnie 7 dni",
+    vsPrev: (d: number) => `${d > 0 ? "+" : ""}${d} pkt względem poprzedniego tygodnia`,
+    streak: (n: number) =>
+      `${n} ${n === 1 ? "dzień" : "dni"} z rzędu bez przestojów`,
+    factorsIntro: "W porównaniu z Twoją normą:",
+    scale: "Skala 0-100. Wynik ok. 78 oznacza typowy dla Ciebie tydzień, wyżej - lepszy niż zwykle.",
+  },
+  en: {
+    title: "Pulse · last 7 days",
+    vsPrev: (d: number) => `${d > 0 ? "+" : ""}${d} pts vs previous week`,
+    streak: (n: number) => `${n} ${n === 1 ? "day" : "days"} in a row without gaps`,
+    factorsIntro: "Compared with your usual level:",
+    scale: "Scale 0-100. Around 78 means a typical week for you; higher is better than usual.",
+  },
+} as const;
+
+// The score module phrases its headline with the jargon label "CTR"; swap it
+// for the plain word so the headline matches the rest of the card.
+function plainHeadline(headline: string, lang: Lang): string {
+  if (lang === "pl") return headline.replace(/^CTR\b/, "Klikalność");
+  return headline;
+}
 
 // Count a number up from 0 on mount - the little "nabijanie się" per ring.
 function useCountUp(target: number, ms = 950, delay = 0): number {
@@ -39,46 +104,60 @@ function useCountUp(target: number, ms = 950, delay = 0): number {
   return n;
 }
 
+// Fixed viewBox; the rendered size comes from CSS so the ring can shrink on
+// phones without recomputing geometry.
+const VB = 120;
+const STROKE = 10;
+const R = VB / 2 - STROKE;
+const C = 2 * Math.PI * R;
+
 function Ring({
   ring,
-  size,
+  primary,
   delay,
+  lang,
 }: {
   ring: ScoreRing;
-  size: number;
+  primary: boolean;
   delay: number;
+  lang: Lang;
 }) {
   const tier = TIER[ring.tier];
+  const copy = RING_COPY[lang][ring.key];
   const count = useCountUp(ring.value, 950, delay);
-  const stroke = size >= 128 ? 11 : 9;
-  const R = size / 2 - stroke;
-  const C = 2 * Math.PI * R;
   const [offset, setOffset] = useState(C);
   useEffect(() => {
     const id = requestAnimationFrame(() => setOffset(C * (1 - ring.value / 100)));
     return () => cancelAnimationFrame(id);
-  }, [C, ring.value]);
+  }, [ring.value]);
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full -rotate-90">
+    <div className="flex items-center gap-4 sm:flex-col sm:items-center sm:gap-3 sm:text-center">
+      <div
+        className={cn(
+          "relative shrink-0",
+          primary ? "h-24 w-24 sm:h-32 sm:w-32" : "h-20 w-20 sm:h-24 sm:w-24"
+        )}
+        role="img"
+        aria-label={`${copy.label}: ${ring.value}/100`}
+      >
+        <svg viewBox={`0 0 ${VB} ${VB}`} className="h-full w-full -rotate-90">
           <circle
-            cx={size / 2}
-            cy={size / 2}
+            cx={VB / 2}
+            cy={VB / 2}
             r={R}
             fill="none"
-            strokeWidth={stroke}
+            strokeWidth={STROKE}
             className="stroke-muted"
           />
           <circle
-            cx={size / 2}
-            cy={size / 2}
+            cx={VB / 2}
+            cy={VB / 2}
             r={R}
             fill="none"
-            strokeWidth={stroke}
+            strokeWidth={STROKE}
             strokeLinecap="round"
-            stroke={tier.ring}
+            className={tier.stroke}
             strokeDasharray={C}
             strokeDashoffset={offset}
             style={{
@@ -86,11 +165,11 @@ function Ring({
             }}
           />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center">
           <span
             className={cn(
-              "font-mono font-bold tabular-nums",
-              size >= 128 ? "text-4xl" : "text-2xl",
+              "font-semibold tabular-nums tracking-tight",
+              primary ? "text-3xl sm:text-4xl" : "text-2xl",
               tier.text
             )}
           >
@@ -98,9 +177,10 @@ function Ring({
           </span>
         </div>
       </div>
-      <span className="text-xs font-semibold text-muted-foreground">
-        {ring.label}
-      </span>
+      <div className="min-w-0 sm:max-w-[15rem]">
+        <p className="text-sm font-semibold text-foreground">{copy.label}</p>
+        <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{copy.hint}</p>
+      </div>
     </div>
   );
 }
@@ -110,102 +190,91 @@ export function DailyScoreCard({
   lang = "pl",
 }: {
   data: DailyScore;
-  lang?: "pl" | "en";
+  lang?: Lang;
 }) {
-  const en = lang === "en";
-  const pulsLabel = en ? "Pulse · last 7 days" : "Puls · ostatnie 7 dni";
-  const vsLabel = en ? "vs last week" : "vs poprzedni tydzień";
-  const streakLabel = (n: number) =>
-    en
-      ? `${n} ${n === 1 ? "day" : "days"} streak`
-      : `${n} ${n === 1 ? "dzień" : "dni"} serii`;
+  const t = COPY[lang];
+  const factors = data.factors.filter((f) => f.deltaPct !== null);
+
   return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-2xl border border-border bg-card p-5 sm:p-6",
-        CARD_GLOW[data.tier]
-      )}
-    >
-      {data.tier === "high" ? (
-        <div className="pointer-events-none absolute inset-0 animate-[shimmer_3s_ease-in-out_infinite] bg-[linear-gradient(110deg,transparent_35%,rgba(16,185,129,0.10)_50%,transparent_65%)] bg-[length:200%_100%]" />
-      ) : null}
-
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:gap-8">
-        {/* Rings */}
-        <div className="flex items-center justify-center gap-6 sm:gap-8">
-          {data.rings.map((r, i) => (
-            <Ring
-              key={r.key}
-              ring={r}
-              size={i === 0 ? 128 : 96}
-              delay={i * 140}
-            />
-          ))}
-        </div>
-
-        {/* Copy */}
-        <div className="min-w-0 flex-1 text-center lg:text-left">
-          <div className="flex items-center justify-center gap-2 lg:justify-start">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-              {pulsLabel}
-            </span>
-            {data.delta !== null && data.delta !== 0 ? (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-xs font-semibold",
-                  data.delta > 0
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                )}
-              >
-                {data.delta > 0 ? (
-                  <ArrowUpRight className="h-3 w-3" />
-                ) : (
-                  <ArrowDownRight className="h-3 w-3" />
-                )}
-                {data.delta > 0 ? "+" : ""}
-                {data.delta} {vsLabel}
-              </span>
-            ) : null}
-          </div>
-
-          <p className="mt-1 text-lg font-semibold leading-snug">{data.headline}</p>
-
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
-            {data.streak > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:text-orange-400">
-                <Flame className="h-3.5 w-3.5 animate-pulse" />
-                {streakLabel(data.streak)}
-              </span>
-            ) : null}
-            {data.factors
-              .filter((f) => f.deltaPct !== null)
-              .map((f) => (
-                <span
-                  key={f.key}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 font-mono text-xs",
-                    (f.deltaPct ?? 0) >= 0
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-rose-600 dark:text-rose-400"
-                  )}
-                >
-                  {(f.deltaPct ?? 0) >= 0 ? (
-                    <ArrowUpRight className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3" />
-                  )}
-                  {f.label} {(f.deltaPct ?? 0) > 0 ? "+" : ""}
-                  {f.deltaPct}%
-                </span>
-              ))}
-          </div>
-        </div>
-
-        {data.tier === "high" ? (
-          <Sparkles className="absolute right-3 top-3 h-5 w-5 animate-pulse text-emerald-400/70" />
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-sm font-medium text-muted-foreground">{t.title}</span>
+        {data.delta !== null && data.delta !== 0 ? (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums",
+              data.delta > 0
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : "bg-rose-500/10 text-rose-700 dark:text-rose-400"
+            )}
+          >
+            {data.delta > 0 ? (
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {t.vsPrev(data.delta)}
+          </span>
         ) : null}
       </div>
+      <p className="mt-2 text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+        {plainHeadline(data.headline, lang)}
+      </p>
+
+      {/* Rings with plain explanations */}
+      <div className="mt-6 grid gap-5 sm:mt-8 sm:grid-cols-3 sm:gap-6">
+        {data.rings.map((r, i) => (
+          <Ring key={r.key} ring={r} primary={i === 0} delay={i * 140} lang={lang} />
+        ))}
+      </div>
+
+      {/* What moved the score */}
+      {factors.length > 0 || data.streak > 0 ? (
+        <div className="mt-6 border-t border-border/60 pt-5 sm:mt-8">
+          {factors.length > 0 ? (
+            <p className="text-sm text-muted-foreground">{t.factorsIntro}</p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {factors.map((f) => {
+              const v = f.deltaPct ?? 0;
+              const up = v >= 0;
+              return (
+                <span
+                  key={f.key}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm"
+                >
+                  <span className="text-foreground">{FACTOR_LABEL[lang][f.key]}</span>
+                  <span
+                    className={cn(
+                      "inline-flex items-center font-medium tabular-nums",
+                      up
+                        ? "text-emerald-700 dark:text-emerald-400"
+                        : "text-rose-700 dark:text-rose-400"
+                    )}
+                  >
+                    {up ? (
+                      <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                    ) : (
+                      <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    {v > 0 ? "+" : ""}
+                    {v}%
+                  </span>
+                </span>
+              );
+            })}
+            {data.streak > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground">
+                <CalendarCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                {t.streak(data.streak)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <p className="mt-5 text-xs text-muted-foreground">{t.scale}</p>
     </div>
   );
 }

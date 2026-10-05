@@ -53,7 +53,7 @@ export default function DemoFullReklamy({
                   alt={c.name}
                   className="aspect-square w-full bg-muted object-cover"
                 />
-                <span className="absolute left-2 top-2 rounded-md bg-black/55 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white">
+                <span className="absolute left-2 top-2 rounded-md bg-black/55 px-1.5 py-0.5 tabular-nums text-[10px] font-semibold text-white">
                   {AD_PROVIDER_SHORT[c.provider]}
                 </span>
               </div>
@@ -61,10 +61,10 @@ export default function DemoFullReklamy({
                 <p className="truncate text-sm font-medium" title={c.name}>
                   {c.name}
                 </p>
-                <p className="font-mono text-sm font-bold tabular-nums">
+                <p className="tabular-nums text-sm font-bold tabular-nums">
                   {formatMoneyPLN(c.spend)}
                 </p>
-                <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
+                <div className="flex items-center justify-between tabular-nums text-xs text-muted-foreground">
                   <span>CTR {formatPercent(c.ctr ?? 0)}</span>
                   <span>CPC {c.cpc != null ? formatMoneyPLN(c.cpc) : "-"}</span>
                 </div>
