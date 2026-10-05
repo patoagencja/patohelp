@@ -34,6 +34,10 @@ export function ConnectedToast({
       toast.error(
         `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
       );
+    } else if (saved === "ecommerce") {
+      toast.success("Zapisano marżę i cele sprzedaży");
+    } else if (saved === "notifications") {
+      toast.success("Zapisano ustawienia powiadomień");
     } else if (saved) {
       toast.success(
         `Zapisano wybór kont dla ${PROVIDER_LABELS[saved] ?? saved}`

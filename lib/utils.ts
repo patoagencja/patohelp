@@ -24,6 +24,25 @@ export function formatMoneyPLN(minorUnits: number | bigint): string {
   return PLN_FORMATTER.format(major);
 }
 
+/** Whole-złoty PLN for headline figures (grosze in, "272 800 zł" out). */
+export function formatPlnWhole(minorUnits: number): string {
+  return `${Math.round(minorUnits / 100).toLocaleString("pl-PL")} zł`;
+}
+
+/** Ratio like ROAS/POAS with a Polish decimal comma: 4.256 -> "4,26×". */
+export function formatMultiple(value: number, digits = 2): string {
+  return `${value.toLocaleString("pl-PL", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}×`;
+}
+
+/** Signed change in percent from a 0-based ratio: 0.123 -> "+12%". */
+export function formatSignedPct(ratio: number): string {
+  const v = Math.round(ratio * 100);
+  return `${v > 0 ? "+" : ""}${v}%`;
+}
+
 const NUMBER_FORMATTER = new Intl.NumberFormat("pl-PL");
 
 /** Format an integer-ish number with Polish grouping (e.g. 12 345). */

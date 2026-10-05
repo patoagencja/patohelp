@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/lib/types";
 
 import { ConnectedToast } from "./connected-toast";
+import { EcomSettingsSection } from "./ecom-settings";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
 
@@ -225,6 +226,15 @@ export default async function SettingsPage({
   const byProvider = new Map(
     (integrations ?? []).map((row) => [row.provider as string, row])
   );
+
+  // Defensive: client_type arrives with migration 0016.
+  const { data: ct } = await createAdminClient()
+    .from("clients")
+    .select("client_type")
+    .eq("id", access.clientId)
+    .maybeSingle();
+  const isEcommerce =
+    (ct as { client_type?: string } | null)?.client_type === "ecommerce";
 
   return (
     <div className="p-6">
@@ -445,6 +455,10 @@ export default async function SettingsPage({
           );
         })()}
       </div>
+
+      {isEcommerce ? (
+        <EcomSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} />
+      ) : null}
 
       {/* Alert notifications */}
       <div className="mt-8">

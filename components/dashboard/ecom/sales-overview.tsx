@@ -49,10 +49,15 @@ function SummaryRow({
 export function SalesOverview({
   trend,
   revenueKpi,
+  lastYear,
 }: {
   trend: TrendPoint[];
   revenueKpi: Kpi;
+  /** Last year's revenue per current date (52-week aligned), when reliable. */
+  lastYear?: Array<{ date: string; revenue: number | null }> | null;
 }) {
+  const lyByDate = new Map((lastYear ?? []).map((p) => [p.date, p.revenue]));
+  const showLy = lyByDate.size > 0;
   const totalRev = trend.reduce((a, p) => a + p.revenueMinorUnits, 0);
   const totalSpend = trend.reduce((a, p) => a + p.spendMinorUnits, 0);
   const net = totalRev - totalSpend;
@@ -73,10 +78,12 @@ export function SalesOverview({
 
   const chart = trend.map((p) => {
     const [, month, day] = p.date.split("-");
+    const ly = lyByDate.get(p.date);
     return {
       date: `${day}.${month}`,
       Przychód: p.revenueMinorUnits / 100,
       Wydatki: p.spendMinorUnits / 100,
+      ...(showLy ? { "Przychód rok temu": ly != null ? ly / 100 : null } : {}),
     };
   });
 
@@ -109,9 +116,10 @@ export function SalesOverview({
               label="Wydatki na reklamę"
               value={compactPln(totalSpend / 100)}
             />
+            {/* Not profit (no margin applied) - the profit card does that. */}
             <SummaryRow
               dot={net >= 0 ? "bg-emerald-600" : "bg-rose-500"}
-              label="Wynik netto"
+              label="Przychód po odjęciu reklam"
               value={compactPln(net / 100)}
               strong
             />
@@ -137,8 +145,10 @@ export function SalesOverview({
           className="h-72 lg:h-80"
           data={chart}
           index="date"
-          categories={["Przychód", "Wydatki"]}
-          colors={["emerald", "indigo"]}
+          categories={
+            showLy ? ["Przychód", "Przychód rok temu", "Wydatki"] : ["Przychód", "Wydatki"]
+          }
+          colors={showLy ? ["emerald", "slate", "indigo"] : ["emerald", "indigo"]}
           valueFormatter={compactPln}
           showLegend
           showAnimation

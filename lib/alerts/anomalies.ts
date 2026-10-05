@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { detectEcomAnomalies } from "@/lib/alerts/ecom";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoneyPLN, formatPercent } from "@/lib/utils";
@@ -291,6 +292,14 @@ export async function detectAnomalies(
         )}).`,
       });
     }
+  }
+
+  // Sales-side checks (broken checkout etc.). Separate query so a missing
+  // revenue column can never take down the ad/traffic checks above.
+  try {
+    anomalies.push(...(await detectEcomAnomalies(clientId, supabase)));
+  } catch {
+    // best effort
   }
 
   const rank = { critical: 0, high: 1, medium: 2 };

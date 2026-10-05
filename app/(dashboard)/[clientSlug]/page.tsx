@@ -7,6 +7,7 @@ import { CampaignRings } from "@/components/dashboard/campaign-rings";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
+import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
@@ -24,6 +25,7 @@ import {
   getLatestSummary,
 } from "@/lib/dashboard/overview";
 import { getDailyScore } from "@/lib/dashboard/score";
+import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
@@ -110,6 +112,9 @@ export default async function OverviewPage({
       getDailyScore(client.id),
     ]);
   const digest: Anomaly[] = [...spikes, ...anomalies];
+  // E-commerce: "where will this month land" belongs on the first screen.
+  const monthPacing =
+    clientType === "ecommerce" ? await getMonthPacing(client.id) : null;
 
   return (
     <div className="space-y-6 p-6">
@@ -135,6 +140,14 @@ export default async function OverviewPage({
 
       {/* GA-style: the big picture first, details below. */}
       <MainChart trend={data.trend} events={events} label={data.rangeLabel} />
+
+      {monthPacing ? (
+        <MonthPacingCard
+          pacing={monthPacing}
+          clientSlug={params.clientSlug}
+          isAgency={isAgency}
+        />
+      ) : null}
 
       {clientType === "ecommerce" ? (
         <EcommerceKpis data={data.ecommerce} />

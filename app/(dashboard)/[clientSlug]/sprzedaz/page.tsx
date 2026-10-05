@@ -9,9 +9,12 @@ import {
 
 import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button";
+import { ChannelEfficiency } from "@/components/dashboard/ecom/channel-efficiency";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
-import { RevenueBySource } from "@/components/dashboard/ecom/revenue-by-source";
+import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
+import { ProfitCard } from "@/components/dashboard/ecom/profit-card";
 import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
+import { SeasonPlanner } from "@/components/dashboard/ecom/season-planner";
 import {
   TopProducts,
   type ProductRow,
@@ -19,8 +22,14 @@ import {
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { Devices } from "@/components/dashboard/website/devices";
 import { TopPages } from "@/components/dashboard/website/top-pages";
-import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import type { EcomAnalysis } from "@/lib/ecom/analysis";
+import {
+  getChannelEfficiency,
+  getEcomSettings,
+  getMonthPacing,
+  getSeasonPlan,
+  getYearOverYear,
+} from "@/lib/ecom/insights";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import {
   getDashboardData,
@@ -30,6 +39,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
+import { isAgencyUser, type UserRole } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -58,13 +68,28 @@ export default async function SprzedazPage({
     redirect(`/${params.clientSlug}`);
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("users").select("role").eq("id", user.id).single()
+    : { data: null };
+  const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
+
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const [data, website] = await Promise.all([
+  const [data, website, settings, pacing, season, channels] = await Promise.all([
     getDashboardData(client.id, range, custom),
     getWebsiteData(client.id),
+    getEcomSettings(client.id),
+    getMonthPacing(client.id),
+    getSeasonPlan(client.id),
+    getChannelEfficiency(client.id),
   ]);
   const totalSessions = data.trend.reduce((a, p) => a + p.sessions, 0);
+  const rangeSpend = data.kpis.spendMinorUnits.value;
+  // Same window last year (52-week aligned) - only used when it's well covered.
+  const yoy = await getYearOverYear(client.id, data.rangeStart, data.rangeEnd);
 
   const admin = createAdminClient();
 
@@ -139,8 +164,41 @@ export default async function SprzedazPage({
         />
       </div>
 
-      <EcommerceKpis data={data.ecommerce} trend={data.trend} />
-      <SalesOverview trend={data.trend} revenueKpi={data.ecommerce.revenueMinorUnits} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        {pacing ? (
+          <MonthPacingCard
+            pacing={pacing}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+          />
+        ) : null}
+        <ProfitCard
+          revenue={data.ecommerce.revenueMinorUnits.value}
+          spend={rangeSpend}
+          settings={settings}
+          rangeLabel={data.rangeLabel}
+          clientSlug={params.clientSlug}
+          isAgency={isAgency}
+        />
+      </div>
+
+      <EcommerceKpis
+        data={data.ecommerce}
+        trend={data.trend}
+        yoy={yoy.available ? yoy : null}
+        spend={rangeSpend}
+      />
+      <SalesOverview
+        trend={data.trend}
+        revenueKpi={data.ecommerce.revenueMinorUnits}
+        lastYear={yoy.available ? yoy.series : null}
+      />
+
+      {season ? (
+        <SeasonPlanner plan={season} clientSlug={params.clientSlug} isAgency={isAgency} />
+      ) : null}
+
+      {channels ? <ChannelEfficiency data={channels} settings={settings} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ConversionFunnel
@@ -153,12 +211,7 @@ export default async function SprzedazPage({
 
       <TopProducts products={products} tableMissing={itemsTableMissing} />
 
-      {website.hasData ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <RevenueBySource sources={website.sources} />
-          <TopPages pages={website.topPages.slice(0, 5)} />
-        </div>
-      ) : null}
+      {website.hasData ? <TopPages pages={website.topPages.slice(0, 5)} /> : null}
 
       {/* AI analysis */}
       <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">

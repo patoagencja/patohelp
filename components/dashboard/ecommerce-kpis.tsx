@@ -6,7 +6,12 @@ import type {
   Kpi,
   TrendPoint,
 } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN, formatNumberPL } from "@/lib/utils";
+import {
+  formatMoneyPLN,
+  formatNumberPL,
+  formatPlnWhole,
+  formatSignedPct,
+} from "@/lib/utils";
 
 type Direction = "good" | "bad";
 
@@ -34,6 +39,7 @@ function KpiTile({
   direction,
   spark,
   sparkColor,
+  yoyRatio,
 }: {
   label: string;
   value: string;
@@ -41,6 +47,7 @@ function KpiTile({
   direction: Direction;
   spark?: number[];
   sparkColor?: "emerald" | "indigo" | "amber" | "sky";
+  yoyRatio?: number | null;
 }) {
   const d = delta(kpi, direction);
   const sparkData = (spark ?? []).map((v, i) => ({ i, v }));
@@ -54,24 +61,48 @@ function KpiTile({
           </BadgeDelta>
         ) : null}
       </Flex>
-      <div className="mt-2 flex items-end justify-between gap-3">
-        <p className="truncate text-2xl font-bold tracking-tight text-foreground">
-          {value}
-        </p>
-        {sparkData.length > 1 ? (
-          <SparkAreaChart
-            data={sparkData}
-            categories={["v"]}
-            index="i"
-            colors={[sparkColor ?? "emerald"]}
-            className="h-9 w-24 shrink-0"
-          />
+      {/* Value gets the full width; the sparkline sits under it. Side by side,
+          four tiles next to the sidebar left the value ~5 characters and
+          truncated it ("292 0…"). */}
+      <p className="mt-2 whitespace-nowrap text-2xl font-bold tracking-tight text-foreground">
+        {value}
+      </p>
+      {sparkData.length > 1 ? (
+        <SparkAreaChart
+          data={sparkData}
+          categories={["v"]}
+          index="i"
+          colors={[sparkColor ?? "emerald"]}
+          className="mt-2 h-8 w-full"
+        />
+      ) : null}
+      <Text className="mt-1 text-xs">
+        vs poprzedni okres
+        {yoyRatio != null ? (
+          <span
+            className={
+              yoyRatio >= 0
+                ? "ml-2 inline-block whitespace-nowrap font-medium text-emerald-600 dark:text-emerald-400"
+                : "ml-2 inline-block whitespace-nowrap font-medium text-rose-600 dark:text-rose-400"
+            }
+            title="Ten sam okres rok temu (wyrównany do dni tygodnia)"
+          >
+            {formatSignedPct(yoyRatio)} r/r
+          </span>
         ) : null}
-      </div>
-      <Text className="mt-1 text-xs">vs poprzedni okres</Text>
+      </Text>
     </Card>
   );
 }
+
+/** Same window last year, used for the r/r line under each tile. */
+export interface EcommerceYoY {
+  revenue: number;
+  transactions: number;
+  spend: number;
+}
+
+const ratio = (cur: number, prev: number) => (prev > 0 ? cur / prev - 1 : null);
 
 // Revenue-first KPI row for e-commerce clients: revenue, ROAS, transactions,
 // average order value. Sourced from GA4 purchases + ad spend. When the daily
@@ -79,11 +110,29 @@ function KpiTile({
 export function EcommerceKpis({
   data,
   trend,
+  yoy,
+  spend,
 }: {
   data: EcommerceKpisData;
   trend?: TrendPoint[];
+  /** Last year's same window; omit when last year's data is too thin. */
+  yoy?: EcommerceYoY | null;
+  /** Current-window ad spend (grosze), needed for the ROAS r/r line. */
+  spend?: number;
 }) {
   const roas = data.roas.value / 100; // stored ×100
+  const curRevenue = data.revenueMinorUnits.value;
+  const curTx = data.transactions.value;
+  const yoyRevenue = yoy ? ratio(curRevenue, yoy.revenue) : null;
+  const yoyTx = yoy ? ratio(curTx, yoy.transactions) : null;
+  const yoyRoas =
+    yoy && spend && spend > 0 && yoy.spend > 0
+      ? ratio(curRevenue / spend, yoy.revenue / yoy.spend)
+      : null;
+  const yoyAov =
+    yoy && curTx > 0 && yoy.transactions > 0
+      ? ratio(curRevenue / curTx, yoy.revenue / yoy.transactions)
+      : null;
   const t = trend ?? [];
   const revSeries = t.map((p) => p.revenueMinorUnits / 100);
   const roasSeries = t.map((p) =>
@@ -102,11 +151,12 @@ export function EcommerceKpis({
       <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
         <KpiTile
           label="Przychód"
-          value={formatMoneyPLN(data.revenueMinorUnits.value)}
+          value={formatPlnWhole(data.revenueMinorUnits.value)}
           kpi={data.revenueMinorUnits}
           direction="good"
           spark={revSeries}
           sparkColor="emerald"
+          yoyRatio={yoyRevenue}
         />
         <KpiTile
           label="ROAS"
@@ -115,6 +165,7 @@ export function EcommerceKpis({
           direction="good"
           spark={roasSeries}
           sparkColor="indigo"
+          yoyRatio={yoyRoas}
         />
         <KpiTile
           label="Transakcje"
@@ -123,6 +174,7 @@ export function EcommerceKpis({
           direction="good"
           spark={txSeries}
           sparkColor="sky"
+          yoyRatio={yoyTx}
         />
         <KpiTile
           label="Śr. wartość zamówienia"
@@ -131,6 +183,7 @@ export function EcommerceKpis({
           direction="good"
           spark={aovSeries}
           sparkColor="amber"
+          yoyRatio={yoyAov}
         />
       </Grid>
     </div>

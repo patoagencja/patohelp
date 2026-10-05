@@ -130,9 +130,23 @@ export async function GET(request: Request) {
       }
     }
 
+    // Critical anomalies (e.g. a shop taking zero orders on normal traffic)
+    // cost money every hour they go unnoticed - they ignore quiet hours.
+    for (const a of anomalies) {
+      if (a.severity !== "critical") continue;
+      items.push({
+        key: a.id,
+        title: a.title,
+        detail: a.description,
+        scope: a.scopeLabel,
+        critical: true,
+      });
+    }
+
     // Regular anomalies + pacing only inside the allowed hours.
     if (inWindow) {
       for (const a of anomalies) {
+        if (a.severity === "critical") continue; // already queued above
         if (s.min_severity === "high" && a.severity !== "high") continue;
         items.push({
           key: a.id,
