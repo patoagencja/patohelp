@@ -1,11 +1,16 @@
 import { Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
+import { FatigueBadge, RankingChipList } from "@/components/dashboard/creatives/insight-bits";
 import {
   cpcOf,
   ctrOf,
+  fatigueOf,
+  hasEnoughData,
+  videoRatesOf,
   verdictLabel,
   verdictReason,
+  type Benchmarks,
   type CreativeItem,
   type CreativeScore,
   type Lang,
@@ -62,11 +67,13 @@ export function VerdictChip({
 export function GalleryCard({
   c,
   score,
+  bench,
   lang,
   onSelect,
 }: {
   c: CreativeItem;
   score: CreativeScore;
+  bench: Benchmarks;
   lang: Lang;
   onSelect: (c: CreativeItem) => void;
 }) {
@@ -76,8 +83,16 @@ export function GalleryCard({
   // Thin-data ads keep the explanation in the chip tooltip only - a line of
   // "too early" text on many cards would drown the ones that matter.
   const reason = score.verdict === "unknown" ? "" : verdictReason(score, lang);
+  const video = videoRatesOf(c);
+  const fatigue = fatigueOf(c, bench);
+  // Colour the hook only when it can be fairly compared (enough views, and
+  // an average built from more than this one video).
+  const hookRatio =
+    video?.hook != null && bench.hookRate && bench.videoCount >= 2 && hasEnoughData(c)
+      ? video.hook / bench.hookRate
+      : null;
 
-  const stats = [
+  const stats: Array<{ label: string; value: string; cls: string; hint?: string }> = [
     { label: en ? "Spend" : "Wydatki", value: formatPlnWhole(c.spend), cls: "" },
     {
       label: en ? "Click rate" : "Klikalność",
@@ -89,6 +104,30 @@ export function GalleryCard({
       value: cpc != null ? formatMoneyPLN(Math.round(cpc)) : "-",
       cls: tone(score.cpcRatio),
     },
+    ...(video?.hook != null
+      ? [
+          {
+            label: en ? "Stops the scroll" : "Zatrzymuje uwagę",
+            value: formatPercent(video.hook * 100, 0),
+            cls: tone(hookRatio),
+            hint: en
+              ? "Share of views watched for more than 3 seconds"
+              : "Część wyświetleń, w których ktoś oglądał dłużej niż 3 sekundy",
+          },
+        ]
+      : []),
+    ...(video?.completion != null
+      ? [
+          {
+            label: en ? "Watched to the end" : "Do końca",
+            value: formatPercent(video.completion * 100, 0),
+            cls: "",
+            hint: en
+              ? "Of those who watched 3+ seconds"
+              : "Spośród osób, które oglądały dłużej niż 3 sekundy",
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -102,7 +141,9 @@ export function GalleryCard({
         name={c.name}
         lang={lang}
         className="aspect-square w-full rounded-none"
-      />
+      >
+        {fatigue ? <FatigueBadge fatigue={fatigue} lang={lang} /> : null}
+      </CreativeThumb>
       <div className="flex min-w-0 flex-1 flex-col gap-2 p-2.5 sm:p-3">
         <p
           className="line-clamp-2 min-h-[2.5rem] break-words text-sm font-medium leading-5"
@@ -117,10 +158,15 @@ export function GalleryCard({
               {reason}
             </p>
           ) : null}
+          <RankingChipList c={c} lang={lang} compact className="mt-1.5" />
         </div>
         <dl className="mt-auto space-y-1 border-t border-border pt-2">
           {stats.map((s) => (
-            <div key={s.label} className="flex items-baseline justify-between gap-2">
+            <div
+              key={s.label}
+              className="flex items-baseline justify-between gap-2"
+              title={s.hint}
+            >
               <dt className="truncate text-[11px] text-muted-foreground sm:text-xs">
                 {s.label}
               </dt>

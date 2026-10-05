@@ -8,6 +8,13 @@ import { formatDateWarsaw } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// bigint/numeric columns can arrive as strings from PostgREST.
+function numOrNull(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function periodLabel(start: string | null, end: string | null): string {
   if (!start || !end) return "ostatnie 30 dni";
   return `${formatDateWarsaw(start, "d MMM")} - ${formatDateWarsaw(end, "d MMM yyyy")}`;
@@ -32,9 +39,10 @@ export default async function KreacjePage({
 
   const { data } = await supabase
     .from("creatives")
-    .select(
-      "ad_id, ad_name, thumbnail_url, spend_minor_units, impressions, clicks, ctr, cpc_minor_units, period_start, period_end"
-    )
+    // "*" rather than a column list: naming the 0025 metric columns would
+    // make the whole query fail (and the tab look empty) until that
+    // migration has run. Missing columns simply read as undefined.
+    .select("*")
     .eq("client_id", client.id)
     .eq("provider", "meta_ads")
     .order("spend_minor_units", { ascending: false })
@@ -50,6 +58,24 @@ export default async function KreacjePage({
     clicks: Number(c.clicks),
     ctr: c.ctr != null ? Number(c.ctr) : null,
     cpc: c.cpc_minor_units != null ? Number(c.cpc_minor_units) : null,
+    reach: numOrNull(c.reach),
+    frequency: numOrNull(c.frequency),
+    qualityRanking: (c.quality_ranking as string | null) ?? null,
+    engagementRanking: (c.engagement_rate_ranking as string | null) ?? null,
+    conversionRanking: (c.conversion_rate_ranking as string | null) ?? null,
+    // No 3-second play count means a static/carousel ad: no video block.
+    video:
+      c.video_3s_views != null
+        ? {
+            plays3s: numOrNull(c.video_3s_views),
+            thruplays: numOrNull(c.video_thruplays),
+            p25: numOrNull(c.video_p25),
+            p50: numOrNull(c.video_p50),
+            p75: numOrNull(c.video_p75),
+            p100: numOrNull(c.video_p100),
+            avgWatchSeconds: numOrNull(c.video_avg_watch_seconds),
+          }
+        : null,
   }));
 
   const period = periodLabel(

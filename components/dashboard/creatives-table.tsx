@@ -1,12 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ExternalLink, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ExternalLink, Film, RefreshCw, X } from "lucide-react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
+import { RankingChipList } from "@/components/dashboard/creatives/insight-bits";
 import {
+  completionSentence,
+  computeBenchmarks,
+  fatigueHeadline,
+  fatigueOf,
+  fatigueReason,
+  frequencyOf,
+  holdSentence,
+  hookSentence,
+  videoRatesOf,
   verdictLabel,
   verdictReason,
+  type Benchmarks,
   type CreativeItem,
   type CreativeScore,
 } from "@/lib/dashboard/creatives";
@@ -26,12 +37,15 @@ export function CreativeModal({
   onClose,
   en = false,
   score,
+  bench,
 }: {
   c: CreativeItem;
   onClose: () => void;
   en?: boolean;
   /** Optional verdict vs the client's average, shown under the name. */
   score?: CreativeScore;
+  /** Needed for the fatigue check (compares against the client's videos). */
+  bench?: Benchmarks;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -49,6 +63,21 @@ export function CreativeModal({
 
   const lang = en ? "en" : "pl";
   const reason = score ? verdictReason(score, lang) : "";
+  const video = videoRatesOf(c);
+  const freq = frequencyOf(c);
+  const fatigue = bench ? fatigueOf(c, bench) : null;
+  const videoLines = video
+    ? [
+        video.hook != null ? hookSentence(video.hook, lang) : null,
+        video.hold != null ? holdSentence(video.hold, lang) : null,
+        video.completion != null ? completionSentence(video.completion, lang) : null,
+        video.avgWatchSeconds != null
+          ? en
+            ? `On average a view lasts ${video.avgWatchSeconds.toLocaleString("en-GB", { maximumFractionDigits: 1 })} s.`
+            : `Średnio film jest oglądany przez ${video.avgWatchSeconds.toLocaleString("pl-PL", { maximumFractionDigits: 1 })} s.`
+          : null,
+      ].filter((l): l is string => l != null)
+    : [];
 
   return (
     <div
@@ -104,6 +133,20 @@ export function CreativeModal({
                 label: en ? "Cost per click" : "Koszt kliknięcia",
                 value: c.cpc != null ? formatMoneyPLN(Math.round(c.cpc)) : "-",
               },
+              ...(c.reach != null
+                ? [{ label: en ? "People reached" : "Zasięg (osoby)", value: formatNumberPL(c.reach) }]
+                : []),
+              ...(freq != null
+                ? [
+                    {
+                      label: en ? "Times seen per person" : "Ile razy 1 osoba widziała",
+                      value: freq.toLocaleString(en ? "en-GB" : "pl-PL", {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      }),
+                    },
+                  ]
+                : []),
             ].map((s) => (
               <div key={s.label} className="rounded-lg bg-muted/50 p-2.5">
                 <p className="text-[11px] text-muted-foreground">{s.label}</p>
@@ -113,6 +156,29 @@ export function CreativeModal({
               </div>
             ))}
           </div>
+          {fatigue ? (
+            <div className="flex gap-2 rounded-lg bg-amber-500/10 p-2.5 text-xs leading-snug text-amber-900 dark:text-amber-200">
+              <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <p>
+                <span className="font-semibold">{fatigueHeadline(lang)}.</span>{" "}
+                {fatigueReason(fatigue, lang)}
+              </p>
+            </div>
+          ) : null}
+          {videoLines.length > 0 ? (
+            <div className="space-y-1 rounded-lg bg-muted/50 p-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+                <Film className="h-3.5 w-3.5" aria-hidden />
+                {en ? "How the video is watched" : "Jak oglądany jest film"}
+              </p>
+              {videoLines.map((l) => (
+                <p key={l} className="text-xs leading-snug tabular-nums">
+                  {l}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          <RankingChipList c={c} lang={lang} kinds={["quality", "engagement", "conversion"]} />
           {c.thumbnailUrl ? (
             <a
               href={c.thumbnailUrl}
@@ -149,6 +215,7 @@ export function CreativesTable({
     : { spend: "Wydatki", clicks: "Kliknięcia", ctr: "CTR", cpc: "CPC" };
   const [sort, setSort] = useState<SortKey>("spend");
   const [selected, setSelected] = useState<CreativeItem | null>(null);
+  const bench = useMemo(() => computeBenchmarks(creatives), [creatives]);
 
   const table = [...creatives]
     .sort((a, b) => {
@@ -195,7 +262,7 @@ export function CreativesTable({
       </div>
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[34rem]">
+        <table className="w-full min-w-[40rem]">
           <thead>
             <tr className="border-b border-border text-left tabular-nums text-[11px] uppercase tracking-wide text-muted-foreground">
               <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Kreacja"}</th>
@@ -203,7 +270,13 @@ export function CreativesTable({
               <th className="py-2 pr-3 text-right font-medium">{en ? "Impr." : "Wyśw."}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Clicks" : "Klik."}</th>
               <th className="py-2 pr-3 text-right font-medium">CTR</th>
-              <th className="py-2 text-right font-medium">CPC</th>
+              <th className="py-2 pr-3 text-right font-medium">CPC</th>
+              <th className="py-2 pr-3 text-right font-medium" title={en ? "Times seen per person" : "Ile razy 1 osoba widziała reklamę"}>
+                {en ? "Freq." : "Częst."}
+              </th>
+              <th className="py-2 text-right font-medium" title={en ? "Share of views watched 3s+ (videos)" : "Część wyświetleń oglądanych dłużej niż 3 s (filmy)"}>
+                {en ? "3s+" : "3 s+"}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -239,8 +312,22 @@ export function CreativesTable({
                 <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
                   {c.ctr != null ? formatPercent(c.ctr) : "-"}
                 </td>
-                <td className="py-2 text-right text-sm tabular-nums text-muted-foreground">
+                <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
                   {c.cpc != null ? formatMoneyPLN(Math.round(c.cpc)) : "-"}
+                </td>
+                <td className="py-2 pr-3 text-right text-sm tabular-nums text-muted-foreground">
+                  {(() => {
+                    const f = frequencyOf(c);
+                    return f != null
+                      ? f.toLocaleString(en ? "en-GB" : "pl-PL", { maximumFractionDigits: 1 })
+                      : "-";
+                  })()}
+                </td>
+                <td className="py-2 text-right text-sm tabular-nums text-muted-foreground">
+                  {(() => {
+                    const h = videoRatesOf(c)?.hook;
+                    return h != null ? formatPercent(h * 100, 0) : "-";
+                  })()}
                 </td>
               </tr>
             ))}
@@ -249,7 +336,7 @@ export function CreativesTable({
       </div>
 
       {selected ? (
-        <CreativeModal c={selected} onClose={() => setSelected(null)} en={en} />
+        <CreativeModal c={selected} onClose={() => setSelected(null)} en={en} bench={bench} />
       ) : null}
     </section>
   );

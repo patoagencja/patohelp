@@ -5,13 +5,16 @@ import { LayoutGrid, Table2, Trophy } from "lucide-react";
 
 import { CreativeModal, CreativesTable } from "@/components/dashboard/creatives-table";
 import { GalleryCard } from "@/components/dashboard/creatives/gallery-card";
+import { RefreshList } from "@/components/dashboard/creatives/insight-bits";
 import { CreativesPodium, PodiumFootnote } from "@/components/dashboard/creatives/podium";
 import {
   computeBenchmarks,
+  fatigueOf,
   pickPodium,
   scoreCreative,
   sortCreatives,
   type CreativeItem,
+  type Fatigue,
   type GallerySort,
   type Lang,
 } from "@/lib/dashboard/creatives";
@@ -88,6 +91,15 @@ export function CreativesExplorer({
     [creatives, sort, bench]
   );
 
+  const fatigued = useMemo(
+    () =>
+      creatives
+        .map((c) => ({ c, fatigue: fatigueOf(c, bench) }))
+        .filter((x): x is { c: CreativeItem; fatigue: Fatigue } => x.fatigue != null)
+        .sort((a, b) => b.c.spend - a.c.spend),
+    [creatives, bench]
+  );
+
   const counts = useMemo(() => {
     let better = 0;
     let worse = 0;
@@ -116,8 +128,10 @@ export function CreativesExplorer({
           </p>
         </div>
         <CreativesPodium entries={podium} bench={bench} lang={lang} onSelect={setSelected} />
-        {podium.length > 0 ? <PodiumFootnote lang={lang} /> : null}
+        {podium.length > 0 ? <PodiumFootnote lang={lang} entries={podium} /> : null}
       </section>
+
+      <RefreshList items={fatigued} lang={lang} onSelect={setSelected} />
 
       {/* All creatives */}
       <section className="min-w-0 space-y-4">
@@ -179,6 +193,15 @@ export function CreativesExplorer({
               {bench.cpc != null ? formatMoneyPLN(Math.round(bench.cpc)) : "-"}
             </span>
           </span>
+          {bench.hookRate != null ? (
+            <span>
+              {en ? "stops the scroll (videos)" : "zatrzymanie uwagi (filmy)"}{" "}
+              <span className="tabular-nums font-semibold text-foreground">
+                {formatPercent(bench.hookRate * 100, 0)}
+              </span>{" "}
+              {en ? "(watched 3s+)" : "(oglądane dłużej niż 3 s)"}
+            </span>
+          ) : null}
           <span>
             {en ? "views" : "wyświetlenia"}{" "}
             <span className="tabular-nums font-semibold text-foreground">
@@ -199,6 +222,7 @@ export function CreativesExplorer({
                   key={c.adId}
                   c={c}
                   score={scores.get(c.adId) ?? scoreCreative(c, bench)}
+                  bench={bench}
                   lang={lang}
                   onSelect={setSelected}
                 />
@@ -234,6 +258,7 @@ export function CreativesExplorer({
           onClose={close}
           en={en}
           score={scores.get(selected.adId)}
+          bench={bench}
         />
       ) : null}
     </div>

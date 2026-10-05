@@ -1,6 +1,7 @@
-import { Eye, MousePointerClick, PiggyBank, TrendingUp } from "lucide-react";
+import { Eye, Hand, MousePointerClick, PiggyBank, TrendingUp } from "lucide-react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
+import { RankingChipList } from "@/components/dashboard/creatives/insight-bits";
 import {
   AWARD_LABEL,
   awardSentence,
@@ -8,6 +9,7 @@ import {
   ctrOf,
   MIN_CLICKS,
   MIN_IMPRESSIONS,
+  videoRatesOf,
   type AwardKind,
   type Benchmarks,
   type CreativeItem,
@@ -20,6 +22,7 @@ import { cn, formatMoneyPLN,
 const AWARD_ICON: Record<AwardKind, typeof Eye> = {
   ctr: MousePointerClick,
   cpc: PiggyBank,
+  hook: Hand,
   impressions: Eye,
   clicks: TrendingUp,
 };
@@ -28,6 +31,7 @@ const AWARD_ICON: Record<AwardKind, typeof Eye> = {
 const AWARD_TONE: Record<AwardKind, string> = {
   ctr: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
   cpc: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  hook: "bg-amber-500/10 text-amber-800 dark:text-amber-300",
   impressions: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
   clicks: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
 };
@@ -101,6 +105,7 @@ export function CreativesPodium({
         const [primary, ...extra] = e.awards;
         const ctr = ctrOf(c);
         const cpc = cpcOf(c);
+        const hook = videoRatesOf(c)?.hook ?? null;
         return (
           <button
             key={c.adId}
@@ -148,6 +153,7 @@ export function CreativesPodium({
                   ))}
                 </div>
               ) : null}
+              <RankingChipList c={c} lang={lang} />
               <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1.5 border-t border-border pt-2">
                 <MiniStat label={en ? "Spend" : "Wydatki"} value={formatPlnWhole(c.spend)} />
                 <MiniStat
@@ -158,6 +164,12 @@ export function CreativesPodium({
                   label={en ? "Per click" : "Za klik"}
                   value={cpc != null ? formatMoneyPLN(Math.round(cpc)) : "-"}
                 />
+                {hook != null ? (
+                  <MiniStat
+                    label={en ? "Watch 3s+" : "Ogląda 3 s+"}
+                    value={formatPercent(hook * 100, 0)}
+                  />
+                ) : null}
               </div>
             </div>
           </button>
@@ -167,12 +179,24 @@ export function CreativesPodium({
   );
 }
 
-export function PodiumFootnote({ lang }: { lang: Lang }) {
+export function PodiumFootnote({
+  lang,
+  entries = [],
+}: {
+  lang: Lang;
+  entries?: PodiumEntry[];
+}) {
+  const hasHook = entries.some((e) => e.awards.includes("hook"));
   return (
     <p className="text-xs text-muted-foreground">
       {lang === "en"
         ? `Only ads with at least ${formatNumberPL(MIN_IMPRESSIONS)} views (and ${MIN_CLICKS} clicks for the price award) take part, so small tests don't skew the ranking.`
         : `Biorą udział tylko reklamy z min. ${formatNumberPL(MIN_IMPRESSIONS)} wyświetleń (i ${MIN_CLICKS} kliknięć w kategorii ceny), żeby małe testy nie zaburzały wyników.`}
+      {hasHook
+        ? lang === "en"
+          ? " The attention award compares videos only: the share of views watched for more than 3 seconds."
+          : " Nagroda za zatrzymanie uwagi porównuje tylko filmy: jaka część wyświetleń trwała dłużej niż 3 sekundy."
+        : ""}
     </p>
   );
 }

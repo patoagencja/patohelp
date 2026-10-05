@@ -20,6 +20,11 @@ interface MetaAccount {
   selected?: boolean;
 }
 
+// bigint columns reject "12.0"-style floats; keep null as "not reported".
+function roundOrNull(v: number | null): number | null {
+  return v != null ? Math.round(v) : null;
+}
+
 export async function GET(request: Request) {
   if (
     request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
@@ -39,6 +44,21 @@ export async function GET(request: Request) {
     .eq("provider", "meta_ads");
   if (onlyClient) q = q.eq("client_id", onlyClient);
   const { data: integrations } = await q;
+
+  // Migration 0025 adds the diagnostic columns. Until it runs, PostgREST
+  // rejects any upsert naming them, so probe once and omit them from every
+  // row - bulk upserts union keys, so rows must all carry the same shape.
+  const { error: probeError } = await admin
+    .from("creatives")
+    .select("video_3s_views")
+    .limit(1);
+  const hasMetricColumns = !probeError;
+  if (probeError) {
+    console.warn(
+      "[cron/refresh-creatives-meta] creative metric columns missing - run migration 0025",
+      probeError.message
+    );
+  }
 
   let creativesUpserted = 0;
   let accountsFailed = 0;
@@ -75,6 +95,23 @@ export async function GET(request: Request) {
             period_start: since,
             period_end: until,
             updated_at: new Date().toISOString(),
+            ...(hasMetricColumns
+              ? {
+                  reach: roundOrNull(ad.reach),
+                  frequency: ad.frequency,
+                  quality_ranking: ad.quality_ranking,
+                  engagement_rate_ranking: ad.engagement_rate_ranking,
+                  conversion_rate_ranking: ad.conversion_rate_ranking,
+                  video_plays: roundOrNull(ad.video_plays),
+                  video_3s_views: roundOrNull(ad.video_3s_views),
+                  video_thruplays: roundOrNull(ad.video_thruplays),
+                  video_p25: roundOrNull(ad.video_p25),
+                  video_p50: roundOrNull(ad.video_p50),
+                  video_p75: roundOrNull(ad.video_p75),
+                  video_p100: roundOrNull(ad.video_p100),
+                  video_avg_watch_seconds: ad.video_avg_watch_seconds,
+                }
+              : {}),
           }));
 
           if (rows.length) {
@@ -104,5 +141,6 @@ export async function GET(request: Request) {
     ok: true,
     creatives_upserted: creativesUpserted,
     accounts_failed: accountsFailed,
+    metric_columns: hasMetricColumns,
   });
 }

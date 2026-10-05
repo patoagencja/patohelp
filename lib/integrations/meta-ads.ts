@@ -216,6 +216,108 @@ export interface MetaAdInsight {
   clicks: string;
   ctr?: string;
   cpc?: string;
+  /**
+   * Creative diagnostics. All null when Meta omits them (static ads have no
+   * video metrics; rankings need 500+ impressions) or when the extended
+   * request had to fall back to the base fields.
+   */
+  reach: number | null;
+  frequency: number | null;
+  quality_ranking: string | null;
+  engagement_rate_ranking: string | null;
+  conversion_rate_ranking: string | null;
+  /** video_play_actions - plays started; autoplay makes this ~= impressions. */
+  video_plays: number | null;
+  /** actions[video_view] - what Ads Manager calls "3-second video plays". */
+  video_3s_views: number | null;
+  video_thruplays: number | null;
+  video_p25: number | null;
+  video_p50: number | null;
+  video_p75: number | null;
+  video_p100: number | null;
+  /** Seconds. */
+  video_avg_watch_seconds: number | null;
+}
+
+type MetaActionList = Array<{ action_type?: string; value?: string }>;
+
+const AD_BASE_FIELDS = "ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc";
+
+// `video_play_actions` only counts plays *started* (autoplay included), so it
+// cannot measure a "hook". Meta exposes 3-second plays as the `video_view`
+// entry of `actions`, which is why `actions` is requested here too.
+const AD_EXTENDED_FIELDS = [
+  AD_BASE_FIELDS,
+  "reach",
+  "frequency",
+  "quality_ranking",
+  "engagement_rate_ranking",
+  "conversion_rate_ranking",
+  "actions",
+  "video_play_actions",
+  "video_thruplay_watched_actions",
+  "video_p25_watched_actions",
+  "video_p50_watched_actions",
+  "video_p75_watched_actions",
+  "video_p100_watched_actions",
+  "video_avg_time_watched_actions",
+].join(",");
+
+function num(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Video metrics arrive as action lists (normally one `video_view` entry).
+ * A missing list means "not a video" and must stay null, not 0.
+ */
+function sumActions(v: unknown, actionType?: string): number | null {
+  if (!Array.isArray(v)) return null;
+  let total: number | null = null;
+  for (const a of v as MetaActionList) {
+    if (actionType && a.action_type !== actionType) continue;
+    const n = num(a.value);
+    if (n != null) total = (total ?? 0) + n;
+  }
+  return total;
+}
+
+function rankingOf(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim().toUpperCase() : null;
+}
+
+async function fetchAdInsightRows(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string,
+  fields: string
+): Promise<Array<Record<string, unknown>>> {
+  let body = await graphGet<{
+    data: Array<Record<string, unknown>>;
+    paging?: { next?: string };
+  }>(`/${adAccountId}/insights`, {
+    fields,
+    level: "ad",
+    time_range: JSON.stringify({ since, until }),
+    access_token: accessToken,
+    limit: "500",
+  });
+  const rows: Array<Record<string, unknown>> = [...(body.data ?? [])];
+
+  // Accounts with many ads span several pages; a single page silently
+  // dropped every ad past the 500th.
+  let guard = 0;
+  while (body.paging?.next && guard < 50) {
+    guard += 1;
+    const res = await fetch(body.paging.next, { cache: "no-store" });
+    body = await res.json();
+    if (body?.data?.length) rows.push(...body.data);
+    else break;
+  }
+  return rows;
 }
 
 /** Ad-level insights aggregated over [since, until] (one row per ad). */
@@ -225,18 +327,20 @@ export async function getAdInsights(
   since: string,
   until: string
 ): Promise<MetaAdInsight[]> {
-  const body = await graphGet<{ data: Array<Record<string, unknown>> }>(
-    `/${adAccountId}/insights`,
-    {
-      fields: "ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc",
-      level: "ad",
-      time_range: JSON.stringify({ since, until }),
-      access_token: accessToken,
-      limit: "500",
-    }
-  );
+  let raw: Array<Record<string, unknown>>;
+  try {
+    raw = await fetchAdInsightRows(accessToken, adAccountId, since, until, AD_EXTENDED_FIELDS);
+  } catch (err) {
+    // A renamed/deprecated diagnostic field must not cost the client their
+    // whole Kreacje tab: retry with the fields that have always worked.
+    console.warn(
+      "[meta-ads] extended ad insights failed, retrying with base fields",
+      err instanceof Error ? err.message : err
+    );
+    raw = await fetchAdInsightRows(accessToken, adAccountId, since, until, AD_BASE_FIELDS);
+  }
 
-  return (body.data ?? []).map((row) => ({
+  return raw.map((row) => ({
     ad_id: String(row.ad_id ?? ""),
     ad_name: String(row.ad_name ?? ""),
     campaign_id: String(row.campaign_id ?? ""),
@@ -245,6 +349,22 @@ export async function getAdInsights(
     clicks: String(row.clicks ?? "0"),
     ctr: row.ctr != null ? String(row.ctr) : undefined,
     cpc: row.cpc != null ? String(row.cpc) : undefined,
+    reach: num(row.reach),
+    frequency: num(row.frequency),
+    quality_ranking: rankingOf(row.quality_ranking),
+    engagement_rate_ranking: rankingOf(row.engagement_rate_ranking),
+    conversion_rate_ranking: rankingOf(row.conversion_rate_ranking),
+    video_plays: sumActions(row.video_play_actions),
+    video_3s_views: sumActions(row.actions, "video_view"),
+    video_thruplays: sumActions(row.video_thruplay_watched_actions),
+    video_p25: sumActions(row.video_p25_watched_actions),
+    video_p50: sumActions(row.video_p50_watched_actions),
+    video_p75: sumActions(row.video_p75_watched_actions),
+    video_p100: sumActions(row.video_p100_watched_actions),
+    // An average must not be summed across entries - take the first one.
+    video_avg_watch_seconds: Array.isArray(row.video_avg_time_watched_actions)
+      ? num((row.video_avg_time_watched_actions as MetaActionList)[0]?.value)
+      : null,
   }));
 }
 

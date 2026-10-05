@@ -2,14 +2,30 @@
  * Creative (single ad) scoring for the "Kreacje" tab.
  *
  * Everything here is deterministic and derived only from what the
- * `creatives` table stores (spend, impressions, clicks, ctr, cpc). We have no
- * reach, frequency or video metrics per ad, so nothing below pretends to.
+ * `creatives` table stores: spend, impressions, clicks, ctr, cpc and (since
+ * migration 0025, all optional) reach, frequency, Meta's relevance rankings
+ * and video retention counts. Every optional metric may be missing - before
+ * the migration, for static ads, or below Meta's thresholds - and the copy
+ * below never fills a gap with a guess.
  * Pure functions - safe to import from Server and Client Components.
  */
 
 import { formatMoneyPLN, formatNumberPL } from "@/lib/utils";
 
 export type Lang = "pl" | "en";
+
+/** Raw counts from Meta's video insights (null = not reported). */
+export interface CreativeVideoStats {
+  /** Meta "3-second video plays" (actions[video_view]). */
+  plays3s: number | null;
+  /** Watched to the end or for 15s+, whichever comes first. */
+  thruplays: number | null;
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+  p100: number | null;
+  avgWatchSeconds: number | null;
+}
 
 export interface CreativeItem {
   adId: string;
@@ -23,6 +39,16 @@ export interface CreativeItem {
   ctr: number | null;
   /** Minor units (grosze). */
   cpc: number | null;
+  // Optional so older data sources (demo, pre-0025 rows) stay valid as-is.
+  reach?: number | null;
+  /** Average times one person saw the ad over the period. */
+  frequency?: number | null;
+  /** Raw Meta enum, e.g. "ABOVE_AVERAGE", "BELOW_AVERAGE_20", "UNKNOWN". */
+  qualityRanking?: string | null;
+  engagementRanking?: string | null;
+  conversionRanking?: string | null;
+  /** Null/absent for static and carousel ads. */
+  video?: CreativeVideoStats | null;
 }
 
 // Below these floors a single lucky click swings CTR/CPC wildly, so such ads
@@ -44,6 +70,13 @@ export interface Benchmarks {
   totalClicks: number;
   totalSpend: number;
   count: number;
+  /**
+   * Volume-weighted hook rate (0-1) across video ads only - comparing a video
+   * against static ads, which cannot have a hook, would be meaningless.
+   */
+  hookRate: number | null;
+  /** Video ads with enough views to be compared against `hookRate`. */
+  videoCount: number;
 }
 
 export function ctrOf(c: CreativeItem): number | null {
@@ -68,10 +101,19 @@ export function computeBenchmarks(creatives: CreativeItem[]): Benchmarks {
   let imp = 0;
   let clk = 0;
   let spd = 0;
+  let vidImp = 0;
+  let vid3s = 0;
+  let videoCount = 0;
   for (const c of creatives) {
     imp += c.impressions;
     clk += c.clicks;
     spd += c.spend;
+    const plays = c.video?.plays3s;
+    if (plays != null && c.impressions > 0) {
+      vidImp += c.impressions;
+      vid3s += Math.min(plays, c.impressions);
+      if (hasEnoughData(c)) videoCount += 1;
+    }
   }
   return {
     ctr: imp > 0 ? (clk / imp) * 100 : null,
@@ -80,7 +122,273 @@ export function computeBenchmarks(creatives: CreativeItem[]): Benchmarks {
     totalClicks: clk,
     totalSpend: spd,
     count: creatives.length,
+    hookRate: vidImp > 0 ? vid3s / vidImp : null,
+    videoCount,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Video retention (hook / hold / completion)
+// ---------------------------------------------------------------------------
+
+export interface VideoRates {
+  /** 3s plays / impressions (0-1): how often the video stops the scroll. */
+  hook: number | null;
+  /** ThruPlays / 3s plays (0-1): of those hooked, how many kept watching. */
+  hold: number | null;
+  /** 100% plays / 3s plays (0-1): of those hooked, how many saw the end. */
+  completion: number | null;
+  avgWatchSeconds: number | null;
+}
+
+// Rates are clamped to 1: Meta counts plays and impressions slightly
+// differently (replays, attribution lag), and "104% watched" would read as a bug.
+function rate(part: number | null | undefined, whole: number | null | undefined): number | null {
+  if (part == null || whole == null || whole <= 0) return null;
+  return Math.min(Math.max(part / whole, 0), 1);
+}
+
+/** Null for non-video ads (no 3-second play data at all). */
+export function videoRatesOf(c: CreativeItem): VideoRates | null {
+  const v = c.video;
+  if (!v || v.plays3s == null) return null;
+  return {
+    hook: rate(v.plays3s, c.impressions),
+    hold: rate(v.thruplays, v.plays3s),
+    completion: rate(v.p100, v.plays3s),
+    avgWatchSeconds:
+      v.avgWatchSeconds != null && v.avgWatchSeconds > 0 ? v.avgWatchSeconds : null,
+  };
+}
+
+function pct0(fraction: number): number {
+  return Math.round(fraction * 100);
+}
+
+/** "Zatrzymuje uwagę: w 34 na 100 wyświetleń ktoś ogląda dłużej niż 3 sekundy." */
+export function hookSentence(hook: number, lang: Lang): string {
+  // Phrased per 100 *views*, not people: both counts are per impression.
+  const n = pct0(hook);
+  return lang === "en"
+    ? `Stops the scroll: in ${n} of every 100 views, people watch for more than 3 seconds.`
+    : `Zatrzymuje uwagę: w ${n} na 100 wyświetleń ktoś ogląda dłużej niż 3 sekundy.`;
+}
+
+/** "Do końca dotrwało 12% oglądających." */
+export function completionSentence(completion: number, lang: Lang): string {
+  const n = pct0(completion);
+  return lang === "en"
+    ? `${n}% of viewers watched to the end.`
+    : `Do końca dotrwało ${n}% oglądających.`;
+}
+
+export function holdSentence(hold: number, lang: Lang): string {
+  const n = pct0(hold);
+  return lang === "en"
+    ? `${n}% of viewers watched 15 seconds or the whole video.`
+    : `${n}% oglądających obejrzało 15 sekund lub cały film.`;
+}
+
+// ---------------------------------------------------------------------------
+// Meta relevance diagnostics (quality / engagement / conversion rankings)
+// ---------------------------------------------------------------------------
+
+/** Meta itself returns UNKNOWN below this, and we never trust less. */
+export const RANKING_MIN_IMPRESSIONS = 500;
+
+export type RankingKind = "quality" | "engagement" | "conversion";
+export type RankingLevel = "above" | "average" | "below35" | "below20" | "below10";
+export type RankingTone = "good" | "neutral" | "bad";
+
+const RANKING_LEVEL: Record<string, RankingLevel> = {
+  ABOVE_AVERAGE: "above",
+  AVERAGE: "average",
+  BELOW_AVERAGE_35: "below35",
+  BELOW_AVERAGE_20: "below20",
+  BELOW_AVERAGE_10: "below10",
+};
+
+function rawRanking(c: CreativeItem, kind: RankingKind): string | null | undefined {
+  if (kind === "quality") return c.qualityRanking;
+  if (kind === "engagement") return c.engagementRanking;
+  return c.conversionRanking;
+}
+
+/** Null for UNKNOWN, unrecognised values, or too few impressions. */
+export function rankingOf(c: CreativeItem, kind: RankingKind): RankingLevel | null {
+  if (c.impressions < RANKING_MIN_IMPRESSIONS) return null;
+  const raw = rawRanking(c, kind);
+  if (!raw) return null;
+  return RANKING_LEVEL[raw.toUpperCase()] ?? null;
+}
+
+function isBelow(level: RankingLevel | null): boolean {
+  return level === "below35" || level === "below20" || level === "below10";
+}
+
+const RANKING_NAME: Record<Lang, Record<RankingKind, string>> = {
+  pl: { quality: "Jakość reklamy", engagement: "Zaangażowanie", conversion: "Realizacja celu" },
+  en: { quality: "Ad quality", engagement: "Engagement", conversion: "Goal completion" },
+};
+
+const RANKING_SHORT: Record<Lang, Record<RankingKind, string>> = {
+  pl: { quality: "Jakość", engagement: "Zaangażowanie", conversion: "Cel" },
+  en: { quality: "Quality", engagement: "Engagement", conversion: "Goal" },
+};
+
+// Level phrases avoid adjectives so they agree with any metric's gender
+// ("Jakość ... średnia" vs "Zaangażowanie ... średnie").
+const RANKING_LEVEL_LABEL: Record<Lang, Record<RankingLevel, string>> = {
+  pl: {
+    above: "powyżej średniej",
+    average: "na poziomie średniej",
+    below35: "poniżej średniej",
+    below20: "wyraźnie poniżej średniej",
+    below10: "wśród najsłabszych 10%",
+  },
+  en: {
+    above: "above average",
+    average: "average",
+    below35: "below average",
+    below20: "well below average",
+    below10: "in the bottom 10%",
+  },
+};
+
+const RANKING_WHAT: Record<Lang, Record<RankingKind, string>> = {
+  pl: {
+    quality: "jak odbiorcy oceniają samą reklamę",
+    engagement: "jak często ludzie reagują na reklamę (kliknięcia, reakcje, komentarze)",
+    conversion: "jak często reklama prowadzi do celu kampanii",
+  },
+  en: {
+    quality: "how people perceive the ad itself",
+    engagement: "how often people interact with the ad (clicks, reactions, comments)",
+    conversion: "how often the ad leads to the campaign's goal",
+  },
+};
+
+export interface RankingChip {
+  kind: RankingKind;
+  level: RankingLevel;
+  tone: RankingTone;
+  /** "Jakość reklamy: powyżej średniej" */
+  label: string;
+  /** "Jakość: powyżej średniej" - for narrow cards. */
+  short: string;
+  /** Tooltip: what is measured and against whom. */
+  hint: string;
+}
+
+export function rankingChips(
+  c: CreativeItem,
+  lang: Lang,
+  kinds: RankingKind[] = ["quality", "engagement"]
+): RankingChip[] {
+  const en = lang === "en";
+  const out: RankingChip[] = [];
+  for (const kind of kinds) {
+    const level = rankingOf(c, kind);
+    if (!level) continue;
+    const lvl = RANKING_LEVEL_LABEL[lang][level];
+    // Meta compares against ads competing for the same audience - not a
+    // whole industry - so the hint says exactly that.
+    const bottom =
+      level === "below35" ? 35 : level === "below20" ? 20 : level === "below10" ? 10 : null;
+    const against = en
+      ? bottom
+        ? `in the bottom ${bottom}% of ads competing for the same audience`
+        : "compared with ads competing for the same audience"
+      : bottom
+        ? `w dolnych ${bottom}% reklam walczących o tych samych odbiorców`
+        : "na tle reklam walczących o tych samych odbiorców";
+    out.push({
+      kind,
+      level,
+      tone: level === "above" ? "good" : level === "average" ? "neutral" : "bad",
+      label: `${RANKING_NAME[lang][kind]}: ${lvl}`,
+      short: `${RANKING_SHORT[lang][kind]}: ${lvl}`,
+      hint: en
+        ? `Meta's rating of ${RANKING_WHAT[lang][kind]} - ${against}.`
+        : `Ocena Meta: ${RANKING_WHAT[lang][kind]} - ${against}.`,
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Fatigue ("Do odświeżenia")
+// ---------------------------------------------------------------------------
+
+/**
+ * Over our 30-day window an average person seeing an ad more than 3 times is
+ * common for small audiences and NOT a problem by itself. It only counts as
+ * fatigue when a second, independent signal says people stopped responding.
+ */
+export const FATIGUE_FREQUENCY = 3;
+/** Hook rate below 70% of the client's video average = "well below". */
+const FATIGUE_HOOK_RATIO = 0.7;
+/** A video average built from fewer ads is too shaky to judge against. */
+const FATIGUE_MIN_VIDEOS = 3;
+
+export type FatigueSignal = "engagement" | "hook";
+
+export interface Fatigue {
+  frequency: number;
+  signals: FatigueSignal[];
+  /** This ad's hook vs the client's video average (only with "hook"). */
+  hookRatio: number | null;
+}
+
+export function frequencyOf(c: CreativeItem): number | null {
+  if (c.frequency != null && Number.isFinite(c.frequency) && c.frequency > 0) return c.frequency;
+  return c.reach != null && c.reach > 0 ? c.impressions / c.reach : null;
+}
+
+export function fatigueOf(c: CreativeItem, b: Benchmarks): Fatigue | null {
+  if (!hasEnoughData(c)) return null;
+  const freq = frequencyOf(c);
+  if (freq == null || freq <= FATIGUE_FREQUENCY) return null;
+
+  const signals: FatigueSignal[] = [];
+  if (isBelow(rankingOf(c, "engagement"))) signals.push("engagement");
+
+  let hookRatio: number | null = null;
+  const hook = videoRatesOf(c)?.hook ?? null;
+  if (hook != null && b.hookRate && b.videoCount >= FATIGUE_MIN_VIDEOS) {
+    hookRatio = hook / b.hookRate;
+    if (hookRatio < FATIGUE_HOOK_RATIO) signals.push("hook");
+  }
+  if (signals.length === 0) return null;
+  return { frequency: freq, signals, hookRatio: signals.includes("hook") ? hookRatio : null };
+}
+
+export function fatigueHeadline(lang: Lang): string {
+  return lang === "en"
+    ? "People have seen this ad too often - worth refreshing"
+    : "Reklama się opatrzyła - warto ją odświeżyć";
+}
+
+/** "Przeciętny odbiorca widział ją 3,8 razy, a zaangażowanie jest poniżej średniej." */
+export function fatigueReason(f: Fatigue, lang: Lang): string {
+  const en = lang === "en";
+  const freq = fmtDec(f.frequency, lang);
+  const parts: string[] = [];
+  if (f.signals.includes("engagement")) {
+    parts.push(en ? "engagement is below average" : "zaangażowanie jest poniżej średniej");
+  }
+  if (f.signals.includes("hook") && f.hookRatio != null) {
+    const p = Math.round((1 - f.hookRatio) * 100);
+    parts.push(
+      en
+        ? `it stops the scroll ${p}% less often than your average video`
+        : `reklama zatrzymuje uwagę o ${p}% rzadziej niż przeciętny Twój film`
+    );
+  }
+  const joined = parts.join(en ? " and " : " i ");
+  return en
+    ? `The average person has already seen it ${freq} times, and ${joined}.`
+    : `Przeciętny odbiorca widział ją już ${freq} razy, a ${joined}.`;
 }
 
 export type Verdict = "better" | "average" | "worse" | "unknown";
@@ -161,7 +469,10 @@ export function sortCreatives(
 // Podium ("Najlepsze reklamy")
 // ---------------------------------------------------------------------------
 
-export type AwardKind = "ctr" | "cpc" | "impressions" | "clicks";
+export type AwardKind = "ctr" | "cpc" | "hook" | "impressions" | "clicks";
+
+/** "Best hook" needs rivals - one video beating nobody is not an award. */
+const HOOK_AWARD_MIN_VIDEOS = 2;
 
 export interface PodiumEntry {
   creative: CreativeItem;
@@ -189,6 +500,9 @@ function maxBy<T>(items: T[], val: (t: T) => number): T | null {
  */
 export function pickPodium(creatives: CreativeItem[]): PodiumEntry[] {
   const eligible = creatives.filter(hasEnoughData);
+  const videos = eligible.filter((c) => videoRatesOf(c)?.hook != null);
+  // Ordered by how much each award tells the client; the podium keeps the
+  // first three distinct ads, so volume awards come last.
   const winners: Array<[AwardKind, CreativeItem | null]> = [
     ["ctr", maxBy(eligible, (c) => ctrOf(c) ?? -Infinity)],
     [
@@ -197,6 +511,12 @@ export function pickPodium(creatives: CreativeItem[]): PodiumEntry[] {
         eligible.filter((c) => c.clicks >= MIN_CLICKS && cpcOf(c) != null),
         (c) => -(cpcOf(c) as number)
       ),
+    ],
+    [
+      "hook",
+      videos.length >= HOOK_AWARD_MIN_VIDEOS
+        ? maxBy(videos, (c) => videoRatesOf(c)?.hook ?? -Infinity)
+        : null,
     ],
     ["impressions", maxBy(eligible, (c) => c.impressions)],
     ["clicks", maxBy(eligible, (c) => c.clicks)],
@@ -220,12 +540,14 @@ export const AWARD_LABEL: Record<Lang, Record<AwardKind, string>> = {
   pl: {
     ctr: "Najczęściej klikana",
     cpc: "Najtańszy ruch",
+    hook: "Najlepiej zatrzymuje uwagę",
     impressions: "Najwięcej wyświetleń",
     clicks: "Najwięcej kliknięć",
   },
   en: {
     ctr: "Most clicked",
     cpc: "Cheapest traffic",
+    hook: "Best at stopping the scroll",
     impressions: "Most views",
     clicks: "Most clicks",
   },
@@ -305,6 +627,15 @@ export function awardSentence(
     return en
       ? `One visit to your site costs ${price}${gap ? ` - ${gap}` : ""}.`
       : `Jedno wejście na stronę kosztuje tu ${price}${gap ? ` - ${gap}` : ""}.`;
+  }
+  if (kind === "hook") {
+    const hook = videoRatesOf(c)?.hook ?? 0;
+    const base = hookSentence(hook, lang);
+    const ratio = b.hookRate ? hook / b.hookRate : 1;
+    const gap = gapPhrase(ratio, lang, en
+      ? { more: "more than your average video", less: "less than your average video" }
+      : { more: "więcej niż średnia Twoich filmów", less: "mniej niż średnia Twoich filmów" });
+    return gap ? `${base.slice(0, -1)} - ${gap}.` : base;
   }
   if (kind === "impressions") {
     const share = b.totalImpressions

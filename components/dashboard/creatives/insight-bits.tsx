@@ -1,0 +1,146 @@
+import { RefreshCw } from "lucide-react";
+
+import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
+import {
+  fatigueHeadline,
+  fatigueReason,
+  plPlural,
+  rankingChips,
+  type CreativeItem,
+  type Fatigue,
+  type Lang,
+  type RankingKind,
+  type RankingTone,
+} from "@/lib/dashboard/creatives";
+import { cn, formatPlnWhole } from "@/lib/utils";
+
+// Below-average is amber, not rose: it is Meta's relative diagnosis, a cue to
+// look closer, not proof the ad is failing (the verdict chip owns red).
+const RANKING_TONE: Record<RankingTone, string> = {
+  good: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  neutral: "bg-muted text-muted-foreground",
+  bad: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+};
+
+/** Meta's relevance diagnostics as chips. Renders nothing when none are known. */
+export function RankingChipList({
+  c,
+  lang,
+  kinds,
+  compact = false,
+  className,
+}: {
+  c: CreativeItem;
+  lang: Lang;
+  kinds?: RankingKind[];
+  /** Short labels ("Jakość: ...") for narrow gallery cards. */
+  compact?: boolean;
+  className?: string;
+}) {
+  const chips = rankingChips(c, lang, kinds);
+  if (chips.length === 0) return null;
+  return (
+    <div className={cn("flex flex-wrap gap-1", className)}>
+      {chips.map((ch) => (
+        <span
+          key={ch.kind}
+          title={ch.hint}
+          className={cn(
+            "inline-flex max-w-full rounded-full px-2 py-0.5 font-medium leading-snug",
+            compact ? "text-[10px] sm:text-[11px]" : "text-[11px]",
+            RANKING_TONE[ch.tone]
+          )}
+        >
+          {compact ? ch.short : ch.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Overlay badge for a thumbnail. */
+export function FatigueBadge({ fatigue, lang }: { fatigue: Fatigue; lang: Lang }) {
+  return (
+    <span
+      className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow sm:text-[11px]"
+      title={`${fatigueHeadline(lang)}. ${fatigueReason(fatigue, lang)}`}
+    >
+      <RefreshCw className="h-3 w-3" aria-hidden />
+      {lang === "en" ? "Refresh" : "Do odświeżenia"}
+    </span>
+  );
+}
+
+const REFRESH_LIST_MAX = 5;
+
+/**
+ * "Do odświeżenia": ads people have seen too often AND stopped responding to.
+ * Ordered by spend - that is where a refresh buys back the most budget.
+ */
+export function RefreshList({
+  items,
+  lang,
+  onSelect,
+}: {
+  items: Array<{ c: CreativeItem; fatigue: Fatigue }>;
+  lang: Lang;
+  onSelect: (c: CreativeItem) => void;
+}) {
+  const en = lang === "en";
+  if (items.length === 0) return null;
+  const shown = items.slice(0, REFRESH_LIST_MAX);
+  const rest = items.length - shown.length;
+  return (
+    <section className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <div>
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <RefreshCw className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden />
+          {en ? "Worth refreshing" : "Do odświeżenia"}{" "}
+          <span className="font-normal tabular-nums text-muted-foreground">({items.length})</span>
+        </h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {en
+            ? "People have seen these ads many times and respond less and less. A new image, video or headline usually helps."
+            : "Te reklamy odbiorcy widzieli już wiele razy i reagują coraz słabiej. Zwykle pomaga nowa grafika, film lub nagłówek."}
+        </p>
+      </div>
+      <ul className="divide-y divide-border/60">
+        {shown.map(({ c, fatigue }) => (
+          <li key={c.adId}>
+            <button
+              type="button"
+              onClick={() => onSelect(c)}
+              className="flex w-full min-w-0 items-center gap-3 rounded-lg py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <CreativeThumb
+                src={c.thumbnailUrl}
+                name={c.name}
+                lang={lang}
+                compact
+                className="h-11 w-11 rounded-md"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium" title={c.name}>
+                  {c.name}
+                </p>
+                <p className="text-xs leading-snug text-muted-foreground">
+                  {fatigueReason(fatigue, lang)}
+                </p>
+              </div>
+              <span className="hidden shrink-0 tabular-nums text-xs text-muted-foreground sm:block">
+                {formatPlnWhole(c.spend)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {rest > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          {en
+            ? `+${rest} more - marked "Refresh" in the gallery below.`
+            : `+${rest} ${plPlural(rest, "kolejna", "kolejne", "kolejnych")} - ${plPlural(rest, "oznaczona", "oznaczone", "oznaczonych")} „Do odświeżenia” w galerii poniżej.`}
+        </p>
+      ) : null}
+    </section>
+  );
+}
