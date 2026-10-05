@@ -321,7 +321,7 @@ export default async function RaportPage({
   const genderTotal = demo.gender.reduce((s, g) => s + g.value, 0) || 1;
   const ageTotal = demo.age.reduce((s, a) => s + a.value, 0) || 1;
   const demoSource = (src: "meta" | "ga4" | null) =>
-    src === "meta" ? "Wg wyświetleń reklam (Meta)" : "Wg sesji (GA4)";
+    src === "meta" ? "Wg wyświetleń reklam (Meta)" : "Wg wizyt na stronie (Google Analytics)";
 
   return (
     <div className="space-y-6 bg-muted/20 p-6">
@@ -391,7 +391,7 @@ export default async function RaportPage({
               })()}
             />
             <Stat
-              label="Sesje (GA4)"
+              label="Wizyty na stronie"
               value={k.sessions.value > 0 ? formatNumberPL(k.sessions.value) : "-"}
               {...(() => {
                 const d = deltaSub(k.sessions, "good");
@@ -399,7 +399,7 @@ export default async function RaportPage({
               })()}
             />
             <Stat
-              label="Średni CTR"
+              label="Klikalność (CTR)"
               value={formatPercent(k.ctr.value)}
               {...(() => {
                 const d = deltaSub(k.ctr, "good");
@@ -407,7 +407,7 @@ export default async function RaportPage({
               })()}
             />
             <Stat
-              label="Średni CPC"
+              label="Koszt kliknięcia"
               value={formatMoneyPLN(Math.round(k.cpcMinorUnits.value))}
               {...(() => {
                 const d = deltaSub(k.cpcMinorUnits, "bad");
@@ -481,7 +481,7 @@ export default async function RaportPage({
                   <th className="py-2 pr-3 font-medium">Kampania</th>
                   <th className="py-2 pr-3 text-right font-medium">Wydatki</th>
                   <th className="py-2 pr-3 text-right font-medium">Kliknięcia</th>
-                  <th className="py-2 text-right font-medium">CTR</th>
+                  <th className="py-2 text-right font-medium">Klikalność</th>
                 </tr>
               </thead>
               <tbody>
@@ -587,9 +587,9 @@ export default async function RaportPage({
             >
               <div className="grid h-full grid-cols-2 gap-8">
                 <div className="grid grid-cols-2 content-start gap-4">
-                  <Stat label="Sesje" value={formatNumberPL(sessionsTotal)} />
+                  <Stat label="Wizyty na stronie" value={formatNumberPL(sessionsTotal)} />
                   <Stat
-                    label="Zaangażowanie"
+                    label="Zainteresowani goście"
                     value={formatPercent(website.engagement.engagementRate)}
                   />
                   <Stat
@@ -619,7 +619,7 @@ export default async function RaportPage({
             {/* Sources */}
             <ContentSlide
               title="Źródła ruchu"
-              subtitle="Sesje wg kategorii"
+              subtitle="Wizyty na stronie wg źródła"
               section="Dane Analytics"
               foot={foot}
             >
@@ -735,7 +735,7 @@ export default async function RaportPage({
             {demo.geo.length > 0 ? (
               <ContentSlide
                 title="Geografia"
-                subtitle="Sesje wg regionu (GA4)"
+                subtitle="Wizyty na stronie wg regionu"
                 section="Demografia"
                 foot={foot}
               >
