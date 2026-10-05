@@ -3,9 +3,11 @@ import { AD_PROVIDER_SHORT } from "@/lib/types";
 import { AdsPageIntro } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
+import { ImpressionShare } from "@/components/dashboard/impression-share";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
 import { SearchTerms } from "@/components/dashboard/search-terms";
 import type { SearchTermRow } from "@/lib/dashboard/search-terms";
+import { summarizeImpressionShare } from "@/lib/dashboard/impression-share";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { GLOSSARY } from "@/lib/dashboard/glossary";
 import { formatMoneyPLN, formatPercent, formatPlnWhole } from "@/lib/utils";
@@ -44,6 +46,34 @@ const DEMO_SEARCH_TERMS: SearchTermRow[] = (
   conversions: 0,
 }));
 
+// Demo Search campaigns: [name, impression share, lost to budget, lost to
+// rank, impressions, clicks, cost in grosze]. Shares are raw Google fractions
+// (0.0999 = Google's "<10%", null = not enough data) so the demo runs through
+// the same math as the real page.
+const DEMO_IMPRESSION_SHARE = summarizeImpressionShare(
+  (
+    [
+      ["Drzwi wewnętrzne - wyszukiwarka", 0.62, 0.28, 0.1, 41_200, 2_470, 1_037_400],
+      ["Drzwi zewnętrzne - wyszukiwarka", 0.64, 0.22, 0.14, 26_800, 1_340, 643_200],
+      ["Marka DRE", 0.93, 0, 0.07, 8_400, 1_930, 96_500],
+      ["Montaż drzwi - Warszawa", 0.47, 0.38, 0.15, 6_100, 305, 158_600],
+      ["Drzwi przesuwne", 0.0999, 0.12, 0.78, 900, 27, 13_500],
+      ["Drzwi techniczne", null, null, null, 120, 3, 1_800],
+    ] as const
+  ).map(([name, is, budget, rank, impressions, clicks, cost], i) => ({
+    customerId: "demo",
+    campaignId: String(i + 1),
+    campaignName: name,
+    impressionShare: is,
+    budgetLost: budget,
+    rankLost: rank,
+    impressions,
+    clicks,
+    costMinorUnits: cost,
+  })),
+  "2026-10-05"
+);
+
 export default function DemoFullReklamy({
   searchParams,
 }: {
@@ -73,6 +103,8 @@ export default function DemoFullReklamy({
       <CampaignPositions campaigns={d.campaigns} lang={lang} />
 
       <SearchTerms terms={DEMO_SEARCH_TERMS} lang={lang} />
+
+      <ImpressionShare data={DEMO_IMPRESSION_SHARE} lang={lang} />
 
       {/* Example ads gallery */}
       <section>

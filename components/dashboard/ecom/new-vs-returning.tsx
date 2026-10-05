@@ -170,13 +170,13 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
           <span className="text-muted-foreground">
             Szacunkowy koszt pozyskania nowego klienta:
           </span>
-          <span className="whitespace-nowrap font-semibold tabular-nums">
-            ok. {formatPlnWhole(data.costPerNewOrderMinorUnits)}
-            <InfoTip
-              label="szacunkowy koszt pozyskania nowego klienta"
-              text={COST_EXPLAIN}
-              className="ml-1 align-middle"
-            />
+          {/* nowrap only on the figure: the ⓘ bubble inherits white-space, and
+              a nowrap bubble runs off the card as one long line. */}
+          <span className="inline-flex items-center gap-1">
+            <span className="whitespace-nowrap font-semibold tabular-nums">
+              ok. {formatPlnWhole(data.costPerNewOrderMinorUnits)}
+            </span>
+            <InfoTip label="szacunkowy koszt pozyskania nowego klienta" text={COST_EXPLAIN} />
           </span>
         </div>
       ) : null}

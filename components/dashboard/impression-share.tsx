@@ -189,10 +189,13 @@ export function ImpressionShare({
       <StackedBar parts={parts} showValues className="mt-5 h-9 rounded-lg sm:h-10" />
       <ul className="mt-3 flex flex-col gap-1.5 text-sm sm:flex-row sm:flex-wrap sm:gap-x-5">
         {(["shown", "budget", "rank"] as const).map((k, i) => (
-          <li key={k} className="flex items-center gap-2">
-            <span className={cn("h-3 w-3 shrink-0 rounded-sm", SEGMENTS[k])} aria-hidden />
-            <span>{l[k]}</span>
-            <span className="font-semibold tabular-nums">{parts[i]}</span>
+          <li key={k} className="flex items-baseline gap-2">
+            <span className={cn("h-3 w-3 shrink-0 translate-y-0.5 rounded-sm", SEGMENTS[k])} aria-hidden />
+            {/* One text node so the number wraps with the label on phones
+                instead of drifting to the far edge. */}
+            <span>
+              {l[k]} <span className="font-semibold tabular-nums">{parts[i]}</span>
+            </span>
           </li>
         ))}
       </ul>
