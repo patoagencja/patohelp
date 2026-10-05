@@ -605,7 +605,13 @@ export default async function SettingsPage({
                 <p className="text-xs text-muted-foreground">
                   E-mail „Twój tydzień w skrócie” w poniedziałek rano: najważniejsze
                   liczby z poprzedniego tygodnia prostym językiem, dobre wiadomości,
-                  rekordy i przycisk do panelu.
+                  rekordy i przycisk do panelu.{" "}
+                  <a
+                    href={`/${params.clientSlug}/settings/digest-preview`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Zobacz podgląd maila
+                  </a>
                 </p>
                 <textarea
                   name="weekly_digest_emails"
