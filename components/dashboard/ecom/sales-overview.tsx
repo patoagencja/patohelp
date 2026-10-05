@@ -6,7 +6,7 @@ import { InfoTip } from "@/components/dashboard/info-tip";
 import { describeChange } from "@/lib/dashboard/glossary";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
 import { dayMonthPL } from "@/lib/dashboard/story";
-import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
+import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import { aboutPln, Takeaway, todayWarsawIso } from "./plain";
 
@@ -141,7 +141,7 @@ export function SalesOverview({
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Sprzedaż w wybranym okresie</p>
           <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-foreground">
-            {formatMoneyPLN(totalRev)}
+            {formatPlnWhole(totalRev)}
           </p>
           {deltaPct !== null ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
