@@ -91,12 +91,10 @@ export default function DemoSprzedazPage({
         title="Co się sprzedaje"
         description="Najpopularniejsze produkty i strony, które klienci oglądają najchętniej."
       >
-        {/* grid-cols-1 (= minmax(0,1fr)): without it a long page URL in
-            TopPages widens the track past a phone screen. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TopProducts products={d.products} />
-          <TopPages pages={d.topPages} />
-        </div>
+        {/* Stacked, not side by side: ten products next to five pages left
+            a tall half-empty card. TopProducts splits into two columns itself. */}
+        <TopProducts products={d.products} />
+        <TopPages pages={d.topPages} />
       </StorySection>
 
       <StorySection
@@ -105,7 +103,9 @@ export default function DemoSprzedazPage({
         description="Które kanały przynoszą zamówienia, ile kosztują i jak wizyty zamieniają się w zakupy."
       >
         <ChannelEfficiency data={d.channels} settings={d.settings} />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* grid-cols-1 (= minmax(0,1fr)) so wide content can't stretch the
+            track past a phone screen; min-w-0 lets cards shrink in it. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
           <ConversionFunnel
             sessions={totalSessions}
             engagementRate={d.engagementRate}

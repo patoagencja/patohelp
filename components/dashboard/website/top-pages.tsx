@@ -2,15 +2,57 @@ import { Card } from "@tremor/react";
 
 import { formatNumberPL, formatPercent } from "@/lib/utils";
 
+function segments(path: string): string[] {
+  return path
+    .split(/[?#]/)[0]
+    .split("/")
+    .filter(Boolean)
+    .map((seg) => {
+      try {
+        return decodeURIComponent(seg);
+      } catch {
+        return seg; // malformed %-escape: show it as-is rather than crash
+      }
+    });
+}
+
+/**
+ * A slug turned into words ("jesien-2026" -> "Jesien 2026"), or null when
+ * that would be gibberish (ids, hashes, "p,123,abc") - then the caller shows
+ * the segment as-is. Slugs have no Polish letters; we can't restore them.
+ */
+function slugToWords(seg: string): string | null {
+  const words = seg
+    .replace(/\.(html?|php|aspx?)$/i, "")
+    .replace(/[-_+]+/g, " ")
+    .trim();
+  if (!/^[\p{L}\d ]+$/u.test(words)) return null;
+  const letters = (words.match(/\p{L}/gu) ?? []).length;
+  const digits = (words.match(/\d/g) ?? []).length;
+  if (letters < 3 || digits > letters) return null;
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** "/" -> "Strona główna", "/blog/poradnik-montazu" -> "Poradnik montazu". */
 export function prettyPath(path: string): string {
-  const clean = path.split("?")[0].replace(/\/+$/, "");
-  if (clean === "" || clean === "/") return "Strona główna";
-  const last = decodeURIComponent(clean.split("/").filter(Boolean).pop() ?? clean)
-    .replace(/\.(html?|php)$/i, "")
-    .replace(/[-_]+/g, " ")
-    .trim();
-  return last ? last.charAt(0).toUpperCase() + last.slice(1) : clean;
+  const segs = segments(path);
+  if (segs.length === 0) return "Strona główna";
+  const last = segs[segs.length - 1];
+  return slugToWords(last) ?? last;
+}
+
+/**
+ * Where the page sits ("/kategoria/swetry" -> "Kategoria"), shown under the
+ * name. Null for top-level pages: repeating "/kontakt" under "Kontakt" adds
+ * nothing. The raw path stays available on hover.
+ */
+function pathContext(path: string): string | null {
+  // Skip "pl"/"en"-style locale prefixes - they say nothing to a client.
+  const parents = segments(path)
+    .slice(0, -1)
+    .filter((s) => s.length > 2);
+  if (parents.length === 0) return null;
+  return parents.map((s) => slugToWords(s) ?? s).join(" › ");
 }
 
 // TODO: avg session duration per page (not stored in ga4_daily yet).
@@ -34,7 +76,9 @@ export function TopPages({
           : "Najczęściej odwiedzane podstrony i jak bardzo wciągają."}
       </p>
       <ol className="mt-5 space-y-3">
-        {pages.map((p, i) => (
+        {pages.map((p, i) => {
+          const context = en ? null : pathContext(p.path);
+          return (
           <li key={p.path} className="flex items-center gap-3">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
               {i + 1}
@@ -65,12 +109,15 @@ export function TopPages({
                   {formatPercent(p.engagementRate, 0)} {en ? "engaged" : "zainteres."}
                 </span>
               </div>
-              {!en && p.path.replace(/\/+$/, "") !== "" ? (
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground/70">{p.path}</p>
+              {context ? (
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={p.path}>
+                  {context}
+                </p>
               ) : null}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ol>
     </Card>
   );

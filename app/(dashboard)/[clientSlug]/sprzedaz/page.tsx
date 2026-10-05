@@ -196,14 +196,14 @@ export default async function SprzedazPage({
         title="Co się sprzedaje"
         description="Najpopularniejsze produkty i strony, które klienci oglądają najchętniej."
       >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <TopProducts
-            products={products}
-            tableMissing={itemsTableMissing}
-            isAgency={isAgency}
-          />
-          {website.hasData ? <TopPages pages={website.topPages.slice(0, 5)} /> : null}
-        </div>
+        {/* Stacked, not side by side: ten products next to five pages left
+            a tall half-empty card. TopProducts splits into two columns itself. */}
+        <TopProducts
+          products={products}
+          tableMissing={itemsTableMissing}
+          isAgency={isAgency}
+        />
+        {website.hasData ? <TopPages pages={website.topPages.slice(0, 5)} /> : null}
       </StorySection>
 
       <StorySection
@@ -212,7 +212,9 @@ export default async function SprzedazPage({
         description="Które kanały przynoszą zamówienia, ile kosztują i jak wizyty zamieniają się w zakupy."
       >
         {channels ? <ChannelEfficiency data={channels} settings={settings} /> : null}
-        <div className="grid gap-4 lg:grid-cols-2">
+        {/* grid-cols-1 (= minmax(0,1fr)) so wide content can't stretch the
+            track past a phone screen; min-w-0 lets cards shrink in it. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
           <ConversionFunnel
             sessions={totalSessions}
             engagementRate={website.engagement.engagementRate}
