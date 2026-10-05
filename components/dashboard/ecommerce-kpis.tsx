@@ -29,7 +29,7 @@ const FLAT_THRESHOLD = 3;
 // Every e-commerce KPI here is "higher is better", so Tremor's default
 // increase=green / decrease=red mapping is right; tiny moves go gray.
 function delta(kpi: Kpi) {
-  if (kpi.deltaPercent === null) return null;
+  if (kpi.deltaPercent === null || !Number.isFinite(kpi.deltaPercent)) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
   const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
   return {
@@ -68,7 +68,9 @@ function KpiTile({
   thinBase?: boolean;
 }) {
   const g = GLOSSARY[metric];
-  const d = thinBase ? null : delta(kpi);
+  // Zero this period against a real baseline means missing data here, so no
+  // "-100%" badge; the sentence below still explains it.
+  const d = thinBase || kpi.value === 0 ? null : delta(kpi);
   const sparkData = (spark ?? []).map((v, i) => ({ i, v }));
   return (
     // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
@@ -103,7 +105,9 @@ function KpiTile({
         />
       ) : null}
       <Text className={cn("mt-1 text-xs", thinBase && "text-muted-foreground")}>
-        {describeChange(kpi.deltaPercent, tone, { thinBase })}
+        {kpi.value === 0 && kpi.previous > 0
+          ? "brak danych w tym okresie"
+          : describeChange(kpi.deltaPercent, tone, { thinBase })}
         {yoyRatio != null ? (
           <span
             className={
@@ -153,8 +157,9 @@ export function EcommerceKpis({
   const roas = data.roas.value / 100; // stored ×100
   const curRevenue = data.revenueMinorUnits.value;
   const curTx = data.transactions.value;
-  const yoyRevenue = yoy ? ratio(curRevenue, yoy.revenue) : null;
-  const yoyTx = yoy ? ratio(curTx, yoy.transactions) : null;
+  // "-100% r/r" on a period with no sales yet is a tracking gap, not news.
+  const yoyRevenue = yoy && curRevenue > 0 ? ratio(curRevenue, yoy.revenue) : null;
+  const yoyTx = yoy && curTx > 0 ? ratio(curTx, yoy.transactions) : null;
   const yoyRoas =
     yoy && spend && spend > 0 && yoy.spend > 0
       ? ratio(curRevenue / spend, yoy.revenue / yoy.spend)
@@ -164,6 +169,14 @@ export function EcommerceKpis({
       ? ratio(curRevenue / curTx, yoy.revenue / yoy.transactions)
       : null;
   const thinBase = data.transactions.previous < MIN_PREV_TRANSACTIONS;
+  // A shop with no purchase events at all (tracking not set up, or the first
+  // sync still running): four tiles of "0 zł / 0× / 0" look like a dead shop.
+  const noSalesData =
+    curRevenue === 0 &&
+    curTx === 0 &&
+    data.revenueMinorUnits.previous === 0 &&
+    data.transactions.previous === 0;
+  const hasSpend = (spend ?? 0) > 0;
   // Sparklines stop at yesterday: today's half-synced day reads as a crash.
   const t = withoutToday(trend ?? []);
   const revSeries = t.map((p) => p.revenueMinorUnits / 100);
@@ -180,6 +193,15 @@ export function EcommerceKpis({
         <ShoppingBag className="h-4 w-4 text-emerald-500" />
         Wyniki sklepu w wybranym okresie
       </h2>
+      {noSalesData ? (
+        <Card className="flex items-start gap-3">
+          <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Sprzedaż pojawi się tutaj, gdy Google Analytics zarejestruje pierwsze
+            zamówienia - wymaga to włączonego śledzenia zakupów w sklepie.
+          </p>
+        </Card>
+      ) : (
       <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
         <KpiTile
           metric="revenue"
@@ -194,7 +216,13 @@ export function EcommerceKpis({
         <KpiTile
           metric="roas"
           tone="rate"
-          value={`${roas.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}×`}
+          // Return on zero spend is undefined, not "0×" (overview passes no
+          // spend - there the stored ROAS of 0 means the same thing).
+          value={
+            (spend !== undefined && !hasSpend) || (spend === undefined && roas === 0)
+              ? "-"
+              : `${roas.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}×`
+          }
           kpi={data.roas}
           thinBase={thinBase}
           spark={roasSeries}
@@ -215,7 +243,7 @@ export function EcommerceKpis({
           metric="aov"
           name={ECOM_TERMS.aov.name}
           tone="amount"
-          value={formatMoneyPLN(data.aovMinorUnits.value)}
+          value={curTx > 0 ? formatMoneyPLN(data.aovMinorUnits.value) : "-"}
           kpi={data.aovMinorUnits}
           thinBase={thinBase}
           spark={aovSeries}
@@ -223,6 +251,7 @@ export function EcommerceKpis({
           yoyRatio={yoyAov}
         />
       </Grid>
+      )}
     </div>
   );
 }

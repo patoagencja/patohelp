@@ -31,6 +31,7 @@ export function ShareBars({
   rows,
   unit,
   keepOrder = false,
+  emptyText,
   className,
 }: {
   title: string;
@@ -40,6 +41,8 @@ export function ShareBars({
   unit: (n: number) => string;
   /** Keep the given order (age brackets read better young -> old). */
   keepOrder?: boolean;
+  /** Why the card is empty and what happens next (defaults to a GA4 note). */
+  emptyText?: string;
   className?: string;
 }) {
   const total = rows.reduce((a, r) => a + r.value, 0);
@@ -84,7 +87,9 @@ export function ShareBars({
         })}
       </ul>
       {sorted.length === 0 ? (
-        <p className="mt-4 text-sm text-muted-foreground">Brak danych w tym okresie.</p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          {emptyText ?? "Brak danych w tym okresie - pojawią się po najbliższej synchronizacji."}
+        </p>
       ) : null}
     </Card>
   );

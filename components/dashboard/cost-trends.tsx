@@ -163,10 +163,18 @@ export function CostTrends({
           lang={lang}
         />
       </h3>
-      {series.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">
-          {en ? "No click cost data in this period." : "Brak danych o koszcie kliknięcia w tym okresie."}
-        </p>
+      {series.length === 0 || n < 2 ? (
+        <>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {series.length === 0
+              ? en
+                ? "No click cost data in this period - it appears once the ads get their first clicks."
+                : "Brak danych o koszcie kliknięcia w tym okresie - pojawią się, gdy reklamy zbiorą pierwsze kliknięcia."
+              : en
+                ? `${takeaway(series, lang)} A trend needs a few more days of data.`
+                : `${takeaway(series, lang)} Na wykres trendu potrzeba jeszcze kilku dni danych.`}
+          </p>
+        </>
       ) : (
         <>
           <p className="mt-1 text-sm text-muted-foreground tabular-nums">

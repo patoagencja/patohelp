@@ -29,7 +29,7 @@ const FLAT_THRESHOLD = 3;
 // isIncreasePositive, so a pricier click shows an UP arrow in RED. Neutral
 // metrics (spend) and tiny moves get a gray badge - direction without verdict.
 function deltaBadge(kpi: Kpi, goodWhen: GoodWhen) {
-  if (kpi.deltaPercent === null) return null;
+  if (kpi.deltaPercent === null || !Number.isFinite(kpi.deltaPercent)) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
   const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
   const muted = goodWhen === "neutral" || Math.abs(rounded) < FLAT_THRESHOLD;
@@ -76,8 +76,13 @@ function KpiCard({
   const g = GLOSSARY[metric];
   const en = lang === "en";
   const delta = hint || thinBase ? null : deltaBadge(kpi, g.goodWhen);
-  const hasSpark = series.some((v) => v > 0);
-  const data = series.map((v, i) => ({ i, v }));
+  // No baseline means the leading zeros are "before we had data", not real
+  // zero days; drawn, they make day 1 of a new client look like a rocket.
+  const firstNonZero = series.findIndex((v) => v > 0);
+  const trimmed =
+    kpi.previous === 0 && firstNonZero > 0 ? series.slice(firstNonZero) : series;
+  const hasSpark = !hint && trimmed.length >= 2 && trimmed.some((v) => v > 0);
+  const data = trimmed.map((v, i) => ({ i, v }));
   const subtitle = hint ?? describeChange(kpi.deltaPercent, tone, { thinBase, lang });
 
   // Flash the whole card green/red when the value changes (e.g. auto-refresh).
@@ -148,6 +153,10 @@ function KpiCard({
 const MIN_PREV_CLICKS = 50;
 const MIN_PREV_SESSIONS = 50;
 const MIN_PREV_CONVERSIONS = 10;
+// 100 zł in grosze: "+1 900%" against a 5 zł test day says nothing.
+const MIN_PREV_SPEND = 10_000;
+
+const DASH = () => "-";
 
 export function KpiCards({
   kpis,
@@ -160,14 +169,49 @@ export function KpiCards({
 }) {
   const en = lang === "en";
   const L = {
-    afterGa4: en ? "after connecting GA4" : "po podłączeniu GA4",
+    afterGa4: en
+      ? "Google Analytics data appears after the first sync"
+      : "Dane z Google Analytics pojawią się po pierwszej synchronizacji",
+    ga4Gap: en
+      ? "no new Google Analytics data in this period"
+      : "brak nowych danych z Google Analytics w tym okresie",
+    afterAds: en
+      ? "Ad data appears after the first sync"
+      : "Dane z reklam pojawią się po pierwszej synchronizacji",
+    noSpend: en ? "no ad spend in this period" : "brak wydatków na reklamy w tym okresie",
+    noClicks: en ? "no ad clicks in this period" : "brak kliknięć w reklamy w tym okresie",
+    noImpressions: en
+      ? "ads were not shown in this period"
+      : "reklamy nie wyświetlały się w tym okresie",
     noConv: en ? "no conversion events" : "brak zdarzeń konwersji",
   };
+  const impressions = trend.reduce((a, t) => a + t.impressions, 0);
+  // No ads history at all (new client, Google/Meta not connected yet) vs ads
+  // that simply had a quiet period - the hint should say which.
+  const noAds =
+    kpis.spendMinorUnits.value === 0 &&
+    kpis.spendMinorUnits.previous === 0 &&
+    kpis.clicks.value === 0 &&
+    kpis.clicks.previous === 0 &&
+    impressions === 0;
   const noSessions = kpis.sessions.value === 0 && kpis.sessions.previous === 0;
+  // Sessions don't drop to exactly zero on a live site - that's a sync gap,
+  // and "-100%" would be a false alarm.
+  const sessionsGap = kpis.sessions.value === 0 && kpis.sessions.previous > 0;
   const noConversions =
     kpis.conversions.value === 0 && kpis.conversions.previous === 0;
   // CTR and CPC are ratios over clicks, so they inherit the clicks guard.
   const thinClicks = kpis.clicks.previous < MIN_PREV_CLICKS;
+  const noClicks = kpis.clicks.value === 0;
+
+  // A zero this period against a non-zero baseline would print "-100%";
+  // an explanation in words is both kinder and more accurate.
+  const spendHint = noAds ? L.afterAds : kpis.spendMinorUnits.value === 0 ? L.noSpend : undefined;
+  const clicksHint = noAds ? L.afterAds : noClicks ? L.noClicks : undefined;
+  const sessionsHint = noSessions ? L.afterGa4 : sessionsGap ? L.ga4Gap : undefined;
+  const ctrHint = noAds ? L.afterAds : impressions === 0 ? L.noImpressions : undefined;
+  // CPC of zero clicks is undefined, not "0,00 zł, 100% cheaper".
+  const cpcHint = noAds ? L.afterAds : noClicks ? L.noClicks : undefined;
 
   // Per-day series for each metric so every card carries its own sparkline.
   const spendSeries = trend.map((t) => t.spendMinorUnits / 100);
@@ -188,18 +232,21 @@ export function KpiCards({
         tone="amount"
         value={kpis.spendMinorUnits.value}
         // Headline in whole złoty - grosze on a five-digit budget is noise.
-        format={(n) => formatPlnWhole(Math.round(n))}
+        format={noAds ? DASH : (n) => formatPlnWhole(Math.round(n))}
         kpi={kpis.spendMinorUnits}
         series={spendSeries}
+        hint={spendHint}
+        thinBase={kpis.spendMinorUnits.previous < MIN_PREV_SPEND}
         lang={lang}
       />
       <KpiCard
         metric="clicks"
         tone="amount"
         value={kpis.clicks.value}
-        format={formatNumberPL}
+        format={noAds ? DASH : formatNumberPL}
         kpi={kpis.clicks}
         series={clicksSeries}
+        hint={clicksHint}
         thinBase={thinClicks}
         lang={lang}
       />
@@ -207,10 +254,10 @@ export function KpiCards({
         metric="sessions"
         tone="amount"
         value={kpis.sessions.value}
-        format={(n) => (noSessions ? "-" : formatNumberPL(n))}
+        format={noSessions || sessionsGap ? DASH : formatNumberPL}
         kpi={kpis.sessions}
         series={sessionsSeries}
-        hint={noSessions ? L.afterGa4 : undefined}
+        hint={sessionsHint}
         thinBase={kpis.sessions.previous < MIN_PREV_SESSIONS}
         lang={lang}
       />
@@ -218,9 +265,10 @@ export function KpiCards({
         metric="ctr"
         tone="rate"
         value={kpis.ctr.value}
-        format={(n) => formatPercent(n)}
+        format={ctrHint ? DASH : (n) => formatPercent(n)}
         kpi={kpis.ctr}
         series={ctrSeries}
+        hint={ctrHint}
         thinBase={thinClicks}
         lang={lang}
       />
@@ -229,9 +277,10 @@ export function KpiCards({
         tone="cost"
         value={kpis.cpcMinorUnits.value}
         // CPC stays with grosze: 1,47 zł vs 1,52 zł is the whole story here.
-        format={(n) => formatMoneyPLN(Math.round(n))}
+        format={cpcHint ? DASH : (n) => formatMoneyPLN(Math.round(n))}
         kpi={kpis.cpcMinorUnits}
         series={cpcSeries}
+        hint={cpcHint}
         thinBase={thinClicks}
         lang={lang}
       />
@@ -239,10 +288,10 @@ export function KpiCards({
         metric="conversions"
         tone="amount"
         value={kpis.conversions.value}
-        format={(n) => (noConversions ? "-" : formatNumberPL(n))}
+        format={noConversions ? DASH : formatNumberPL}
         kpi={kpis.conversions}
         series={conversionsSeries}
-        hint={noConversions ? L.noConv : undefined}
+        hint={kpis.conversions.value === 0 ? L.noConv : undefined}
         thinBase={kpis.conversions.previous < MIN_PREV_CONVERSIONS}
         lang={lang}
       />

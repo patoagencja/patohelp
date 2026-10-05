@@ -44,6 +44,13 @@ export function AdsPageIntro({
     thinBase: kpis.clicks.previous < MIN_CLICKS_BASE,
   });
 
+  // A new client has no previous period; "(brak danych z poprzedniego
+  // okresu)" tacked onto the headline sentence reads like an error.
+  const cpcTail =
+    kpis.cpcMinorUnits.deltaPercent === null || kpis.clicks.previous <= 0
+      ? ""
+      : ` (${cpcChange})`;
+
   let answer: string;
   if (spend <= 0) {
     answer = en
@@ -55,8 +62,8 @@ export function AdsPageIntro({
       : `Wydaliśmy ${wholePln(spend)} na reklamy; nie odnotowano jeszcze kliknięć.`;
   } else {
     answer = en
-      ? `We spent ${wholePln(spend)} on ads and got ${formatNumberPL(clicks)} clicks - ${formatMoneyPLN(Math.round(cpc))} per click on average (${cpcChange}).`
-      : `Wydaliśmy ${wholePln(spend)} na reklamy i dostaliśmy ${formatNumberPL(clicks)} ${plPlural(clicks, "kliknięcie", "kliknięcia", "kliknięć")} - średnio ${formatMoneyPLN(Math.round(cpc))} za jedno (${cpcChange}).`;
+      ? `We spent ${wholePln(spend)} on ads and got ${formatNumberPL(clicks)} clicks - ${formatMoneyPLN(Math.round(cpc))} per click on average${cpcTail}.`
+      : `Wydaliśmy ${wholePln(spend)} na reklamy i dostaliśmy ${formatNumberPL(clicks)} ${plPlural(clicks, "kliknięcie", "kliknięcia", "kliknięć")} - średnio ${formatMoneyPLN(Math.round(cpc))} za jedno${cpcTail}.`;
   }
 
   return (

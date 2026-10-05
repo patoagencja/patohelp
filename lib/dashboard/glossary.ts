@@ -253,7 +253,8 @@ export function describeChange(
   opts: { thinBase?: boolean; lang?: "pl" | "en" } = {}
 ): string {
   const en = opts.lang === "en";
-  if (deltaPercent === null) {
+  // Infinity/NaN come from a zero baseline - same meaning as "no data".
+  if (deltaPercent === null || !Number.isFinite(deltaPercent)) {
     return en ? "no data for the previous period" : "brak danych z poprzedniego okresu";
   }
   if (opts.thinBase) {

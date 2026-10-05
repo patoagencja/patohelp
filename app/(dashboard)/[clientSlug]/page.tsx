@@ -13,6 +13,7 @@ import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsSection } from "@/components/dashboard/records-section";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { StoryHero } from "@/components/dashboard/story-hero";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
@@ -129,62 +130,92 @@ export default async function OverviewPage({
         </div>
       </div>
 
-      <StoryHero
-        story={buildStory({
-          kpis: data.kpis,
-          trend: data.trend,
-          ecommerce: clientType === "ecommerce" ? data.ecommerce : null,
-        })}
-        periodLabel={data.rangeLabel}
-      />
+      {/* Each section gets its own boundary: one widget choking on odd data
+          (or a streamed query failing) must not blank the whole overview. */}
+      <SectionBoundary name="overview/story">
+        <StoryHero
+          story={buildStory({
+            kpis: data.kpis,
+            trend: data.trend,
+            ecommerce: clientType === "ecommerce" ? data.ecommerce : null,
+          })}
+          periodLabel={data.rangeLabel}
+        />
+      </SectionBoundary>
 
       {/* History scan is cached but can be cold - never hold the page for it. */}
-      <Suspense fallback={null}>
-        <RecordsSection clientId={client.id} ecommerce={clientType === "ecommerce"} />
-      </Suspense>
+      <SectionBoundary name="overview/records">
+        <Suspense fallback={null}>
+          <RecordsSection clientId={client.id} ecommerce={clientType === "ecommerce"} />
+        </Suspense>
+      </SectionBoundary>
 
-      {score ? <DailyScoreCard data={score} /> : null}
+      {score ? (
+        <SectionBoundary name="overview/score">
+          <DailyScoreCard data={score} />
+        </SectionBoundary>
+      ) : null}
 
-      <TickerBar campaigns={data.campaigns} />
+      <SectionBoundary name="overview/ticker">
+        <TickerBar campaigns={data.campaigns} />
+      </SectionBoundary>
 
-      {isDre && pacing.length > 0 ? <CampaignRings flights={pacing} /> : null}
+      {isDre && pacing.length > 0 ? (
+        <SectionBoundary name="overview/rings">
+          <CampaignRings flights={pacing} />
+        </SectionBoundary>
+      ) : null}
 
       {/* GA-style: the big picture first, details below. */}
-      <MainChart
-        trend={data.trend}
-        prevTrend={data.prevTrend}
-        events={events}
-        autoEvents={data.autoEvents}
-        label={data.rangeLabel}
-      />
+      <SectionBoundary name="overview/main-chart">
+        <MainChart
+          trend={data.trend}
+          prevTrend={data.prevTrend}
+          events={events}
+          autoEvents={data.autoEvents}
+          label={data.rangeLabel}
+        />
+      </SectionBoundary>
 
       {monthPacing ? (
-        <MonthPacingCard
-          pacing={monthPacing}
-          clientSlug={params.clientSlug}
-          isAgency={isAgency}
-        />
+        <SectionBoundary name="overview/month-pacing">
+          <MonthPacingCard
+            pacing={monthPacing}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+          />
+        </SectionBoundary>
       ) : null}
 
       {clientType === "ecommerce" ? (
-        <EcommerceKpis data={data.ecommerce} />
+        <SectionBoundary name="overview/ecommerce-kpis">
+          <EcommerceKpis data={data.ecommerce} />
+        </SectionBoundary>
       ) : null}
 
-      <KpiCards kpis={data.kpis} trend={data.trend} />
+      <SectionBoundary name="overview/kpis">
+        <KpiCards kpis={data.kpis} trend={data.trend} />
+      </SectionBoundary>
 
-      <BudgetProgress
-        budget={budget}
-        clientSlug={params.clientSlug}
-        isAgency={isAgency}
-        setBudgetAction={setMonthlyBudget}
-      />
+      <SectionBoundary name="overview/budget">
+        <BudgetProgress
+          budget={budget}
+          clientSlug={params.clientSlug}
+          isAgency={isAgency}
+          setBudgetAction={setMonthlyBudget}
+        />
+      </SectionBoundary>
 
       {/* Anomaly detection scans weeks of rows - stream it in last. */}
-      <Suspense fallback={null}>
-        <DigestSection alerts={anomaliesPromise} clientSlug={params.clientSlug} />
-      </Suspense>
+      <SectionBoundary name="overview/alerts-digest">
+        <Suspense fallback={null}>
+          <DigestSection alerts={anomaliesPromise} clientSlug={params.clientSlug} />
+        </Suspense>
+      </SectionBoundary>
 
-      <AiSummaryCard summary={summary} />
+      <SectionBoundary name="overview/ai-summary">
+        <AiSummaryCard summary={summary} />
+      </SectionBoundary>
     </div>
   );
 }

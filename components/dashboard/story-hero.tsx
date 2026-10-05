@@ -1,4 +1,11 @@
-import { ArrowDownRight, ArrowUpRight, Eye, PartyPopper, Sparkles } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Eye,
+  Hourglass,
+  PartyPopper,
+  Sparkles,
+} from "lucide-react";
 
 import type { Story, Tone } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
@@ -39,7 +46,14 @@ export function StoryHero({
         {story.headline}
       </h2>
 
-      <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4">
+      {story.facts.length === 0 && story.note ? (
+        <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-relaxed text-muted-foreground">
+          <Hourglass className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          {story.note}
+        </p>
+      ) : null}
+
+      <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 empty:hidden lg:grid-cols-4">
         {story.facts.map((f) => (
           <div key={f.key} className="min-w-0">
             <dd className="text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">

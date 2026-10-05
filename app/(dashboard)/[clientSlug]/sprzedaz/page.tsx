@@ -22,6 +22,7 @@ import {
   type ProductRow,
 } from "@/components/dashboard/ecom/top-products";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { Devices } from "@/components/dashboard/website/devices";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import type { EcomAnalysis } from "@/lib/ecom/analysis";
@@ -87,7 +88,18 @@ export default async function SprzedazPage({
     ]);
   const totalSessions = data.trend.reduce((a, p) => a + p.sessions, 0);
   const rangeSpend = data.kpis.spendMinorUnits.value;
-  const analysis = (cached?.content as EcomAnalysis | undefined) ?? null;
+  const analysisRaw = (cached?.content as EcomAnalysis | undefined) ?? null;
+  // Cached JSON from an older prompt version can miss fields; rendering
+  // `.length` of undefined here would take down the whole tab, not one card.
+  const analysis = analysisRaw
+    ? {
+        ...analysisRaw,
+        peaks: Array.isArray(analysisRaw.peaks) ? analysisRaw.peaks : [],
+        recommendations: Array.isArray(analysisRaw.recommendations)
+          ? analysisRaw.recommendations
+          : [],
+      }
+    : null;
 
   // Per-SKU sales for the selected range (table arrives with migration 0018 -
   // absence degrades to a setup note inside the widget, never a crash).
@@ -159,24 +171,32 @@ export default async function SprzedazPage({
         title="Gdzie jesteśmy w tym miesiącu"
         description="Postęp bieżącego miesiąca, a pod nim wyniki z wybranego okresu."
       >
+        {/* One boundary per widget: a shop with odd data (no revenue
+            tracking, a few days of history) must still see the rest. */}
         {pacing ? (
-          <MonthPacingCard
-            pacing={pacing}
-            clientSlug={params.clientSlug}
-            isAgency={isAgency}
-          />
+          <SectionBoundary name="sales/month-pacing">
+            <MonthPacingCard
+              pacing={pacing}
+              clientSlug={params.clientSlug}
+              isAgency={isAgency}
+            />
+          </SectionBoundary>
         ) : null}
-        <EcommerceKpis
-          data={data.ecommerce}
-          trend={data.trend}
-          yoy={yoy.available ? yoy : null}
-          spend={rangeSpend}
-        />
-        <SalesOverview
-          trend={data.trend}
-          revenueKpi={data.ecommerce.revenueMinorUnits}
-          lastYear={yoy.available ? yoy.series : null}
-        />
+        <SectionBoundary name="sales/kpis">
+          <EcommerceKpis
+            data={data.ecommerce}
+            trend={data.trend}
+            yoy={yoy.available ? yoy : null}
+            spend={rangeSpend}
+          />
+        </SectionBoundary>
+        <SectionBoundary name="sales/overview">
+          <SalesOverview
+            trend={data.trend}
+            revenueKpi={data.ecommerce.revenueMinorUnits}
+            lastYear={yoy.available ? yoy.series : null}
+          />
+        </SectionBoundary>
       </StorySection>
 
       <StorySection
@@ -184,14 +204,16 @@ export default async function SprzedazPage({
         title="Czy reklamy się opłacają"
         description="Ile zostaje po odjęciu kosztu towaru i wydatków na reklamy."
       >
-        <ProfitCard
-          revenue={data.ecommerce.revenueMinorUnits.value}
-          spend={rangeSpend}
-          settings={settings}
-          rangeLabel={data.rangeLabel}
-          clientSlug={params.clientSlug}
-          isAgency={isAgency}
-        />
+        <SectionBoundary name="sales/profit">
+          <ProfitCard
+            revenue={data.ecommerce.revenueMinorUnits.value}
+            spend={rangeSpend}
+            settings={settings}
+            rangeLabel={data.rangeLabel}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+          />
+        </SectionBoundary>
       </StorySection>
 
       <StorySection
@@ -201,12 +223,18 @@ export default async function SprzedazPage({
       >
         {/* Stacked, not side by side: ten products next to five pages left
             a tall half-empty card. TopProducts splits into two columns itself. */}
-        <TopProducts
-          products={products}
-          tableMissing={itemsTableMissing}
-          isAgency={isAgency}
-        />
-        {website.hasData ? <TopPages pages={website.topPages.slice(0, 5)} /> : null}
+        <SectionBoundary name="sales/top-products">
+          <TopProducts
+            products={products}
+            tableMissing={itemsTableMissing}
+            isAgency={isAgency}
+          />
+        </SectionBoundary>
+        {website.hasData ? (
+          <SectionBoundary name="sales/top-pages">
+            <TopPages pages={website.topPages.slice(0, 5)} />
+          </SectionBoundary>
+        ) : null}
       </StorySection>
 
       <StorySection
@@ -214,17 +242,29 @@ export default async function SprzedazPage({
         title="Skąd przychodzą kupujący"
         description="Które kanały przynoszą zamówienia, ile kosztują i jak wizyty zamieniają się w zakupy."
       >
-        {channels ? <ChannelEfficiency data={channels} settings={settings} /> : null}
-        <NewVsReturning data={buyers} />
+        {channels ? (
+          <SectionBoundary name="sales/channels">
+            <ChannelEfficiency data={channels} settings={settings} />
+          </SectionBoundary>
+        ) : null}
+        <SectionBoundary name="sales/new-vs-returning">
+          <NewVsReturning data={buyers} />
+        </SectionBoundary>
         {/* grid-cols-1 (= minmax(0,1fr)) so wide content can't stretch the
             track past a phone screen; min-w-0 lets cards shrink in it. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
-          <ConversionFunnel
-            sessions={totalSessions}
-            engagementRate={website.engagement.engagementRate}
-            transactions={data.ecommerce.transactions.value}
-          />
-          {website.hasData ? <Devices devices={website.devices} /> : null}
+          <SectionBoundary name="sales/funnel">
+            <ConversionFunnel
+              sessions={totalSessions}
+              engagementRate={website.engagement.engagementRate}
+              transactions={data.ecommerce.transactions.value}
+            />
+          </SectionBoundary>
+          {website.hasData ? (
+            <SectionBoundary name="sales/devices">
+              <Devices devices={website.devices} />
+            </SectionBoundary>
+          ) : null}
         </div>
       </StorySection>
 
@@ -234,7 +274,9 @@ export default async function SprzedazPage({
           title="Plan na sezon"
           description="Co pokazał zeszłoroczny sezon i jak przygotować się na tegoroczne szczyty."
         >
-          <SeasonPlanner plan={season} clientSlug={params.clientSlug} isAgency={isAgency} />
+          <SectionBoundary name="sales/season">
+            <SeasonPlanner plan={season} clientSlug={params.clientSlug} isAgency={isAgency} />
+          </SectionBoundary>
         </StorySection>
       ) : null}
 

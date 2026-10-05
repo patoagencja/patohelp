@@ -52,6 +52,16 @@ const COPY = {
     same: (phrase: string) => `tyle samo co ${phrase}`,
     weekdays: ["niedz.", "pon.", "wt.", "śr.", "czw.", "pt.", "sob."],
     chartAria: "Wykres dzienny",
+    thinPrev: "za mało danych do porównania - wróć za kilka dni",
+    collectingSince: (d: string) =>
+      `Dane zbieramy od ${d} - wykres wypełni się w kolejnych dniach.`,
+    empty: {
+      spend: "Wydatki pojawią się po pierwszej synchronizacji kont reklamowych.",
+      clicks: "Kliknięcia pojawią się po pierwszej synchronizacji kont reklamowych.",
+      sessions: "Dane z Google Analytics pojawią się po pierwszej synchronizacji.",
+      conversions: "W tym okresie nie zarejestrowano działań na stronie.",
+    },
+    emptyTail: "brak danych w tym okresie",
   },
   en: {
     tab: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions" },
@@ -72,8 +82,30 @@ const COPY = {
     same: (phrase: string) => `about the same as ${phrase}`,
     weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     chartAria: "Daily chart",
+    thinPrev: "not enough data to compare yet - check back in a few days",
+    collectingSince: (d: string) =>
+      `Data collected since ${d} - the chart fills in over the next days.`,
+    empty: {
+      spend: "Spend appears after the first ad account sync.",
+      clicks: "Clicks appear after the first ad account sync.",
+      sessions: "Google Analytics data appears after the first sync.",
+      conversions: "No key actions were recorded in this period.",
+    },
+    emptyTail: "no data in this period",
   },
 } as const;
+
+// Previous-period totals below these make a % change noise (+400% on 6
+// clicks). Spend is in złoty here (valueOf divides by 100).
+const MIN_PREV_TOTAL: Record<MetricKey, number> = {
+  spend: 100,
+  sessions: 50,
+  clicks: 50,
+  conversions: 10,
+};
+
+const hasAnyData = (p: TrendPoint) =>
+  p.spendMinorUnits > 0 || p.sessions > 0 || p.clicks > 0 || p.impressions > 0;
 
 function valueOf(p: TrendPoint, metric: MetricKey): number {
   if (metric === "spend") return p.spendMinorUnits / 100;
@@ -119,7 +151,7 @@ function niceScale(max: number, ticks = 4): { max: number; step: number } {
 }
 
 export function MainChart({
-  trend,
+  trend: rawTrend,
   prevTrend,
   events,
   autoEvents,
@@ -140,7 +172,14 @@ export function MainChart({
   demo?: boolean;
 }) {
   const t = COPY[lang];
-  const [metric, setMetric] = useState<MetricKey>("spend");
+  // Open on a tab that has something to show: a GA4-only client (no ads
+  // connected yet) shouldn't land on an empty "Wydatki" chart.
+  const [metric, setMetric] = useState<MetricKey>(() =>
+    rawTrend.some((p) => p.spendMinorUnits > 0) ||
+    !rawTrend.some((p) => p.sessions > 0)
+      ? "spend"
+      : "sessions"
+  );
   const [compare, setCompare] = useState(true);
   const [active, setActive] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -167,10 +206,21 @@ export function MainChart({
   }, []);
 
   const demoExtras = useMemo(
-    () => (demo ? buildDemoChartExtras(trend, lang) : null),
-    [demo, trend, lang]
+    () => (demo ? buildDemoChartExtras(rawTrend, lang) : null),
+    [demo, rawTrend, lang]
   );
-  const prev = prevTrend ?? demoExtras?.prevTrend ?? NO_POINTS;
+  const prevRaw = prevTrend ?? demoExtras?.prevTrend ?? NO_POINTS;
+  // A brand-new client has a 30-day axis with 27 empty days and a spike at
+  // the end - which reads as explosive growth. With no history to compare
+  // against, start the axis on the first day that has any data instead.
+  const prevHasData = prevRaw.some(hasAnyData);
+  const firstDataIdx = rawTrend.findIndex(hasAnyData);
+  const trimFrom = !prevHasData && firstDataIdx > 0 ? firstDataIdx : 0;
+  const trend = useMemo(
+    () => (trimFrom > 0 ? rawTrend.slice(trimFrom) : rawTrend),
+    [rawTrend, trimFrom]
+  );
+  const prev = prevRaw;
   const auto = autoEvents ?? demoExtras?.autoEvents ?? NO_EVENTS;
 
   const n = trend.length;
@@ -196,13 +246,15 @@ export function MainChart({
   const isMoney = metric === "spend";
   const cur = trend.map((p) => valueOf(p, metric));
   const prv = prev.slice(0, n).map((p) => valueOf(p, metric));
-  const hasPrev = prev.length > 0;
-  const showPrev = compare && hasPrev;
-  const partialIdx = today && trend[n - 1]?.date === today ? n - 1 : -1;
-
   // --- Takeaway line (full-period totals, same basis as the KPI cards) ---
   const total = cur.reduce((a, v) => a + v, 0);
   const prevTotal = prev.reduce((a, p) => a + valueOf(p, metric), 0);
+  // A zero-filled comparison period is no comparison: no dashed line at 0,
+  // no toggle for it.
+  const hasPrev = prev.length > 0 && prevTotal > 0;
+  const showPrev = compare && hasPrev;
+  const partialIdx = today && trend[n - 1]?.date === today ? n - 1 : -1;
+  const isEmpty = n === 0 || total <= 0;
   const prevPhrase = (() => {
     if (!hasPrev) return "";
     const contiguous =
@@ -216,8 +268,12 @@ export function MainChart({
       : t.prevSpan(ddmm(prev[0].date), ddmm(prev[prev.length - 1].date));
   })();
   let takeawayTail: string;
-  if (!hasPrev || prevTotal <= 0) {
+  if (isEmpty) {
+    takeawayTail = t.emptyTail;
+  } else if (!hasPrev) {
     takeawayTail = t.noPrev;
+  } else if (prevTotal < MIN_PREV_TOTAL[metric]) {
+    takeawayTail = t.thinPrev;
   } else {
     const pct = ((total - prevTotal) / prevTotal) * 100;
     const abs = Math.round(Math.abs(pct));
@@ -328,14 +384,15 @@ export function MainChart({
 
       <p className="mt-3 text-sm text-foreground tabular-nums">
         <span className="font-semibold">
-          {t.long[metric]}: {full(total, isMoney, lang)}
+          {/* "0,00 zł" next to "no data" contradicts itself - a dash says it. */}
+          {t.long[metric]}: {isEmpty ? "-" : full(total, isMoney, lang)}
         </span>
         <span className="text-muted-foreground"> - {takeawayTail}</span>
       </p>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
+          <span className={cn("inline-flex items-center gap-1.5", isEmpty && "invisible")}>
             <svg width="16" height="8" aria-hidden className="text-indigo-500 dark:text-indigo-400">
               <line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="2" />
             </svg>
@@ -385,8 +442,19 @@ export function MainChart({
         ) : null}
       </div>
 
+      {trimFrom > 0 && !isEmpty ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {t.collectingSince(ddmm(trend[0].date))}
+        </p>
+      ) : null}
+
       <div ref={boxRef} className="relative mt-2 h-60 w-full sm:h-72">
-        {width > 0 && n > 0 ? (
+        {isEmpty ? (
+          // Same box height as the chart so the page doesn't jump between tabs.
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+            {t.empty[metric]}
+          </div>
+        ) : width > 0 && n > 0 ? (
           <svg
             width={width}
             height={H}
@@ -499,6 +567,15 @@ export function MainChart({
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
+              {/* With 1-3 days a bare line is easy to miss (one day draws
+                  nothing at all) - mark every point. */}
+              {n <= 3
+                ? cur.map((v, i) =>
+                    i === partialIdx && i > 0 ? null : (
+                      <circle key={i} cx={x(i)} cy={y(v)} r={3.5} fill="currentColor" />
+                    )
+                  )
+                : null}
               {partialIdx > 0 ? (
                 <>
                   <path
@@ -571,7 +648,7 @@ export function MainChart({
           </svg>
         ) : null}
 
-        {active != null && width > 0 && trend[active] ? (
+        {active != null && width > 0 && !isEmpty && trend[active] ? (
           <div
             className="pointer-events-none absolute z-10 rounded-lg border border-border bg-popover p-2.5 text-xs text-popover-foreground shadow-md"
             style={{ left: tipLeft, top: pad.top, width: tipW }}

@@ -20,9 +20,28 @@ export function SessionsTrend({
     return { date: `${day}.${month}`, [key]: p.sessions };
   });
 
+  const total = trend.reduce((a, p) => a + p.sessions, 0);
+  // One day draws no area at all and an all-zero range is a flat line on the
+  // floor; Tremor's own fallback is an English "No data". Say why instead.
+  const empty =
+    total <= 0
+      ? en
+        ? "Google Analytics data appears after the first sync."
+        : "Dane z Google Analytics pojawią się po pierwszej synchronizacji."
+      : trend.length < 2
+        ? en
+          ? "Not enough days for a trend yet - check back in a few days."
+          : "Za mało dni, by narysować trend - wróć za kilka dni."
+        : null;
+
   return (
     <Card>
       <Title>{en ? "Sessions - last 30 days" : "Wizyty na stronie dzień po dniu"}</Title>
+      {empty ? (
+        <div className="mt-4 flex h-64 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+          {empty}
+        </div>
+      ) : (
       <AreaChart
         className="mt-4 h-64"
         data={data}
@@ -34,6 +53,7 @@ export function SessionsTrend({
         yAxisWidth={56}
         curveType="monotone"
       />
+      )}
     </Card>
   );
 }

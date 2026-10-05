@@ -48,6 +48,14 @@ function paceSentence(budget: BudgetStatus, lang: Lang): string {
       : "Budżet na ten miesiąc został już w całości wykorzystany.";
   }
 
+  // Nothing spent yet (new client, or the first sync of the month hasn't run):
+  // "w tym tempie wykorzystamy ok. 0 zł" would read as an alarm.
+  if (spent <= 0) {
+    return en
+      ? "No spend recorded this month yet - it appears after the next ad account sync."
+      : "W tym miesiącu nie ma jeszcze wydatków - pojawią się po najbliższej synchronizacji kont reklamowych.";
+  }
+
   const perDay = dayOfMonth > 0 ? spent / dayOfMonth : 0;
 
   if (budget.pace === "fast" && perDay > 0) {

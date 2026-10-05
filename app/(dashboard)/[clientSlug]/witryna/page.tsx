@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Globe } from "lucide-react";
 
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { ActivityHeatmap } from "@/components/dashboard/website/activity-heatmap";
 import { Audience } from "@/components/dashboard/website/audience";
 import { Devices } from "@/components/dashboard/website/devices";
@@ -108,23 +109,40 @@ export default async function WebsitePage({
         </p>
       </div>
 
+      {/* Per-widget boundaries: one odd GA4 breakdown shouldn't blank the tab. */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <TrafficSources sources={data.sources} />
-        <Devices devices={data.devices} />
+        <SectionBoundary name="website/sources">
+          <TrafficSources sources={data.sources} />
+        </SectionBoundary>
+        <SectionBoundary name="website/devices">
+          <Devices devices={data.devices} />
+        </SectionBoundary>
       </div>
 
-      <EngagementMetrics engagement={data.engagement} />
+      <SectionBoundary name="website/engagement">
+        <EngagementMetrics engagement={data.engagement} />
+      </SectionBoundary>
 
-      <SessionsTrend trend={data.sessionsTrend} />
+      <SectionBoundary name="website/sessions-trend">
+        <SessionsTrend trend={data.sessionsTrend} />
+      </SectionBoundary>
 
-      <ActivityHeatmap data={activity} />
+      <SectionBoundary name="website/heatmap">
+        <ActivityHeatmap data={activity} />
+      </SectionBoundary>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <TopPages pages={data.topPages} />
-        <NewVsReturning data={data.newVsReturning} />
+        <SectionBoundary name="website/top-pages">
+          <TopPages pages={data.topPages} />
+        </SectionBoundary>
+        <SectionBoundary name="website/new-vs-returning">
+          <NewVsReturning data={data.newVsReturning} />
+        </SectionBoundary>
       </div>
 
-      <Audience data={demographics} />
+      <SectionBoundary name="website/audience">
+        <Audience data={demographics} />
+      </SectionBoundary>
     </div>
   );
 }

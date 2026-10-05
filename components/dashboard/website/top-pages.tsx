@@ -75,7 +75,14 @@ export function TopPages({
           ? "Most viewed pages and how engaging they are."
           : "Najczęściej odwiedzane podstrony i jak bardzo wciągają."}
       </p>
-      <ol className="mt-5 space-y-3">
+      {pages.length === 0 ? (
+        <p className="mt-5 text-sm text-muted-foreground">
+          {en
+            ? "Page data appears after the next Google Analytics sync."
+            : "Lista podstron pojawi się po najbliższej synchronizacji Google Analytics."}
+        </p>
+      ) : null}
+      <ol className="mt-5 space-y-3 empty:hidden">
         {pages.map((p, i) => {
           const context = en ? null : pathContext(p.path);
           return (

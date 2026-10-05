@@ -411,7 +411,8 @@ export function scoreCreative(c: CreativeItem, b: Benchmarks): CreativeScore {
   const cpc = cpcOf(c);
   const ctrRatio = ctr != null ? ctr / b.ctr : null;
   const cpcRatio =
-    c.clicks >= MIN_CLICKS && cpc != null && b.cpc != null ? b.cpc / cpc : null;
+    // cpc of 0 (clicks synced before spend) would make this Infinity.
+    c.clicks >= MIN_CLICKS && cpc != null && cpc > 0 && b.cpc != null ? b.cpc / cpc : null;
 
   // Geometric mean keeps the two signals symmetric: 2x better on one and 2x
   // worse on the other nets out to exactly "average".

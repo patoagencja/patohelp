@@ -85,6 +85,11 @@ export function PlatformSplit({
       insight={rows.length > 0 ? takeaway(rows, total, lang) : null}
       rows={rows}
       unit={wholePln}
+      emptyText={
+        en
+          ? "No ad spend in this period yet - it appears after the next ad account sync."
+          : "W tym okresie nie ma jeszcze wydatków - pojawią się po najbliższej synchronizacji kont reklamowych."
+      }
     />
   );
 }

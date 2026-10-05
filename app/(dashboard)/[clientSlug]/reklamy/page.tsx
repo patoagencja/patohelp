@@ -6,6 +6,7 @@ import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { ImpressionShare } from "@/components/dashboard/impression-share";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
+import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SearchTerms } from "@/components/dashboard/search-terms";
 import {
   TopCreatives,
@@ -81,26 +82,40 @@ export default async function AdsPage({
       </AdsPageIntro>
 
       {/* The two short answers first (where the money goes, what a click
-          costs); the per-campaign detail follows for anyone who wants it. */}
+          costs); the per-campaign detail follows for anyone who wants it.
+          Each widget has its own boundary so one bad dataset can't blank
+          the tab. */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <PlatformSplit split={data.platformSplit} />
-        <CostTrends costTrend={data.costTrend} />
+        <SectionBoundary name="ads/platform-split">
+          <PlatformSplit split={data.platformSplit} />
+        </SectionBoundary>
+        <SectionBoundary name="ads/cost-trends">
+          <CostTrends costTrend={data.costTrend} />
+        </SectionBoundary>
       </div>
 
-      <CampaignPositions
-        campaigns={data.campaigns}
-        initialFilter={
-          searchParams.camp === "active" || searchParams.camp === "attention"
-            ? searchParams.camp
-            : "all"
-        }
-      />
+      <SectionBoundary name="ads/campaigns">
+        <CampaignPositions
+          campaigns={data.campaigns}
+          initialFilter={
+            searchParams.camp === "active" || searchParams.camp === "attention"
+              ? searchParams.camp
+              : "all"
+          }
+        />
+      </SectionBoundary>
 
-      <SearchTerms terms={searchTerms} />
+      <SectionBoundary name="ads/search-terms">
+        <SearchTerms terms={searchTerms} />
+      </SectionBoundary>
 
-      <ImpressionShare data={impressionShare} />
+      <SectionBoundary name="ads/impression-share">
+        <ImpressionShare data={impressionShare} />
+      </SectionBoundary>
 
-      <TopCreatives creatives={creatives} />
+      <SectionBoundary name="ads/top-creatives">
+        <TopCreatives creatives={creatives} />
+      </SectionBoundary>
     </div>
   );
 }

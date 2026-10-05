@@ -209,10 +209,16 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
   // Factor deltas: recent 7-day window vs baseline.
   const win = days.slice(Math.max(0, latestIdx - WINDOW + 1), latestIdx + 1);
   const winCtr = avg(win.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0)));
+  const winSessions = avg(win.map((d) => d.sessions));
   const factors: ScoreFactor[] = [
     { key: "ctr", label: "CTR", deltaPct: pct(winCtr, base.ctr) },
     { key: "clicks", label: "Kliknięcia", deltaPct: pct(avg(win.map((d) => d.clicks)), base.clicks) },
-    { key: "sessions", label: "Sesje", deltaPct: pct(avg(win.map((d) => d.sessions)), base.sessions) },
+    {
+      key: "sessions",
+      label: "Sesje",
+      // A week with zero sessions is GA4 not syncing, not "-100%" traffic.
+      deltaPct: winSessions > 0 ? pct(winSessions, base.sessions) : null,
+    },
     { key: "reach", label: "Zasięg", deltaPct: pct(avg(win.map((d) => d.impressions)), base.impressions) },
   ];
 

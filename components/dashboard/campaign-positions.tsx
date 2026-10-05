@@ -62,6 +62,7 @@ const COPY = {
     ctrHint: "Klikalność (CTR): jaki odsetek osób, które zobaczyły reklamę, kliknął w nią",
     spent: "wydane",
     empty: "Brak kampanii w tym widoku.",
+    none: "Kampanie pojawią się tutaj po pierwszej synchronizacji kont reklamowych.",
     legend: "Status kampanii:",
   },
   en: {
@@ -78,6 +79,7 @@ const COPY = {
     ctrHint: "Click rate (CTR): share of people who saw the ad and clicked it",
     spent: "spent",
     empty: "No campaigns in this view.",
+    none: "Campaigns appear here after the first ad account sync.",
     legend: "Campaign status:",
   },
 } as const;
@@ -399,7 +401,9 @@ export function CampaignPositions({
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">{t.empty}</p>
+        <p className="mt-6 text-sm text-muted-foreground">
+          {campaigns.length === 0 ? t.none : t.empty}
+        </p>
       ) : (
         <>
           <ul className="mt-5 divide-y divide-border/60 md:hidden">

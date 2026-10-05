@@ -30,7 +30,7 @@ export function TopCreatives({
         <p className="mt-3 text-sm text-muted-foreground">
           {en
             ? "Creative data appears after the first creatives sync."
-            : "Dane o kreacjach pojawią się po pierwszej synchronizacji kreacji (cron co 6h)."}
+            : "Dane o kreacjach pojawią się po pierwszej synchronizacji kreacji (odświeżamy je co 6 godzin)."}
         </p>
       ) : (
         <Grid numItemsSm={2} numItemsLg={5} className="mt-4 gap-4">

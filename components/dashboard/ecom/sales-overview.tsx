@@ -143,7 +143,9 @@ export function SalesOverview({
           <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-foreground">
             {formatPlnWhole(totalRev)}
           </p>
-          {deltaPct !== null ? (
+          {/* No sales this period vs a real baseline is a tracking gap, not
+              a "-100%" headline. */}
+          {deltaPct !== null && Number.isFinite(deltaPct) && totalRev > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <BadgeDelta deltaType={deltaType} size="xs" className="tabular-nums">
                 {`${deltaPct > 0 ? "+" : ""}${(Math.round(deltaPct * 10) / 10).toLocaleString(
@@ -192,6 +194,16 @@ export function SalesOverview({
         </div>
 
         <div className="min-w-0">
+          {/* Fewer than two finished days gives Tremor nothing to draw but an
+              English "No data"; with no sales at all it would be a lone spend
+              line over a flat zero. Say why instead. */}
+          {chart.length < 2 || totalRev <= 0 ? (
+            <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground sm:h-72 lg:h-80">
+              {chart.length < 2
+                ? "Za mało dni, by narysować wykres - wróć za kilka dni."
+                : "Wykres pojawi się, gdy Google Analytics zarejestruje pierwszą sprzedaż."}
+            </div>
+          ) : (
           <AreaChart
             className="h-64 sm:h-72 lg:h-80"
             data={chart}
@@ -208,6 +220,7 @@ export function SalesOverview({
             showAnimation
             curveType="monotone"
           />
+          )}
           {todayPoint ? (
             <p className="mt-2 text-xs text-muted-foreground">
               Wykres bez dzisiejszego, niepełnego dnia (do tej pory{" "}

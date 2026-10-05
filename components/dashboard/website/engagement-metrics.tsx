@@ -27,21 +27,33 @@ export function EngagementMetrics({
   lang?: "pl" | "en";
 }) {
   const en = lang === "en";
-  const verdict = engagedVerdict(engagement.engagementRate);
+  // Rates over zero visits are undefined: GA4 sends breakdown rows before the
+  // daily totals land, and "0% zainteresowanych, 100% wyjść" would be a false
+  // alarm. Show dashes and say when the numbers arrive.
+  const noVisits = engagement.avgDailySessions <= 0;
+  const verdict = noVisits
+    ? {
+        text: en
+          ? "Appears after the first Google Analytics sync."
+          : "Pojawi się po pierwszej synchronizacji Google Analytics.",
+        tone: "text-muted-foreground",
+      }
+    : engagedVerdict(engagement.engagementRate);
+  const dashIfEmpty = (v: string) => (noVisits ? "-" : v);
   const tiles = [
     {
       icon: HeartHandshake,
       label: en ? "Engaged visits" : "Zainteresowani goście",
-      value: formatPercent(engagement.engagementRate, 0),
+      value: dashIfEmpty(formatPercent(engagement.engagementRate, 0)),
       hint: en
         ? "Stayed 10s+, viewed 2+ pages or took an action."
         : "Byli dłużej niż 10 s, obejrzeli 2+ podstrony albo coś kliknęli.",
-      footer: en ? null : verdict,
+      footer: en && !noVisits ? null : verdict,
     },
     {
       icon: DoorOpen,
       label: en ? "Quick exits" : "Szybkie wyjścia",
-      value: formatPercent(engagement.bounceRate, 0),
+      value: dashIfEmpty(formatPercent(engagement.bounceRate, 0)),
       hint: en
         ? "Left without interacting."
         : "Wyszli od razu, niczego nie oglądając.",
@@ -50,7 +62,7 @@ export function EngagementMetrics({
     {
       icon: CalendarDays,
       label: en ? "Visits per day" : "Wizyt dziennie",
-      value: formatNumberPL(engagement.avgDailySessions),
+      value: dashIfEmpty(formatNumberPL(engagement.avgDailySessions)),
       hint: en ? "Average over the period." : "Średnio każdego dnia w tym okresie.",
       footer: null,
     },

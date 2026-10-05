@@ -66,7 +66,10 @@ export function ConversionFunnel({
   const rate = sessions > 0 ? transactions / sessions : null;
   let takeaway: { text: string; tone: TakeawayTone };
   if (sessions <= 0) {
-    takeaway = { text: "Brak danych o wizytach w tym okresie.", tone: "neutral" };
+    takeaway = {
+      text: "Dane o wizytach z Google Analytics pojawią się po pierwszej synchronizacji.",
+      tone: "neutral",
+    };
   } else if (transactions <= 0) {
     takeaway = {
       text: "W tym okresie żadna wizyta nie zakończyła się zamówieniem zarejestrowanym przez Google Analytics.",

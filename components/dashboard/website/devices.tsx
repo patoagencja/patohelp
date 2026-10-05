@@ -38,6 +38,11 @@ export function Devices({
       insight={insight}
       rows={rows}
       unit={en ? (n) => `${formatNumberPL(n)} sessions` : visitsUnit}
+      emptyText={
+        en
+          ? "Google Analytics data appears after the first sync."
+          : "Dane z Google Analytics pojawią się po pierwszej synchronizacji."
+      }
     />
   );
 }

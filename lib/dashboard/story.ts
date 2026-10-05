@@ -27,6 +27,11 @@ export interface Story {
   facts: StoryFact[];
   wins: string[];
   watch: string | null;
+  /**
+   * Shown instead of the numbers when there is nothing to tell yet (a brand
+   * new client before the first sync): what is going on and when to look.
+   */
+  note?: string | null;
 }
 
 /** Polish plural: 1 kliknięcie, 2-4 kliknięcia, 5+ kliknięć (12-14 -> many). */
@@ -81,10 +86,14 @@ function phraseChange(
   return { text, tone: up ? "good" : "bad" };
 }
 
+// "Najlepszy dzień" out of two days of history is not news - wait for a week.
+const MIN_DAYS_FOR_BEST = 7;
+
 function bestDay(
   trend: TrendPoint[],
   pick: (t: TrendPoint) => number
 ): { date: string; value: number } | null {
+  if (trend.filter((t) => pick(t) > 0).length < MIN_DAYS_FOR_BEST) return null;
   let best: TrendPoint | null = null;
   for (const t of trend) if (!best || pick(t) > pick(best)) best = t;
   if (!best || pick(best) <= 0) return null;
@@ -117,11 +126,15 @@ export function buildStory({
   const sessions = kpis.sessions.value;
   const hasSessions = sessions > 0;
 
-  const clicksDelta = kpis.clicks.previous >= MIN_BASE.clicks ? pct(kpis.clicks) : null;
+  // A period with zero clicks/sessions is a missing source (sync gap, GA4
+  // unplugged), not a "-100%" collapse; CPC and CTR of zero clicks would read
+  // as "100% cheaper". So every comparison also needs data in this period.
+  const adsComparable = clicks > 0 && kpis.clicks.previous >= MIN_BASE.clicks;
+  const clicksDelta = adsComparable ? pct(kpis.clicks) : null;
   const sessionsDelta =
-    kpis.sessions.previous >= MIN_BASE.sessions ? pct(kpis.sessions) : null;
-  const cpcDelta = kpis.clicks.previous >= MIN_BASE.clicks ? pct(kpis.cpcMinorUnits) : null;
-  const ctrDelta = kpis.clicks.previous >= MIN_BASE.clicks ? pct(kpis.ctr) : null;
+    hasSessions && kpis.sessions.previous >= MIN_BASE.sessions ? pct(kpis.sessions) : null;
+  const cpcDelta = adsComparable ? pct(kpis.cpcMinorUnits) : null;
+  const ctrDelta = adsComparable ? pct(kpis.ctr) : null;
 
   const facts: StoryFact[] = [];
   const wins: string[] = [];
@@ -194,19 +207,36 @@ export function buildStory({
         -revenueDelta
       )}% niż w poprzednim okresie - przyglądamy się kampaniom i ruchowi.`;
   } else {
-    headline = hasSessions
-      ? `Reklamy przyciągnęły ${formatNumberPL(clicks)} ${plPlural(
-          clicks,
-          "kliknięcie",
-          "kliknięcia",
-          "kliknięć"
-        )} i ${formatNumberPL(sessions)} ${plPlural(sessions, "wizytę", "wizyty", "wizyt")} na stronie.`
-      : `Reklamy przyciągnęły ${formatNumberPL(clicks)} ${plPlural(
-          clicks,
-          "kliknięcie",
-          "kliknięcia",
-          "kliknięć"
-        )}.`;
+    const clicksText = `${formatNumberPL(clicks)} ${plPlural(
+      clicks,
+      "kliknięcie",
+      "kliknięcia",
+      "kliknięć"
+    )}`;
+    const visitsText = `${formatNumberPL(sessions)} ${plPlural(
+      sessions,
+      "wizytę",
+      "wizyty",
+      "wizyt"
+    )}`;
+    // Each source can be missing on its own (no ads yet, GA4 not synced) -
+    // never claim "0 kliknięć" when the honest story is "no ads data yet".
+    if (clicks > 0 && hasSessions) {
+      headline = `Reklamy przyciągnęły ${clicksText} i ${visitsText} na stronie.`;
+    } else if (clicks > 0) {
+      headline = `Reklamy przyciągnęły ${clicksText}.`;
+    } else if (hasSessions) {
+      headline = `Strona zanotowała ${visitsText}.`;
+    } else if (impressions > 0) {
+      headline = `Reklamy wyświetliły się ${formatNumberPL(impressions)} ${plPlural(
+        impressions,
+        "raz",
+        "razy",
+        "razy"
+      )} - pierwsze kliknięcia są w drodze.`;
+    } else {
+      headline = "Pierwsze dane już spływają.";
+    }
 
     if (impressions > 0) {
       facts.push({
@@ -216,12 +246,14 @@ export function buildStory({
         change: null,
       });
     }
-    facts.push({
-      key: "clicks",
-      value: formatCompactPL(clicks),
-      caption: `${nounFor(clicks, "kliknięcie", "kliknięcia", "kliknięć")} w reklamy`,
-      change: phraseChange(clicksDelta, "more_is_good"),
-    });
+    if (clicks > 0 || impressions > 0) {
+      facts.push({
+        key: "clicks",
+        value: formatCompactPL(clicks),
+        caption: `${nounFor(clicks, "kliknięcie", "kliknięcia", "kliknięć")} w reklamy`,
+        change: phraseChange(clicksDelta, "more_is_good"),
+      });
+    }
     if (hasSessions) {
       facts.push({
         key: "sessions",
@@ -273,5 +305,17 @@ export function buildStory({
       )}% - sprawdzamy, co podbija koszt.`;
   }
 
-  return { headline, facts: facts.slice(0, 4), wins: wins.slice(0, 4), watch };
+  // Nothing synced yet: say so calmly instead of a row of zeros.
+  const note =
+    facts.length === 0
+      ? "Gdy reklamy i Google Analytics zbiorą pierwsze dni danych, pokażemy tu najważniejsze liczby i porównanie z poprzednim okresem. Zajrzyj jutro."
+      : null;
+
+  return {
+    headline,
+    facts: facts.slice(0, 4),
+    wins: wins.slice(0, 4),
+    watch,
+    note,
+  };
 }
