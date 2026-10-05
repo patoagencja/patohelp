@@ -42,6 +42,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// share_links gains `kind` with migration 0026 (board overview links share
+// the table). Filtering on a column that doesn't exist yet would break report
+// sharing for anyone who deploys before running the SQL, so only filter when
+// it's there.
+async function hasLinkKind(admin: ReturnType<typeof createAdminClient>) {
+  const { error } = await admin.from("share_links").select("kind").limit(1);
+  return !error;
+}
+
 // Server action: create (or reuse) a public share link for this client's report.
 async function createShareLink(formData: FormData) {
   "use server";
@@ -50,12 +59,13 @@ async function createShareLink(formData: FormData) {
   if (!access.ok) return;
 
   const admin = createAdminClient();
-  const { data: existing } = await admin
+  let existingQ = admin
     .from("share_links")
     .select("token")
     .eq("client_id", access.clientId)
-    .eq("revoked", false)
-    .maybeSingle();
+    .eq("revoked", false);
+  if (await hasLinkKind(admin)) existingQ = existingQ.eq("kind", "report");
+  const { data: existing } = await existingQ.maybeSingle();
 
   if (!existing) {
     const token = randomUUID().replace(/-/g, "");
@@ -80,11 +90,13 @@ async function revokeShareLink(formData: FormData) {
   if (!access.ok) return;
 
   const admin = createAdminClient();
-  await admin
+  let revokeQ = admin
     .from("share_links")
     .update({ revoked: true })
     .eq("client_id", access.clientId)
     .eq("revoked", false);
+  if (await hasLinkKind(admin)) revokeQ = revokeQ.eq("kind", "report");
+  await revokeQ;
   revalidatePath(`/${clientSlug}/raport`);
 }
 
@@ -99,12 +111,13 @@ async function ShareBox({
   status?: string;
 }) {
   const admin = createAdminClient();
-  const { data, error } = await admin
+  let boxQ = admin
     .from("share_links")
     .select("token")
     .eq("client_id", clientId)
-    .eq("revoked", false)
-    .maybeSingle();
+    .eq("revoked", false);
+  if (await hasLinkKind(admin)) boxQ = boxQ.eq("kind", "report");
+  const { data, error } = await boxQ.maybeSingle();
   const token = (data?.token as string) ?? null;
 
   // Missing table (migration not run) surfaces as a read error too - tell the

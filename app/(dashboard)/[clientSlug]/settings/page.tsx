@@ -18,6 +18,7 @@ import type { IntegrationProvider } from "@/lib/types";
 import { ConnectedToast } from "./connected-toast";
 import { ConnectionStability } from "./connection-stability";
 import { EcomSettingsSection } from "./ecom-settings";
+import { ShareOverviewSection } from "./share-overview";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
 
@@ -282,6 +283,7 @@ export default async function SettingsPage({
           { href: "#polaczenia", label: "Połączenia bez rozłączeń" },
           ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
           { href: "#powiadomienia", label: "Powiadomienia" },
+          { href: "#udostepnianie", label: "Link dla zarządu" },
         ].map((l) => (
           <a
             key={l.href}
@@ -732,6 +734,8 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       </div>
+
+      <ShareOverviewSection clientId={access.clientId} clientSlug={params.clientSlug} />
     </div>
   );
 }

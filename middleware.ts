@@ -1,8 +1,10 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Public paths that must stay reachable without a session.
-const PUBLIC_PATHS = ["/login", "/auth", "/privacy", "/terms", "/r", "/demo", "/demo-full"];
+// Public paths that must stay reachable without a session. /r and /s are
+// token-gated share pages (report deck / board overview) - the page itself
+// validates the token, so the middleware must not bounce them to /login.
+const PUBLIC_PATHS = ["/login", "/auth", "/privacy", "/terms", "/r", "/s", "/demo", "/demo-full"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

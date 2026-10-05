@@ -20,13 +20,17 @@ export default async function SharedReportPage({
   if (!/^[A-Za-z0-9_-]{10,64}$/.test(params.token)) notFound();
 
   const admin = createAdminClient();
+  // select("*") so this keeps working before migration 0026 adds kind/expires_at.
   const { data: link } = await admin
     .from("share_links")
-    .select("client_id, revoked")
+    .select("*")
     .eq("token", params.token)
     .maybeSingle();
 
   if (!link || link.revoked) notFound();
+  // Board-overview tokens (/s/...) must not open the report deck, and vice versa.
+  if ((link.kind ?? "report") !== "report") notFound();
+  if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) notFound();
 
   const { data: client } = await admin
     .from("clients")
