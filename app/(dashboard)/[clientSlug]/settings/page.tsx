@@ -275,7 +275,25 @@ export default async function SettingsPage({
         Połącz konta reklamowe i zaznacz, które należą do tego klienta.
       </p>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {/* The page grew to five sections; jump links beat scrolling. */}
+      <nav aria-label="Sekcje ustawień" className="mt-4 flex flex-wrap gap-2 text-sm">
+        {[
+          { href: "#integracje", label: "Integracje" },
+          { href: "#polaczenia", label: "Połączenia bez rozłączeń" },
+          ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
+          { href: "#powiadomienia", label: "Powiadomienia" },
+        ].map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            className="rounded-full border border-border bg-card px-3 py-1 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          >
+            {l.label}
+          </a>
+        ))}
+      </nav>
+
+      <div id="integracje" className="mt-6 grid scroll-mt-6 gap-4 md:grid-cols-2">
         {PROVIDERS.map((provider) => {
           const integration = byProvider.get(provider.key);
           const accounts = (
@@ -489,7 +507,7 @@ export default async function SettingsPage({
       ) : null}
 
       {/* Alert notifications */}
-      <div className="mt-8">
+      <div id="powiadomienia" className="mt-8 scroll-mt-6">
         <h2 className="text-lg font-semibold">Powiadomienia o alertach</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Wysyłamy alerty (anomalie + „nie dowozi") na wskazane kanały, tylko w
