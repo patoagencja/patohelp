@@ -9,12 +9,15 @@ import {
   LayoutDashboard,
   Megaphone,
   Newspaper,
+  ShoppingBag,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { href: "/demo-full", label: "Przegląd", icon: LayoutDashboard },
+  // Same slot as in the real sidebar for e-commerce clients.
+  { href: "/demo-full/sprzedaz", label: "Sprzedaż", icon: ShoppingBag },
   { href: "/demo-full/reklamy", label: "Reklamy", icon: Megaphone },
   { href: "/demo-full/kreacje", label: "Kreacje", icon: ImageIcon },
   { href: "/demo-full/witryna", label: "Witryna", icon: Globe },
