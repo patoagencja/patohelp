@@ -37,7 +37,10 @@ export function RankingChipList({
   compact?: boolean;
   className?: string;
 }) {
-  const chips = rankingChips(c, lang, kinds);
+  // On narrow cards an "average" chip is noise; only deviations earn space.
+  const chips = rankingChips(c, lang, kinds).filter(
+    (ch) => !compact || ch.tone !== "neutral"
+  );
   if (chips.length === 0) return null;
   return (
     <div className={cn("flex flex-wrap gap-1", className)}>
