@@ -7,6 +7,7 @@ import { describeError } from "@/lib/integrations/errors";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import {
   getCampaignMetrics,
+  syncImpressionShareSnapshot,
   syncSearchTermsSnapshot,
 } from "@/lib/integrations/google-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -188,6 +189,23 @@ export async function GET(request: Request) {
         console.error(
           "[cron/refresh-ads-google] search terms failed",
           describeError(stErr)
+        );
+      }
+
+      // Same once-a-day pattern; isolated so it can't affect search terms or
+      // the sync outcome above.
+      try {
+        await syncImpressionShareSnapshot(
+          admin,
+          integration.client_id,
+          refresh_token,
+          accounts,
+          until
+        );
+      } catch (isErr) {
+        console.error(
+          "[cron/refresh-ads-google] impression share failed",
+          describeError(isErr)
         );
       }
     } catch (err) {

@@ -381,3 +381,162 @@ export async function syncSearchTermsSnapshot(
   }
   return rows.length;
 }
+
+export interface GoogleImpressionShareMetric {
+  campaign_id: string;
+  campaign_name: string;
+  /** Fractions 0-1 as Google reports them; null = too little data. */
+  impression_share: number | null;
+  budget_lost: number | null;
+  rank_lost: number | null;
+  impressions: number;
+  clicks: number;
+  cost_micros: number;
+}
+
+// Google omits a share (or sends a non-number) when it lacks data; anything
+// outside 0-1 would be a parsing surprise, so treat it as unknown too.
+function shareOrNull(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : null;
+}
+
+/**
+ * Search impression share per Search campaign, aggregated over the last 30
+ * days. No segments.date in the SELECT, so Google returns one row per
+ * campaign with the period-level share (shares can't be summed per day).
+ *
+ * Values are passed through untouched, including Google's capped 0.0999
+ * ("<10%") and 0.9001 (">90%") - the reader decides how to present them.
+ */
+export async function getImpressionShareMetrics(
+  refreshToken: string,
+  customerId: string
+): Promise<GoogleImpressionShareMetric[]> {
+  const client = apiClient();
+  const gaql = `
+    SELECT
+      campaign.id,
+      campaign.name,
+      campaign.advertising_channel_type,
+      metrics.search_impression_share,
+      metrics.search_budget_lost_impression_share,
+      metrics.search_rank_lost_impression_share,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.cost_micros
+    FROM campaign
+    WHERE segments.date DURING LAST_30_DAYS
+      AND campaign.advertising_channel_type = 'SEARCH'
+      AND metrics.impressions > 0
+  `;
+
+  const rows = await queryWithFallback(client, refreshToken, customerId, gaql);
+
+  return (rows as Array<Record<string, any>>)
+    .map((row) => ({
+      campaign_id: String(row.campaign?.id ?? ""),
+      campaign_name: String(row.campaign?.name ?? ""),
+      impression_share: shareOrNull(row.metrics?.search_impression_share),
+      budget_lost: shareOrNull(row.metrics?.search_budget_lost_impression_share),
+      rank_lost: shareOrNull(row.metrics?.search_rank_lost_impression_share),
+      impressions: Number(row.metrics?.impressions ?? 0),
+      clicks: Number(row.metrics?.clicks ?? 0),
+      cost_micros: Number(row.metrics?.cost_micros ?? 0),
+    }))
+    .filter((m) => m.campaign_id !== "");
+}
+
+/**
+ * Daily snapshot of Search impression share into google_impression_share for
+ * one client. Same contract as syncSearchTermsSnapshot: returns rows written,
+ * or null when skipped (already synced today, table not migrated yet, or
+ * every account failed). Writes a campaign_id = '' marker row when no
+ * account has Search campaigns so the once-a-day check still holds.
+ */
+export async function syncImpressionShareSnapshot(
+  admin: AdminClient,
+  clientId: string,
+  refreshToken: string,
+  accounts: Array<{ id: string; video_only?: boolean }>,
+  periodEnd: string
+): Promise<number | null> {
+  // Doubles as a probe: an error here means migration 0027 hasn't run.
+  const existing = await admin
+    .from("google_impression_share")
+    .select("campaign_id")
+    .eq("client_id", clientId)
+    .eq("period_end", periodEnd)
+    .limit(1);
+  if (existing.error) return null;
+  if ((existing.data ?? []).length > 0) return null;
+
+  const rows: Array<Record<string, unknown>> = [];
+  let succeeded = 0;
+  for (const account of accounts) {
+    // video_only accounts are run by another agency except for YouTube; their
+    // Search campaigns aren't ours to report on.
+    if (account.video_only === true) continue;
+    try {
+      const metrics = await getImpressionShareMetrics(refreshToken, account.id);
+      succeeded += 1;
+      for (const m of metrics) {
+        rows.push({
+          client_id: clientId,
+          customer_id: account.id,
+          campaign_id: m.campaign_id,
+          campaign_name: m.campaign_name,
+          impression_share: m.impression_share,
+          budget_lost: m.budget_lost,
+          rank_lost: m.rank_lost,
+          impressions: m.impressions,
+          clicks: m.clicks,
+          cost_minor_units: Math.round(m.cost_micros / 10_000),
+          period_end: periodEnd,
+        });
+      }
+    } catch (err) {
+      console.error(
+        "[google-ads] impression share failed",
+        account.id,
+        (err as Error)?.message ?? err
+      );
+    }
+  }
+  // Nothing fetched at all - leave the day open so the next run retries.
+  if (succeeded === 0) return null;
+
+  if (rows.length === 0) {
+    rows.push({
+      client_id: clientId,
+      customer_id: "",
+      campaign_id: "",
+      campaign_name: "",
+      impression_share: null,
+      budget_lost: null,
+      rank_lost: null,
+      impressions: 0,
+      clicks: 0,
+      cost_minor_units: 0,
+      period_end: periodEnd,
+    });
+  }
+
+  // A manual sync can race the cron past the "already today" check; clearing
+  // first keeps the snapshot whole instead of the primary key rejecting it.
+  const del = await admin
+    .from("google_impression_share")
+    .delete()
+    .eq("client_id", clientId)
+    .eq("period_end", periodEnd);
+  if (del.error) throw new Error(del.error.message);
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin
+      .from("google_impression_share")
+      .insert(rows.slice(i, i + 500));
+    if (error) throw new Error(error.message);
+  }
+  return rows.length;
+}

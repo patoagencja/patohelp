@@ -404,3 +404,48 @@ export async function getSessionsByDayHour(
         r.hour <= 23
     );
 }
+
+/**
+ * Revenue split between new and returning visitors (e-commerce properties).
+ * GA4's newVsReturning is visitor-based: "new" = the user's first session on
+ * the site, "returning" = any later session. It is the closest proxy GA4
+ * offers per segment for first-time vs repeat buyers. Defaults to the last 30
+ * full days so the numbers don't change within a day. Blank segment values
+ * are folded into "(not set)" so storage keys stay stable.
+ */
+export async function getRevenueByNewVsReturning(
+  refreshToken: string,
+  propertyId: string,
+  range: DateRange = { startDate: "30daysAgo", endDate: "yesterday" }
+): Promise<
+  Array<{
+    segment: "new" | "returning" | "(not set)";
+    revenue: number; // property currency, major unit
+    transactions: number;
+    users: number;
+    sessions: number;
+  }>
+> {
+  const data = await runReport(refreshToken, propertyId, {
+    dateRanges: [range],
+    dimensions: [{ name: "newVsReturning" }],
+    metrics: [
+      { name: "totalRevenue" },
+      { name: "transactions" },
+      { name: "totalUsers" },
+      { name: "sessions" },
+    ],
+  });
+  return rows(data).map((r) => {
+    const raw = dim(r, 0);
+    const segment: "new" | "returning" | "(not set)" =
+      raw === "new" || raw === "returning" ? raw : "(not set)";
+    return {
+      segment,
+      revenue: metric(r, 0),
+      transactions: metric(r, 1),
+      users: metric(r, 2),
+      sessions: metric(r, 3),
+    };
+  });
+}

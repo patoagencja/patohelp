@@ -8,6 +8,7 @@ import {
   getDailyMetrics,
   getItemsDaily,
   getNewVsReturning,
+  getRevenueByNewVsReturning,
   getSessionsByDayHour,
   getSessionsByDevice,
   getSessionsBySourceMedium,
@@ -61,6 +62,21 @@ export async function GET(request: Request) {
     .select("client_id")
     .limit(1);
   const hasHeatmapTable = !heatmapProbe.error;
+
+  // New vs returning buyers land in ga4_new_vs_returning (migration 0028) and
+  // only make sense for shops - engagement clients have no revenue to split.
+  const nvrProbe = await admin
+    .from("ga4_new_vs_returning")
+    .select("client_id")
+    .limit(1);
+  const ecommerceClientIds = new Set<string>();
+  if (!nvrProbe.error) {
+    const { data: shops } = await admin
+      .from("clients")
+      .select("id")
+      .eq("client_type", "ecommerce");
+    for (const s of shops ?? []) ecommerceClientIds.add(s.id as string);
+  }
 
   const onlyClient = new URL(request.url).searchParams.get("client");
   let gq = admin
@@ -309,6 +325,24 @@ export async function GET(request: Request) {
         }
       }
 
+      // Isolated for the same reason as the heatmap.
+      if (ecommerceClientIds.has(integration.client_id as string)) {
+        try {
+          await syncNewVsReturning(
+            admin,
+            integration.client_id as string,
+            refresh_token,
+            propertyId,
+            until
+          );
+        } catch (err) {
+          console.error("[refresh-ga4] new vs returning sync failed", {
+            client: integration.client_id,
+            error: (err as Error).message,
+          });
+        }
+      }
+
       await admin
         .from("sync_runs")
         .update({ status: "success", finished_at: new Date().toISOString() })
@@ -400,4 +434,66 @@ async function syncActivityHeatmap(
     .delete()
     .eq("client_id", clientId)
     .lt("snapshot_date", cutoff);
+}
+
+/**
+ * Writes today's new-vs-returning revenue snapshot (last 30 full days) unless
+ * one already exists - same once-a-day reasoning as the heatmap. "new" and
+ * "returning" are always written (zero-filled) so a quiet shop still gets a
+ * "checked today" marker; "(not set)" only when GA4 reports it.
+ */
+async function syncNewVsReturning(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  refreshToken: string,
+  propertyId: string,
+  today: string
+) {
+  const existing = await admin
+    .from("ga4_new_vs_returning")
+    .select("client_id")
+    .eq("client_id", clientId)
+    .eq("snapshot_date", today)
+    .limit(1);
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data?.length) return;
+
+  const segments = await getRevenueByNewVsReturning(refreshToken, propertyId);
+
+  const totals = new Map<
+    string,
+    { revenue: number; transactions: number; users: number; sessions: number }
+  >([
+    ["new", { revenue: 0, transactions: 0, users: 0, sessions: 0 }],
+    ["returning", { revenue: 0, transactions: 0, users: 0, sessions: 0 }],
+  ]);
+  for (const s of segments) {
+    const cur = totals.get(s.segment) ?? {
+      revenue: 0,
+      transactions: 0,
+      users: 0,
+      sessions: 0,
+    };
+    cur.revenue += s.revenue;
+    cur.transactions += s.transactions;
+    cur.users += s.users;
+    cur.sessions += s.sessions;
+    totals.set(s.segment, cur);
+  }
+
+  const rows = [...totals].map(([segment, v]) => ({
+    client_id: clientId,
+    snapshot_date: today,
+    segment,
+    revenue_minor_units: Math.round(v.revenue * 100),
+    transactions: Math.round(v.transactions),
+    users: Math.round(v.users),
+    sessions: Math.round(v.sessions),
+  }));
+
+  // Upsert so two overlapping cron runs can't trip the primary key.
+  const { error } = await admin
+    .from("ga4_new_vs_returning")
+    .upsert(rows, { onConflict: "client_id,snapshot_date,segment" });
+  if (error) throw new Error(error.message);
 }
