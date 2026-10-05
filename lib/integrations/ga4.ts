@@ -366,3 +366,41 @@ export async function getDailyMetrics(
     purchaseRevenue: metric(r, 5),
   }));
 }
+
+/**
+ * Sessions by day of week x hour of day ("when are visitors active").
+ * GA4 reports both dimensions in the property's timezone; dayOfWeek is
+ * "0".."6" with 0 = Sunday, hour is "00".."23". Defaults to the last 28 full
+ * days so each weekday appears exactly 4 times and days compare fairly.
+ */
+export async function getSessionsByDayHour(
+  refreshToken: string,
+  propertyId: string,
+  range: DateRange = { startDate: "28daysAgo", endDate: "yesterday" }
+): Promise<
+  Array<{ dayOfWeek: number; hour: number; sessions: number; engagedSessions: number }>
+> {
+  const data = await runReport(refreshToken, propertyId, {
+    dateRanges: [range],
+    dimensions: [{ name: "dayOfWeek" }, { name: "hour" }],
+    metrics: [{ name: "sessions" }, { name: "engagedSessions" }],
+    // 7 x 24 = 168 rows max; the limit just makes that explicit.
+    limit: 200,
+  });
+  return rows(data)
+    .map((r) => ({
+      dayOfWeek: Number.parseInt(dim(r, 0), 10),
+      hour: Number.parseInt(dim(r, 1), 10),
+      sessions: metric(r, 0),
+      engagedSessions: metric(r, 1),
+    }))
+    .filter(
+      (r) =>
+        Number.isInteger(r.dayOfWeek) &&
+        r.dayOfWeek >= 0 &&
+        r.dayOfWeek <= 6 &&
+        Number.isInteger(r.hour) &&
+        r.hour >= 0 &&
+        r.hour <= 23
+    );
+}

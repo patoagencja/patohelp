@@ -8,6 +8,7 @@ import {
   getDailyMetrics,
   getItemsDaily,
   getNewVsReturning,
+  getSessionsByDayHour,
   getSessionsByDevice,
   getSessionsBySourceMedium,
   getTopPages,
@@ -53,6 +54,13 @@ export async function GET(request: Request) {
   // Per-SKU sales land in ga4_items_daily (migration 0018); skip until it exists.
   const itemsProbe = await admin.from("ga4_items_daily").select("id").limit(1);
   const hasItemsTable = !itemsProbe.error;
+
+  // Day x hour activity heatmap lands in ga4_activity_heatmap (migration 0024).
+  const heatmapProbe = await admin
+    .from("ga4_activity_heatmap")
+    .select("client_id")
+    .limit(1);
+  const hasHeatmapTable = !heatmapProbe.error;
 
   const onlyClient = new URL(request.url).searchParams.get("client");
   let gq = admin
@@ -282,6 +290,25 @@ export async function GET(request: Request) {
         }
       }
 
+      // Isolated like the items sync: a heatmap failure must never flip the
+      // run to failed or skip the success update below.
+      if (hasHeatmapTable) {
+        try {
+          await syncActivityHeatmap(
+            admin,
+            integration.client_id as string,
+            refresh_token,
+            propertyId,
+            until
+          );
+        } catch (err) {
+          console.error("[refresh-ga4] activity heatmap sync failed", {
+            client: integration.client_id,
+            error: (err as Error).message,
+          });
+        }
+      }
+
       await admin
         .from("sync_runs")
         .update({ status: "success", finished_at: new Date().toISOString() })
@@ -302,4 +329,75 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ ok: true, integrations_processed: processed, rows_upserted: rowsUpserted });
+}
+
+// How long old heatmap snapshots are kept - only the latest is shown, but a
+// few weeks of history lets us compare "how the rhythm changed" later.
+const HEATMAP_KEEP_DAYS = 90;
+
+/**
+ * Writes today's day x hour snapshot (last 28 full days) unless one already
+ * exists. The window ends yesterday, so re-running within the same day would
+ * return identical numbers - once a day is enough and saves GA4 quota on the
+ * hourly cron. All 168 cells are written (zero-filled) so an existing
+ * snapshot also marks "checked today" for quiet sites.
+ */
+async function syncActivityHeatmap(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  refreshToken: string,
+  propertyId: string,
+  today: string
+) {
+  const existing = await admin
+    .from("ga4_activity_heatmap")
+    .select("client_id")
+    .eq("client_id", clientId)
+    .eq("snapshot_date", today)
+    .limit(1);
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data?.length) return;
+
+  const cells = await getSessionsByDayHour(refreshToken, propertyId);
+
+  const grid = new Map<string, { sessions: number; engaged: number }>();
+  for (const c of cells) {
+    const key = `${c.dayOfWeek}-${c.hour}`;
+    const cur = grid.get(key) ?? { sessions: 0, engaged: 0 };
+    cur.sessions += c.sessions;
+    cur.engaged += c.engagedSessions;
+    grid.set(key, cur);
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      const v = grid.get(`${day}-${hour}`);
+      rows.push({
+        client_id: clientId,
+        snapshot_date: today,
+        day_of_week: day,
+        hour,
+        sessions: Math.round(v?.sessions ?? 0),
+        engaged_sessions: Math.round(v?.engaged ?? 0),
+      });
+    }
+  }
+
+  // Upsert so two overlapping cron runs can't trip the primary key.
+  const { error } = await admin
+    .from("ga4_activity_heatmap")
+    .upsert(rows, { onConflict: "client_id,snapshot_date,day_of_week,hour" });
+  if (error) throw new Error(error.message);
+
+  const cutoff = formatInTimeZone(
+    subDays(new Date(), HEATMAP_KEEP_DAYS),
+    WARSAW_TZ,
+    "yyyy-MM-dd"
+  );
+  await admin
+    .from("ga4_activity_heatmap")
+    .delete()
+    .eq("client_id", clientId)
+    .lt("snapshot_date", cutoff);
 }

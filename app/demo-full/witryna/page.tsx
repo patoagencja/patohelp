@@ -1,3 +1,4 @@
+import { ActivityHeatmap } from "@/components/dashboard/website/activity-heatmap";
 import { Audience } from "@/components/dashboard/website/audience";
 import { Devices } from "@/components/dashboard/website/devices";
 import { EngagementMetrics } from "@/components/dashboard/website/engagement-metrics";
@@ -5,7 +6,18 @@ import { NewVsReturning } from "@/components/dashboard/website/new-vs-returning"
 import { SessionsTrend } from "@/components/dashboard/website/sessions-trend";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
+import { buildActivityHeatmap } from "@/lib/dashboard/activity";
 import { getDemoDashboard } from "@/lib/demo/data";
+
+// Demo day x hour sessions (Monday-first, 4-week sums): evening peaks on
+// weekdays, a flatter midday weekend and the classic Sunday-evening bump.
+const DEMO_WEEKDAY = [6, 3, 2, 1, 1, 2, 5, 11, 16, 19, 20, 21, 22, 21, 20, 21, 24, 29, 36, 44, 48, 45, 33, 16];
+const DEMO_WEEKEND = [9, 5, 3, 2, 1, 1, 3, 6, 11, 17, 22, 25, 26, 25, 23, 22, 23, 25, 28, 31, 32, 28, 20, 12];
+const DEMO_ACTIVITY = [1.0, 1.12, 1.1, 0.98, 0.82, 0.7, 0.88].map((k, d) =>
+  (d < 5 ? DEMO_WEEKDAY : DEMO_WEEKEND).map((v, h) =>
+    Math.round(v * k * 6 * (d === 6 && h >= 19 && h <= 22 ? 1.4 : 1) + ((d * 7 + h * 3) % 5))
+  )
+);
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +49,7 @@ export default function DemoFullWitryna({
       </div>
       <EngagementMetrics engagement={w.engagement} lang={lang} />
       <SessionsTrend trend={w.sessionsTrend} lang={lang} />
+      {en ? null : <ActivityHeatmap data={buildActivityHeatmap(DEMO_ACTIVITY)} />}
       <div className="grid gap-6 lg:grid-cols-2">
         <TopPages pages={w.topPages} lang={lang} />
         <NewVsReturning data={w.newVsReturning} lang={lang} />

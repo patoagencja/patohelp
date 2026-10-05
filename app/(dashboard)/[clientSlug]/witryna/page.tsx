@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Globe } from "lucide-react";
 
+import { ActivityHeatmap } from "@/components/dashboard/website/activity-heatmap";
 import { Audience } from "@/components/dashboard/website/audience";
 import { Devices } from "@/components/dashboard/website/devices";
 import { EngagementMetrics } from "@/components/dashboard/website/engagement-metrics";
@@ -8,6 +9,7 @@ import { NewVsReturning } from "@/components/dashboard/website/new-vs-returning"
 import { SessionsTrend } from "@/components/dashboard/website/sessions-trend";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
+import { getActivityHeatmap } from "@/lib/dashboard/activity";
 import { getDemographics } from "@/lib/dashboard/demographics";
 import { getGa4Status, getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import { createClient } from "@/lib/supabase/server";
@@ -31,9 +33,10 @@ export default async function WebsitePage({
     redirect("/login");
   }
 
-  const [data, demographics] = await Promise.all([
+  const [data, demographics, activity] = await Promise.all([
     getWebsiteData(client.id),
     getDemographics(client.id),
+    getActivityHeatmap(client.id),
   ]);
 
   if (!data.hasData) {
@@ -113,6 +116,8 @@ export default async function WebsitePage({
       <EngagementMetrics engagement={data.engagement} />
 
       <SessionsTrend trend={data.sessionsTrend} />
+
+      <ActivityHeatmap data={activity} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <TopPages pages={data.topPages} />
