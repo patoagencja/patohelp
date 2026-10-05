@@ -51,7 +51,7 @@ export async function generateEcomAnalysis(
     max_tokens: 3000,
     tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }],
     system:
-      "Jesteś analitykiem e-commerce w polskiej agencji marketingowej (patoagencja). Analizujesz dane sprzedażowe klienta i łączysz je z realiami rynku/branży. Piszesz po polsku, konkretnie, bez lania wody i bez długich myślników.",
+      "Jesteś analitykiem e-commerce w polskiej agencji marketingowej (patoagencja). Analizujesz dane sprzedażowe klienta i łączysz je z realiami rynku/branży. Piszesz po polsku, konkretnie, bez lania wody i bez długich myślników. Czyta to właściciel sklepu lub zarząd bez wiedzy marketingowej: zamiast ROAS pisz \"ile złotych sprzedaży przynosi 1 zł reklam\", bez skrótów (CTR, CPC, AOV, CR) i angielskich terminów.",
     messages: [
       {
         role: "user",
@@ -67,7 +67,7 @@ ZADANIE:
 2) Wskaż PEAKI w JEGO danych (dni/okresy z wyraźnie wyższą sprzedażą) i co mogło je wywołać.
 3) Opisz SEZONOWOŚĆ tej branży w Polsce - kiedy zwykle są szczyty sprzedaży (święta, sezony, wydarzenia) i co się zbliża.
 4) Dodaj krótko aktualne TRENDY RYNKOWE dla tej branży (poszukaj w sieci - świeże informacje).
-5) Daj 3-5 konkretnych REKOMENDACJI pod nadchodzące szczyty i optymalizację ROAS.
+5) Daj 3-5 konkretnych REKOMENDACJI pod nadchodzące szczyty i to, żeby każda złotówka reklam przynosiła więcej sprzedaży.
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON (bez markdown):
 {"headline":"...","performance":"...","peaks":[{"label":"...","note":"..."}],"seasonality":"...","market":"...","recommendations":["...","..."]}`,
