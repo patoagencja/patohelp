@@ -24,11 +24,10 @@ import {
   getEvents,
   getLatestSummary,
 } from "@/lib/dashboard/overview";
+import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDailyScore } from "@/lib/dashboard/score";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { isAgencyUser, type UserRole } from "@/lib/types";
 
 import { setMonthlyBudget } from "./actions";
 
@@ -41,80 +40,59 @@ export default async function OverviewPage({
   params: { clientSlug: string };
   searchParams: { range?: string; from?: string; to?: string };
 }) {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
-
+  const [viewer, client] = await Promise.all([
+    getViewer(),
+    getClientBySlug(params.clientSlug),
+  ]);
   if (!client) {
     redirect("/login");
   }
-
-  // client_type is optional until migration 0016 runs - fetch defensively so a
-  // missing column never breaks the page (which would loop back to /login).
-  let clientType = "engagement";
-  {
-    const { data: ct } = await supabase
-      .from("clients")
-      .select("client_type")
-      .eq("id", client.id)
-      .maybeSingle();
-    if (ct && (ct as { client_type?: string }).client_type) {
-      clientType = (ct as { client_type: string }).client_type;
-    }
-  }
-
-  const { data: profile } = user
-    ? await supabase.from("users").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
+  const isAgency = viewer.isAgency;
+  const clientType = client.clientType;
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const data = await getDashboardData(client.id, range, custom);
+
+  // Campaign rings (gamification) are DRE-only for now.
+  const isDre = params.clientSlug === "dre";
 
   // Live anomaly digest (same engine as the Alerty tab): budget spikes first.
-  const { data: notif } = await createAdminClient()
+  // The spike detector needs the client's caps, so chain just those two.
+  const spikesPromise = createAdminClient()
     .from("notification_settings")
     .select(
       "daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     )
     .eq("client_id", client.id)
-    .maybeSingle();
-  const budgetConfig: BudgetConfig = {
-    campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
-    accountCap:
-      (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
-    multiplier:
-      notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
-        ? Number(notif.spike_multiplier)
-        : 3,
-  };
+    .maybeSingle()
+    .then(({ data: notif }) => {
+      const budgetConfig: BudgetConfig = {
+        campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
+        accountCap:
+          (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
+        multiplier:
+          notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
+            ? Number(notif.spike_multiplier)
+            : 3,
+      };
+      return detectBudgetSpikes(client.id, undefined, budgetConfig);
+    });
 
-  // Campaign rings (gamification) are DRE-only for now.
-  const isDre = params.clientSlug === "dre";
+  const data = await getDashboardData(client.id, range, custom);
 
-  const [budget, summary, events, spikes, anomalies, pacing, score] =
+  const [budget, summary, events, spikes, anomalies, pacing, score, monthPacing] =
     await Promise.all([
       getBudgetStatus(client.id),
       getLatestSummary(client.id),
       getEvents(client.id, data.rangeStart, data.rangeEnd),
-      detectBudgetSpikes(client.id, undefined, budgetConfig),
+      spikesPromise,
       detectAnomalies(client.id),
       isDre ? getPacing(client.id) : Promise.resolve([] as PacingFlight[]),
       getDailyScore(client.id),
+      // E-commerce: "where will this month land" belongs on the first screen.
+      clientType === "ecommerce" ? getMonthPacing(client.id) : Promise.resolve(null),
     ]);
   const digest: Anomaly[] = [...spikes, ...anomalies];
-  // E-commerce: "where will this month land" belongs on the first screen.
-  const monthPacing =
-    clientType === "ecommerce" ? await getMonthPacing(client.id) : null;
 
   return (
     <div className="space-y-6 p-6">

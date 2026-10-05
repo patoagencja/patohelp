@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+
+import { SYNC_CHECK_EVENT } from "@/components/dashboard/auto-refresh";
 
 // Fires the SAME per-client sync as the "Odśwież" button, automatically: once
 // when the dashboard is opened (if it hasn't run in the last hour) and then
@@ -15,7 +16,6 @@ export function AutoSync({
   clientSlug: string;
   intervalMinutes?: number;
 }) {
-  const router = useRouter();
   const running = useRef(false);
 
   useEffect(() => {
@@ -31,11 +31,12 @@ export function AutoSync({
           method: "POST",
           cache: "no-store",
         }).catch(() => {});
-        // Surface whatever landed; then a couple of delayed refreshes to catch
-        // jobs that finish in the background after the request returns.
-        router.refresh();
-        setTimeout(() => router.refresh(), 30_000);
-        setTimeout(() => router.refresh(), 90_000);
+        // The live indicator refreshes only if a new sync stamp landed, so
+        // nudging it is cheap; the delayed nudges catch background jobs.
+        const nudge = () => window.dispatchEvent(new Event(SYNC_CHECK_EVENT));
+        nudge();
+        setTimeout(nudge, 30_000);
+        setTimeout(nudge, 90_000);
       } finally {
         running.current = false;
       }
@@ -53,7 +54,7 @@ export function AutoSync({
 
     const id = setInterval(run, INTERVAL);
     return () => clearInterval(id);
-  }, [clientSlug, intervalMinutes, router]);
+  }, [clientSlug, intervalMinutes]);
 
   return null;
 }

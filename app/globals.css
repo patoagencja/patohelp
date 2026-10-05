@@ -194,3 +194,13 @@
     break-after: auto;
   }
 }
+
+/* While a date-range transition is in flight the old numbers stay on screen,
+   softly dimmed, instead of being swapped for a skeleton. */
+main {
+  transition: opacity 150ms ease;
+}
+[data-pending="true"] main {
+  opacity: 0.55;
+  pointer-events: none;
+}

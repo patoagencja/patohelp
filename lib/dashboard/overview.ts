@@ -202,33 +202,3 @@ export async function getEvents(
     eventType: e.event_type as string | null,
   }));
 }
-
-/** Human "updated X minutes ago" from the freshest successful sync. */
-export async function getLastSyncLabel(clientId: string): Promise<string | null> {
-  const supabase = createClient();
-  const { data } = await supabase
-    .from("sync_runs")
-    .select("finished_at")
-    .eq("client_id", clientId)
-    .eq("status", "success")
-    .not("finished_at", "is", null)
-    .order("finished_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!data?.finished_at) return null;
-
-  const minutes = Math.max(
-    0,
-    Math.round((Date.now() - new Date(data.finished_at).getTime()) / 60000)
-  );
-  if (minutes < 1) return "Zaktualizowano przed chwilą";
-  if (minutes < 60) return `Zaktualizowano ${minutes} min temu`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `Zaktualizowano ${hours} godz. temu`;
-  return `Zaktualizowano ${formatInTimeZone(
-    new Date(data.finished_at),
-    WARSAW_TZ,
-    "d.MM.yyyy HH:mm"
-  )}`;
-}

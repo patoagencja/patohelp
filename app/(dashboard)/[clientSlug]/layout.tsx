@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
 import { Toaster } from "sonner";
@@ -12,10 +13,15 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { getLastSyncLabel } from "@/lib/dashboard/overview";
+import {
+  getClientBySlug,
+  getLastSyncAt,
+  getViewer,
+} from "@/lib/dashboard/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { isAgencyUser, type UserRole } from "@/lib/types";
+
+import { getSyncStamp } from "./live-actions";
 
 // Server Action: sign out and return to the login screen.
 async function signOut() {
@@ -32,43 +38,28 @@ export default async function ClientDashboardLayout({
   children: React.ReactNode;
   params: { clientSlug: string };
 }) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Everything below is independent once we know who is asking - fetch it in
+  // one round instead of six sequential ones.
+  const [viewer, client] = await Promise.all([
+    getViewer(),
+    getClientBySlug(params.clientSlug),
+  ]);
+  const isAgency = viewer.isAgency;
+  const isEcommerce = client?.clientType === "ecommerce";
+  const user = viewer.email ? { email: viewer.email } : null;
 
-  const { data: profile } = user
-    ? await supabase.from("users").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
-
-  const lastSync = client ? await getLastSyncLabel(client.id) : null;
-
-  // E-commerce clients get an extra "Sprzedaż" tab. Defensive: the column
-  // arrives with migration 0016, so a missing column just means engagement.
-  let isEcommerce = false;
-  if (client) {
-    const { data: ct } = await supabase
-      .from("clients")
-      .select("client_type")
-      .eq("id", client.id)
-      .maybeSingle();
-    isEcommerce = (ct as { client_type?: string } | null)?.client_type === "ecommerce";
-  }
-
-  // Agency users get a client switcher in the sidebar.
-  const { data: allClients } = isAgency
-    ? await createAdminClient()
-        .from("clients")
-        .select("slug, name")
-        .order("name", { ascending: true })
-    : { data: null };
+  const [lastSyncAt, allClients] = await Promise.all([
+    client ? getLastSyncAt(client.id) : Promise.resolve(null),
+    // Agency users get a client switcher in the sidebar.
+    isAgency
+      ? createAdminClient()
+          .from("clients")
+          .select("slug, name")
+          .order("name", { ascending: true })
+          .then((r) => r.data)
+      : Promise.resolve(null),
+  ]);
+  const checkStamp = getSyncStamp.bind(null, params.clientSlug);
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -104,12 +95,7 @@ export default async function ClientDashboardLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {isAgency ? <AutoSync clientSlug={params.clientSlug} /> : null}
         <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-6 print:hidden">
-          <AutoRefresh />
-          {lastSync ? (
-            <span className="hidden text-xs text-muted-foreground sm:inline">
-              {lastSync}
-            </span>
-          ) : null}
+          <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
           <span className="flex-1" />
           <ThemeToggle />
           {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
@@ -138,11 +124,15 @@ export default async function ClientDashboardLayout({
 
         <main className="flex-1">
           {client ? (
-            <IntegrationHealthBanner
-              clientId={client.id}
-              clientSlug={params.clientSlug}
-              isAgency={isAgency}
-            />
+            // Health checks take a few queries per provider; never hold the
+            // page back for them.
+            <Suspense fallback={null}>
+              <IntegrationHealthBanner
+                clientId={client.id}
+                clientSlug={params.clientSlug}
+                isAgency={isAgency}
+              />
+            </Suspense>
           ) : null}
           {children}
         </main>

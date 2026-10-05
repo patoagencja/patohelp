@@ -30,6 +30,7 @@ import {
   getSeasonPlan,
   getYearOverYear,
 } from "@/lib/ecom/insights";
+import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import {
   getDashboardData,
@@ -38,8 +39,6 @@ import {
 } from "@/lib/dashboard/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
-import { createClient } from "@/lib/supabase/server";
-import { isAgencyUser, type UserRole } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -50,57 +49,39 @@ export default async function SprzedazPage({
   params: { clientSlug: string };
   searchParams: { range?: string; from?: string; to?: string };
 }) {
-  const supabase = createClient();
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
+  const [viewer, client] = await Promise.all([
+    getViewer(),
+    getClientBySlug(params.clientSlug),
+  ]);
   if (!client) redirect("/login");
-
   // Only for e-commerce clients.
-  const { data: ct } = await supabase
-    .from("clients")
-    .select("client_type")
-    .eq("id", client.id)
-    .maybeSingle();
-  if ((ct as { client_type?: string } | null)?.client_type !== "ecommerce") {
-    redirect(`/${params.clientSlug}`);
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("users").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
+  if (client.clientType !== "ecommerce") redirect(`/${params.clientSlug}`);
+  const isAgency = viewer.isAgency;
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const [data, website, settings, pacing, season, channels] = await Promise.all([
-    getDashboardData(client.id, range, custom),
-    getWebsiteData(client.id),
-    getEcomSettings(client.id),
-    getMonthPacing(client.id),
-    getSeasonPlan(client.id),
-    getChannelEfficiency(client.id),
-  ]);
+  const admin = createAdminClient();
+  const [data, website, settings, pacing, season, channels, cached, itemsProbe] =
+    await Promise.all([
+      getDashboardData(client.id, range, custom),
+      getWebsiteData(client.id),
+      getEcomSettings(client.id),
+      getMonthPacing(client.id),
+      getSeasonPlan(client.id),
+      getChannelEfficiency(client.id),
+      // Latest cached AI analysis (service-role read).
+      admin
+        .from("ecom_analyses")
+        .select("content, generated_at")
+        .eq("client_id", client.id)
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then((r) => r.data),
+      admin.from("ga4_items_daily").select("id").limit(1),
+    ]);
   const totalSessions = data.trend.reduce((a, p) => a + p.sessions, 0);
   const rangeSpend = data.kpis.spendMinorUnits.value;
-  // Same window last year (52-week aligned) - only used when it's well covered.
-  const yoy = await getYearOverYear(client.id, data.rangeStart, data.rangeEnd);
-
-  const admin = createAdminClient();
-
-  // Latest cached AI analysis (service-role read).
-  const { data: cached } = await admin
-    .from("ecom_analyses")
-    .select("content, generated_at")
-    .eq("client_id", client.id)
-    .order("generated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
   const analysis = (cached?.content as EcomAnalysis | undefined) ?? null;
 
   // Per-SKU sales for the selected range (table arrives with migration 0018 -
@@ -109,9 +90,10 @@ export default async function SprzedazPage({
   const rangeEnd = data.trend[data.trend.length - 1]?.date;
   let products: ProductRow[] = [];
   let itemsTableMissing = false;
+  // Same window last year (52-week aligned) - only used when it's well covered.
+  const yoyPromise = getYearOverYear(client.id, data.rangeStart, data.rangeEnd);
   if (rangeStart && rangeEnd) {
-    const probe = await admin.from("ga4_items_daily").select("id").limit(1);
-    if (probe.error) {
+    if (itemsProbe.error) {
       itemsTableMissing = true;
     } else {
       const itemRows = await fetchAll<Record<string, unknown>>((from, to) =>
@@ -144,6 +126,7 @@ export default async function SprzedazPage({
         .slice(0, 10);
     }
   }
+  const yoy = await yoyPromise;
 
   return (
     <div className="space-y-6 p-6">

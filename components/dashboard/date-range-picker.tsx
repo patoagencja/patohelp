@@ -1,14 +1,27 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CalendarDays, Loader2 } from "lucide-react";
 
 import { RANGE_KEYS, RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
+import { cn } from "@/lib/utils";
 
-// Native <select> for presets + an always-visible from/to GET form. The form
-// submits natively (no JS state, no conditional rendering), so a custom range
-// works even if hydration hiccups; filled from/to overrides the preset
-// server-side via parseCustomRange.
+const SHORT_LABELS: Record<RangeKey, string> = {
+  "7d": "7 dni",
+  "30d": "30 dni",
+  "90d": "90 dni",
+  month: "Ten miesiąc",
+  prev_month: "Poprzedni",
+};
+
+/**
+ * Segmented range switcher. Navigation runs in a transition, so the current
+ * screen stays put (dimmed via `data-pending` on <html>, see globals.css)
+ * while the new range streams in - no white flash, no skeleton jump. Chunk
+ * errors after a deploy are recovered by the route error boundary's reload.
+ * The custom range is still a real GET form, so it works before hydration.
+ */
 export function DateRangePicker({
   value,
   customFrom,
@@ -18,66 +31,134 @@ export function DateRangePicker({
   customFrom?: string;
   customTo?: string;
 }) {
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const hasCustom = Boolean(customFrom && customTo);
+  const [customOpen, setCustomOpen] = useState(hasCustom);
+  const [target, setTarget] = useState<string | null>(null);
 
-  function onPreset(next: string) {
+  useEffect(() => {
+    const root = document.documentElement;
+    if (pending) root.dataset.pending = "true";
+    else delete root.dataset.pending;
+    if (!pending) setTarget(null);
+    return () => {
+      delete root.dataset.pending;
+    };
+  }, [pending]);
+
+  function go(params: URLSearchParams) {
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
+  }
+
+  function onPreset(next: RangeKey) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("range", next);
     params.delete("from");
     params.delete("to");
-    // Full navigation (not router.push) so a fresh deploy can't trigger a
-    // ChunkLoadError mid-transition - always loads current assets.
-    window.location.assign(`${pathname}?${params.toString()}`);
+    setTarget(next);
+    setCustomOpen(false);
+    go(params);
   }
 
-  const hasCustom = Boolean(customFrom && customTo);
+  const active = hasCustom ? "custom" : value;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Custom from/to - plain GET form, submits natively. */}
-      <form method="get" action={pathname} className="flex items-center gap-1.5">
-        <input
-          type="date"
-          name="from"
-          defaultValue={customFrom ?? ""}
-          aria-label="Data od"
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
-        <span className="text-xs text-muted-foreground">-</span>
-        <input
-          type="date"
-          name="to"
-          defaultValue={customTo ?? ""}
-          aria-label="Data do"
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
+    <div className="flex flex-col items-stretch gap-2 sm:items-end">
+      <div
+        role="radiogroup"
+        aria-label="Zakres dat"
+        className="inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm"
+      >
+        {RANGE_KEYS.map((key) => {
+          const isActive = (target ?? active) === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              title={RANGE_LABELS[key]}
+              onClick={() => onPreset(key)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {pending && target === key ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              {SHORT_LABELS[key]}
+            </button>
+          );
+        })}
         <button
-          type="submit"
-          className="h-9 rounded-lg border border-border bg-card px-3 text-sm font-medium hover:bg-muted"
+          type="button"
+          role="radio"
+          aria-checked={active === "custom" && !target}
+          onClick={() => setCustomOpen((o) => !o)}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            active === "custom" && !target
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
         >
-          OK
+          <CalendarDays className="h-3.5 w-3.5" />
+          Własny
         </button>
-      </form>
-
-      <div className="relative w-44">
-        <select
-          value={hasCustom ? "custom" : value}
-          onChange={(e) => {
-            if (e.target.value !== "custom") onPreset(e.target.value);
-          }}
-          aria-label="Zakres dat"
-          className="w-full cursor-pointer appearance-none rounded-lg border border-border bg-card px-3 py-2 pr-9 text-sm font-medium outline-none focus:ring-2 focus:ring-ring"
-        >
-          {RANGE_KEYS.map((key) => (
-            <option key={key} value={key}>
-              {RANGE_LABELS[key]}
-            </option>
-          ))}
-          {hasCustom ? <option value="custom">Własny zakres</option> : null}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       </div>
+
+      {customOpen ? (
+        <form
+          method="get"
+          action={pathname}
+          onSubmit={(e) => {
+            const form = new FormData(e.currentTarget);
+            const from = String(form.get("from") ?? "");
+            const to = String(form.get("to") ?? "");
+            if (!from || !to) return; // let the browser show "required"
+            e.preventDefault();
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete("range");
+            params.set("from", from);
+            params.set("to", to);
+            setTarget("custom");
+            go(params);
+          }}
+          className="flex flex-wrap items-center gap-1.5 animate-in fade-in slide-in-from-top-1"
+        >
+          <input
+            type="date"
+            name="from"
+            required
+            defaultValue={customFrom ?? ""}
+            aria-label="Data od"
+            className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="text-xs text-muted-foreground">–</span>
+          <input
+            type="date"
+            name="to"
+            required
+            defaultValue={customTo ?? ""}
+            aria-label="Data do"
+            className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            type="submit"
+            className="h-9 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            Pokaż
+          </button>
+        </form>
+      ) : null}
     </div>
   );
 }
