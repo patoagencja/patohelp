@@ -78,7 +78,7 @@ export function TickerBar({ campaigns }: { campaigns: CampaignRow[] }) {
 
   return (
     <div
-      className="ticker-mask overflow-hidden rounded-xl border border-border/60 bg-card/60 py-2"
+      className="ticker-mask overflow-hidden rounded-xl print:hidden border border-border/60 bg-card/60 py-2"
       aria-label="Aktywne kampanie: wydatki i zmiana w ostatnich dniach"
       role="region"
     >

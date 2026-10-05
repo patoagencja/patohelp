@@ -5,6 +5,7 @@ import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
+import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsCard } from "@/components/dashboard/records-card";
 import { StoryHero } from "@/components/dashboard/story-hero";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
@@ -29,7 +30,9 @@ export default function DemoFullOverview({
   const d = getDemoDashboard(lang);
   return (
     <>
-      <div>
+      <PrintHeader clientName="lokalnepomidorki" periodLabel={d.rangeLabel} />
+      <div data-print-hide className="flex items-start justify-between gap-4">
+       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           {en ? "Hi 👋" : "Cześć 👋"}
         </h1>
@@ -38,6 +41,8 @@ export default function DemoFullOverview({
             ? "Campaign overview for lokalnepomidorki (demo view)."
             : "Przegląd kampanii lokalnepomidorki (widok demonstracyjny)."}
         </p>
+       </div>
+       <PrintButton />
       </div>
 
       {en ? null : (

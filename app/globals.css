@@ -251,3 +251,41 @@ html[data-present="true"] {
   margin-top: 2.5rem;
 }
 /* ===== End presentation mode ============================================ */
+
+/* ===== Print / "Pobierz PDF" =============================================
+   Boards get the overview as a PDF attachment. Chrome around the content
+   (navigation, toggles, the scrolling ticker) is meaningless on paper, and
+   cards must not be split across pages. Mark extra on-screen-only controls
+   with `data-print-hide`. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html {
+    font-size: 13px;
+  }
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  aside,
+  nav,
+  [data-present-hide],
+  [data-print-hide],
+  [role="radiogroup"],
+  [role="switch"] {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  main section,
+  main [class*="rounded-xl"],
+  main [class*="rounded-2xl"],
+  main [class*="rounded-tremor"] {
+    break-inside: avoid;
+  }
+}
+/* ===== End print ========================================================== */

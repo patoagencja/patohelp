@@ -11,6 +11,7 @@ import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
+import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsSection } from "@/components/dashboard/records-section";
 import { StoryHero } from "@/components/dashboard/story-hero";
 import { TickerBar } from "@/components/dashboard/ticker-bar";
@@ -107,18 +108,25 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <PrintHeader clientName={client.name} periodLabel={data.rangeLabel} />
+      <div
+        data-print-hide
+        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+      >
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cześć 👋</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Przegląd kampanii {client.name}
           </p>
         </div>
-        <DateRangePicker
-          value={range}
-          customFrom={custom?.start}
-          customTo={custom?.end}
-        />
+        <div className="flex items-start gap-2">
+          <PrintButton />
+          <DateRangePicker
+            value={range}
+            customFrom={custom?.start}
+            customTo={custom?.end}
+          />
+        </div>
       </div>
 
       <StoryHero
