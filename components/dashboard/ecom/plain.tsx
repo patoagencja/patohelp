@@ -1,7 +1,8 @@
+import { formatInTimeZone } from "date-fns-tz";
 import type { ReactNode } from "react";
 
 import { GLOSSARY } from "@/lib/dashboard/glossary";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberPL } from "@/lib/utils";
 
 // Shared plain-language pieces for the "Sprzedaż" tab. Shop owners show these
 // cards to their board, so every card opens with one sentence that says what
@@ -102,7 +103,7 @@ export function aboutPln(minorUnits: number): string {
   const zl = Math.abs(minorUnits) / 100;
   const step = zl >= 1_000_000 ? 10_000 : zl >= 10_000 ? 1_000 : zl >= 1_000 ? 100 : 1;
   const rounded = Math.round(zl / step) * step;
-  return `${rounded.toLocaleString("pl-PL")} zł`;
+  return `${formatNumberPL(rounded)}\u00a0zł`;
 }
 
 /** A ROAS-style ratio as money per 1 zł: 4.256 -> "4,26 zł". */
@@ -118,10 +119,30 @@ export function pctOf(ratio: number): string {
   return `${Math.round(ratio * 100).toLocaleString("pl-PL")}%`;
 }
 
-/** 0.0213 -> "2,1 na 100" - easier to picture than "2,13%". */
+/**
+ * 0.0213 -> "2,1 na 100" - easier to picture than "2,13%". Always one decimal
+ * so a column of these lines up ("0,8" / "1,9", never "0,78" next to "1,9").
+ */
 export function perHundred(ratio: number): string {
   const v = ratio * 100;
+  if (v > 0 && v < 0.05) return "<0,1 na 100";
   return `${v.toLocaleString("pl-PL", {
-    maximumFractionDigits: v < 1 ? 2 : 1,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
   })} na 100`;
+}
+
+/** Today's date in Warsaw as YYYY-MM-DD (the trend's date format). */
+export function todayWarsawIso(): string {
+  return formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+}
+
+/**
+ * Drops today's partial day from a daily series. Synced mid-day, today always
+ * looks like a collapse at the end of a curve, which a shop owner reads as
+ * "sales crashed" - so day-by-day visuals stop at yesterday.
+ */
+export function withoutToday<T extends { date: string }>(series: T[]): T[] {
+  const today = todayWarsawIso();
+  return series.filter((p) => p.date < today);
 }

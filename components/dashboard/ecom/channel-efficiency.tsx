@@ -18,9 +18,14 @@ import {
   pctOf,
   perHundred,
   Takeaway,
+  todayWarsawIso,
   zlPerZl,
   type TakeawayTone,
 } from "./plain";
+
+/** YYYY-MM-DD minus one day (UTC maths on a plain date - no DST surprises). */
+const dayBefore = (iso: string) =>
+  new Date(Date.parse(`${iso}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 
 /** Where the sale came from, phrased for a sentence ("przychodzi z ..."). */
 const FROM: Record<ChannelKey, string> = {
@@ -131,6 +136,7 @@ export function ChannelEfficiency({
   const rows = [...paid, ...unpaid];
   const takeaway = channelTakeaway(data, paid);
   const orders = data.rows.reduce((a, r) => a + r.transactions, 0);
+  const endsYesterday = data.windowEnd === dayBefore(todayWarsawIso());
 
   const clears = (r: ChannelRow) =>
     breakEven !== null && r.roas !== null ? r.roas >= breakEven : null;
@@ -151,15 +157,21 @@ export function ChannelEfficiency({
 
   return (
     <section className="rounded-xl border border-border bg-card p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="flex items-center gap-2 text-base font-semibold">
-          <Radio className="h-4 w-4 text-emerald-500" />
-          Które kanały sprzedają i ile to kosztuje
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          ostatnie 30 dni, do {dayLabelPl(data.windowEnd)}
-        </p>
-      </div>
+      <h3 className="flex items-center gap-2 text-base font-semibold">
+        <Radio className="h-4 w-4 shrink-0 text-emerald-500" />
+        Które kanały sprzedają i ile to kosztuje
+      </h3>
+      {/* This card always shows a fixed 30-day window (GA4's per-channel
+          snapshot), not the range picked at the top - say so, or its order
+          total looks like it contradicts the KPI tiles above. */}
+      <p className="mt-1 text-xs text-muted-foreground">
+        Okres:{" "}
+        <span className="font-medium text-foreground">
+          ostatnie 30 dni do {endsYesterday ? "wczoraj" : dayLabelPl(data.windowEnd)}
+        </span>
+        {endsYesterday ? ` (${dayLabelPl(data.windowEnd)})` : ""} - niezależnie od
+        zakresu wybranego u góry, więc sumy mogą się różnić od kafelków powyżej.
+      </p>
 
       <Takeaway tone={takeaway.tone} className="mt-3">
         {takeaway.text}
@@ -169,7 +181,9 @@ export function ChannelEfficiency({
         <>
           {/* Explanations live outside the scrolling table: an ⓘ bubble
               inside an overflow container would be clipped. */}
-          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
+          {/* Phones: one term per line - wrapped inline, the labels and their
+              ⓘ broke into a ragged mix of half-lines. */}
+          <div className="mt-4 flex flex-col items-start gap-1.5 text-xs sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
             <span className="text-muted-foreground">Jak czytać:</span>
             <MetricLabel
               name={ECOM_TERMS.roas.name}
@@ -207,7 +221,7 @@ export function ChannelEfficiency({
                       style={{ width: `${Math.max(r.share * 100, 1.5)}%` }}
                     />
                   </div>
-                  <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                  <span className="shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-muted-foreground">
                     {pctOf(r.share)} sprzedaży
                   </span>
                 </div>

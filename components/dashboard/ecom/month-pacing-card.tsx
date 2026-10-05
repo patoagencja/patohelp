@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Target, TrendingDown, TrendingUp } from "lucide-react";
 
 import { InfoTip, MetricLabel } from "@/components/dashboard/info-tip";
+import { plPlural } from "@/lib/dashboard/story";
 import type { MonthPacing } from "@/lib/ecom/insights";
 import { cn, formatPlnWhole, formatSignedPct } from "@/lib/utils";
 
@@ -174,9 +175,16 @@ export function MonthPacingCard({
               </span>
             ) : null}
           </p>
+          {/* "Pełne" on purpose: the count is finished days only (the same
+              days summed above), so day 6 of the month reads "5 pełnych dni",
+              with today's running total shown separately. */}
           <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-            {p.completeDays} z {p.daysInMonth} dni za nami
-            {p.todayRevenue > 0 ? ` · dziś do tej pory ${formatPlnWhole(p.todayRevenue)}` : ""}
+            {p.completeDays}{" "}
+            {plPlural(p.completeDays, "pełny dzień", "pełne dni", "pełnych dni")} z{" "}
+            {p.daysInMonth} za nami
+            {p.todayRevenue > 0
+              ? ` · dziś do tej pory ${formatPlnWhole(p.todayRevenue)} (doliczymy jutro)`
+              : ""}
           </p>
 
           {/* Actual (solid) vs forecast (ghost) against the goal marker. */}

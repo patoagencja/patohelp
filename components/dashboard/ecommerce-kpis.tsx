@@ -1,6 +1,7 @@
 import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
 import { ShoppingBag } from "lucide-react";
 
+import { ECOM_TERMS, withoutToday } from "@/components/dashboard/ecom/plain";
 import { MetricLabel } from "@/components/dashboard/info-tip";
 import {
   GLOSSARY,
@@ -45,6 +46,7 @@ function delta(kpi: Kpi) {
 
 function KpiTile({
   metric,
+  name,
   tone,
   value,
   kpi,
@@ -54,6 +56,8 @@ function KpiTile({
   thinBase = false,
 }: {
   metric: GlossaryKey;
+  /** Shorter label than the glossary's, where that one wraps in a tile. */
+  name?: string;
   tone: ChangeTone;
   value: string;
   kpi: Kpi;
@@ -69,8 +73,10 @@ function KpiTile({
   return (
     // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
     <Card className="transition-all focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md">
-      <Flex justifyContent="between" alignItems="start" className="gap-2">
-        <MetricLabel name={g.name} tag={g.short} explain={g.explain} />
+      {/* Fixed header height: a label that wraps to two lines in one tile
+          would otherwise push its value below the neighbours' values. */}
+      <Flex justifyContent="between" alignItems="start" className="gap-2 sm:min-h-[2.75rem]">
+        <MetricLabel name={name ?? g.name} tag={g.short} explain={g.explain} />
         {d ? (
           <BadgeDelta
             deltaType={d.deltaType}
@@ -158,7 +164,8 @@ export function EcommerceKpis({
       ? ratio(curRevenue / curTx, yoy.revenue / yoy.transactions)
       : null;
   const thinBase = data.transactions.previous < MIN_PREV_TRANSACTIONS;
-  const t = trend ?? [];
+  // Sparklines stop at yesterday: today's half-synced day reads as a crash.
+  const t = withoutToday(trend ?? []);
   const revSeries = t.map((p) => p.revenueMinorUnits / 100);
   const roasSeries = t.map((p) =>
     p.spendMinorUnits > 0 ? p.revenueMinorUnits / p.spendMinorUnits : 0
@@ -206,6 +213,7 @@ export function EcommerceKpis({
         />
         <KpiTile
           metric="aov"
+          name={ECOM_TERMS.aov.name}
           tone="amount"
           value={formatMoneyPLN(data.aovMinorUnits.value)}
           kpi={data.aovMinorUnits}

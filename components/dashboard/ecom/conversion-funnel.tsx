@@ -17,9 +17,30 @@ const pctText = (ratio: number) =>
     maximumFractionDigits: ratio < 0.01 ? 2 : 1,
   })}%`;
 
+/**
+ * Keeps the ⓘ glued to the label's last word: as a separate flex item it was
+ * left floating beside a two-line label on phones.
+ */
+function LabelWithTip({ label, explain }: { label: string; explain?: string }) {
+  if (!explain) return <>{label}</>;
+  const cut = label.lastIndexOf(" ");
+  const head = cut > 0 ? label.slice(0, cut + 1) : "";
+  const last = cut > 0 ? label.slice(cut + 1) : label;
+  return (
+    <>
+      {head}
+      <span className="whitespace-nowrap">
+        {last}
+        <InfoTip label={label} text={explain} className="ml-1 align-middle" />
+      </span>
+    </>
+  );
+}
+
 // From visit to purchase, with the data we track daily: visits -> engaged
-// visits (engagement rate applied) -> orders. Widths are on a log scale so the
-// orders bar stays visible next to thousands of visits.
+// visits (engagement rate applied) -> orders. Widths are linear shares of all
+// visits - a log scale made 1,6% of visits look like two thirds of the bar.
+// Tiny steps get a minimum sliver plus the printed % so they stay readable.
 export function ConversionFunnel({
   sessions,
   engagementRate, // percent 0-100
@@ -39,9 +60,8 @@ export function ConversionFunnel({
     },
     { label: "Zamówienia", value: transactions },
   ];
-  const max = Math.max(...steps.map((s) => s.value), 1);
-  const width = (v: number) =>
-    v <= 0 ? 4 : Math.max(8, Math.round((Math.log10(v + 1) / Math.log10(max + 1)) * 100));
+  const first = Math.max(steps[0].value, 1);
+  const share = (v: number) => Math.min(1, Math.max(0, v / first));
 
   const rate = sessions > 0 ? transactions / sessions : null;
   let takeaway: { text: string; tone: TakeawayTone };
@@ -80,7 +100,7 @@ export function ConversionFunnel({
           explain={ECOM_TERMS.cr.explain}
         />
         <span className="text-sm font-semibold tabular-nums">
-          {rate !== null ? `${perHundred(rate)} (${pctText(rate)})` : "—"}
+          {rate !== null ? perHundred(rate) : "—"}
         </span>
       </div>
 
@@ -90,19 +110,25 @@ export function ConversionFunnel({
           return (
             <div key={s.label}>
               <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-                  {s.label}
-                  {s.explain ? <InfoTip label={s.label} text={s.explain} /> : null}
+                <span className="min-w-0 text-sm text-muted-foreground">
+                  <LabelWithTip label={s.label} explain={s.explain} />
                 </span>
                 <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
                   {formatNumberPL(s.value)}
                 </span>
               </div>
-              <div className="h-7 w-full overflow-hidden rounded-lg bg-muted">
-                <div
-                  className={cn("h-full rounded-lg transition-all duration-700", colors[i])}
-                  style={{ width: `${width(s.value)}%` }}
-                />
+              <div className="flex items-center gap-2">
+                <div className="h-7 min-w-0 flex-1 overflow-hidden rounded-lg bg-muted">
+                  <div
+                    className={cn("h-full rounded-lg transition-all duration-700", colors[i])}
+                    style={{
+                      width: s.value > 0 ? `max(${share(s.value) * 100}%, 0.375rem)` : 0,
+                    }}
+                  />
+                </div>
+                <span className="w-12 shrink-0 text-right text-xs font-medium tabular-nums text-muted-foreground">
+                  {pctText(share(s.value))}
+                </span>
               </div>
               {i > 0 && prev > 0 ? (
                 <p className="mt-1 text-xs tabular-nums text-muted-foreground">
@@ -113,6 +139,9 @@ export function ConversionFunnel({
           );
         })}
       </div>
+      <p className="mt-4 text-[11px] text-muted-foreground">
+        Procent przy pasku to część wszystkich wizyt w sklepie.
+      </p>
     </Card>
   );
 }

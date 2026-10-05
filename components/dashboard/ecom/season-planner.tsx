@@ -4,7 +4,7 @@ import { CalendarClock, Flame, Lightbulb } from "lucide-react";
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { plPlural } from "@/lib/dashboard/story";
 import { dayLabelPl, type SeasonPlan } from "@/lib/ecom/insights";
-import { formatMultiple, formatPlnWhole } from "@/lib/utils";
+import { cn, formatMultiple, formatPlnWhole } from "@/lib/utils";
 
 import { aboutPln, ECOM_TERMS, pctOf, Takeaway, zlPerZl } from "./plain";
 
@@ -39,8 +39,8 @@ function seasonTakeaway(plan: SeasonPlan): string | null {
   } else if (ly?.novVsOct && Math.abs(ly.novVsOct - 1) >= 0.15) {
     fact =
       ly.novVsOct > 1
-        ? `rok temu listopad sprzedał ${formatMultiple(ly.novVsOct, 1)} tyle co październik`
-        : `rok temu listopad sprzedał mniej niż październik (${pctOf(ly.novVsOct)})`;
+        ? `rok temu w listopadzie sklep sprzedał ${formatMultiple(ly.novVsOct, 1)} tyle co w październiku`
+        : `rok temu w listopadzie sklep sprzedał mniej niż w październiku (${pctOf(ly.novVsOct)})`;
   } else if (ly?.novRevenue) {
     fact = `rok temu listopad przyniósł ok. ${aboutPln(ly.novRevenue)} sprzedaży`;
   } else if (!ly) {
@@ -91,13 +91,20 @@ export function SeasonPlanner({
             </p>
           </div>
         </div>
+        {/* Phones: the countdown wraps under the title, so it reads as one
+            left-aligned line ("52 dni do Black Friday") instead of a lone
+            right-aligned number. */}
         {next ? (
-          <div className="text-right">
+          <div className="flex items-baseline gap-2 sm:block sm:text-right">
             <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">
               {next.daysTo}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {plPlural(next.daysTo, "dzień", "dni", "dni")} do: {next.label}
+            <p className="text-xs text-muted-foreground sm:mt-1">
+              {next.daysTo === 0
+                ? `dni - dziś ${next.label}`
+                : `${plPlural(next.daysTo, "dzień", "dni", "dni")} do ${
+                    EVENT_GEN[next.key] ?? next.label
+                  }`}
             </p>
           </div>
         ) : null}
@@ -119,7 +126,7 @@ export function SeasonPlanner({
                 value={ly.novRevenue !== null ? formatPlnWhole(ly.novRevenue) : "brak danych"}
                 note={
                   ly.novVsOct
-                    ? `${formatMultiple(ly.novVsOct, 1)} tyle co październik`
+                    ? `${formatMultiple(ly.novVsOct, 1)} tyle co w październiku`
                     : undefined
                 }
               />
@@ -141,7 +148,10 @@ export function SeasonPlanner({
                 value={ly.bestDay ? formatPlnWhole(ly.bestDay.revenue) : "—"}
                 note={ly.bestDay ? dayLabelPl(ly.bestDay.date) : undefined}
               />
+              {/* Five tiles in a 2-column grid: the last spans both columns
+                  instead of leaving a hole next to it. */}
               <Stat
+                className="col-span-2"
                 label={`Reklamy w listopadzie ${ly.year}`}
                 value={formatPlnWhole(ly.novSpend)}
                 note={
@@ -169,15 +179,19 @@ export function SeasonPlanner({
               </p>
               <ul className="space-y-2">
                 {plan.events.map((e) => (
+                  // Always two lines on phones, always one row from sm up -
+                  // flex-wrap broke only the longest names, so rows differed.
                   <li
                     key={e.key}
-                    className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm"
+                    className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
                   >
                     <span className="min-w-0">
                       <span className="font-medium">{e.label}</span>{" "}
-                      <span className="text-muted-foreground">· {dayLabelPl(e.date)}</span>
+                      <span className="whitespace-nowrap text-muted-foreground">
+                        · {dayLabelPl(e.date)}
+                      </span>
                     </span>
-                    <span className="text-xs tabular-nums text-muted-foreground">
+                    <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                       {e.lastYearRevenue !== null
                         ? `rok temu tego dnia ${formatPlnWhole(e.lastYearRevenue)}`
                         : `za ${e.daysTo} ${plPlural(e.daysTo, "dzień", "dni", "dni")}`}
@@ -252,14 +266,16 @@ function Stat({
   value,
   note,
   explain,
+  className,
 }: {
   label: string;
   value: string;
   note?: string;
   explain?: string;
+  className?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-border/70 p-3">
+    <div className={cn("min-w-0 rounded-lg border border-border/70 p-3", className)}>
       <dt className="flex items-center gap-1 text-xs text-muted-foreground">
         {label}
         {explain ? <InfoTip label={label} text={explain} /> : null}

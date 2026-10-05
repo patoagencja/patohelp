@@ -6,16 +6,18 @@ import { InfoTip } from "@/components/dashboard/info-tip";
 import { describeChange } from "@/lib/dashboard/glossary";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
 import { dayMonthPL } from "@/lib/dashboard/story";
-import { cn, formatMoneyPLN } from "@/lib/utils";
+import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
-import { aboutPln, Takeaway } from "./plain";
+import { aboutPln, Takeaway, todayWarsawIso } from "./plain";
 
+// Non-breaking spaces: Recharts wraps axis ticks on plain spaces, which split
+// the top tick into "12 tys." / "zł" on two lines.
 const compactPln = (zl: number) => {
   if (Math.abs(zl) >= 1_000_000)
-    return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln zł`;
+    return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })}\u00a0mln\u00a0zł`;
   if (Math.abs(zl) >= 1_000)
-    return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 0 })} tys. zł`;
-  return `${Math.round(zl)} zł`;
+    return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 0 })}\u00a0tys.\u00a0zł`;
+  return `${formatNumberPL(zl)}\u00a0zł`;
 };
 
 function SummaryRow({
@@ -68,9 +70,16 @@ export function SalesOverview({
   const totalRev = trend.reduce((a, p) => a + p.revenueMinorUnits, 0);
   const totalSpend = trend.reduce((a, p) => a + p.spendMinorUnits, 0);
   const net = totalRev - totalSpend;
-  const daysWithRevenue = trend.filter((p) => p.revenueMinorUnits > 0).length;
-  const avgDaily = daysWithRevenue > 0 ? totalRev / daysWithRevenue : 0;
-  const best = trend.reduce<TrendPoint | null>(
+  // Totals above include today's orders so far (they match the KPI tiles);
+  // per-day figures and the curve use finished days only - a half-synced
+  // today would drag the average down and plunge the end of the chart.
+  const today = todayWarsawIso();
+  const fullDays = trend.filter((p) => p.date < today);
+  const todayPoint = trend.find((p) => p.date === today) ?? null;
+  const fullRev = fullDays.reduce((a, p) => a + p.revenueMinorUnits, 0);
+  const daysWithRevenue = fullDays.filter((p) => p.revenueMinorUnits > 0).length;
+  const avgDaily = daysWithRevenue > 0 ? fullRev / daysWithRevenue : 0;
+  const best = fullDays.reduce<TrendPoint | null>(
     (m, p) => (p.revenueMinorUnits > (m?.revenueMinorUnits ?? 0) ? p : m),
     null
   );
@@ -112,7 +121,7 @@ export function SalesOverview({
       : `Sklep sprzedał w tym okresie za ok. ${aboutPln(totalRev)}.`;
   }
 
-  const chart = trend.map((p) => {
+  const chart = fullDays.map((p) => {
     const [, month, day] = p.date.split("-");
     const ly = lyByDate.get(p.date);
     return {
@@ -194,11 +203,19 @@ export function SalesOverview({
             }
             colors={showLy ? ["emerald", "slate", "indigo"] : ["emerald", "indigo"]}
             valueFormatter={compactPln}
-            yAxisWidth={64}
+            yAxisWidth={76}
             showLegend
             showAnimation
             curveType="monotone"
           />
+          {todayPoint ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Wykres kończy się na wczoraj - dzisiejszy dzień jeszcze trwa (do tej
+              pory{" "}
+              <span className="tabular-nums">{formatPlnWhole(todayPoint.revenueMinorUnits)}</span>{" "}
+              sprzedaży), więc pokazalibyśmy fałszywy spadek.
+            </p>
+          ) : null}
         </div>
       </div>
     </Card>

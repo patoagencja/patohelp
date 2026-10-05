@@ -1,7 +1,8 @@
 import { Card } from "@tremor/react";
 import { Package } from "lucide-react";
 
-import { plPlural } from "@/lib/dashboard/story";
+import type { CSSProperties } from "react";
+
 import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import { aboutPln, pctOf, Takeaway } from "./plain";
@@ -30,13 +31,15 @@ function productsTakeaway(products: ProductRow[], totalRev: number): string | nu
   )} za ok. ${aboutPln(top.revenueMinorUnits)}`;
   // Shares are of the listed products only (top 10), so say exactly that.
   if (products.length >= 4 && top3 >= 0.6) {
-    return `${head} - a pierwsza trójka to aż ${pctOf(top3)} sprzedaży z tej listy.`;
+    return `${head} - a pierwsza trójka to aż ${pctOf(top3)} sprzedaży z top ${products.length}.`;
   }
-  return `${head} (${pctOf(share)} sprzedaży z tej listy).`;
+  return `${head} (${pctOf(share)} sprzedaży z top ${products.length}).`;
 }
 
 // Bestsellers for the selected range as a ranked list (not a table) so long
-// product names wrap instead of forcing a horizontal scroll on phones.
+// product names wrap instead of forcing a horizontal scroll on phones. The
+// card spans the full width; from lg the list flows into two columns (1-5,
+// 6-10) so ten rows don't make one very tall card.
 export function TopProducts({
   products,
   tableMissing,
@@ -44,7 +47,8 @@ export function TopProducts({
 }: {
   products: ProductRow[];
   tableMissing?: boolean;
-  /** Agency users get the technical setup hint; clients a plain note. */
+  /** Agency users get the technical setup hint and SKU codes; clients see
+   *  product names only (a code like "SW-MER-OVS-BEZ" means nothing to them). */
   isAgency?: boolean;
 }) {
   const title = (
@@ -95,6 +99,12 @@ export function TopProducts({
         </Takeaway>
       ) : null}
 
+      {products.length ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Procent przy produkcie = udział w sprzedaży top {products.length}.
+        </p>
+      ) : null}
+
       {products.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
           Google Analytics nie przekazał jeszcze sprzedaży w podziale na produkty dla
@@ -102,11 +112,23 @@ export function TopProducts({
           pierwszym pełnym pobraniu danych.
         </p>
       ) : (
-        <ol className="mt-4 divide-y divide-border/60">
+        <ol
+          className="mt-2 grid grid-cols-1 lg:grid-flow-col lg:grid-cols-2 lg:gap-x-10 lg:[grid-template-rows:repeat(var(--rows),auto)]"
+          style={{ "--rows": Math.ceil(products.length / 2) } as CSSProperties}
+        >
           {products.map((p, i) => {
             const share = totalRev > 0 ? p.revenueMinorUnits / totalRev : 0;
+            const rows = Math.ceil(products.length / 2);
             return (
-              <li key={`${p.itemId}:${p.itemName}`} className="flex gap-3 py-3">
+              <li
+                key={`${p.itemId}:${p.itemName}`}
+                className={cn(
+                  "flex gap-3 border-t border-border/60 py-3",
+                  i === 0 && "border-t-0",
+                  // First item of the second column starts it - no divider on top.
+                  i === rows && "lg:border-t-0"
+                )}
+              >
                 <span
                   className={cn(
                     "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
@@ -137,14 +159,16 @@ export function TopProducts({
                         style={{ width: `${Math.max(share * 100, 1.5)}%` }}
                       />
                     </div>
-                    <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                    <span
+                      className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
+                      title={`Udział w sprzedaży top ${products.length}`}
+                    >
                       {pctOf(share)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                    {formatNumberPL(p.quantity)}{" "}
-                    {plPlural(p.quantity, "sztuka", "sztuki", "sztuk")}
-                    {p.itemId && p.itemId !== p.itemName ? (
+                    {units(p.quantity)}
+                    {isAgency && p.itemId && p.itemId !== p.itemName ? (
                       <span className="break-all"> · kod {p.itemId}</span>
                     ) : null}
                   </p>
@@ -157,9 +181,7 @@ export function TopProducts({
 
       {products.length ? (
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Procenty to udział w sprzedaży {products.length}{" "}
-          {plPlural(products.length, "produktu", "produktów", "produktów")} z tej listy,
-          według Google Analytics.
+          Według Google Analytics, za wybrany okres.
         </p>
       ) : null}
     </Card>
