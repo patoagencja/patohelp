@@ -167,7 +167,7 @@ export function MobileNav({
 
       <nav
         aria-label="Nawigacja"
-        className="glass glass-blur fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom))] z-50 h-[70px] rounded-full p-[7px] md:hidden print:hidden"
+        className="glass glass-blur fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom))] z-50 h-[70px] rounded-full bg-[var(--tip)] bg-none p-[7px] md:hidden print:hidden"
       >
         <div className="relative grid h-full" style={{ gridTemplateColumns: `repeat(${slots}, minmax(0, 1fr))` }}>
           {/* The sliding "sel" pill: equal columns, so it moves by its own

@@ -6,7 +6,6 @@ import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { AlertsBell, HeaderMenu, SearchButton } from "@/components/dashboard/header-menu";
-import { Pill } from "@/components/ui/pill";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
 import { countAttentionAlerts } from "@/lib/alerts/current";
 import { DEMO_BRANDING, DEMO_MARK_URL } from "@/lib/demo/branding";
@@ -45,11 +44,10 @@ export default function DemoFullLayout({
       phoneBrand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_MARK_URL} className="h-6" />}
       live={<LiveStamp initialStamp={null} demo="Na żywo · dane przykładowe" textClassName="sr-only xl:not-sr-only xl:whitespace-nowrap" />}
       phoneLive={<LiveStamp initialStamp={null} demo="dane przykładowe" className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
+      // "Na żywo · dane przykładowe" marks the demo; no extra pill (the bar
+      // has no room for it next to PL/EN).
       extras={
         <>
-          <Pill tone="warning" className="hidden shrink-0 2xl:inline-flex" title="Dane przykładowe">
-            Demo
-          </Pill>
           <div className="hidden xl:block">
             <LangToggle />
           </div>

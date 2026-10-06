@@ -202,7 +202,7 @@ export function HeaderMenu({
           role="menu"
           aria-label="Więcej opcji"
           onKeyDown={onMenuKey}
-          className="glass-tip absolute right-0 top-full z-50 mt-3 max-h-[calc(100vh-6rem)] w-64 origin-top-right overflow-y-auto rounded-[22px] p-1.5 animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
+          className="glass-tip absolute right-0 top-full z-50 mt-3 !bg-popover/95 max-h-[calc(100vh-6rem)] w-64 origin-top-right overflow-y-auto rounded-[22px] p-1.5 animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
         >
           {email ? (
             <p className="truncate px-3 pb-2 pt-1.5 text-xs text-muted-foreground" title={email}>

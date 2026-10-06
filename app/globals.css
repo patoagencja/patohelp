@@ -1125,3 +1125,14 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     color: #111111;
   }
 }
+
+/* Paper never animates: entrance animations paused off-screen would print
+   in their "from" state. */
+@media print {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

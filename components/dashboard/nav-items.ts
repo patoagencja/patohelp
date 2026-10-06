@@ -38,9 +38,9 @@ export type NavGroup = {
 export const HELP_EVENT = "pato:help";
 
 /**
- * Single source of truth for the dashboard navigation (desktop sidebar, demo
- * sidebar, phone tab bar, header page title). Benchmark IA: four visible
- * places + "Więcej", the same five slots on desktop and phone.
+ * Single source of truth for the dashboard navigation (2026: the top bar's
+ * section pill via topNavItems(), the "…" menu, the phone tab bar + its
+ * "Więcej" sheet, the phone header's page name, the command palette).
  *
  *   engagement client: Przegląd · Reklamy · Strona www · Raporty · Więcej
  *   e-commerce client: Przegląd · Sprzedaż · Reklamy · Strona www · Więcej

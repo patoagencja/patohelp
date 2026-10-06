@@ -139,7 +139,7 @@ export async function IntegrationHealthBanner({
   const catchingUpNote = catchingUp.length ? (
     // v2: soft rounded notes inside the page gutters (same column as the
     // page), not full-bleed strips.
-    <div className="mx-4 mt-4 rounded-2xl bg-muted/70 px-4 py-3 text-sm text-muted-foreground sm:mx-6 sm:px-5 print:hidden">
+    <div className="mx-4 mt-4 rounded-[22px] bg-chip px-4 py-3 text-sm text-muted-foreground sm:mx-6 sm:px-5 print:hidden">
       {catchingUp.map((h) => (
         <p key={h.provider} className="flex items-start gap-2">
           <RefreshCw className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -158,7 +158,7 @@ export async function IntegrationHealthBanner({
     return (
       <>
       {catchingUpNote}
-      <div className="mx-4 mt-4 rounded-2xl bg-warning-soft px-4 py-3 text-sm text-warning sm:mx-6 sm:px-5 print:hidden">
+      <div className="mx-4 mt-4 rounded-[22px] bg-warning-soft px-4 py-3 text-sm text-warning sm:mx-6 sm:px-5 print:hidden">
         {upcoming.map((e) => (
           <p key={e.provider} className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -183,7 +183,7 @@ export async function IntegrationHealthBanner({
   return (
     <>
     {catchingUpNote}
-    <div role="status" className="mx-4 mt-4 rounded-2xl bg-warning-soft px-4 py-3.5 sm:mx-6 sm:px-5 print:hidden">
+    <div role="status" className="mx-4 mt-4 rounded-[22px] bg-warning-soft px-4 py-3.5 sm:mx-6 sm:px-5 print:hidden">
       <div className="flex items-start gap-3">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card text-warning shadow-card">
           <AlertTriangle className="h-3.5 w-3.5" aria-hidden />

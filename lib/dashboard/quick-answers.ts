@@ -49,7 +49,7 @@ function planAnswer(rows: PlanRow[]): QuickAnswer | null {
     behind.length === 0 && fast.length === 0
       ? "W tym tempie dowieziemy plan."
       : behind.length > 0
-        ? `Najbardziej odstaje: ${behind[0].label.replace(/\s*-\s*cel$/, "").toLowerCase()} - pracujemy nad tym.`
+        ? `Najbardziej odstaje: ${behind[0].label.replace(/\s*-\s*cel$/, "").toLowerCase()} - tu jest najwięcej do nadrobienia.`
         : "Budżet schodzi szybciej niż plan - pilnujemy dziennych limitów.";
   return {
     id: "plan",

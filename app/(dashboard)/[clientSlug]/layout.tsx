@@ -116,12 +116,22 @@ export default async function ClientDashboardLayout({
           }
         />
       }
-      live={<LiveStamp initialStamp={lastSyncAt} textClassName="sr-only xl:not-sr-only xl:whitespace-nowrap" />}
+      live={
+        <LiveStamp
+          initialStamp={lastSyncAt}
+          // Agency extras (switcher, Odśwież) need the room below 2xl.
+          textClassName={
+            isAgency
+              ? "sr-only 2xl:not-sr-only 2xl:whitespace-nowrap"
+              : "sr-only xl:not-sr-only xl:whitespace-nowrap"
+          }
+        />
+      }
       phoneLive={<LiveStamp initialStamp={lastSyncAt} className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
       extras={
         <>
           {isAgency && allClients && allClients.length > 1 ? (
-            <div className="hidden w-40 xl:block">
+            <div className="hidden w-40 2xl:block">
               <ClientSwitcher clients={allClients} current={params.clientSlug} />
             </div>
           ) : null}
