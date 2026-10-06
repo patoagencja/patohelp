@@ -49,7 +49,9 @@ export function GoalTargetFields({
   className,
 }: {
   campaignOptions: CampaignOption[];
-  /** null = ad set level not available yet (migration not run): hide it. */
+  /** null = ad set level not available yet (migration not run): the field
+   *  stays visible but disabled with the reason - an agency user who can't
+   *  see it at all has no way to tell "not built" from "not switched on". */
   adsetOptions: AdsetOption[] | null;
   fieldClass: string;
   labelClass: string;
@@ -104,7 +106,19 @@ export function GoalTargetFields({
         />
       </div>
 
-      {adsetOptions ? (
+      {!adsetOptions ? (
+        <div className={`flex min-w-0 flex-col gap-2 ${className ?? ""}`}>
+          <label htmlFor="goal-adset-off" className={labelClass}>
+            Zestaw reklam (opcjonalnie)
+          </label>
+          <select id="goal-adset-off" disabled aria-describedby="goal-adset-off-hint" className={fieldClass}>
+            <option>Cała kampania</option>
+          </select>
+          <span id="goal-adset-off-hint" className="text-xs text-ink-3">
+            Cele na poziomie zestawów włączą się po uruchomieniu migracji ALL_RECENT_3.sql w Supabase.
+          </span>
+        </div>
+      ) : (
         <div className={`flex min-w-0 flex-col gap-2 ${className ?? ""}`}>
           <label htmlFor="goal-adset" className={labelClass}>
             {adsetLabel}
@@ -124,10 +138,11 @@ export function GoalTargetFields({
           {noAdsets ? (
             <span id="goal-adset-hint" className="text-xs text-ink-3">
               Brak {google ? "grup" : "zestawów"} z wynikami w ostatnich 60 dniach - cel obejmie całą kampanię.
+              Świeżo po migracji? Dane zestawów dociągnie najbliższa synchronizacja (lub „Odśwież” u góry).
             </span>
           ) : null}
         </div>
-      ) : null}
+      )}
     </>
   );
 }
