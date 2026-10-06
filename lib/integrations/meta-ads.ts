@@ -232,7 +232,9 @@ export async function getAdsetInsights(
   adAccountId: string,
   since: string,
   until: string,
-  shouldStop: () => boolean = () => false
+  shouldStop: () => boolean = () => false,
+  /** Only this campaign's ad sets (the goal form's on-demand fetch). */
+  campaignId?: string
 ): Promise<MetaAdsetInsight[]> {
   const days = eachDay(since, until);
   const rows: MetaAdsetInsight[] = [];
@@ -247,6 +249,13 @@ export async function getAdsetInsights(
       level: "adset",
       time_increment: "1",
       time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
+      ...(campaignId
+        ? {
+            filtering: JSON.stringify([
+              { field: "campaign.id", operator: "IN", value: [campaignId] },
+            ]),
+          }
+        : {}),
       access_token: accessToken,
       limit: "500",
     });
@@ -256,6 +265,9 @@ export async function getAdsetInsights(
       guard += 1;
       const res = await fetch(body.paging.next, { cache: "no-store" });
       body = await res.json();
+      // A failed page used to end the loop silently with partial data.
+      const pageErr = (body as { error?: { message?: string } })?.error;
+      if (pageErr) throw new Error(pageErr.message ?? "Meta Graph API paging error");
       if (body?.data?.length) raw.push(...body.data);
       else break;
     }

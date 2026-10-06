@@ -245,9 +245,13 @@ export async function getAdGroupMetrics(
   customerId: string,
   since: string,
   until: string,
-  videoOnly = false
+  videoOnly = false,
+  /** Only this campaign's ad groups (the goal form's on-demand fetch). */
+  campaignId?: string
 ): Promise<GoogleAdGroupMetric[]> {
   const client = apiClient();
+  // Interpolated into GAQL: digits only.
+  const onlyCampaign = campaignId && /^\d+$/.test(campaignId) ? campaignId : null;
   const gaql = `
     SELECT
       campaign.id,
@@ -265,6 +269,7 @@ export async function getAdGroupMetrics(
       AND ad_group.status != 'REMOVED'
       AND metrics.impressions > 0
       ${videoOnly ? "AND campaign.advertising_channel_type = 'VIDEO'" : ""}
+      ${onlyCampaign ? `AND campaign.id = ${onlyCampaign}` : ""}
   `;
 
   const rows = await queryWithFallback(client, refreshToken, customerId, gaql);

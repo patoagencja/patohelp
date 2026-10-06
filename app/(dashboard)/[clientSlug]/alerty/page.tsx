@@ -21,6 +21,9 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+// The goal form's on-demand ad set fetch (a server action) runs under this
+// page's limit; the platform default is too short for a big account.
+export const maxDuration = 60;
 
 // Server actions are public POST endpoints: the form's <select>/<input type=
 // date> constraints don't bind a crafted request, so validate here.

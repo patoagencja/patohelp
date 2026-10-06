@@ -243,6 +243,7 @@ function FlightForm({
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
         <GoalTargetFields
+          clientSlug={clientSlug}
           campaignOptions={campaignOptions}
           adsetOptions={adsetOptions}
           fieldClass={FIELD}

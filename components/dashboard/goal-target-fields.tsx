@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
 
+import { fetchCampaignAdsets } from "@/app/(dashboard)/[clientSlug]/alerty/adset-actions";
 import { SearchCombobox, type ComboOption } from "@/components/dashboard/search-combobox";
 
 /**
@@ -42,12 +44,15 @@ function spendMeta(spend?: number): string | null {
 const campaignKey = (c: CampaignOption) => `${c.id}|||${c.name}|||${c.provider ?? ""}`;
 
 export function GoalTargetFields({
+  clientSlug,
   campaignOptions,
-  adsetOptions,
+  adsetOptions: initialAdsets,
   fieldClass,
   labelClass,
   className,
 }: {
+  /** For the on-demand ad set fetch; omitted (demo) hides that button. */
+  clientSlug?: string;
   campaignOptions: CampaignOption[];
   /** null = ad set level not available yet (migration not run): the field
    *  stays visible but disabled with the reason - an agency user who can't
@@ -59,6 +64,15 @@ export function GoalTargetFields({
 }) {
   const [campaign, setCampaign] = useState("");
   const [adset, setAdset] = useState("");
+  // Ad sets fetched on demand are merged in, so the picker fills without a
+  // page reload; null stays null (migration not run).
+  const [fetched, setFetched] = useState<AdsetOption[]>([]);
+  const [fetchNote, setFetchNote] = useState<string | null>(null);
+  const [fetching, startFetch] = useTransition();
+  const adsetOptions =
+    initialAdsets === null
+      ? null
+      : [...initialAdsets, ...fetched.filter((f) => !initialAdsets.some((a) => a.id === f.id))];
   const campaignId = campaign.split("|||")[0] ?? "";
   const selected = campaignOptions.find((c) => c.id === campaignId);
   const google = selected?.provider === "google_ads";
@@ -99,6 +113,7 @@ export function GoalTargetFields({
           onChange={(v) => {
             setCampaign(v);
             setAdset("");
+            setFetchNote(null);
           }}
           placeholder="Szukaj kampanii…"
           invalidText="Wybierz kampanię z listy."
@@ -136,10 +151,43 @@ export function GoalTargetFields({
             describedBy={noAdsets ? "goal-adset-hint" : undefined}
           />
           {noAdsets ? (
-            <span id="goal-adset-hint" className="text-xs text-ink-3">
-              Brak {google ? "grup" : "zestawów"} z wynikami w ostatnich 60 dniach - cel obejmie całą kampanię.
-              Świeżo po migracji? Dane zestawów dociągnie najbliższa synchronizacja (lub „Odśwież” u góry).
-            </span>
+            <div id="goal-adset-hint" className="flex flex-col items-start gap-2 text-xs text-ink-3">
+              <span>
+                {fetchNote ??
+                  `Nie mamy jeszcze ${google ? "grup reklam" : "zestawów"} tej kampanii - pobierz je teraz albo zostaw cel na całą kampanię.`}
+              </span>
+              {clientSlug && selected?.provider ? (
+                <button
+                  type="button"
+                  disabled={fetching}
+                  onClick={() =>
+                    startFetch(async () => {
+                      setFetchNote(null);
+                      const res = await fetchCampaignAdsets({
+                        clientSlug,
+                        campaignId,
+                        provider: selected.provider,
+                      });
+                      setFetched((prev) => [
+                        ...prev.filter((p) => p.campaignId !== campaignId),
+                        ...res.options,
+                      ]);
+                      if (res.error) setFetchNote(res.error);
+                    })
+                  }
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-chip px-4 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                >
+                  {fetching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" aria-hidden />
+                  )}
+                  {fetching
+                    ? `Pobieram ${google ? "grupy" : "zestawy"}…`
+                    : `Pobierz ${google ? "grupy reklam" : "zestawy"} tej kampanii`}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       )}

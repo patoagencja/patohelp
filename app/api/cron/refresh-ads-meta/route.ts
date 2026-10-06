@@ -9,7 +9,6 @@ import {
   extractConversions,
   getCampaignInsights,
 } from "@/lib/integrations/meta-ads";
-import { hasAdsetTable, syncMetaAdsets } from "@/lib/integrations/adset-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull Meta Ads campaign insights for yesterday+today into
@@ -21,11 +20,6 @@ export const maxDuration = 300;
 
 const WARSAW_TZ = "Europe/Warsaw";
 
-// Ad set sync (goals) is a side job: none starts after this much of the 300s
-// maxDuration, and a running one stops between slices/accounts at the cutoff,
-// so it can't get the function killed. Skipped work is retried next tick.
-const ADSET_START_BUDGET_MS = 200_000;
-const ADSET_STOP_MS = 250_000;
 
 interface MetaAccount {
   id: string;
@@ -96,7 +90,6 @@ export async function GET(request: Request) {
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
   let accountsFailed = 0;
-  const adsetJobs: Array<{ clientId: string; accessToken: string; accountIds: string[] }> = [];
 
   for (const integration of integrations ?? []) {
     const { data: run } = await admin
@@ -228,13 +221,6 @@ export async function GET(request: Request) {
         .eq("id", run?.id);
       integrationsProcessed += 1;
 
-      // Ad set level runs after EVERY client's campaign sync (below), like
-      // the Google snapshots: it must never delay or fail the main data.
-      adsetJobs.push({
-        clientId: integration.client_id as string,
-        accessToken: access_token,
-        accountIds: accounts.map((a) => a.id),
-      });
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ads-meta] integration failed", message);
@@ -249,33 +235,10 @@ export async function GET(request: Request) {
     }
   }
 
-  // Ad set daily rows for ad set goals (migration 0033; skipped until then).
-  let adsetsUpserted = 0;
-  const overBudget = () => Date.now() - startedAt > ADSET_STOP_MS;
-  if (adsetJobs.length > 0 && Date.now() - startedAt <= ADSET_START_BUDGET_MS) {
-    try {
-      if (await hasAdsetTable(admin)) {
-        for (const job of adsetJobs) {
-          if (Date.now() - startedAt > ADSET_START_BUDGET_MS) break;
-          adsetsUpserted += await syncMetaAdsets(
-            admin,
-            job.clientId,
-            job.accessToken,
-            job.accountIds,
-            overBudget
-          );
-        }
-      }
-    } catch (adsetErr) {
-      console.error("[cron/refresh-ads-meta] ad set sync failed", describeError(adsetErr));
-    }
-  }
-
   return NextResponse.json({
     ok: true,
     integrations_processed: integrationsProcessed,
     campaigns_upserted: campaignsUpserted,
-    adsets_upserted: adsetsUpserted,
     accounts_failed: accountsFailed,
   });
 }

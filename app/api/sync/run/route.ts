@@ -7,6 +7,7 @@ import { GET as refreshTiktok } from "@/app/api/cron/refresh-ads-tiktok/route";
 import { GET as refreshGa4 } from "@/app/api/cron/refresh-ga4/route";
 import { GET as refreshDemographics } from "@/app/api/cron/refresh-demographics/route";
 import { GET as refreshCreatives } from "@/app/api/cron/refresh-creatives-meta/route";
+import { GET as refreshAdsets } from "@/app/api/cron/refresh-adsets/route";
 
 // On-demand data refresh triggered from the dashboard (agency users only).
 // Runs each provider's refresh IN-PROCESS by calling the cron route handlers
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     ["refresh-ga4", refreshGa4],
     ["refresh-demographics", refreshDemographics],
     ["refresh-creatives-meta", refreshCreatives],
+    ["refresh-adsets", refreshAdsets],
   ];
 
   const results = await Promise.allSettled(

@@ -1,16 +1,19 @@
 import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
+import { decrypt } from "@/lib/integrations/encryption";
+import { describeError } from "@/lib/integrations/errors";
 import { getAdGroupMetrics } from "@/lib/integrations/google-ads";
 import { extractConversions, getAdsetInsights } from "@/lib/integrations/meta-ads";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Ad set (Meta) / ad group (Google) daily delivery into ads_adset_daily
- * (migration 0033), for ad set goals and the goal form's picker. A side job
- * of the ads crons: callers run it after the campaign-level sync, inside a
- * try/catch and only while their time budget allows, so it can never break
- * the main sync. Skipped entirely until the table exists.
+ * (migration 0033), for ad set goals and the goal form's picker. Runs in its
+ * own cron (refresh-adsets) and on demand from the goal form: as a side job
+ * of the campaign crons it never started on a big account (OLX), whose
+ * campaign backfill used up the whole time budget first. Skipped entirely
+ * until the table exists.
  */
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -49,7 +52,8 @@ export async function adsetSyncWindow(
   admin: AdminClient,
   clientId: string,
   provider: Provider,
-  now = new Date()
+  now = new Date(),
+  full = false
 ): Promise<{ since: string; until: string }> {
   const until = day(now);
   let since = day(subDays(now, BASE_DAYS - 1));
@@ -66,7 +70,7 @@ export async function adsetSyncWindow(
   if (earliest && earliest < since) since = earliest < floor ? floor : earliest;
 
   const hour = Number(formatInTimeZone(now, WARSAW_TZ, "H"));
-  if (hour === FULL_REFRESH_HOUR) return { since, until };
+  if (full || hour === FULL_REFRESH_HOUR) return { since, until };
 
   const { data: head } = await admin
     .from("ads_adset_daily")
@@ -94,22 +98,30 @@ async function upsertChunks(admin: AdminClient, rows: Record<string, unknown>[])
   return written;
 }
 
-/** Meta: ad set insights per selected account. Returns rows written. */
+export interface AdsetSyncResult {
+  written: number;
+  /** Human-readable failures (account + API message), for the form and logs. */
+  errors: string[];
+}
+
+/** Meta: ad set insights per selected account. */
 export async function syncMetaAdsets(
   admin: AdminClient,
   clientId: string,
   accessToken: string,
   accountIds: string[],
-  shouldStop: () => boolean
-): Promise<number> {
-  const { since, until } = await adsetSyncWindow(admin, clientId, "meta_ads");
-  let written = 0;
+  shouldStop: () => boolean,
+  campaignId?: string
+): Promise<AdsetSyncResult> {
+  // One campaign on demand: always the full window, it is a handful of calls.
+  const { since, until } = await adsetSyncWindow(admin, clientId, "meta_ads", new Date(), !!campaignId);
+  const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const accountId of accountIds) {
     if (shouldStop()) break;
     try {
-      const insights = await getAdsetInsights(accessToken, accountId, since, until, shouldStop);
+      const insights = await getAdsetInsights(accessToken, accountId, since, until, shouldStop, campaignId);
       const now = new Date().toISOString();
-      written += await upsertChunks(
+      result.written += await upsertChunks(
         admin,
         insights.map((r) => ({
           client_id: clientId,
@@ -130,22 +142,23 @@ export async function syncMetaAdsets(
       );
     } catch (err) {
       // One account failing must not stop the others (or the cron).
-      console.error(`[adset-sync] meta account ${accountId} failed`, (err as Error).message);
+      result.errors.push(`Meta ${accountId}: ${describeError(err)}`);
     }
   }
-  return written;
+  return result;
 }
 
-/** Google: ad group metrics per selected account. Returns rows written. */
+/** Google: ad group metrics per selected account. */
 export async function syncGoogleAdGroups(
   admin: AdminClient,
   clientId: string,
   refreshToken: string,
   accounts: Array<{ id: string; video_only?: boolean }>,
-  shouldStop: () => boolean
-): Promise<number> {
-  const { since, until } = await adsetSyncWindow(admin, clientId, "google_ads");
-  let written = 0;
+  shouldStop: () => boolean,
+  campaignId?: string
+): Promise<AdsetSyncResult> {
+  const { since, until } = await adsetSyncWindow(admin, clientId, "google_ads", new Date(), !!campaignId);
+  const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const account of accounts) {
     if (shouldStop()) break;
     try {
@@ -154,10 +167,11 @@ export async function syncGoogleAdGroups(
         account.id,
         since,
         until,
-        account.video_only === true
+        account.video_only === true,
+        campaignId
       );
       const now = new Date().toISOString();
-      written += await upsertChunks(
+      result.written += await upsertChunks(
         admin,
         metrics
           .filter((m) => m.ad_group_id)
@@ -179,8 +193,70 @@ export async function syncGoogleAdGroups(
           }))
       );
     } catch (err) {
-      console.error(`[adset-sync] google account ${account.id} failed`, (err as Error).message);
+      result.errors.push(`Google ${account.id}: ${describeError(err)}`);
     }
   }
-  return written;
+  return result;
+}
+
+interface StoredAccount {
+  id: string;
+  selected?: boolean;
+  video_only?: boolean;
+}
+
+/**
+ * Every selected Meta/Google account of one client (or one provider, or one
+ * campaign of it). Reads and decrypts the stored credentials itself so the
+ * cron and the goal form share one path.
+ */
+export async function syncAdsetsForClient(
+  admin: AdminClient,
+  clientId: string,
+  opts: { provider?: Provider; campaignId?: string; shouldStop?: () => boolean } = {}
+): Promise<AdsetSyncResult> {
+  const shouldStop = opts.shouldStop ?? (() => false);
+  const total: AdsetSyncResult = { written: 0, errors: [] };
+  const { data: integrations, error } = await admin
+    .from("integrations")
+    .select("provider, credentials_encrypted, account_ids")
+    .eq("client_id", clientId)
+    .in("provider", opts.provider ? [opts.provider] : ["meta_ads", "google_ads"]);
+  if (error) {
+    total.errors.push(error.message);
+    return total;
+  }
+  for (const integration of integrations ?? []) {
+    if (shouldStop()) break;
+    const accounts = ((integration.account_ids ?? []) as StoredAccount[]).filter(
+      (a) => a.selected === true
+    );
+    if (!accounts.length) continue;
+    try {
+      const creds = JSON.parse(decrypt(integration.credentials_encrypted as string));
+      const r =
+        integration.provider === "meta_ads"
+          ? await syncMetaAdsets(
+              admin,
+              clientId,
+              creds.access_token,
+              accounts.map((a) => a.id),
+              shouldStop,
+              opts.campaignId
+            )
+          : await syncGoogleAdGroups(
+              admin,
+              clientId,
+              creds.refresh_token,
+              accounts,
+              shouldStop,
+              opts.campaignId
+            );
+      total.written += r.written;
+      total.errors.push(...r.errors);
+    } catch (err) {
+      total.errors.push(`${integration.provider}: ${describeError(err)}`);
+    }
+  }
+  return total;
 }

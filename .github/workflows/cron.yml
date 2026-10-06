@@ -69,6 +69,27 @@ jobs:
             exit 1
           fi
 
+  # Ad set / ad group rows for ad set goals. Own job and own endpoint: it can
+  # take minutes on a big account and must never delay or redden data sync.
+  adsets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Ad set sync - best effort
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET missing"; exit 0; fi
+          code=$(curl -sS -m 290 -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/refresh-adsets" || echo "000")
+          echo "-> refresh-adsets: HTTP $code"
+          echo "   body: $(head -c 600 /tmp/body 2>/dev/null)"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+            echo "::warning::Ad set sync HTTP $code"
+          fi
+
   # SEPARATE JOB on purpose. These used to be a final step of `sync`, where a
   # slow data sync (8 endpoints x up to 90s x 2 attempts = up to 24 min) could
   # blow the 12-minute job timeout and kill the run BEFORE news ever ran - which
