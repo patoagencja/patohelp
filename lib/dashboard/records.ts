@@ -3,6 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
+import { formatNumberPL } from "@/lib/utils";
 
 // "Rekordy i kamienie milowe": deterministic, honest highlights computed from
 // data we already sync (ads_daily + GA4 daily totals). No external APIs, no AI.
@@ -144,7 +145,6 @@ function weekPl(weekStart: string, today: string): string {
 
 // ---- number / plural helpers ----
 
-const NUM = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 0 });
 const NUM_1 = new Intl.NumberFormat("pl-PL", { maximumFractionDigits: 1 });
 const PLN_2 = new Intl.NumberFormat("pl-PL", {
   style: "currency",
@@ -152,7 +152,9 @@ const PLN_2 = new Intl.NumberFormat("pl-PL", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-const fmtNum = (n: number) => NUM.format(Math.round(n));
+// Shared formatter: Intl pl-PL leaves 4-digit numbers ungrouped ("9412"), so
+// a record read "9412 wizyt" right above a KPI card showing "9 412".
+const fmtNum = (n: number) => formatNumberPL(n);
 const fmtPln = (grosze: number) => `${fmtNum(grosze / 100)} zł`;
 
 /** Polish noun forms: [1, 2-4 (not 12-14), 5+ / 12-14]. */
@@ -844,9 +846,13 @@ export function getCachedRecords(
   clientId: string,
   ecommerce: boolean
 ): Promise<RecordItem[]> {
+  // The Warsaw day is part of the key: records bake "today" into their text
+  // ("Ten tydzień ... jeszcze trwa", the current month), and a pre-midnight
+  // entry served for 3 more hours described the wrong day/week/month.
+  const today = todayWarsaw();
   return unstable_cache(
-    () => getRecords(clientId, { ecommerce }),
-    ["records-v1", clientId, ecommerce ? "ecom" : "eng"],
+    () => getRecords(clientId, { ecommerce, today }),
+    ["records-v1", clientId, ecommerce ? "ecom" : "eng", today],
     { revalidate: 3 * 3600 }
   )();
 }

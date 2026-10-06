@@ -15,6 +15,7 @@ import { StorySection } from "@/components/dashboard/ecom/story-section";
 import { TopProducts } from "@/components/dashboard/ecom/top-products";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { Devices } from "@/components/dashboard/website/devices";
+import { SNAPSHOT_30D_NOTE } from "@/components/dashboard/website/share-bars";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { normalizeRange, parseCustomRange } from "@/lib/dashboard/ranges";
 import { getDemoEcom, getDemoNewVsReturning } from "@/lib/demo/ecom";
@@ -99,7 +100,7 @@ export default function DemoSprzedazPage({
         {/* Stacked, not side by side: ten products next to five pages left
             a tall half-empty card. TopProducts splits into two columns itself. */}
         <TopProducts products={d.products} />
-        <TopPages pages={d.topPages} headingLevel={3} />
+        <TopPages pages={d.topPages} headingLevel={3} periodNote={SNAPSHOT_30D_NOTE} />
       </StorySection>
 
       <StorySection
@@ -117,7 +118,7 @@ export default function DemoSprzedazPage({
             engagementRate={d.engagementRate}
             transactions={d.ecommerce.transactions.value}
           />
-          <Devices devices={d.devices} headingLevel={3} />
+          <Devices devices={d.devices} headingLevel={3} periodNote={SNAPSHOT_30D_NOTE} />
         </div>
       </StorySection>
 

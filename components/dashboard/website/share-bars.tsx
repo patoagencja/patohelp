@@ -17,6 +17,13 @@ export interface ShareRow {
   barClass: string;
 }
 
+/**
+ * GA4 source/device/page breakdowns are a fixed 30-day snapshot, not the
+ * range picked on the page. Pages with a range picker (Sprzedaż) label them
+ * with this, or their counts appear to contradict the cards next to them.
+ */
+export const SNAPSHOT_30D_NOTE = "Ostatnie 30 dni - niezależnie od zakresu wybranego u góry";
+
 /** "6 na 10" style fraction - easier to picture than "58,3%". */
 export function outOfTen(share: number): string {
   const n = Math.round(share * 10);

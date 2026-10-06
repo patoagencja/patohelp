@@ -27,6 +27,7 @@ import {
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { Devices } from "@/components/dashboard/website/devices";
+import { SNAPSHOT_30D_NOTE } from "@/components/dashboard/website/share-bars";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import type { EcomAnalysis } from "@/lib/ecom/analysis";
 import {
@@ -49,10 +50,6 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { formatDateWarsaw } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-
-// GA4 page/device breakdowns are a fixed 30-day snapshot, not the picked
-// range - without this the device counts contradict the funnel next to them.
-const SNAPSHOT_30D_NOTE = "Ostatnie 30 dni - niezależnie od zakresu wybranego u góry";
 
 export default async function SprzedazPage({
   params,
