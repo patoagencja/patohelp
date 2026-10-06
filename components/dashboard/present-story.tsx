@@ -2,7 +2,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { pl } from "date-fns/locale";
 
 import type { PlanRow } from "@/components/dashboard/plan-card";
-import type { DashboardKpis } from "@/lib/dashboard/metrics";
+import type { DashboardKpis, Kpi } from "@/lib/dashboard/metrics";
 import type { AgencyWorkEntry } from "@/lib/dashboard/overview";
 import { plPlural, type Story } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
@@ -46,10 +46,15 @@ function d(delay: number): React.CSSProperties {
   return { "--d": `${delay}s` } as React.CSSProperties;
 }
 
-/** Percentage change, or null on a base too thin to say it honestly. */
-function change(value: number, previous: number, minBase: number): number | null {
-  if (value <= 0 || previous < minBase) return null;
-  return Math.round(((value - previous) / previous) * 100);
+/**
+ * Percentage change, or null on a base too thin to say it honestly. Uses the
+ * KPI's own deltaPercent: for a range ending today it compares finished days
+ * (metrics.ts kpiRate), so the slide agrees with the overview's story instead
+ * of reading the partial day as a drop.
+ */
+function change(kpi: Kpi, minBase: number): number | null {
+  if (kpi.value <= 0 || kpi.previous < minBase || kpi.deltaPercent === null) return null;
+  return Math.round(kpi.deltaPercent);
 }
 
 export function PresentStory({
@@ -84,7 +89,7 @@ export function PresentStory({
     {
       key: "clicks",
       label: "Kliknięcia",
-      pct: change(clicks, kpis.clicks.previous, 50),
+      pct: change(kpis.clicks, 50),
       now: clicks,
       prev: kpis.clicks.previous,
       line: `${group(clicks)} vs ${group(kpis.clicks.previous)}`,
@@ -94,7 +99,7 @@ export function PresentStory({
     {
       key: "sessions",
       label: "Wizyty na stronie",
-      pct: change(sessions, kpis.sessions.previous, 50),
+      pct: change(kpis.sessions, 50),
       now: sessions,
       prev: kpis.sessions.previous,
       line: `${group(sessions)} vs ${group(kpis.sessions.previous)}`,
@@ -104,7 +109,7 @@ export function PresentStory({
     {
       key: "cpc",
       label: "Koszt kliknięcia",
-      pct: clicks > 0 ? change(kpis.cpcMinorUnits.value, kpis.clicks.previous >= 50 ? kpis.cpcMinorUnits.previous : 0, 1) : null,
+      pct: clicks > 0 && kpis.clicks.previous >= 50 ? change(kpis.cpcMinorUnits, 1) : null,
       now: kpis.cpcMinorUnits.value,
       prev: kpis.cpcMinorUnits.previous,
       line: `${(kpis.cpcMinorUnits.value / 100).toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`,

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { generateEcomAnalysis, type DailyPoint } from "@/lib/ecom/analysis";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // Generate + cache the AI e-commerce analysis for a client. Agency only.
 export const dynamic = "force-dynamic";
@@ -76,12 +77,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: adsRows } = await admin
-    .from("ads_daily")
-    .select("date, spend_minor_units")
-    .eq("client_id", cid)
-    .gte("date", since)
-    .lte("date", today);
+  // Paginated: 90 days x every campaign passes PostgREST's silent 1000-row
+  // cap for any shop with a dozen campaigns, and the analysis then reasoned
+  // about a truncated spend (inflated ROAS). A failed read = no spend data.
+  const adsRows = await fetchAll<{ date: string; spend_minor_units: number | string }>(
+    (from, to) =>
+      admin
+        .from("ads_daily")
+        .select("date, spend_minor_units")
+        .eq("client_id", cid)
+        .gte("date", since)
+        .lte("date", today)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+  ).catch(() => []);
 
   const byDate = new Map<string, DailyPoint>();
   const get = (d: string) => {

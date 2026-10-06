@@ -54,6 +54,22 @@ interface DayMetrics {
 const avg = (n: number[]) => (n.length ? n.reduce((a, b) => a + b, 0) / n.length : 0);
 
 /**
+ * CTR of a set of days as a ratio of sums. The mean of daily CTRs counted
+ * every day without impressions (GA4-only days, paused weekends) as a 0% CTR
+ * and let a 30-impression day weigh as much as a 30 000 one, so "CTR o X%
+ * powyżej normy" moved with the calendar rather than the ads.
+ */
+const ctrOfDays = (days: DayMetrics[]) => {
+  let clicks = 0;
+  let impressions = 0;
+  for (const d of days) {
+    clicks += d.clicks;
+    impressions += d.impressions;
+  }
+  return impressions > 0 ? clicks / impressions : 0;
+};
+
+/**
  * Map a recent/baseline ratio to a 0-100 sub-score with a GENEROUS curve:
  * "normal" (ratio 1) lands at 78, improvement climbs fast, and a downturn is
  * cushioned (never below 45). This is what keeps the Puls looking healthy.
@@ -85,7 +101,7 @@ function windowScore(
   const winImpr = avg(win.map((d) => d.impressions));
   const winClicks = avg(win.map((d) => d.clicks));
   const winSessions = avg(win.map((d) => d.sessions));
-  const winCtr = avg(win.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0)));
+  const winCtr = ctrOfDays(win);
   const activeDays = win.filter((d) => d.impressions > 0 || d.sessions > 0).length;
 
   const ctrS = ratioScore(base.ctr > 0 ? winCtr / base.ctr : 1);
@@ -194,7 +210,7 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
   // window, so recent improvement reads as a ratio above 1.
   const baseDays = days.slice(0, Math.max(1, latestIdx - WINDOW + 1));
   const base = {
-    ctr: avg(baseDays.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0))),
+    ctr: ctrOfDays(baseDays),
     clicks: avg(baseDays.map((d) => d.clicks)),
     sessions: avg(baseDays.map((d) => d.sessions)),
     impressions: avg(baseDays.map((d) => d.impressions)),
@@ -218,7 +234,7 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
 
   // Factor deltas: recent 7-day window vs baseline.
   const win = days.slice(Math.max(0, latestIdx - WINDOW + 1), latestIdx + 1);
-  const winCtr = avg(win.map((d) => (d.impressions > 0 ? d.clicks / d.impressions : 0)));
+  const winCtr = ctrOfDays(win);
   const winSessions = avg(win.map((d) => d.sessions));
   const factors: ScoreFactor[] = [
     { key: "ctr", label: "CTR", deltaPct: pct(winCtr, base.ctr) },

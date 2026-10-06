@@ -188,6 +188,40 @@ function kpi(value: number, previous: number): Kpi {
   return { value, previous, deltaPercent };
 }
 
+/**
+ * Like kpi(), but the % compares like with like when the range ends today
+ * (or the two windows differ in length - then per-day rates, too).
+ * Today is a partial day (synced hourly) while the baseline's days are all
+ * complete, so raw totals read as a drop every morning: "Bieżący miesiąc" on
+ * the 2nd at 9:00 showed clicks "-60%" and the story claimed a slump. The
+ * change is then the per-day rate over the finished days vs the baseline's
+ * per-day rate; value/previous stay the real totals. `cmp` is null for a
+ * range that is only today (nothing finished to compare yet).
+ */
+function kpiRate(
+  value: number,
+  previous: number,
+  cmp: { value: number; days: number; prevDays: number } | null
+): Kpi {
+  if (!cmp) return kpi(value, previous);
+  if (cmp.days <= 0 || cmp.prevDays <= 0 || previous <= 0) {
+    return { value, previous, deltaPercent: null };
+  }
+  const rate = cmp.value / cmp.days;
+  const prevRate = previous / cmp.prevDays;
+  return { value, previous, deltaPercent: ((rate - prevRate) / prevRate) * 100 };
+}
+
+/** Ratio KPIs (CTR, CPC, ROAS, AOV): the % compares finished days only. */
+function kpiRatio(value: number, previous: number, cmpValue: number | null): Kpi {
+  if (cmpValue === null) return kpi(value, previous);
+  return {
+    value,
+    previous,
+    deltaPercent: previous > 0 ? ((cmpValue - previous) / previous) * 100 : null,
+  };
+}
+
 function ctrOf(clicks: number, impressions: number): number {
   return impressions > 0 ? (clicks / impressions) * 100 : 0;
 }
@@ -267,16 +301,20 @@ export function resolveDashboardRange(
   // A custom from/to overrides the preset; its baseline is the same-length
   // period immediately before it (for the vs-previous deltas).
   if (custom) {
-    const start = new Date(`${custom.start}T00:00:00`);
-    const end = new Date(`${custom.end}T00:00:00`);
+    // Days after today have no data yet: a range reaching into the future
+    // read as a collapse against its full baseline and drew empty days.
+    const endStr = custom.end > todayStr ? todayStr : custom.end;
+    const startStr = custom.start > endStr ? endStr : custom.start;
+    const start = new Date(`${startStr}T00:00:00`);
+    const end = new Date(`${endStr}T00:00:00`);
     const len = differenceInCalendarDays(end, start) + 1;
     const prevEnd = subDays(start, 1);
     return {
-      start: custom.start,
-      end: custom.end,
+      start: startStr,
+      end: endStr,
       prevStart: fmt(subDays(prevEnd, len - 1)),
       prevEnd: fmt(prevEnd),
-      label: `${custom.start} - ${custom.end}`,
+      label: `${startStr} - ${endStr}`,
       today: todayStr,
     };
   }
@@ -365,6 +403,9 @@ export async function getDashboardData(
   // --- KPI accumulators ---
   let curSpend = 0, curClicks = 0, curImpr = 0, curConv = 0;
   let prevSpend = 0, prevClicks = 0, prevImpr = 0, prevConv = 0;
+  // Today's share of the current totals (see kpiRate).
+  let todSpend = 0, todClicks = 0, todImpr = 0, todConv = 0;
+  let todSessions = 0, todRevenue = 0, todTransactions = 0;
 
   for (const row of rows) {
     const spend = Number(row.spend_minor_units);
@@ -377,6 +418,12 @@ export async function getDashboardData(
       curClicks += clicks;
       curImpr += impressions;
       curConv += conversions;
+      if (row.date === todayStr) {
+        todSpend += spend;
+        todClicks += clicks;
+        todImpr += impressions;
+        todConv += conversions;
+      }
     } else if (inPrev(row.date)) {
       prevSpend += spend;
       prevClicks += clicks;
@@ -401,6 +448,11 @@ export async function getDashboardData(
       curSessions += sessions;
       curRevenue += revenue;
       curTransactions += transactions;
+      if (row.date === todayStr) {
+        todSessions += sessions;
+        todRevenue += revenue;
+        todTransactions += transactions;
+      }
       if (row.engagement_rate != null) {
         curEngWeighted += sessions * Number(row.engagement_rate);
         curEngSessions += sessions;
@@ -421,13 +473,41 @@ export async function getDashboardData(
     }
   }
 
+  // Range ending today: compare the finished days only (kpiRate). Per-day
+  // rates also when the two windows differ in length: "Poprzedni miesiąc" in
+  // March put 28 February days against 31 January ones and called a flat
+  // month "o 10% mniej" (and a "Słabszy okres").
+  const dayCount = (a: string, b: string) =>
+    differenceInCalendarDays(new Date(`${b}T00:00:00`), new Date(`${a}T00:00:00`)) + 1;
+  const partialToday = range.end === todayStr;
+  const doneDays = dayCount(range.start, range.end) - (partialToday ? 1 : 0);
+  const prevDays = dayCount(range.prevStart, range.prevEnd);
+  const useRate = partialToday || doneDays !== prevDays;
+  const cmp = (cur: number, tod: number) =>
+    useRate ? { value: partialToday ? cur - tod : cur, days: doneDays, prevDays } : null;
+  // Ratios over finished days; NaN-free (null = no finished days yet).
+  const doneRatio = (f: () => number, base: number) =>
+    !partialToday ? null : doneDays > 0 && base > 0 ? f() : Number.NaN;
+  const ratioKpi = (value: number, previous: number, done: number | null) =>
+    done !== null && Number.isNaN(done)
+      ? { value, previous, deltaPercent: null }
+      : kpiRatio(value, previous, done);
+
   const kpis: DashboardKpis = {
-    spendMinorUnits: kpi(curSpend, prevSpend),
-    clicks: kpi(curClicks, prevClicks),
-    sessions: kpi(curSessions, prevSessions),
-    ctr: kpi(ctrOf(curClicks, curImpr), ctrOf(prevClicks, prevImpr)),
-    cpcMinorUnits: kpi(cpcOf(curSpend, curClicks), cpcOf(prevSpend, prevClicks)),
-    conversions: kpi(curConv, prevConv),
+    spendMinorUnits: kpiRate(curSpend, prevSpend, cmp(curSpend, todSpend)),
+    clicks: kpiRate(curClicks, prevClicks, cmp(curClicks, todClicks)),
+    sessions: kpiRate(curSessions, prevSessions, cmp(curSessions, todSessions)),
+    ctr: ratioKpi(
+      ctrOf(curClicks, curImpr),
+      ctrOf(prevClicks, prevImpr),
+      doneRatio(() => ctrOf(curClicks - todClicks, curImpr - todImpr), curImpr - todImpr)
+    ),
+    cpcMinorUnits: ratioKpi(
+      cpcOf(curSpend, curClicks),
+      cpcOf(prevSpend, prevClicks),
+      doneRatio(() => cpcOf(curSpend - todSpend, curClicks - todClicks), curClicks - todClicks)
+    ),
+    conversions: kpiRate(curConv, prevConv, cmp(curConv, todConv)),
   };
 
   // E-commerce KPIs (revenue from GA4; ROAS/AOV derived). Zero for engagement
@@ -435,16 +515,28 @@ export async function getDashboardData(
   const roasOf = (rev: number, spend: number) => (spend > 0 ? rev / spend : 0);
   const aovOf = (rev: number, tx: number) => (tx > 0 ? rev / tx : 0);
   const ecommerce = {
-    revenueMinorUnits: kpi(curRevenue, prevRevenue),
-    transactions: kpi(curTransactions, prevTransactions),
-    // ROAS as a ratio ×100 so the Kpi delta math works on a number; UI divides.
-    roas: kpi(
-      Math.round(roasOf(curRevenue, curSpend) * 100),
-      Math.round(roasOf(prevRevenue, prevSpend) * 100)
+    revenueMinorUnits: kpiRate(curRevenue, prevRevenue, cmp(curRevenue, todRevenue)),
+    transactions: kpiRate(
+      curTransactions,
+      prevTransactions,
+      cmp(curTransactions, todTransactions)
     ),
-    aovMinorUnits: kpi(
+    // ROAS as a ratio ×100 so the Kpi delta math works on a number; UI divides.
+    roas: ratioKpi(
+      Math.round(roasOf(curRevenue, curSpend) * 100),
+      Math.round(roasOf(prevRevenue, prevSpend) * 100),
+      doneRatio(
+        () => Math.round(roasOf(curRevenue - todRevenue, curSpend - todSpend) * 100),
+        curSpend - todSpend
+      )
+    ),
+    aovMinorUnits: ratioKpi(
       Math.round(aovOf(curRevenue, curTransactions)),
-      Math.round(aovOf(prevRevenue, prevTransactions))
+      Math.round(aovOf(prevRevenue, prevTransactions)),
+      doneRatio(
+        () => Math.round(aovOf(curRevenue - todRevenue, curTransactions - todTransactions)),
+        curTransactions - todTransactions
+      )
     ),
   };
 
@@ -538,6 +630,12 @@ export async function getDashboardData(
   // --- Campaigns with health status ---
   const sparkStart = fmt(subDays(endDate, 6));
   const recentStart = fmt(subDays(endDate, 1)); // last 2 days
+  // "Last 48 hours" only means now when the range reaches yesterday; in a
+  // past range (prev month, custom) a campaign that stopped before its end
+  // simply ended - flagging it critical with "w ostatnich 48 godzinach" was
+  // false for every campaign that finished mid-period.
+  const rangeIsCurrent =
+    range.end >= fmt(subDays(new Date(`${todayStr}T00:00:00`), 1));
   const clientAvgCtr = ctrOf(curClicks, curImpr);
   const clientAvgCpc = cpcOf(curSpend, curClicks);
 
@@ -617,8 +715,11 @@ export async function getDashboardData(
 
       if (isActive || c.earlierSpend > 0) {
         if (c.earlierSpend > 0 && c.recentImpressions === 0 && c.recentSpend === 0) {
-          status = "critical";
-          statusReason = "Brak wyświetleń w ostatnich 48 godzinach";
+          // Past range: it just ended within the period - stays "off".
+          if (rangeIsCurrent) {
+            status = "critical";
+            statusReason = "Brak wyświetleń w ostatnich 48 godzinach";
+          }
         } else if (cpc != null && clientAvgCpc > 0 && cpc > 3 * clientAvgCpc) {
           status = "critical";
           statusReason = "Koszt kliknięcia ponad 3× wyższy niż średnia konta";

@@ -104,7 +104,7 @@ function evaluateDay(params: {
   const reason = overCap
     ? `przekroczono limit dzienny (${formatMoneyPLN(cap!)})`
     : hasBaseline
-      ? `to ${(daySpend / m).toFixed(1)}x średniej dziennej (${formatMoneyPLN(
+      ? `to ${(daySpend / m).toFixed(1).replace(".", ",")}× średniej dziennej (${formatMoneyPLN(
           Math.round(m)
         )})`
       : `nagły wydatek przy braku historii`;

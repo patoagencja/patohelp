@@ -189,7 +189,7 @@ export async function GET(request: Request) {
             detail: `Realizacja ${(f.realizedPct * 100).toFixed(0)}% celu, ${Math.max(
               f.daysLeft,
               0
-            )} dni do końca.`,
+            )} ${f.daysLeft === 1 ? "dzień" : "dni"} do końca.`,
             scope: "Pacing",
           });
         }

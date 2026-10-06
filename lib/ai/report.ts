@@ -41,7 +41,9 @@ export async function generatePeriodReport(
     .slice(0, 5)
     .map(
       (c) =>
-        `- ${c.name} [${c.provider === "meta_ads" ? "Meta" : "Google"}]: ${pln(
+        `- ${c.name} [${
+          c.provider === "meta_ads" ? "Meta" : c.provider === "tiktok_ads" ? "TikTok" : "Google"
+        }]: ${pln(
           c.spendMinorUnits
         )}, ${c.clicks} kliknięć, CTR ${pct(c.ctr)}`
     );
@@ -69,7 +71,9 @@ export async function generatePeriodReport(
     "TOP 5 KAMPANII (wg wydatków):",
     ...topCampaigns,
     "",
-    "ŹRÓDŁA RUCHU (GA4):",
+    // The source breakdown is GA4's rolling 30-day snapshot, whatever the
+    // report period - say so, or the model presents it as the period's split.
+    "ŹRÓDŁA RUCHU (GA4, ostatnie 30 dni - nie ten sam okres co metryki wyżej):",
     ...sources,
   ].join("\n");
 

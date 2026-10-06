@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatInTimeZone } from "date-fns-tz";
 
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 import { createClient } from "@/lib/supabase/server";
@@ -45,6 +46,11 @@ export interface EngagementYoY {
   sessions: number | null;
   /** Aligned to the current period by day index. */
   series: YoYPoint[];
+  /**
+   * The current window ends today (a partial day), so "this year vs last"
+   * percentages should compare per-day rates over finished days (story.ts).
+   */
+  endsToday?: boolean;
 }
 
 const toTime = (s: string) => new Date(`${s}T00:00:00Z`).getTime();
@@ -180,7 +186,8 @@ export async function getEngagementYoY(
       const date = String(r.date).slice(0, 10);
       ga4.set(date, (ga4.get(date) ?? 0) + Number(r.sessions ?? 0));
     }
-    return buildEngagementYoY(start, end, ads, ga4);
+    const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+    return { ...buildEngagementYoY(start, end, ads, ga4), endsToday: end === today };
   } catch {
     return null;
   }

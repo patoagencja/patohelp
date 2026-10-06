@@ -54,7 +54,6 @@ import { buildHero, heroKicker } from "@/lib/dashboard/hero";
 import { buildQuickAnswers } from "@/lib/dashboard/quick-answers";
 import type { PlanRow } from "@/components/dashboard/plan-card";
 import type { AiSummary } from "@/lib/dashboard/overview";
-import { formatInTimeZone } from "date-fns-tz";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -182,7 +181,6 @@ export default async function OverviewPage({
     .filter((k): k is GlossaryKey => ["spend", "clicks", "sessions", "cpc"].includes(k));
 
   const hero = buildHero({ kpis: data.kpis, ecommerce: isEcommerce ? data.ecommerce : null });
-  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
 
   // Order (same as app/demo-full/page.tsx - keep in sync): hero (number,
   // sentence, status, range | AI card) -> KPI tiles + chart -> plan |
@@ -209,7 +207,9 @@ export default async function OverviewPage({
           periodLabel={data.rangeLabel}
           aiSummary={summary}
           hero={hero}
-          kicker={heroKicker(today, data.rangeLabel)}
+          // The period's own month: "Poprzedni miesiąc" opened in October
+          // read "Październik 2026 · poprzedni miesiąc".
+          kicker={heroKicker(data.rangeEnd, data.rangeLabel)}
           range={
             <DateRangePicker
               value={range}

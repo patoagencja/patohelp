@@ -76,8 +76,10 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
       },
       startAgo: 9,
       endIn: 11,
-      paceFrom: 0.95,
-      paceTo: 0.78,
+      // Plan counts finished days only (computePacing), so "behind" needs a
+      // pace clearly under 90% of plan.
+      paceFrom: 0.9,
+      paceTo: 0.65,
     },
     {
       def: {

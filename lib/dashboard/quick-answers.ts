@@ -43,11 +43,18 @@ function planAnswer(rows: PlanRow[]): QuickAnswer | null {
       r.marker !== null ? ` przy ${Math.round(r.marker)}% miesiąca` : "";
     return `${name}: ${Math.round(r.pct)}%${where} (${r.value}) - ${r.short ?? STATUS_WORDS[r.tone]}`;
   });
-  const behind = judged.filter((r) => r.tone === "warn");
+  // "Most behind" = the widest gap between where we are and the plan tick,
+  // not whichever row happens to come first.
+  const gap = (r: PlanRow) => (r.marker ?? r.pct) - r.pct;
+  const behind = judged.filter((r) => r.tone === "warn").sort((a, b) => gap(b) - gap(a));
   const fast = judged.filter((r) => r.tone === "bad");
+  // Neutral rows ("za mało danych") can't back a "we'll make it" promise.
+  const onPlan = judged.filter((r) => r.tone === "good");
   const verdict =
     behind.length === 0 && fast.length === 0
-      ? "W tym tempie dowieziemy plan."
+      ? onPlan.length > 0
+        ? "W tym tempie dowieziemy plan."
+        : "Za wcześnie, by ocenić tempo - wrócimy z tym za kilka dni."
       : behind.length > 0
         ? `Najbardziej odstaje: ${behind[0].label.replace(/\s*-\s*cel$/, "").toLowerCase()} - tu jest najwięcej do nadrobienia.`
         : "Budżet schodzi szybciej niż plan - pilnujemy dziennych limitów.";

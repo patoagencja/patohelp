@@ -170,9 +170,26 @@ const MIN_YOY = {
   impressions: 1_000,
 };
 
+/**
+ * When the period ends today, today's partial value and the day count: the
+ * % then compares the finished days' per-day rate with last year's (whose
+ * matching day is complete), like the period-over-period deltas do.
+ */
+type YoyPartial = { todayPart: number; days: number } | null;
+
 /** % change vs last year, or null when either side can't carry one. */
-function yoyPct(current: number, lastYear: number | null | undefined, min: number): number | null {
+function yoyPct(
+  current: number,
+  lastYear: number | null | undefined,
+  min: number,
+  partial: YoyPartial = null
+): number | null {
   if (lastYear == null || lastYear < min || current <= 0) return null;
+  if (partial && partial.days > 1) {
+    const rate = (current - partial.todayPart) / (partial.days - 1);
+    const lyRate = lastYear / partial.days;
+    return ((rate - lyRate) / lyRate) * 100;
+  }
   return ((current - lastYear) / lastYear) * 100;
 }
 
@@ -181,11 +198,12 @@ function yoyLine(
   current: number,
   lastYear: number | null | undefined,
   min: number,
-  format: (v: number) => string
+  format: (v: number) => string,
+  partial: YoyPartial = null
 ): string | undefined {
   // No last-year number, or nothing this period to compare it with.
   if (lastYear == null || lastYear <= 0 || current <= 0) return undefined;
-  const p = yoyPct(current, lastYear, min);
+  const p = yoyPct(current, lastYear, min, partial);
   return `rok temu: ${format(lastYear)}${p === null ? "" : ` (${formatSignedPct(p / 100)})`}`;
 }
 
@@ -212,6 +230,10 @@ export function buildStory({
   yoy?: EngagementYoY | null;
 }): Story {
   const impressions = trend.reduce((a, t) => a + t.impressions, 0);
+  // Today's partial day, when the YoY window ends today (see YoyPartial).
+  const lastPoint = yoy?.endsToday ? trend[trend.length - 1] : undefined;
+  const partialOf = (pick: (t: TrendPoint) => number): YoyPartial =>
+    lastPoint ? { todayPart: pick(lastPoint), days: trend.length } : null;
   const clicks = kpis.clicks.value;
   const sessions = kpis.sessions.value;
   const hasSessions = sessions > 0;
@@ -275,7 +297,7 @@ export function buildStory({
         value: formatCompactPL(sessions),
         caption: `${nounFor(sessions, "wizyta", "wizyty", "wizyt")} na stronie`,
         change: phraseChange(sessionsDelta, "more_is_good"),
-        yoy: yoyLine(sessions, yoy?.sessions, MIN_YOY.sessions, formatCompactPL),
+        yoy: yoyLine(sessions, yoy?.sessions, MIN_YOY.sessions, formatCompactPL, partialOf((t) => t.sessions)),
       });
     }
 
@@ -349,7 +371,7 @@ export function buildStory({
         caption: "wydane na reklamy",
         // More spend is neither good nor bad on its own - it's a decision.
         change: phraseChange(spendDelta, "neutral"),
-        yoy: yoyLine(spend, yoy?.spendMinorUnits, MIN_YOY.spend, formatPlnWhole),
+        yoy: yoyLine(spend, yoy?.spendMinorUnits, MIN_YOY.spend, formatPlnWhole, partialOf((t) => t.spendMinorUnits)),
       });
     } else if (impressions > 0) {
       facts.push({
@@ -357,7 +379,7 @@ export function buildStory({
         value: formatCompactPL(impressions),
         caption: `${nounFor(impressions, "wyświetlenie", "wyświetlenia", "wyświetleń")} reklam`,
         change: null,
-        yoy: yoyLine(impressions, yoy?.impressions, MIN_YOY.impressions, formatCompactPL),
+        yoy: yoyLine(impressions, yoy?.impressions, MIN_YOY.impressions, formatCompactPL, partialOf((t) => t.impressions)),
       });
     }
     if (clicks > 0 || impressions > 0) {
@@ -367,7 +389,7 @@ export function buildStory({
         caption: `${nounFor(clicks, "kliknięcie", "kliknięcia", "kliknięć")} w reklamy`,
         change: phraseChange(clicksDelta, "more_is_good"),
         hint: leadSpend && impressions > 0 ? `z ${impressionsText} reklam` : undefined,
-        yoy: yoyLine(clicks, yoy?.clicks, MIN_YOY.clicks, formatCompactPL),
+        yoy: yoyLine(clicks, yoy?.clicks, MIN_YOY.clicks, formatCompactPL, partialOf((t) => t.clicks)),
       });
     }
     if (hasSessions) {
@@ -377,7 +399,7 @@ export function buildStory({
         caption: `${nounFor(sessions, "wizyta", "wizyty", "wizyt")} na stronie`,
         change: phraseChange(sessionsDelta, "more_is_good"),
         hint: leadSpend ? "ze wszystkich źródeł, nie tylko z reklam" : undefined,
-        yoy: yoyLine(sessions, yoy?.sessions, MIN_YOY.sessions, formatCompactPL),
+        yoy: yoyLine(sessions, yoy?.sessions, MIN_YOY.sessions, formatCompactPL, partialOf((t) => t.sessions)),
       });
     }
     if (kpis.cpcMinorUnits.value > 0) {
@@ -409,8 +431,11 @@ export function buildStory({
 
   // A year-on-year jump is the strongest good news (seasonality can't explain
   // it away), so it leads. Visits first: they matter more than clicks.
-  const sessionsYoY = hasSessions ? yoyPct(sessions, yoy?.sessions, MIN_YOY.sessions) : null;
-  const clicksYoY = clicks > 0 ? yoyPct(clicks, yoy?.clicks, MIN_YOY.clicks) : null;
+  const sessionsYoY = hasSessions
+    ? yoyPct(sessions, yoy?.sessions, MIN_YOY.sessions, partialOf((t) => t.sessions))
+    : null;
+  const clicksYoY =
+    clicks > 0 ? yoyPct(clicks, yoy?.clicks, MIN_YOY.clicks, partialOf((t) => t.clicks)) : null;
   if (sessionsYoY !== null && sessionsYoY >= 10)
     wins.push(`Wizyt na stronie o ${Math.round(sessionsYoY)}% więcej niż rok temu.`);
   else if (clicksYoY !== null && clicksYoY >= 10)
@@ -514,7 +539,15 @@ export function overviewStatus(
   }
   if (story.facts.length === 0) return { tone: "neutral", text: "Czekamy na pierwsze dane" };
   const v = story.verdict;
-  if (!v || v.tone === "good") return { tone: "good", text: "Wszystko idzie dobrze" };
+  // No verdict = nothing comparable yet (new client, thin base). Then only a
+  // clean alert scan can vouch for the period; "Wszystko idzie dobrze" with
+  // neither a comparison nor a scan claimed something we didn't check.
+  if (!v) {
+    return alerts
+      ? { tone: "good", text: "Bez niepokojących sygnałów" }
+      : { tone: "neutral", text: "Za mało danych do porównania" };
+  }
+  if (v.tone === "good") return { tone: "good", text: "Wszystko idzie dobrze" };
   if (v.tone === "bad") return { tone: "warn", text: "Słabszy okres niż poprzedni" };
   // "flat" covers both "nothing changed" and "plusy i minusy".
   const mixed = story.facts.some((f) => f.change?.tone === "bad") || Boolean(story.watch);

@@ -490,6 +490,16 @@ export function MainChart({
   const compareModes: CompareMode[] = hasYoy ? ["prev", "yoy", "none"] : ["prev", "none"];
   const partialIdx = today && trend[n - 1]?.date === today ? n - 1 : -1;
   const isEmpty = n === 0 || total <= 0;
+  // % vs a baseline as per-day rates over finished days, the same basis as
+  // the KPI tiles (metrics.ts kpiRate): today's partial day read as a drop
+  // every morning, and a 28-day February "lost" to a 31-day January.
+  const doneTrend = partialIdx >= 0 ? trend.slice(0, partialIdx) : trend;
+  const pctVs = (baseTotalV: number, baseDays: number): number | null => {
+    if (doneTrend.length === 0 || baseDays <= 0 || baseTotalV <= 0) return null;
+    const doneTotal = totalOf(doneTrend, metric);
+    if (metric === "cpc" || metric === "roas") return ((doneTotal - baseTotalV) / baseTotalV) * 100;
+    return ((doneTotal / doneTrend.length) / (baseTotalV / baseDays) - 1) * 100;
+  };
   const prevPhrase = (() => {
     if (!hasPrev) return "";
     const contiguous =
@@ -513,18 +523,20 @@ export function MainChart({
     if (yoyBase < MIN_PREV_TOTAL[metric]) {
       takeawayTail = t.thinYoy;
     } else {
-      const pct = ((total - yoyTotal) / yoyTotal) * 100;
-      const abs = Math.round(Math.abs(pct));
-      takeawayTail = abs < 1 ? t.same(t.yoyPhrase) : t.delta(abs, pct > 0, t.yoyPhrase);
+      const pct = pctVs(yoyTotal, Math.min(n, yoyPts.length));
+      const abs = pct === null ? 0 : Math.round(Math.abs(pct));
+      takeawayTail =
+        pct === null ? t.thinYoy : abs < 1 ? t.same(t.yoyPhrase) : t.delta(abs, pct > 0, t.yoyPhrase);
     }
   } else if (!hasPrev) {
     takeawayTail = t.noPrev;
   } else if (baseTotal(prev, metric) < MIN_PREV_TOTAL[metric]) {
     takeawayTail = t.thinPrev;
   } else {
-    const pct = ((total - prevTotal) / prevTotal) * 100;
-    const abs = Math.round(Math.abs(pct));
-    takeawayTail = abs < 1 ? t.same(prevPhrase) : t.delta(abs, pct > 0, prevPhrase);
+    const pct = pctVs(prevTotal, prev.length);
+    const abs = pct === null ? 0 : Math.round(Math.abs(pct));
+    takeawayTail =
+      pct === null ? t.thinPrev : abs < 1 ? t.same(prevPhrase) : t.delta(abs, pct > 0, prevPhrase);
   }
 
   // --- Forecast (7 days, arithmetic) ---

@@ -33,7 +33,14 @@ export function parseCustomRange(
   to?: string | null
 ): CustomRange | null {
   if (!from || !to || !ISO_DATE.test(from) || !ISO_DATE.test(to)) return null;
-  if (Number.isNaN(Date.parse(from)) || Number.isNaN(Date.parse(to))) return null;
+  // Date.parse("2026-02-31") rolls over to 3 March instead of failing, and
+  // Postgres then rejects the literal (the whole page 500s): require the date
+  // to survive a round trip.
+  const real = (s: string) => {
+    const t = Date.parse(`${s}T00:00:00Z`);
+    return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s;
+  };
+  if (!real(from) || !real(to)) return null;
   if (from > to) return null;
   return { start: from, end: to };
 }

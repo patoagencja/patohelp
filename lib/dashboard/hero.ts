@@ -94,7 +94,7 @@ const MONTHS_NOM = [
   "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
 ];
 
-/** "Październik 2026 · ostatnie 30 dni" from today's Warsaw date + range. */
+/** "Październik 2026 · ostatnie 30 dni" from the period's last day + range. */
 export function heroKicker(todayIso: string, periodLabel: string): string {
   const [y, m] = todayIso.split("-").map(Number);
   const month = MONTHS_NOM[(m || 1) - 1];

@@ -103,7 +103,13 @@ export function computePacing(
   }
   const realized = daily.reduce((s, v) => s + v, 0);
 
-  const expectedPct = elapsed / totalDays;
+  // The linear plan counts finished days only: today is a partial day (the
+  // hourly sync has just a few hours of it), so counting it in full painted
+  // every goal "behind" in the morning - day 1 always, and "Nie dowozi"
+  // notifications went out for flights that were on plan. Realized keeps
+  // today's partial value, so a goal can only look better, never worse.
+  const completeDays = todayStr > end ? elapsed : Math.max(elapsed - 1, 0);
+  const expectedPct = completeDays / totalDays;
   const realizedPct = target > 0 ? realized / target : 0;
   const expectedValue = target * expectedPct;
   const paceRatio = expectedValue > 0 ? realized / expectedValue : null;

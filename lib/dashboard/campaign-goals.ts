@@ -76,7 +76,12 @@ export function buildGoalTiles(flights: PacingFlight[], todayStr: string): GoalT
       const daysRemaining = ended
         ? 0
         : differenceInCalendarDays(new Date(`${f.endDate}T00:00:00Z`), today) + 1;
-      const avgPerDay = f.elapsedDays > 0 ? f.realized / f.elapsedDays : 0;
+      // Pace from finished days only: today's few synced hours divided in as
+      // a whole day halved the "dotąd X dziennie" on day 2 and tipped goals on
+      // plan into "zagrożony" every morning.
+      const doneDays = ended ? f.elapsedDays : f.elapsedDays - 1;
+      const todayPart = ended ? 0 : f.daily[f.elapsedDays - 1] ?? 0;
+      const avgPerDay = doneDays > 0 ? (f.realized - todayPart) / doneDays : 0;
       const remaining = Math.max(f.target - f.realized, 0);
       const neededPerDay = !ended && remaining > 0 && daysRemaining > 0 ? remaining / daysRemaining : null;
 

@@ -312,8 +312,15 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
     engagement: {
       engagementRate,
       bounceRate: Math.max(0, 100 - engagementRate),
-      avgDailySessions:
-        sessionsTrend.length > 0 ? sessSum / sessionsTrend.length : 0,
+      // Finished days only: today's few synced hours pulled the average down.
+      avgDailySessions: (() => {
+        const done = sessionsTrend.filter((p) => p.date < todayStr);
+        return done.length > 0
+          ? done.reduce((a, p) => a + p.sessions, 0) / done.length
+          : sessionsTrend.length > 0
+            ? sessSum / sessionsTrend.length
+            : 0;
+      })(),
     },
     newVsReturning: {
       newUsers: Number(nvr?.users_new ?? 0),

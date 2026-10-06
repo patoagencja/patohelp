@@ -104,6 +104,10 @@ export async function generateWeeklySummary(
           .from("client_events")
           .select("event_date, title")
           .eq("client_id", clientId)
+          // Only what happened in the two compared weeks: older (or future)
+          // entries read as explanations for this week's numbers.
+          .gte("event_date", prevStart)
+          .lte("event_date", end)
           .order("event_date", { ascending: false })
           .limit(3);
       const visible = await base().eq("visible_to_client", true);

@@ -165,7 +165,11 @@ export async function detectAnomalies(
     });
   }
 
-  const ctrCh = change(ctr(clientRecent) ?? 0, ctr(clientBase) ?? 0);
+  // No impressions in the recent window means no CTR at all (ads paused or
+  // not synced), not "klikalność spadła do 0,00%" - the clicks/spend checks
+  // already speak for a stop.
+  const recentCtr = ctr(clientRecent);
+  const ctrCh = recentCtr === null ? null : change(recentCtr, ctr(clientBase) ?? 0);
   if (ctrCh !== null && ctrCh <= -0.3) {
     anomalies.push({
       id: "client-ctr-down",
@@ -219,15 +223,28 @@ export async function detectAnomalies(
   }
 
   // GA4 sessions
+  // Per day WITH a GA4 row: a day missing from ga4_daily is a sync gap (token
+  // expired, property switched), not zero visits - dividing it in as 0 told
+  // the client "Spadek ruchu -100%" while the site was fine.
   let ga4Recent = 0;
   let ga4Base = 0;
+  const recentDays = new Set<string>();
+  const baseDays = new Set<string>();
   for (const r of ga4Rows) {
     const d = r.date as string;
     const s = Number(r.sessions);
-    if (inRecent(d)) ga4Recent += s;
-    else if (inBase(d)) ga4Base += s;
+    if (inRecent(d)) {
+      ga4Recent += s;
+      recentDays.add(d);
+    } else if (inBase(d)) {
+      ga4Base += s;
+      baseDays.add(d);
+    }
   }
-  const sessCh = change(perDay(ga4Recent, RECENT_DAYS), perDay(ga4Base, BASE_DAYS));
+  const sessCh =
+    recentDays.size > 0 && baseDays.size > 0
+      ? change(perDay(ga4Recent, recentDays.size), perDay(ga4Base, baseDays.size))
+      : null;
   if (sessCh !== null && sessCh <= -0.4 && ga4Base > 0) {
     anomalies.push({
       id: "client-sessions-down",
@@ -285,7 +302,8 @@ export async function detectAnomalies(
       });
     }
 
-    const cctr = change(ctr(c.recent) ?? 0, ctr(c.base) ?? 0);
+    const campCtr = ctr(c.recent);
+    const cctr = campCtr === null ? null : change(campCtr, ctr(c.base) ?? 0);
     if (cctr !== null && cctr <= -0.4) {
       anomalies.push({
         id: `camp-${id}-ctr`,
