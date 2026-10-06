@@ -165,7 +165,7 @@ export default async function ClientsPage({
   await Promise.all(
     clientList.map(async (c) => {
       const [down, expiring] = await Promise.all([
-        getUnhealthyIntegrations(c.id as string),
+        getUnhealthyIntegrations(c.id as string).then((hs) => hs.filter((h) => !h.reconnected)),
         getExpiringTokens(c.id as string),
       ]);
       healthByClient.set(c.id as string, { down, expiring });

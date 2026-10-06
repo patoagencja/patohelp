@@ -1,6 +1,6 @@
 import { cache } from "react";
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 import {
   getExpiringTokens,
@@ -123,18 +123,39 @@ export async function IntegrationHealthBanner({
   clientSlug: string;
   isAgency?: boolean;
 }) {
-  const [unhealthy, expiring] = await Promise.all([
+  const [health, expiring] = await Promise.all([
     getUnhealthyForRequest(clientId),
     // Upcoming expiry is our housekeeping - clients don't need to see it.
     isAgency ? getExpiringTokens(clientId) : Promise.resolve([]),
   ]);
+  // Just reconnected: the failure is fixed, the data just hasn't arrived yet.
+  // Say that calmly instead of repeating the old "token wygasł".
+  const unhealthy = health.filter((h) => !h.reconnected);
+  const catchingUp = health.filter((h) => h.reconnected);
   const upcoming = expiring.filter(
-    (e) => !unhealthy.some((u) => u.provider === e.provider)
+    (e) => !health.some((u) => u.provider === e.provider)
   );
 
+  const catchingUpNote = catchingUp.length ? (
+    <div className="border-b border-hairline bg-muted/40 px-6 py-2 text-sm text-muted-foreground print:hidden">
+      {catchingUp.map((h) => (
+        <p key={h.provider} className="flex items-start gap-2">
+          <RefreshCw className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            <span className="font-medium text-foreground">{h.label}</span>: połączone
+            ponownie - brakujące dane dociągniemy przy najbliższej synchronizacji
+            (zwykle do 30 min).
+          </span>
+        </p>
+      ))}
+    </div>
+  ) : null;
+
   if (!unhealthy.length) {
-    if (!upcoming.length) return null;
+    if (!upcoming.length) return catchingUpNote;
     return (
+      <>
+      {catchingUpNote}
       <div className="border-b border-amber-500/30 bg-amber-500/5 px-6 py-2 text-sm text-amber-800 dark:text-amber-300/90 print:hidden">
         {upcoming.map((e) => (
           <p key={e.provider} className="flex items-start gap-2">
@@ -153,10 +174,13 @@ export async function IntegrationHealthBanner({
           </p>
         ))}
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    {catchingUpNote}
     <div className="border-b border-amber-500/30 bg-amber-500/10 px-6 py-3 print:hidden">
       <div className="flex items-start gap-2.5">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
@@ -184,5 +208,6 @@ export async function IntegrationHealthBanner({
         </div>
       </div>
     </div>
+    </>
   );
 }

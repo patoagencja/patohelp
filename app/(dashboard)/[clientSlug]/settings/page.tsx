@@ -284,6 +284,7 @@ export default async function SettingsPage({
   return (
     <div className="space-y-12 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       <ConnectedToast
+        clientSlug={params.clientSlug}
         connected={searchParams.connected}
         error={searchParams.error}
         saved={searchParams.saved}

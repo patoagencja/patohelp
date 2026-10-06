@@ -33,6 +33,9 @@ export interface ProviderHealth {
   /** Google token died ~7 days after it was granted: the OAuth app is almost
    *  certainly still in "Testing", which caps refresh tokens at 7 days. */
   testingModeSuspected: boolean;
+  /** Reconnected after the newest run: the old failure no longer applies and
+   *  the next sync (cron every 30 min) will pull the missing days. */
+  reconnected: boolean;
 }
 
 /** Stale threshold: crons run every 30 min, so 12h means genuinely broken. */
@@ -119,7 +122,18 @@ export async function getUnhealthyIntegrations(
           ? (Date.now() - new Date(lastAttemptAt).getTime()) / 3_600_000
           : null;
 
-        const failing = newest.status === "failed";
+        const connectedAt = integrations.find((i) => i.provider === provider)
+          ?.updated_at as string | undefined;
+        // Credentials saved after the newest run started: that run's error
+        // was about the old token. Without this the banner kept saying "token
+        // wygasł" right next to the "Połączono" toast until the next cron.
+        const reconnected =
+          !!connectedAt &&
+          !!newest.started_at &&
+          new Date(connectedAt).getTime() >
+            new Date(newest.started_at as string).getTime();
+
+        const failing = newest.status === "failed" && !reconnected;
         const stale =
           hoursSinceSuccess === null || hoursSinceSuccess > STALE_HOURS;
         if (!failing && !stale) return null;
@@ -131,8 +145,6 @@ export async function getUnhealthyIntegrations(
         // landed 6-8 days after the integration was (re)connected, that is the
         // signature - point at the permanent fix instead of another reconnect.
         let testingModeSuspected = false;
-        const connectedAt = integrations.find((i) => i.provider === provider)
-          ?.updated_at as string | undefined;
         if (
           tokenExpired &&
           (provider === "ga4" || provider === "google_ads") &&
@@ -158,6 +170,7 @@ export async function getUnhealthyIntegrations(
           // you already have.
           tokenExpired,
           testingModeSuspected,
+          reconnected,
         };
       })
     );

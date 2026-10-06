@@ -147,20 +147,35 @@ export async function GET(request: Request) {
         WARSAW_TZ,
         "yyyy-MM-dd"
       );
-      const { data: earliest } = await admin
-        .from("ga4_daily")
-        .select("date")
-        .eq("client_id", integration.client_id)
-        .is("source_medium", null)
-        .is("device_category", null)
-        .is("page_path", null)
-        .order("date", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      const dailyTotals = () =>
+        admin
+          .from("ga4_daily")
+          .select("date")
+          .eq("client_id", integration.client_id)
+          .is("source_medium", null)
+          .is("device_category", null)
+          .is("page_path", null);
+      const [{ data: earliest }, { data: latestBefore }] = await Promise.all([
+        dailyTotals().order("date", { ascending: true }).limit(1).maybeSingle(),
+        // Newest stored day before the window this run always refreshes.
+        dailyTotals()
+          .lt("date", since)
+          .order("date", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      // Resume from the last stored day: with only yesterday+today, the days
+      // an expired token was down were never pulled again after reconnecting
+      // and the charts showed zero traffic for them. Outages leave a gap at
+      // the end, so the tail is where to look (a mid-history scan would
+      // re-pull forever from any day the site truly had no visits).
+      const resumeFrom = (latestBefore?.date as string | undefined) ?? null;
       const dailyRange: DateRange =
-        earliest?.date && (earliest.date as string) <= backfillStart
-          ? range
-          : { startDate: backfillStart, endDate: until };
+        !earliest?.date || (earliest.date as string) > backfillStart
+          ? { startDate: backfillStart, endDate: until }
+          : resumeFrom && resumeFrom < since
+            ? { startDate: resumeFrom, endDate: until }
+            : range;
 
       // Dimension snapshots (sources/devices/pages/new-vs-returning) must cover
       // the whole 30-day period they represent in the report — not just
