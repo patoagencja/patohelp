@@ -85,22 +85,22 @@ export function OverviewDetails({
             return !v;
           });
         }}
-        className="group flex w-full items-center justify-between gap-3 rounded-card bg-card px-5 py-4 text-left shadow-card transition-shadow hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-6"
+        className="glass group flex w-full items-center justify-between gap-4 rounded-tile py-5 pl-6 pr-5 text-left transition-transform duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:hover:-translate-y-0.5 sm:py-[22px] sm:pl-7 sm:pr-[22px]"
       >
         <span className="min-w-0">
-          <span className="block text-base font-semibold text-foreground">
+          <span className="block text-[17px] font-medium text-foreground">
             {open ? "Ukryj szczegóły" : "Pokaż szczegóły"}
           </span>
           {summary ? (
-            <span className="mt-0.5 block text-sm text-muted-foreground">{summary}</span>
+            <span className="mt-1 block text-sm text-ink-3">{summary}</span>
           ) : null}
         </span>
         {/* Round chevron button; turns into the anchor pill on hover. */}
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-chip text-foreground transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
           <ChevronDown
             aria-hidden
             className={cn(
-              "h-4 w-4 transition-transform motion-reduce:transition-none",
+              "h-[18px] w-[18px] transition-transform motion-reduce:transition-none",
               open && "rotate-180"
             )}
           />

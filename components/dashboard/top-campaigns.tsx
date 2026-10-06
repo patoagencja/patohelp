@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
+import { Ping, type PingTone } from "@/components/ui/primitives";
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { AD_PROVIDER_LABEL } from "@/lib/types";
-import { cn, formatNumberPL, formatPercent, formatPlnWhole } from "@/lib/utils";
+import { cn, formatPercent, formatPlnWhole } from "@/lib/utils";
 
 const LIMIT = 5;
 
-// Status = a small coloured dot + the words (colour is never the only cue).
-const STATUS_DOT: Record<CampaignStatus, string> = {
-  active: "bg-lime ring-lime-soft",
-  attention: "bg-warning-fill ring-warning-soft",
-  critical: "bg-negative ring-negative-soft",
-  off: "bg-chart-muted ring-muted",
+// Status = a ping dot + the words (colour is never the only cue).
+const STATUS_PING: Record<CampaignStatus, PingTone> = {
+  active: "lime",
+  attention: "amber",
+  critical: "coral",
+  off: "muted",
 };
 
 const STATUS_LABEL: Record<CampaignStatus, string> = {
@@ -22,10 +23,23 @@ const STATUS_LABEL: Record<CampaignStatus, string> = {
   off: "Wstrzymana",
 };
 
+const SHARE_FILL: Record<CampaignStatus, string> = {
+  active: "share-fill",
+  attention: "share-fill-warn",
+  critical: "share-fill-bad",
+  off: "share-fill opacity-50",
+};
+
+// Name | share of spend | spend | CTR (Przeglad-pastel `.crow`). Phones keep
+// name + spend; the share bar joins from sm, CTR from md.
+const ROW =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(5rem,1fr)_6.5rem] sm:gap-x-[18px] md:grid-cols-[minmax(0,1.4fr)_minmax(7.5rem,1fr)_6.5rem_4.75rem]";
+
 /**
- * Top campaigns by spend - five rows, four columns, status first. The full,
- * sortable table lives on Reklamy; this answers "where does the money go and
- * is any of it in trouble?" at a glance. Phones keep name + spend only.
+ * "Gdzie idą pieniądze": the top campaigns by spend - status ping, platform
+ * tag, status words, a share-of-spend bar (lime; amber/coral when the
+ * campaign needs a look), spend and CTR. The full, sortable table lives on
+ * Reklamy ("Wszystkie N").
  */
 export function TopCampaigns({
   campaigns,
@@ -39,77 +53,94 @@ export function TopCampaigns({
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits)
     .slice(0, LIMIT);
   if (rows.length === 0) return null;
+  const total = campaigns.reduce((a, c) => a + Math.max(0, c.spendMinorUnits), 0);
+  const top = Math.max(1, rows[0].spendMinorUnits);
 
   return (
-    <section aria-labelledby="top-campaigns-heading" className="surface p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+    <section
+      aria-labelledby="top-campaigns-heading"
+      className="glass min-w-0 rounded-glass p-6 sm:p-7"
+    >
+      <div className="mb-2.5 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="top-campaigns-heading" className="text-section-title">
-            Najważniejsze kampanie
+          <p className="kick">Kampanie w tym okresie</p>
+          <h2 id="top-campaigns-heading" className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+            Gdzie idą pieniądze
           </h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Te z największymi wydatkami w tym okresie.
-          </p>
         </div>
         <Link
           href={allHref}
-          className="flex items-center gap-1 rounded-full bg-muted py-1.5 pl-3.5 pr-2.5 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-chip px-[18px] text-sm font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-[var(--chip-hover)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:active:scale-100"
         >
-          Wszystkie kampanie
-          <ArrowUpRight className="h-4 w-4" aria-hidden />
+          Wszystkie {campaigns.length}
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </div>
-      <table className="mt-4 w-full table-fixed text-sm">
+      <table className="w-full text-sm">
+        <caption className="sr-only">Kampanie z największymi wydatkami w tym okresie</caption>
         <thead>
-          <tr className="text-left text-xs text-muted-foreground">
-            <th scope="col" className="pb-2 font-medium">
+          <tr className={cn(ROW, "py-2")}>
+            <th scope="col" className="kick text-left text-[10.5px] font-normal">
               Kampania
             </th>
-            <th scope="col" className="w-28 pb-2 text-right font-medium sm:w-32">
+            <th scope="col" className="kick hidden text-left text-[10.5px] font-normal sm:block">
+              Udział w wydatkach
+            </th>
+            <th scope="col" className="kick text-right text-[10.5px] font-normal">
               Wydatki
             </th>
-            <th scope="col" className="hidden w-28 pb-2 text-right font-medium sm:table-cell">
-              Kliknięcia
-            </th>
-            <th scope="col" className="hidden w-24 pb-2 text-right font-medium sm:table-cell">
+            <th scope="col" className="kick hidden text-right text-[10.5px] font-normal md:block">
               Klikalność
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border border-t border-border">
-          {rows.map((c) => (
-            <tr key={`${c.provider}-${c.campaignId}`}>
-              <td className="py-3.5 pr-3">
-                <span className="block truncate font-medium" title={c.name}>
-                  {c.name}
-                </span>
-                <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
-                  <span className="rounded-full bg-muted px-2 py-0.5 font-medium text-foreground/80">
-                    {AD_PROVIDER_LABEL[c.provider]}
+        <tbody>
+          {rows.map((c, i) => {
+            const share = total > 0 ? (c.spendMinorUnits / total) * 100 : 0;
+            return (
+              <tr key={`${c.provider}-${c.campaignId}`} className={cn(ROW, "border-t border-line py-[15px]")}>
+                <td className="flex min-w-0 items-center gap-3">
+                  <Ping tone={STATUS_PING[c.status]} still={c.status === "off"} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[15px] font-medium" title={c.name}>
+                      {c.name}
+                    </span>
+                    <span className="mt-[5px] flex flex-wrap items-center gap-2">
+                      <span className="inline-flex h-[22px] items-center rounded-full bg-chip px-2 text-[11.5px] font-medium text-ink-2">
+                        {AD_PROVIDER_LABEL[c.provider]}
+                      </span>
+                      <span className="text-[12.5px] text-ink-2" title={c.statusReason ?? STATUS_LABEL[c.status]}>
+                        {STATUS_LABEL[c.status]}
+                      </span>
+                    </span>
                   </span>
-                  <span
-                    className="inline-flex items-center gap-1.5"
-                    title={c.statusReason ?? STATUS_LABEL[c.status]}
-                  >
+                </td>
+                <td className="hidden sm:block">
+                  <span className="sr-only">{Math.round(share)}% wydatków</span>
+                  <span aria-hidden className="relative block h-2 overflow-hidden rounded-full bg-chip">
                     <span
-                      className={cn("h-2 w-2 shrink-0 rounded-full ring-[3px]", STATUS_DOT[c.status])}
-                      aria-hidden
+                      className={cn(
+                        "absolute inset-y-0 left-0 origin-left rounded-full animate-grow",
+                        SHARE_FILL[c.status]
+                      )}
+                      style={
+                        {
+                          width: `${Math.max(2, (c.spendMinorUnits / top) * 100)}%`,
+                          "--d": `${0.8 + i * 0.1}s`,
+                        } as React.CSSProperties
+                      }
                     />
-                    {STATUS_LABEL[c.status]}
                   </span>
-                </span>
-              </td>
-              <td className="py-3.5 text-right text-[15px] font-medium tabular-nums">
-                {formatPlnWhole(c.spendMinorUnits)}
-              </td>
-              <td className="hidden py-3.5 text-right tabular-nums text-muted-foreground sm:table-cell">
-                {formatNumberPL(c.clicks)}
-              </td>
-              <td className="hidden py-3.5 text-right tabular-nums text-muted-foreground sm:table-cell">
-                {c.impressions > 0 ? formatPercent(c.ctr) : "-"}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="whitespace-nowrap text-right text-[15px] font-medium tabular-nums">
+                  {formatPlnWhole(c.spendMinorUnits)}
+                </td>
+                <td className="hidden text-right text-[15px] tabular-nums text-ink-2 md:block">
+                  {c.impressions > 0 ? formatPercent(c.ctr) : "-"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>

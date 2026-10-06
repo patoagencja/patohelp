@@ -2,59 +2,43 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  CircleCheck,
-  CircleMinus,
   Hourglass,
   Loader2,
   PartyPopper,
   Eye,
 } from "lucide-react";
 
-import { AiComment } from "@/components/dashboard/overview-ai-comment";
-import { Pill } from "@/components/ui/pill";
+import { OverviewAiCard } from "@/components/dashboard/overview-ai-card";
+import { CountUp } from "@/components/ui/count-up";
+import { StatusChip, type PingTone } from "@/components/ui/primitives";
 import type { Anomaly } from "@/lib/alerts/anomalies";
+import type { HeroFigures } from "@/lib/dashboard/hero";
 import type { AiSummary } from "@/lib/dashboard/overview";
 import type { OverviewStatus, Story } from "@/lib/dashboard/story";
-import { cn, formatDateWarsaw } from "@/lib/utils";
+import { cn, formatDateWarsaw, formatNumberPL } from "@/lib/utils";
 
 /** "2026-09-29" -> "29.09" (period dates are already Warsaw days). */
 const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
-const STATUS_TONE = {
-  good: "positive",
-  warn: "warning",
-  bad: "negative",
-  neutral: "neutral",
-} as const;
+const STATUS_PING: Record<OverviewStatus["tone"], PingTone> = {
+  good: "live",
+  warn: "amber",
+  bad: "coral",
+  neutral: "muted",
+};
 
-const STATUS_ICON = {
-  good: CircleCheck,
-  warn: AlertTriangle,
-  bad: AlertTriangle,
-  neutral: CircleMinus,
-} as const;
-
-/** The overview's single health signal. */
+/** The overview's single health signal: a chip with a ping dot + words. */
 export function StatusPill({ status }: { status: OverviewStatus | null }) {
   if (!status) {
     // Alerts are still streaming in: say so instead of guessing "all good".
     return (
-      <Pill tone="neutral" className="px-3 py-1 text-sm">
-        <Loader2 className="motion-safe:animate-spin" aria-hidden />
+      <span className="inline-flex min-h-[38px] items-center gap-2.5 rounded-full bg-chip pl-3 pr-4 text-sm font-medium text-ink-2">
+        <Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden />
         Sprawdzamy wyniki…
-      </Pill>
+      </span>
     );
   }
-  const Icon = STATUS_ICON[status.tone];
-  return (
-    <Pill
-      tone={STATUS_TONE[status.tone]}
-      className="px-3 py-1 text-sm font-semibold [&_svg]:size-4"
-    >
-      <Icon aria-hidden />
-      {status.text}
-    </Pill>
-  );
+  return <StatusChip tone={STATUS_PING[status.tone]}>{status.text}</StatusChip>;
 }
 
 /** Alerts worth a look (FYI-level ones stay on the Alerty page). */
@@ -81,7 +65,7 @@ export function AlertLine({ alerts, href }: { alerts: Anomaly[]; href: string })
     <Link
       href={href}
       className={cn(
-        "group mt-3 flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4",
+        "group flex min-h-14 items-center gap-3 rounded-[20px] py-2 pl-3.5 pr-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         urgent
           ? "bg-negative-soft hover:bg-negative-soft/70"
           : "bg-warning-soft hover:bg-warning-soft/70"
@@ -103,7 +87,7 @@ export function AlertLine({ alerts, href }: { alerts: Anomaly[]; href: string })
           <span className="text-muted-foreground"> · i jeszcze {more}</span>
         ) : null}
       </span>
-      <span className="flex shrink-0 items-center gap-1 rounded-full bg-card px-3 py-1 text-[13px] font-medium text-foreground shadow-sm transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
+      <span className="flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-card px-3.5 text-[13px] font-medium text-foreground shadow-sm transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
         <span className="hidden sm:inline">Zobacz</span>
         <ArrowRight className="h-3.5 w-3.5" aria-hidden />
       </span>
@@ -111,31 +95,26 @@ export function AlertLine({ alerts, href }: { alerts: Anomaly[]; href: string })
   );
 }
 
-// Numbers (with their unit) in the headline get full weight; the words
-// around them step back a little - the eye lands on the figures first.
-const FIGURE = /(\d[\d\u00a0\u202f ]*(?:[.,]\d+)?(?:\s?(?:zł|%|tys\.|mln))?)/g;
-
-function Headline({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(FIGURE).map((part, i) =>
-        i % 2 === 1 ? (
-          <span key={i} className="whitespace-nowrap text-foreground">
-            {part}
-          </span>
-        ) : (
-          part
-        )
-      )}
-    </>
-  );
+/** The weekly AI comment's text + meta line for <OverviewAiCard>. */
+export function aiSummaryForCard(aiSummary?: AiSummary | null): { text: string; meta: string } | null {
+  if (!aiSummary) return null;
+  return {
+    text: aiSummary.summaryText.replace(/[–—]/g, "-"),
+    // Its own fixed 7-day window, not the range above - say which days, or
+    // its numbers look like they contradict the tiles.
+    meta: `Komentarz tygodnia${
+      aiSummary.periodStart && aiSummary.periodEnd
+        ? ` · ${ddmm(aiSummary.periodStart)}–${ddmm(aiSummary.periodEnd)}`
+        : ""
+    } · ${formatDateWarsaw(aiSummary.generatedAt, "d MMM")}`,
+  };
 }
 
 /**
- * First block of the overview: the period in one plain sentence, ONE status
- * pill and the agency's weekly AI comment folded to two lines. The numbers
- * live in the KPI tiles right below, so this block never repeats them.
- * Keep aria-label: the guided tour points at it.
+ * The overview hero (Przeglad-pastel): left - mono kicker + status chip,
+ * the giant light-weight number (spend; revenue for shops) and one sentence
+ * with the figures that explain it, the date range; right - the glass AI
+ * card. Keep aria-label: the guided tour points at this section.
  */
 export function OverviewSummary({
   story,
@@ -143,6 +122,10 @@ export function OverviewSummary({
   aiSummary,
   status,
   alert,
+  hero,
+  kicker,
+  range,
+  ai,
 }: {
   story: Story;
   periodLabel: string;
@@ -151,49 +134,97 @@ export function OverviewSummary({
   status: React.ReactNode;
   /** <AlertLine> (streamed); renders nothing when there are no alerts. */
   alert?: React.ReactNode;
+  /** The giant number + sentence (lib/dashboard/hero.ts). */
+  hero?: HeroFigures | null;
+  /** Mono line above: "Październik 2026 · ostatnie 30 dni". */
+  kicker?: string;
+  /** Date range control (segmented) or the demo's period label. */
+  range?: React.ReactNode;
+  /** The AI card; defaults to the weekly comment without quick answers. */
+  ai?: React.ReactNode;
 }) {
   return (
     <section
       aria-label="Najważniejsze w skrócie"
-      // The period sits in the page header; screen readers get it here.
+      // The period is in the kicker; screen readers get it here too.
       aria-description={periodLabel}
-      className="surface p-5 sm:p-7"
+      className="flex flex-wrap items-stretch gap-7 pt-2 md:pt-6"
     >
-      <div className="flex flex-wrap items-center gap-2">{status}</div>
-      <p className="mt-4 max-w-4xl text-balance text-[1.375rem] font-semibold leading-snug tracking-[-0.02em] text-foreground/70 lg:text-[1.75rem] lg:leading-[1.25]">
-        <Headline text={story.headline} />
-      </p>
-
-      {story.facts.length === 0 && story.note ? (
-        // No data yet (first sync pending): a calm empty-state panel, not
-        // a row of zeros.
-        <div className="mt-5 flex max-w-2xl items-start gap-3 rounded-2xl bg-muted/60 p-4 sm:items-center">
-          <span
-            aria-hidden
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card"
+      <div className="flex min-w-0 flex-[1.25_1_32rem] flex-col justify-between gap-[22px]">
+        <div className="flex flex-col gap-5">
+          <div
+            className="flex flex-wrap items-center gap-3 animate-rise"
+            style={{ "--d": ".1s" } as React.CSSProperties}
           >
-            <Hourglass className="h-4 w-4" />
-          </span>
-          <p className="text-sm leading-relaxed text-muted-foreground">{story.note}</p>
-        </div>
-      ) : null}
+            {kicker ? <span className="kick">{kicker}</span> : null}
+            {status}
+          </div>
 
-      {aiSummary ? (
-        <div className="mt-5">
-          <AiComment
-            text={aiSummary.summaryText.replace(/[–—]/g, "-")}
-            // Its own fixed 7-day window, not the range above - say which
-            // days, or its numbers look like they contradict the tiles.
-            meta={`Komentarz tygodnia${
-              aiSummary.periodStart && aiSummary.periodEnd
-                ? ` · ${ddmm(aiSummary.periodStart)}–${ddmm(aiSummary.periodEnd)}`
-                : ""
-            } · ${formatDateWarsaw(aiSummary.generatedAt, "d MMM")}`}
-          />
-        </div>
-      ) : null}
+          {hero ? (
+            <>
+              <p
+                className="num-grad text-[clamp(3.5rem,8.4vw,8rem)] font-light leading-[0.88] tracking-[-0.055em] tabular-nums animate-rise"
+                style={{ "--d": ".2s" } as React.CSSProperties}
+              >
+                <span className="sr-only">{hero.label}</span>
+                <span aria-hidden>
+                  <CountUp text={formatNumberPL(hero.value)} />
+                  {hero.unit ? (
+                    <small className="ml-[0.12em] text-[0.36em] tracking-[-0.03em]">{hero.unit}</small>
+                  ) : null}
+                </span>
+              </p>
+              <p
+                aria-hidden
+                className="m-0 max-w-[40rem] text-balance text-[1.375rem] font-normal leading-[1.25] tracking-[-0.03em] text-ink-3 animate-rise sm:text-[1.625rem] lg:text-[1.875rem]"
+                style={{ "--d": ".35s" } as React.CSSProperties}
+              >
+                {hero.parts.map((p, i) =>
+                  typeof p === "string" ? (
+                    p
+                  ) : (
+                    <span key={i} className="whitespace-nowrap font-medium text-foreground">
+                      {p.hl}
+                    </span>
+                  )
+                )}
+              </p>
+            </>
+          ) : (
+            <p className="max-w-3xl text-balance text-[1.625rem] font-normal leading-snug tracking-[-0.03em] text-ink-3">
+              {story.headline}
+            </p>
+          )}
 
-      {alert}
+          {story.facts.length === 0 && story.note ? (
+            // No data yet (first sync pending): a calm empty-state panel, not
+            // a row of zeros.
+            <div className="flex max-w-2xl items-start gap-3 rounded-[22px] bg-chip p-4 sm:items-center">
+              <span
+                aria-hidden
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card"
+              >
+                <Hourglass className="h-4 w-4" />
+              </span>
+              <p className="text-sm leading-relaxed text-muted-foreground">{story.note}</p>
+            </div>
+          ) : null}
+        </div>
+
+        {range || alert ? (
+          <div
+            className="flex flex-col items-start gap-4 animate-rise"
+            style={{ "--d": ".5s" } as React.CSSProperties}
+          >
+            {range ? <div className="max-w-full">{range}</div> : null}
+            {alert ? <div className="w-full empty:hidden">{alert}</div> : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex min-w-0 flex-[1_1_25rem]">
+        {ai ?? <OverviewAiCard summary={aiSummaryForCard(aiSummary)} questions={[]} className="w-full" />}
+      </div>
     </section>
   );
 }
@@ -202,8 +233,8 @@ export function OverviewSummary({
 export function GoodNews({ story }: { story: Story }) {
   if (story.wins.length === 0 && !story.watch) return null;
   return (
-    <section className="surface p-5 sm:p-6">
-      <h2 className="flex items-center gap-2 text-base font-semibold">
+    <section className="glass rounded-glass p-6 sm:p-7">
+      <h2 className="flex items-center gap-2 text-[22px] font-medium tracking-[-0.03em]">
         <PartyPopper className="h-4 w-4 text-muted-foreground" aria-hidden />
         Dobre wiadomości
       </h2>

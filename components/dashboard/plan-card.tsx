@@ -1,7 +1,7 @@
 import Link from "next/link";
+import { formatInTimeZone } from "date-fns-tz";
 
 import { Button } from "@/components/ui/button";
-import { HalfGauge } from "@/components/ui/gauge";
 import { Input } from "@/components/ui/input";
 import type { PacingFlight } from "@/lib/alerts/pacing";
 import type { EngagementGoal, GoalMetric } from "@/lib/dashboard/goals";
@@ -12,9 +12,9 @@ import { cn, formatNumberPL } from "@/lib/utils";
 /**
  * "Plan miesiąca": everything that answers "are we on plan?" in one card -
  * the monthly budget, the client's goals (engagement), the shop's revenue
- * goal and campaign flight targets (DRE). Before, four widgets in four visual
- * languages (cards, bars, rings) asked the same question. Now: at most three
- * bullet-style bars, each with a tick where we should be today.
+ * goal and campaign flight targets (DRE). 2026 (Przeglad-pastel): at most
+ * three concentric rings, each with a dot where we should be today, and a
+ * legend that says it in words ("w planie" / "poniżej tempa").
  */
 
 type RowTone = "good" | "warn" | "bad" | "neutral";
@@ -31,6 +31,8 @@ export interface PlanRow {
   tone: RowTone;
   /** One short plain sentence: on plan, behind, ahead. */
   note: string;
+  /** Two-word status for the legend: "w planie", "poniżej tempa"... */
+  short?: string;
 }
 
 const MAX_ROWS = 3;
@@ -88,6 +90,14 @@ export function buildPlanRows({
       pct: clamp(budget.spentPercent),
       marker: clamp(budget.monthPercent),
       tone: pace === "fast" ? "bad" : pace === "slow" ? "warn" : "good",
+      short:
+        budget.spentMinorUnits >= budget.budgetMinorUnits
+          ? "wykorzystany"
+          : pace === "fast"
+            ? "szybciej niż plan"
+            : pace === "slow"
+              ? "wolniej niż plan"
+              : "w planie",
       note:
         budget.spentMinorUnits >= budget.budgetMinorUnits
           ? "Budżet na ten miesiąc jest już wykorzystany."
@@ -110,6 +120,7 @@ export function buildPlanRows({
       pct: clamp((p.progressPct ?? 0) * 100),
       marker: p.daysInMonth > 0 ? clamp((p.completeDays / p.daysInMonth) * 100) : null,
       tone: p.status === "behind" ? "warn" : p.status === "no_goal" ? "neutral" : "good",
+      short: p.status === "ahead" ? "przed planem" : p.status === "behind" ? "poniżej tempa" : "w planie",
       note: !p.forecastReliable
         ? "Brakuje danych z ostatnich dni - prognozę pokażemy później."
         : p.status === "ahead"
@@ -129,6 +140,15 @@ export function buildPlanRows({
       pct: clamp(g.target > 0 ? (g.actual / g.target) * 100 : 0),
       marker: done || g.daysInMonth <= 0 ? null : clamp((g.completeDays / g.daysInMonth) * 100),
       tone: done || g.status === "ahead" || g.status === "on_track" ? "good" : g.status === "behind" ? "warn" : "neutral",
+      short: done
+        ? "cel osiągnięty"
+        : g.status === "ahead"
+          ? "przed planem"
+          : g.status === "on_track"
+            ? "w planie"
+            : g.status === "behind"
+              ? "poniżej tempa"
+              : "za mało danych",
       note: done
         ? "Cel osiągnięty."
         : g.status === "ahead"
@@ -155,6 +175,7 @@ export function buildPlanRows({
         f.realizedPct >= 1 || f.status === "ahead" || f.status === "on_track"
           ? "good"
           : "warn",
+      short: f.realizedPct >= 1 ? "cel osiągnięty" : f.status === "behind" ? "poniżej planu" : "w planie",
       note:
         f.realizedPct >= 1
           ? "Cel kampanii osiągnięty."
@@ -167,134 +188,126 @@ export function buildPlanRows({
   return rows.slice(0, MAX_ROWS);
 }
 
-// Striped fills (benchmark 4 "Sales Goals"): lime when on plan, amber when
-// behind, red when overspending. The percent and the note say it in words.
-const FILL: Record<RowTone, string> = {
-  good: "bg-lime",
-  neutral: "bg-olive",
-  warn: "bg-warning-fill",
-  bad: "bg-negative",
-};
-
+// Ring colours: the pastel series by position, overridden by meaning
+// (amber = behind, coral = overspending). The legend says it in words.
+const SERIES = ["stroke-lime", "stroke-mint", "stroke-violet"];
+const SERIES_DOT = ["bg-lime", "bg-mint", "bg-violet"];
+const TONE_STROKE: Partial<Record<RowTone, string>> = { warn: "stroke-amber", bad: "stroke-coral" };
+const TONE_DOT: Partial<Record<RowTone, string>> = { warn: "bg-amber", bad: "bg-coral" };
 const PCT_TEXT: Record<RowTone, string> = {
-  good: "text-positive",
+  good: "text-foreground",
   neutral: "text-foreground",
   warn: "text-warning",
   bad: "text-negative",
 };
 
-const DOT: Record<RowTone, string> = {
-  good: "bg-lime",
-  neutral: "bg-muted-foreground",
-  warn: "bg-warning-fill",
-  bad: "bg-negative",
-};
+const RADII = [110, 84, 58];
+const C = 130;
 
 function valueText(row: PlanRow) {
   return `${row.value}${
     row.marker !== null ? `, według planu dziś ok. ${Math.round(row.marker)}%` : ""
-  }`;
+  }. ${row.note}`;
 }
 
-function Note({ row }: { row: PlanRow }) {
+/** Concentric progress rings, one per plan row, with "today" dots. */
+function Rings({ rows, day, days }: { rows: PlanRow[]; day: number; days: number }) {
   return (
-    <p className="mt-2 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
-      <span aria-hidden className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", DOT[row.tone])} />
-      {row.note}
-    </p>
+    <svg
+      viewBox="0 0 260 260"
+      aria-hidden
+      className="h-[200px] w-[200px] shrink-0 sm:h-[232px] sm:w-[232px]"
+    >
+      <g transform={`rotate(-90 ${C} ${C})`}>
+        {rows.map((r, i) => (
+          <circle key={`t-${r.key}`} cx={C} cy={C} r={RADII[i]} fill="none" strokeWidth={22} className="stroke-chip" />
+        ))}
+        {rows.map((r, i) => (
+          <circle
+            key={r.key}
+            cx={C}
+            cy={C}
+            r={RADII[i]}
+            fill="none"
+            strokeWidth={22}
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray="100 100"
+            className={cn("animate-ring-fill", TONE_STROKE[r.tone] ?? SERIES[i])}
+            style={
+              {
+                strokeDashoffset: 100 - Math.max(r.pct, r.pct > 0 ? 1 : 0),
+                "--d": `${0.9 + i * 0.15}s`,
+                filter: i === 0 ? "drop-shadow(0 0 6px var(--lime-glow))" : undefined,
+              } as React.CSSProperties
+            }
+          />
+        ))}
+      </g>
+      {/* Where we should be today (linear plan). */}
+      {rows.map((r, i) => {
+        if (r.marker === null) return null;
+        const a = (r.marker / 100) * 2 * Math.PI - Math.PI / 2;
+        return (
+          <circle
+            key={`m-${r.key}`}
+            cx={C + RADII[i] * Math.cos(a)}
+            cy={C + RADII[i] * Math.sin(a)}
+            r={3.5}
+            className="fill-foreground"
+          />
+        );
+      })}
+      {days > 0 ? (
+        <>
+          <text x={C} y={128} textAnchor="middle" className="fill-foreground text-[30px] font-light tracking-[-0.04em]">
+            {day}/{days}
+          </text>
+          <text x={C} y={150} textAnchor="middle" className="fill-[var(--ink-3)] font-mono text-[11px] tracking-[0.14em]">
+            MIESIĄCA
+          </text>
+        </>
+      ) : null}
+    </svg>
   );
 }
 
-/** The main goal as a half-donut gauge with the big percent inside. */
-function GaugeRow({ row }: { row: PlanRow }) {
+function LegendRow({ row, index }: { row: PlanRow; index: number }) {
+  const name = row.label.replace(/\s*-\s*cel$/, "");
   return (
-    <li className="min-w-0">
-      <p className="truncate text-sm font-medium text-muted-foreground" title={row.label}>
-        {row.label}
-      </p>
-      <div
-        role="progressbar"
-        aria-label={row.label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(row.pct)}
-        aria-valuetext={valueText(row)}
-        className="mt-3"
-      >
-        <HalfGauge pct={row.pct} marker={row.marker} tone={row.tone}>
-          <span
-            className={cn(
-              "text-[2.25rem] font-medium leading-none tracking-[-0.035em] tabular-nums",
-              PCT_TEXT[row.tone]
-            )}
-          >
-            {Math.round(row.pct)}
-            <span className="ml-0.5 text-xl">%</span>
+    <li
+      className="flex items-start gap-3"
+      role="progressbar"
+      aria-label={row.label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(row.pct)}
+      aria-valuetext={valueText(row)}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "mt-1.5 h-3 w-3 shrink-0 rounded-full",
+          TONE_DOT[row.tone] ?? SERIES_DOT[index],
+          index === 0 && !TONE_DOT[row.tone] && "shadow-[0_0_10px_var(--lime-glow)]"
+        )}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="truncate font-medium" title={row.label}>
+            {name}
           </span>
-          <span className="mt-1.5 text-[13px] tabular-nums text-muted-foreground">{row.value}</span>
-        </HalfGauge>
-      </div>
-      <Note row={row} />
-    </li>
-  );
-}
-
-/** Secondary goals: label + big percent, a thick striped bar, the note. */
-function Row({ row }: { row: PlanRow }) {
-  return (
-    <li className="min-w-0">
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium" title={row.label}>
-            {row.label}
-          </p>
-          <p className="mt-0.5 text-[13px] tabular-nums text-muted-foreground">{row.value}</p>
+          <span className={cn("shrink-0 font-medium tabular-nums", PCT_TEXT[row.tone])}>
+            {Math.round(row.pct)}%
+          </span>
         </div>
-        <p
-          className={cn(
-            "shrink-0 text-2xl font-medium leading-none tracking-[-0.03em] tabular-nums",
-            PCT_TEXT[row.tone]
-          )}
-        >
-          {Math.round(row.pct)}
-          <span className="ml-0.5 text-base">%</span>
+        <p className="mt-0.5 text-[13px] tabular-nums text-ink-3" title={row.note}>
+          {row.value} · {row.short ?? row.note}
         </p>
       </div>
-      <div className="relative mt-2.5">
-        <div
-          className="h-3.5 overflow-hidden rounded-full bg-muted"
-          role="progressbar"
-          aria-label={row.label}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(row.pct)}
-          aria-valuetext={valueText(row)}
-        >
-          <div
-            className={cn("bg-stripes h-full rounded-full", FILL[row.tone])}
-            style={{ width: `${Math.max(row.pct, row.pct > 0 ? 4 : 0)}%` }}
-          />
-        </div>
-        {row.marker !== null ? (
-          <span
-            aria-hidden
-            className="absolute -top-1 h-[1.375rem] w-[3px] -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
-            style={{ left: `${row.marker}%` }}
-          />
-        ) : null}
-      </div>
-      <Note row={row} />
     </li>
   );
 }
-
-// The gauge spans as many grid rows as there are goal bars beside it.
-const GAUGE_SPAN: Record<number, string> = {
-  0: "",
-  1: "",
-  2: "md:[&>li:first-child]:row-span-2",
-  3: "md:[&>li:first-child]:row-span-3",
-};
 
 export function PlanCard({
   rows,
@@ -316,45 +329,45 @@ export function PlanCard({
   className?: string;
 }) {
   if (rows.length === 0 && !isAgency) return null;
-  const hasMarker = rows.some((r) => r.marker !== null);
+  const shown = rows.slice(0, RADII.length);
+  const hasMarker = shown.some((r) => r.marker !== null);
+  // Day of the month in Warsaw: the rings' "where we should be" frame.
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  const [y, m, d] = today.split("-").map(Number);
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
 
   return (
     // #budzet: the agency to-do list deep-links here ("ustaw budżet").
     <section
       id="budzet"
       aria-labelledby="plan-heading"
-      className={cn("surface scroll-mt-24 p-5 sm:p-6", className)}
+      className={cn("glass flex scroll-mt-24 flex-col gap-5 rounded-glass p-6 sm:p-7", className)}
     >
-      <h2 id="plan-heading" className="text-section-title">
-        Plan miesiąca
-      </h2>
-      {rows.length > 0 ? (
-        <>
-          {/* md..xl the card spans the full column under the chart: gauge
-              left, goal bars right, instead of one tall sparse stack. */}
-          <ul
-            className={cn(
-              "mt-4 space-y-6",
-              rows.length > 1 &&
-                "md:grid md:grid-cols-2 md:items-start md:gap-x-10 md:gap-y-6 md:space-y-0 xl:block xl:space-y-6",
-              GAUGE_SPAN[Math.min(rows.length - 1, 3)]
-            )}
-          >
-            {rows.map((r, i) =>
-              // The first row is the month's main question (usually the
-              // budget): a gauge. The rest: Sales-Goals style bars.
-              i === 0 ? <GaugeRow key={r.key} row={r} /> : <Row key={r.key} row={r} />
-            )}
-          </ul>
-          {hasMarker ? (
-            <p className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
-              <span aria-hidden className="h-3.5 w-[3px] rounded-full bg-foreground" />
-              tu powinniśmy być dzisiaj według planu
-            </p>
-          ) : null}
-        </>
+      <div>
+        <p className="kick">Plan miesiąca</p>
+        <h2 id="plan-heading" className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+          Dzień {d} z {days}
+        </h2>
+      </div>
+      {shown.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-7 gap-y-5">
+          <Rings rows={shown} day={d} days={days} />
+          <div className="flex min-w-[12rem] flex-1 flex-col gap-4">
+            <ul className="flex flex-col gap-4">
+              {shown.map((r, i) => (
+                <LegendRow key={r.key} row={r} index={i} />
+              ))}
+            </ul>
+            {hasMarker ? (
+              <p className="flex items-center gap-2 border-t border-line pt-3 text-xs text-ink-3">
+                <span aria-hidden className="h-[7px] w-[7px] rounded-full bg-foreground" />
+                kropka = gdzie powinniśmy być dziś
+              </p>
+            ) : null}
+          </div>
+        </div>
       ) : (
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Nie ustawiono budżetu ani celów na ten miesiąc.
         </p>
       )}
@@ -363,7 +376,7 @@ export function PlanCard({
         <div
           data-print-hide
           data-present-hide
-          className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-border pt-4"
+          className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-4"
         >
           {setBudgetAction ? (
             <form action={setBudgetAction} className="flex items-center gap-2">
