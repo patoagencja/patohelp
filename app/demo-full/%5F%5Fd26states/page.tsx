@@ -1,6 +1,7 @@
 // TEMPORARY scratch route for d26 state screenshots - delete before finishing.
 import { AlertTriangle, CalendarX2, Hourglass, RefreshCw } from "lucide-react";
 
+import { AlertsBoard } from "@/components/dashboard/alert-explained";
 import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { HealthNote } from "@/components/dashboard/integration-health-banner";
 import { getDemoDashboard } from "@/lib/demo/data";
@@ -42,6 +43,7 @@ export default function Scratch({ searchParams }: { searchParams: { v?: string; 
         deleteAction={noop}
       />
     );
+  if (v === "clear") return <AlertsBoard alerts={[]} />;
   if (v === "digest")
     return (
       <>

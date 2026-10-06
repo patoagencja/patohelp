@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SettingsHeading } from "./settings-heading";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -11,6 +10,7 @@ import {
 } from "./access-actions";
 import { AccessRemoveButton } from "./access-remove-button";
 import { CHECKBOX_CLASS } from "./form-styles";
+import { SettingsHeading } from "./settings-heading";
 
 interface AccessUserRow {
   id: string;
@@ -134,7 +134,7 @@ export async function AccessSettingsSection({
               Nikt po stronie klienta nie ma jeszcze dostępu.
             </p>
           ) : (
-            <ul className="flex flex-col divide-y divide-border rounded-2xl bg-muted/50">
+            <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-chip">
               {users.map((u) => {
                 const isClient = u.role === "client";
                 const signedIn = lastSignIn.get(u.id);

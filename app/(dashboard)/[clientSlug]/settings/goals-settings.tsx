@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SettingsHeading } from "./settings-heading";
 import {
   GOAL_METRICS,
   getGoalTargets,
@@ -12,6 +11,7 @@ import { monthLabelPl, todayWarsaw } from "@/lib/ecom/insights";
 import { formatDateWarsaw, formatNumberPL } from "@/lib/utils";
 
 import { saveEngagementGoals } from "./goals-actions";
+import { SettingsHeading } from "./settings-heading";
 
 const LABELS: Record<GoalMetric, { name: string; hint: string }> = {
   sessions: { name: "Wizyty na stronie", hint: "GA4, wszystkie źródła" },

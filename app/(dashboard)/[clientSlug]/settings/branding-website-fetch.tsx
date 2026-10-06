@@ -200,7 +200,7 @@ export function BrandingWebsiteFetch({
                       key={c.url}
                       className={cn(
                         "flex cursor-pointer flex-col gap-2 rounded-2xl border p-2 text-xs transition-colors",
-                        logoChoice === c.url ? "border-anchor ring-1 ring-anchor" : "border-border hover:bg-muted/50"
+                        logoChoice === c.url ? "border-anchor ring-1 ring-anchor" : "border-line hover:bg-chip"
                       )}
                     >
                       {/* Logos are made for light backgrounds - the PDF and the light panel. */}

@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SettingsHeading } from "./settings-heading";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
 import { createOverviewShareLink, revokeOverviewShareLink } from "./share-actions";
 import { ShareCopyButton } from "./share-copy-button";
+import { SettingsHeading } from "./settings-heading";
 
 interface OverviewLinkRow {
   token: string;
@@ -87,7 +87,7 @@ export async function ShareOverviewSection({
                   Brak aktywnych linków.
                 </p>
               ) : (
-                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-muted/50">
+                <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-chip">
                   {links.map((l) => {
                     const url = `${base}/s/${l.token}`;
                     return (

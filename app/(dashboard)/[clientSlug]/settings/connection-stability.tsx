@@ -2,11 +2,11 @@ import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SettingsHeading } from "./settings-heading";
 import { decrypt } from "@/lib/integrations/encryption";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { saveMetaSystemToken } from "./meta-token-actions";
+import { SettingsHeading } from "./settings-heading";
 
 /**
  * Why integrations disconnect, per provider, and the one-time fix for each.

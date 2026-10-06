@@ -4,8 +4,6 @@ import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-
-import { SettingsHeading } from "./settings-heading";
 import {
   Card,
   CardContent,
@@ -32,6 +30,7 @@ import { SettingsNav } from "./settings-nav";
 import { ShareOverviewSection } from "./share-overview";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
+import { SettingsHeading } from "./settings-heading";
 
 // Always render fresh so the account selection reflects the latest save.
 export const dynamic = "force-dynamic";
@@ -295,7 +294,7 @@ export default async function SettingsPage({
 
       <div className="space-y-4">
         <PageHeader
-          eyebrow={brandedClient?.name ?? params.clientSlug.toUpperCase()}
+          eyebrow={<span className="kick">Agencja · {brandedClient?.name ?? params.clientSlug}</span>}
           title="Ustawienia"
           description="Integracje, cele, powiadomienia i dostęp tego klienta. Widzi je tylko agencja."
         />
@@ -367,11 +366,11 @@ export default async function SettingsPage({
                           name="provider"
                           value={provider.key}
                         />
-                        <div className="max-h-64 space-y-1 overflow-y-auto rounded-2xl bg-muted/50 p-2">
+                        <div className="max-h-64 space-y-1 overflow-y-auto rounded-[20px] bg-chip p-2">
                           {accounts.map((account) => (
                             <label
                               key={account.id}
-                              className="flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+                              className="flex cursor-pointer items-center gap-2.5 rounded-[14px] px-2.5 py-2 text-sm transition-colors hover:bg-[var(--chip-hover)]"
                             >
                               <input
                                 type="checkbox"

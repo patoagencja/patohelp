@@ -59,7 +59,11 @@ export function AlertsFilter({
                   className={segmentedItem(on, "min-h-11 px-3 text-[13px] sm:px-4 sm:text-sm")}
                 >
                   {o.label}
-                  <span className={cn("-ml-0.5 tabular-nums", on ? "opacity-70" : "text-ink-3")}>· {o.count}</span>
+                  <span className={cn("-ml-0.5 tabular-nums", on ? "opacity-70" : "text-ink-3")}>
+                    {/* The dot is dropped on phones so all four fit at 390px. */}
+                    <span className="max-sm:hidden">· </span>
+                    {o.count}
+                  </span>
                 </button>
               );
             })}

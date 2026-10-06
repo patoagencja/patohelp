@@ -368,6 +368,11 @@ function whereOf(a: Anomaly, lang: Lang): { tag: string | null; where: string } 
   return { tag: m ? m[1] : null, where: label };
 }
 
+/** "5 396 zł" must not wrap as "5 / 396 zł" on a phone. */
+function keepNumbersTogether(s: string): string {
+  return s.replace(/(\d) (?=\d{3}\b)/g, "$1\u00a0").replace(/(\d) (zł|%)/g, "$1\u00a0$2");
+}
+
 /**
  * One alert as its own glass card (Alerty board `.alc`): severity tile,
  * where (platform tag + campaign), the plain-language headline and the one
@@ -425,7 +430,7 @@ export function AlertCard({
             ) : null}
           </p>
           <h3 className="mt-1.5 break-words text-[17px] font-semibold leading-snug tracking-[-0.01em]">
-            {x.headline}
+            {keepNumbersTogether(x.headline)}
           </h3>
           <p className="mt-1 text-[15px] leading-relaxed text-ink-2 tabular-nums [text-wrap:pretty]">
             {x.happened}

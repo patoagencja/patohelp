@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SettingsHeading } from "./settings-heading";
 import {
   BRAND_COLOR_PICKER_START,
   BRAND_COLOR_RE,
@@ -18,6 +17,7 @@ import {
 
 import { saveClientBranding } from "./branding-actions";
 import { BrandingWebsiteFetch } from "./branding-website-fetch";
+import { SettingsHeading } from "./settings-heading";
 
 /**
  * "Wygląd panelu" (agency only): the client's logo and accent colour, so the

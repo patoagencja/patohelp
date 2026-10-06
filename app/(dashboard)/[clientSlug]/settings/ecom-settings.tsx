@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SettingsHeading } from "./settings-heading";
 import {
   getEcomSettings,
   getRevenueGoals,
@@ -10,6 +9,7 @@ import {
 
 import { saveEcomSettings } from "./ecom-actions";
 import { CHECKBOX_CLASS } from "./form-styles";
+import { SettingsHeading } from "./settings-heading";
 
 /** Current month + the next two (October onward this covers Q4 planning). */
 function upcomingMonths(today: string): string[] {

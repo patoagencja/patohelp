@@ -80,7 +80,7 @@ export default async function Ga4SelectPage({
     <div className="space-y-6 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       <Link
         href={`/${params.clientSlug}/settings#integracje`}
-        className="inline-flex items-center gap-1.5 rounded-full text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-chip px-4 text-sm text-ink-2 transition-colors hover:bg-[var(--chip-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden /> Wróć do ustawień
       </Link>
@@ -106,7 +106,7 @@ export default async function Ga4SelectPage({
                 {properties.map((p, i) => (
                   <label
                     key={p.propertyId}
-                    className="flex cursor-pointer items-start gap-3 rounded-2xl bg-muted/50 p-3 text-sm transition-colors hover:bg-muted has-[:checked]:bg-muted has-[:checked]:ring-1 has-[:checked]:ring-anchor"
+                    className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[20px] bg-chip p-3.5 text-sm transition-colors hover:bg-[var(--chip-hover)] has-[:checked]:bg-[var(--chip-hover)] has-[:checked]:ring-1 has-[:checked]:ring-anchor"
                   >
                     <input
                       type="radio"
