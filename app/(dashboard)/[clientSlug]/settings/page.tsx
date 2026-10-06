@@ -17,6 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/lib/types";
 
+import { AccessSettingsSection } from "./access-settings";
 import { BrandingSettingsSection } from "./branding-settings";
 import { ConnectedToast } from "./connected-toast";
 import { ConnectionStability } from "./connection-stability";
@@ -296,6 +297,7 @@ export default async function SettingsPage({
           { href: "#powiadomienia", label: "Powiadomienia" },
           { href: "#wyglad", label: "Wygląd panelu" },
           { href: "#udostepnianie", label: "Link dla zarządu" },
+          { href: "#dostep", label: "Dostęp do panelu" },
         ].map((l) => (
           <a
             key={l.href}
@@ -764,6 +766,8 @@ export default async function SettingsPage({
       />
 
       <ShareOverviewSection clientId={access.clientId} clientSlug={params.clientSlug} />
+
+      <AccessSettingsSection clientId={access.clientId} clientSlug={access.clientSlug} />
     </div>
   );
 }
