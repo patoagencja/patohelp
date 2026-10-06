@@ -11,6 +11,14 @@ import {
 } from "@/lib/dashboard/creatives";
 import { cn } from "@/lib/utils";
 
+// Fills only (v2 tokens), one per format; the dots reuse .bg-dots with the
+// format's own hue at low opacity.
+const PLACEHOLDER_TINT: Record<CreativeFormat, string> = {
+  image: "bg-lime-soft bg-dots [--stripe:var(--lime)_/_0.28]",
+  video: "bg-olive-soft bg-dots [--stripe:var(--olive)_/_0.35]",
+  carousel: "bg-ai-soft bg-dots [--stripe:var(--chart-4)_/_0.3]",
+};
+
 const FORMAT_ICON: Record<CreativeFormat, typeof Film> = {
   video: Film,
   carousel: GalleryHorizontalEnd,
@@ -81,16 +89,29 @@ export function CreativeThumb({
           )}
         />
       ) : (
+        // No image (expired Meta URL, or none synced yet): a calm tinted
+        // tile per format with a faint dot pattern, so a missing thumbnail
+        // reads as a deliberate "Wideo / Grafika" card, not a broken image.
+        // Icon and label sit on bg-card chips, which keeps them legible
+        // inside the anchor (podium #1) surface too.
         <div
-          className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-muted text-muted-foreground"
+          // Plain string, not cn(): tailwind-merge would drop the tint as a
+          // "conflict" with bg-dots.
+          className={`flex h-full w-full flex-col items-center justify-center gap-2 ${PLACEHOLDER_TINT[format]}`}
           role="img"
           aria-label={`${FORMAT_LABEL[lang][format]} · Meta`}
         >
-          <Icon className={compact ? "h-4 w-4" : "h-7 w-7"} aria-hidden />
-          {compact ? null : (
-            <span className="text-xs font-medium">
-              {FORMAT_LABEL[lang][format]} · Meta
-            </span>
+          {compact ? (
+            <Icon className="h-4 w-4 text-foreground/70" aria-hidden />
+          ) : (
+            <>
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-card text-foreground shadow-card">
+                <Icon className="h-5 w-5" aria-hidden />
+              </span>
+              <span className="rounded-full bg-card px-2.5 py-0.5 text-[11px] font-medium text-foreground shadow-card">
+                {FORMAT_LABEL[lang][format]} · Meta
+              </span>
+            </>
           )}
         </div>
       )}

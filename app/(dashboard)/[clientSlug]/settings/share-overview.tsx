@@ -43,7 +43,7 @@ export async function ShareOverviewSection({
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
-    <div id="udostepnianie" className="scroll-mt-24 space-y-4">
+    <div id="udostepnianie" className="scroll-mt-32 space-y-4">
       <SectionHeader
         title="Link dla zarządu"
         description="Podgląd przeglądu tylko do odczytu, bez logowania - do wysłania np. zarządowi klienta. Bez ustawień, alertów i budżetów; każdy link można w każdej chwili unieważnić."
@@ -95,7 +95,7 @@ export async function ShareOverviewSection({
                           readOnly
                           value={url}
                           aria-label="Link dla zarządu"
-                          className="min-w-0 rounded-full border border-transparent bg-muted px-3 py-1.5 font-mono text-xs"
+                          className="h-9 min-w-0 rounded-full border border-transparent bg-card px-3 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-secondary"
                         />
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
                           <span>
@@ -120,7 +120,7 @@ export async function ShareOverviewSection({
                               type="submit"
                               variant="ghost"
                               size="sm"
-                              className="text-destructive hover:text-destructive"
+                              className="text-destructive hover:bg-negative-soft hover:text-destructive"
                             >
                               Unieważnij
                             </Button>

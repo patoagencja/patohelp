@@ -39,7 +39,7 @@ export function TestConnectionButton({
 
   return (
     <Button variant="outline" size="sm" onClick={handleTest} disabled={loading}>
-      {loading ? "Testuję…" : "Test"}
+      {loading ? "Sprawdzam…" : "Sprawdź połączenie"}
     </Button>
   );
 }

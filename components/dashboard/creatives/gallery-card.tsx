@@ -53,13 +53,15 @@ export function VerdictChip({
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+        // A 10px radius is a full pill on one line and a soft tag when a
+        // narrow card wraps it - the label is never cut to "Nieco lepsza n…".
+        "inline-flex max-w-full items-start gap-1 rounded-[10px] px-2 py-0.5 text-[11px] font-semibold leading-4",
         VERDICT_TONE[score.verdict]
       )}
       title={verdictReason(score, lang)}
     >
-      <Icon className="h-3 w-3 shrink-0" aria-hidden />
-      <span className="truncate">{verdictLabel(score, lang)}</span>
+      <Icon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+      <span className="min-w-0">{verdictLabel(score, lang)}</span>
     </span>
   );
 }

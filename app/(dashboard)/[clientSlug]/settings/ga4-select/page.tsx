@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+import { RADIO_CLASS } from "../form-styles";
 
 export const dynamic = "force-dynamic";
 
@@ -73,45 +77,57 @@ export default async function Ga4SelectPage({
   const properties = accountIds.properties ?? [];
 
   return (
-    <div className="p-6">
+    <div className="space-y-6 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
+      <Link
+        href={`/${params.clientSlug}/settings#integracje`}
+        className="inline-flex items-center gap-1.5 rounded-full text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden /> Wróć do ustawień
+      </Link>
       <Card className="max-w-lg">
         <CardHeader>
-          <CardTitle>Wybierz property GA4</CardTitle>
+          <CardTitle>Wybierz usługę GA4</CardTitle>
           <CardDescription>
-            Twoje konto ma dostęp do kilku property. Zaznacz to, które należy do
-            tego klienta.
+            Połączone konto Google ma dostęp do kilku usług (property) Google
+            Analytics. Zaznacz tę, która należy do tego klienta.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {properties.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nie znaleziono żadnych property. Spróbuj połączyć ponownie.
+              Nie znaleziono żadnej usługi GA4. Połącz Google Analytics ponownie w
+              ustawieniach.
             </p>
           ) : (
-            <form action={selectProperty} className="space-y-3">
+            <form action={selectProperty} className="space-y-4">
               <input type="hidden" name="client" value={params.clientSlug} />
-              <div className="space-y-2">
+              <fieldset className="space-y-2">
+                <legend className="sr-only">Usługa GA4</legend>
                 {properties.map((p, i) => (
                   <label
                     key={p.propertyId}
-                    className="flex cursor-pointer items-start gap-3 rounded-2xl bg-muted/50 p-3 text-sm transition-colors hover:bg-muted"
+                    className="flex cursor-pointer items-start gap-3 rounded-2xl bg-muted/50 p-3 text-sm transition-colors hover:bg-muted has-[:checked]:bg-muted has-[:checked]:ring-1 has-[:checked]:ring-anchor"
                   >
                     <input
                       type="radio"
                       name="propertyId"
                       value={p.propertyId}
-                      defaultChecked={i === 0}
-                      className="mt-0.5"
+                      defaultChecked={
+                        accountIds.propertyId
+                          ? accountIds.propertyId === p.propertyId
+                          : i === 0
+                      }
+                      className={`mt-0.5 ${RADIO_CLASS}`}
                     />
-                    <span>
-                      <span className="font-medium">{p.displayName}</span>
+                    <span className="min-w-0">
+                      <span className="block break-words font-medium">{p.displayName}</span>
                       <span className="block text-xs text-muted-foreground">
                         {p.accountName} · ID {p.propertyId}
                       </span>
                     </span>
                   </label>
                 ))}
-              </div>
+              </fieldset>
               <Button type="submit">Zapisz wybór</Button>
             </form>
           )}

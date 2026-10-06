@@ -48,7 +48,7 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
       const timedOut = err instanceof Error && err.name === "TimeoutError";
       toast.error(
         timedOut
-          ? "Wyszukiwanie trwało za długo i zostało przerwane. Spróbuj ponownie - newsy i tak uzupełniamy automatycznie co 30 min."
+          ? "Wyszukiwanie trwało za długo i zostało przerwane. Spróbuj ponownie - newsy i tak uzupełniamy automatycznie każdego ranka."
           : "Nie udało się połączyć z serwerem.",
         { id: "news", duration: 10000 }
       );
@@ -63,9 +63,11 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
       onClick={refresh}
       disabled={loading}
       title="Pobierz świeże newsy teraz"
+      aria-label={loading ? "Pobieram newsy…" : "Pobierz świeże newsy teraz"}
+      aria-busy={loading || undefined}
       className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-secondary"
     >
-      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
     </button>
   );
 }

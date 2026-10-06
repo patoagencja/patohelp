@@ -36,7 +36,7 @@ export function AccessRemoveButton({ label }: { label: string }) {
       type="button"
       variant="ghost"
       size="sm"
-      className="text-destructive hover:text-destructive"
+      className="text-destructive hover:bg-negative-soft hover:text-destructive"
       onClick={() => setArmed(true)}
     >
       {label}

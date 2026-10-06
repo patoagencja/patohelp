@@ -1,10 +1,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader, SectionHeader } from "@/components/ui/page-header";
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import {
   Card,
   CardContent,
@@ -26,6 +25,8 @@ import { ConnectedToast } from "./connected-toast";
 import { ConnectionStability } from "./connection-stability";
 import { EcomSettingsSection } from "./ecom-settings";
 import { GoalsSettingsSection } from "./goals-settings";
+import { CHECKBOX_CLASS } from "./form-styles";
+import { SettingsNav } from "./settings-nav";
 import { ShareOverviewSection } from "./share-overview";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
@@ -290,33 +291,31 @@ export default async function SettingsPage({
         saved={searchParams.saved}
       />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader
           eyebrow={brandedClient?.name ?? params.clientSlug.toUpperCase()}
           title="Ustawienia"
           description="Integracje, cele, powiadomienia i dostęp tego klienta. Widzi je tylko agencja."
         />
 
-        {/* The page grew to eight sections; jump links beat scrolling. */}
-        <nav aria-label="Sekcje ustawień" className={segmentedTrack} data-print-hide>
-          {[
-            { href: "#integracje", label: "Integracje" },
-            { href: "#polaczenia", label: "Połączenia" },
-            ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
-            ...(isEcommerce ? [] : [{ href: "#cele", label: "Cele miesięczne" }]),
-            { href: "#powiadomienia", label: "Powiadomienia" },
-            { href: "#wyglad", label: "Wygląd panelu" },
-            { href: "#udostepnianie", label: "Link dla zarządu" },
-            { href: "#dostep", label: "Dostęp" },
-          ].map((l) => (
-            <a key={l.href} href={l.href} className={segmentedItem(false)}>
-              {l.label}
-            </a>
-          ))}
-        </nav>
+        {/* The page grew to eight sections; jump links beat scrolling, and
+            the bar stays put and marks where you are. */}
+        <SettingsNav
+          links={[
+            { id: "integracje", label: "Integracje" },
+            { id: "polaczenia", label: "Połączenia" },
+            ...(isEcommerce
+              ? [{ id: "ecommerce", label: "Marża i cele" }]
+              : [{ id: "cele", label: "Cele miesięczne" }]),
+            { id: "powiadomienia", label: "Powiadomienia" },
+            { id: "wyglad", label: "Wygląd panelu" },
+            { id: "udostepnianie", label: "Link dla zarządu" },
+            { id: "dostep", label: "Dostęp" },
+          ]}
+        />
       </div>
 
-      <section id="integracje" aria-label="Integracje" className="scroll-mt-24 space-y-4">
+      <section id="integracje" aria-label="Integracje" className="scroll-mt-32 space-y-4">
         <SectionHeader
           title="Integracje"
           description="Połącz konta reklamowe i zaznacz, które należą do tego klienta."
@@ -348,9 +347,10 @@ export default async function SettingsPage({
                 <CardContent className="flex flex-col gap-4">
                   {connected ? (
                     <>
-                      <p className="text-sm text-foreground">
-                        ✅ Połączono · {selectedCount} z {accounts.length} kont
-                        wybranych
+                      <p className="flex items-center gap-1.5 text-sm text-foreground">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden />
+                        Połączono · wybrano {selectedCount} z {accounts.length}{" "}
+                        {accounts.length === 1 ? "konta" : "kont"}
                       </p>
 
                       <form action={saveAccounts} className="flex flex-col gap-3">
@@ -368,14 +368,14 @@ export default async function SettingsPage({
                           {accounts.map((account) => (
                             <label
                               key={account.id}
-                              className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted"
+                              className="flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm transition-colors hover:bg-muted"
                             >
                               <input
                                 type="checkbox"
                                 name="account"
                                 value={account.id}
                                 defaultChecked={account.selected}
-                                className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                                className={CHECKBOX_CLASS}
                               />
                               <span className="truncate">
                                 {account.name || account.id}
@@ -394,7 +394,7 @@ export default async function SettingsPage({
                               defaultChecked={accounts.some(
                                 (a) => a.selected && a.video_only
                               )}
-                              className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                              className={CHECKBOX_CLASS}
                             />
                             Tylko kampanie YouTube (VIDEO)
                             <span className="text-xs text-muted-foreground">
@@ -407,7 +407,7 @@ export default async function SettingsPage({
                         </Button>
                       </form>
 
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <TestConnectionButton
                           provider={provider.routeSlug}
                           clientSlug={params.clientSlug}
@@ -427,7 +427,7 @@ export default async function SettingsPage({
                             type="submit"
                             variant="ghost"
                             size="sm"
-                            className="text-destructive hover:text-destructive"
+                            className="text-destructive hover:bg-negative-soft hover:text-destructive"
                           >
                             Rozłącz
                           </Button>
@@ -478,12 +478,20 @@ export default async function SettingsPage({
                 <CardContent className="flex flex-col gap-4">
                   {connected ? (
                     <>
-                      <p className="text-sm text-foreground">
-                        {ga4Ids.propertyId
-                          ? `✅ Połączono · property ${propName ?? ga4Ids.propertyId}`
-                          : "⚠️ Połączono, ale nie wybrano property"}
-                      </p>
-                      <div className="flex gap-2">
+                      {ga4Ids.propertyId ? (
+                        <p className="flex items-center gap-1.5 text-sm text-foreground">
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden />
+                          <span className="min-w-0 break-words">
+                            Połączono · usługa {propName ?? ga4Ids.propertyId}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="flex items-center gap-1.5 text-sm text-warning">
+                          <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
+                          Połączono, ale nie wybrano usługi GA4
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
                         <TestConnectionButton
                           provider="ga4"
                           clientSlug={params.clientSlug}
@@ -491,7 +499,7 @@ export default async function SettingsPage({
                         {multi ? (
                           <Button asChild variant="outline" size="sm">
                             <a href={`/${params.clientSlug}/settings/ga4-select`}>
-                              Zmień property
+                              Zmień usługę GA4
                             </a>
                           </Button>
                         ) : null}
@@ -506,7 +514,7 @@ export default async function SettingsPage({
                             type="submit"
                             variant="ghost"
                             size="sm"
-                            className="text-destructive hover:text-destructive"
+                            className="text-destructive hover:bg-negative-soft hover:text-destructive"
                           >
                             Rozłącz
                           </Button>
@@ -538,7 +546,7 @@ export default async function SettingsPage({
       )}
 
       {/* Alert notifications */}
-      <div id="powiadomienia" className="scroll-mt-24 space-y-4">
+      <div id="powiadomienia" className="scroll-mt-32 space-y-4">
         <SectionHeader
           title="Powiadomienia o alertach"
           description="Wysyłamy alerty (anomalie + „cel zagrożony”) na wskazane kanały, tylko w wybranych godzinach. Jeden alert = maks. raz dziennie."
@@ -556,7 +564,7 @@ export default async function SettingsPage({
                     type="checkbox"
                     name="email_enabled"
                     defaultChecked={notif?.email_enabled ?? false}
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                    className={CHECKBOX_CLASS}
                   />
                   E-mail
                 </label>
@@ -576,7 +584,7 @@ export default async function SettingsPage({
                     type="checkbox"
                     name="whatsapp_enabled"
                     defaultChecked={notif?.whatsapp_enabled ?? false}
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                    className={CHECKBOX_CLASS}
                   />
                   WhatsApp
                 </label>
@@ -599,7 +607,7 @@ export default async function SettingsPage({
                     type="checkbox"
                     name="telegram_enabled"
                     defaultChecked={notif?.telegram_enabled ?? false}
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                    className={CHECKBOX_CLASS}
                   />
                   Telegram
                 </label>
@@ -626,7 +634,7 @@ export default async function SettingsPage({
                     name="weekly_digest_enabled"
                     defaultChecked={digest?.weekly_digest_enabled ?? false}
                     disabled={!digestAvailable}
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                    className={CHECKBOX_CLASS}
                   />
                   Wysyłaj co poniedziałek podsumowanie tygodnia
                 </label>
@@ -636,7 +644,7 @@ export default async function SettingsPage({
                   rekordy i przycisk do panelu.{" "}
                   <a
                     href={`/${params.clientSlug}/settings/digest-preview`}
-                    className="font-medium text-primary hover:underline"
+                    className="rounded-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Zobacz podgląd maila
                   </a>
@@ -681,22 +689,23 @@ export default async function SettingsPage({
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs">
-                  <span className="text-muted-foreground">Próg</span>
+                  <span className="text-muted-foreground">Które alerty</span>
                   <select
                     name="min_severity"
                     defaultValue={notif?.min_severity ?? "high"}
                     className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   >
-                    <option value="high">Tylko wysoki</option>
-                    <option value="medium">Wysoki + średni</option>
+                    <option value="high">Pilne i ważne</option>
+                    <option value="medium">Wszystkie (także informacje)</option>
                   </select>
                 </label>
               </div>
 
               {/* Budget-spike thresholds */}
               <div className="rounded-2xl bg-negative-soft/60 p-4">
-                <p className="text-sm font-medium text-negative">
-                  🚨 Alerty budżetowe (skok wydatków)
+                <p className="flex items-center gap-1.5 text-sm font-medium text-negative">
+                  <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
+                  Alerty budżetowe (skok wydatków)
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Wysyłane natychmiast, także poza godzinami ciszy. Zostaw puste,
@@ -758,7 +767,7 @@ export default async function SettingsPage({
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button type="submit" size="sm" className="w-fit">
                   Zapisz powiadomienia
                 </Button>

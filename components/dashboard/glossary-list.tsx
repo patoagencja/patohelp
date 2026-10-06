@@ -51,7 +51,7 @@ export function GlossaryList({ isEcommerce }: { isEcommerce: boolean }) {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Słowniczek"
+        title="Słowniczek pojęć"
         description="Wszystkie pojęcia z panelu wyjaśnione prostymi słowami, z podpowiedzią, czy wzrost to dobra wiadomość."
       />
       <GlossarySearch groups={groups} />

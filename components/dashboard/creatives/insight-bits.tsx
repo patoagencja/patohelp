@@ -49,7 +49,8 @@ export function RankingChipList({
           key={ch.kind}
           title={ch.hint}
           className={cn(
-            "inline-flex max-w-full rounded-full px-2 py-0.5 font-medium leading-snug",
+            // Pill on one line, soft tag when a narrow card wraps it.
+            "inline-flex max-w-full rounded-[10px] px-2 py-0.5 font-medium leading-snug",
             compact ? "text-[10px] sm:text-[11px]" : "text-[11px]",
             RANKING_TONE[ch.tone]
           )}

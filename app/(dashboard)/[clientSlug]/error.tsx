@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CloudOff, Loader2, RotateCw } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 // Route error boundary: keeps the dashboard usable instead of a blank white
 // "Application error" screen, and surfaces the actual message/digest so we can
@@ -69,64 +72,72 @@ export default function DashboardError({
     return () => clearTimeout(t);
   }, [error, isChunkError]);
 
+  function freshReload() {
+    try {
+      sessionStorage.removeItem("chunkReload");
+    } catch {
+      /* ignore */
+    }
+    hardReload();
+  }
+
+  // v2: one calm card in the page column - icon chip, plain words, the
+  // anchor pill as the one primary action.
   if (isChunkError && !gaveUp) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-lg font-semibold">Ładuję nową wersję…</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Aplikacja została zaktualizowana. Za chwilę odświeży się automatycznie.
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              sessionStorage.removeItem("chunkReload");
-            } catch {
-              /* ignore */
-            }
-            hardReload();
-          }}
-          className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Odśwież teraz
-        </button>
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-10 sm:px-6">
+        <div role="status" className="surface w-full max-w-md p-7 text-center sm:p-8">
+          <span
+            aria-hidden
+            className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          >
+            <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
+          </span>
+          <h1 className="mt-4 text-section-title">Ładuję nową wersję…</h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            Aplikacja została zaktualizowana. Za chwilę odświeży się automatycznie.
+          </p>
+          <Button type="button" onClick={freshReload} className="mt-6">
+            <RotateCw aria-hidden />
+            Odśwież teraz
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
-      <p className="text-lg font-semibold">Coś poszło nie tak</p>
-      <p className="max-w-lg text-sm text-muted-foreground">
-        Wystąpił błąd podczas ładowania widoku. Spróbuj ponownie - jeśli się
-        powtarza, prześlij poniższy komunikat.
-      </p>
-      <pre className="max-w-xl overflow-x-auto rounded-lg border border-border bg-muted/40 p-3 text-left text-xs text-muted-foreground">
-        {error.message || "Nieznany błąd"}
-        {error.digest ? `\n\ndigest: ${error.digest}` : ""}
-      </pre>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              sessionStorage.removeItem("chunkReload");
-            } catch {
-              /* ignore */
-            }
-            hardReload();
-          }}
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+    <div className="flex min-h-[60vh] items-center justify-center px-4 py-10 sm:px-6">
+      <div role="alert" className="surface w-full max-w-lg p-7 text-center sm:p-8">
+        <span
+          aria-hidden
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-negative-soft text-negative"
         >
-          Odśwież
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Spróbuj ponownie
-        </button>
+          <CloudOff className="h-5 w-5" />
+        </span>
+        <h1 className="mt-4 text-section-title">Coś poszło nie tak</h1>
+        <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+          Nie udało się wczytać tego widoku. Spróbuj ponownie - jeśli błąd się
+          powtarza, prześlij nam szczegóły poniżej.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button type="button" variant="secondary" onClick={freshReload}>
+            Odśwież stronę
+          </Button>
+          <Button type="button" onClick={reset}>
+            <RotateCw aria-hidden />
+            Spróbuj ponownie
+          </Button>
+        </div>
+        <details className="group mt-6 text-left">
+          <summary className="mx-auto w-fit cursor-pointer list-none rounded-full px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            Szczegóły techniczne
+          </summary>
+          <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-muted/70 p-4 text-xs text-muted-foreground">
+            {error.message || "Nieznany błąd"}
+            {error.digest ? `\n\ndigest: ${error.digest}` : ""}
+          </pre>
+        </details>
       </div>
     </div>
   );

@@ -1,8 +1,12 @@
+import Link from "next/link";
+import { Newspaper } from "lucide-react";
+
 import {
   NewsFilterControl,
   NewsList,
   parseNewsFilter,
 } from "@/components/dashboard/news-list";
+import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getDemoDashboard } from "@/lib/demo/data";
 
@@ -45,9 +49,22 @@ export default function DemoFullNewsy({
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {en ? "No news in this category yet." : "Brak newsów w tej kategorii."}
-        </p>
+        // Same empty state as the live Newsy page.
+        <Card className="flex flex-col items-center px-6 py-14 text-center">
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Newspaper className="h-6 w-6 text-muted-foreground" aria-hidden />
+          </span>
+          <p className="text-section-title">
+            {en ? "Nothing new in this category" : "Nic nowego w tej kategorii"}
+          </p>
+          <Link
+            href={hrefFor("all")}
+            scroll={false}
+            className="mt-4 inline-flex h-9 items-center rounded-full bg-muted px-4 text-sm font-medium transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {en ? "Show all news" : "Pokaż wszystkie newsy"}
+          </Link>
+        </Card>
       ) : (
         <NewsList items={items} lang={lang} />
       )}

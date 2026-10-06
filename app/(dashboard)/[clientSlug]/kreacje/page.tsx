@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ImageOff } from "lucide-react";
 
 import { CreativesExplorer } from "@/components/dashboard/creatives/creatives-explorer";
+import { EmptyState } from "@/components/dashboard/empty-state";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
@@ -112,13 +113,11 @@ export default async function KreacjePage({
       </div>
 
       {creatives.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-border px-4 py-16 text-center">
-          <ImageOff className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden />
-          <p className="text-sm font-medium">Brak danych o reklamach</p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Reklamy pojawią się tu po najbliższej synchronizacji (co 6 godzin).
-          </p>
-        </div>
+        <EmptyState
+          icon={ImageOff}
+          title="Nie ma jeszcze reklam do pokazania"
+          description="Grafiki i filmy z Meta pojawią się tu po najbliższym odświeżeniu danych (co 6 godzin)."
+        />
       ) : (
         <CreativesExplorer creatives={creatives} />
       )}

@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { formatInTimeZone } from "date-fns-tz";
 import { ArrowLeft } from "lucide-react";
 
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import {
   buildWeeklyDigestEmail,
@@ -50,20 +52,17 @@ export default async function DigestPreviewPage({
   const email = content ? buildWeeklyDigestEmail(content) : null;
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="space-y-6 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       <Link
         href={`/${params.clientSlug}/settings#powiadomienia`}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="inline-flex items-center gap-1.5 rounded-full text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <ArrowLeft className="h-4 w-4" /> Wróć do ustawień
+        <ArrowLeft className="h-4 w-4" aria-hidden /> Wróć do ustawień
       </Link>
-      <div>
-        <h1 className="text-xl font-semibold">Podgląd maila „Twój tydzień w skrócie”</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tak wyglądałby poniedziałkowy mail dla {client.name as string} z danymi
-          z ostatniego pełnego tygodnia. To tylko podgląd - nic nie zostało wysłane.
-        </p>
-      </div>
+      <PageHeader
+        title="Podgląd maila „Twój tydzień w skrócie”"
+        description={`Tak wyglądałby poniedziałkowy mail dla ${client.name as string} z danymi z ostatniego pełnego tygodnia. To tylko podgląd - nic nie zostało wysłane.`}
+      />
       {email ? (
         <>
           <p className="text-sm">
@@ -74,13 +73,13 @@ export default async function DigestPreviewPage({
             title="Podgląd maila"
             srcDoc={email.html}
             sandbox=""
-            className="h-[1400px] w-full max-w-[680px] rounded-xl border border-border bg-white"
+            className="h-[1400px] w-full max-w-[680px] rounded-card border border-hairline bg-white shadow-card"
           />
         </>
       ) : (
-        <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        <Card className="max-w-[680px] px-6 py-12 text-center text-sm text-muted-foreground">
           Brak danych za ostatni tydzień - mail nie zostałby wysłany.
-        </p>
+        </Card>
       )}
     </div>
   );

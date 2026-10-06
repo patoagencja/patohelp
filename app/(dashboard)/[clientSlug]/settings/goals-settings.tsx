@@ -42,7 +42,7 @@ export async function GoalsSettingsSection({
   const lastMonthName = monthLabelPl(lastMonth).split(" ")[0];
 
   return (
-    <div id="cele" className="scroll-mt-24 space-y-4">
+    <div id="cele" className="scroll-mt-32 space-y-4">
       <SectionHeader
         title="Cele miesięczne"
         description="Klient zobaczy na przeglądzie postęp każdego celu, prognozę na koniec miesiąca i ile trzeba dziennie, żeby go osiągnąć. Puste pole = brak celu."

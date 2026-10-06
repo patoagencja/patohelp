@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Newspaper } from "lucide-react";
 
@@ -77,11 +78,29 @@ export default async function NewsyPage({
           <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <Newspaper className="h-6 w-6 text-muted-foreground" aria-hidden />
           </span>
-          <p className="text-section-title">Brak newsów</p>
-          <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Lista wypełnia się automatycznie raz dziennie. Kliknij ikonę
-            odświeżania, aby pobrać pierwszą porcję (potrwa ~1 min).
-          </p>
+          {filter === "all" ? (
+            <>
+              <p className="text-section-title">Brak newsów</p>
+              <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                Lista wypełnia się automatycznie każdego ranka. Kliknij ikonę
+                odświeżania, aby pobrać pierwszą porcję (potrwa ok. 1 min).
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-section-title">Nic nowego w tej kategorii</p>
+              <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                W ostatnim czasie nie pojawiło się tu nic ważnego.
+              </p>
+              <Link
+                href={base}
+                scroll={false}
+                className="mt-4 inline-flex h-9 items-center rounded-full bg-muted px-4 text-sm font-medium transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Pokaż wszystkie newsy
+              </Link>
+            </>
+          )}
         </Card>
       ) : (
         <NewsList items={items} />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, Minus, Search, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Minus, Search, SearchX, X } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -86,13 +86,29 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
       </p>
 
       {visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Nie mamy takiego pojęcia w słowniczku. Spróbuj innego słowa albo zapytaj swojego opiekuna.
-        </p>
+        <Card className="flex flex-col items-center px-6 py-12 text-center">
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <SearchX className="h-6 w-6 text-muted-foreground" aria-hidden />
+          </span>
+          <p className="text-section-title">Nie mamy takiego pojęcia</p>
+          <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
+            Spróbuj innego słowa albo zapytaj swojego opiekuna w Pato - chętnie
+            wyjaśnimy.
+          </p>
+          <button
+            type="button"
+            onClick={() => setQuery("")}
+            className="mt-4 inline-flex h-9 items-center rounded-full bg-muted px-4 text-sm font-medium transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Pokaż wszystkie pojęcia
+          </button>
+        </Card>
       ) : (
-        visible.map((g) => (
-          <section key={g.title} aria-labelledby={`slownik-${g.title}`}>
-            <h2 id={`slownik-${g.title}`} className="mb-3 text-section-title">
+        visible.map((g, gi) => (
+          // Index-based id: group titles contain spaces, which would split
+          // aria-labelledby into two (missing) ids.
+          <section key={g.title} aria-labelledby={`slownik-grupa-${gi}`}>
+            <h2 id={`slownik-grupa-${gi}`} className="mb-3 text-section-title">
               {g.title}
             </h2>
             <Card>

@@ -78,7 +78,7 @@ export function BrandingSettingsSection({
   }
 
   return (
-    <div id="wyglad" className="scroll-mt-24 space-y-4">
+    <div id="wyglad" className="scroll-mt-32 space-y-4">
       <SectionHeader
         title="Wygląd panelu"
         description="Logo i kolor klienta w panelu, w PDF-ie dla zarządu, w linku dla zarządu i w cotygodniowym e-mailu - żeby raport wyglądał jak jego własny. Kolor pojawia się tylko jako delikatny akcent."
@@ -161,13 +161,16 @@ export function BrandingSettingsSection({
                       with the theme, the PDF is always white. */}
                   <div className="grid gap-2 sm:grid-cols-2">
                     {[
-                      { label: "Jasne tło", box: "border-border bg-white text-slate-900" },
-                      { label: "Ciemne tło", box: "border-slate-700 bg-slate-900 text-white" },
+                      // The PDF page is always white; the dark box re-scopes the
+                      // real dark-theme tokens (`dark` class) so it shows the
+                      // sidebar exactly as dark mode paints it.
+                      { label: "Jasne tło (panel, PDF)", box: "border-border bg-white text-black/85" },
+                      { label: "Ciemne tło (tryb ciemny)", box: "dark border-hairline bg-background text-foreground" },
                     ].map((bg) => (
                       <div key={bg.label} className="flex flex-col gap-1">
                         <span className="text-xs text-muted-foreground">{bg.label}</span>
                         <div
-                          className={`flex h-20 items-center justify-center rounded-lg border px-4 ${bg.box}`}
+                          className={`flex h-20 items-center justify-center rounded-2xl border px-4 ${bg.box}`}
                         >
                           <ClientBrandMark
                             name={clientName}

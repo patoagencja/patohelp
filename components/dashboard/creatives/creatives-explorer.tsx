@@ -162,7 +162,10 @@ export function CreativesExplorer({
                 : "Każda porównana z Twoją średnią. Kliknij reklamę, by ją powiększyć."}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+          {/* Three-up only once the content column is wide enough: beside
+              the sidebar (tablet, small laptop) three cards squeezed every
+              label into an ellipsis. */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
             {topSpend.map((c) => card(c, true))}
           </div>
         </section>
@@ -255,12 +258,12 @@ export function CreativesExplorer({
           </div>
 
           {view === "table" ? (
-            <div className="surface p-4 sm:p-5">
+            <div className="surface p-5 sm:p-6">
               <CreativesTable creatives={creatives} lang={lang} embedded />
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3 min-[1360px]:grid-cols-4">
                 {sorted.slice(0, limit).map((c) => card(c))}
               </div>
               {sorted.length > limit ? (

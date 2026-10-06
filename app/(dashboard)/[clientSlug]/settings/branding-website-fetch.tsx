@@ -11,6 +11,7 @@ import { clientAccentStyle } from "@/lib/dashboard/branding";
 import { cn } from "@/lib/utils";
 
 import { fetchBrandingPreview, saveClientBranding, type BrandingPreview } from "./branding-actions";
+import { RADIO_CLASS } from "./form-styles";
 
 const KEEP = "__keep__";
 
@@ -101,7 +102,7 @@ export function BrandingWebsiteFetch({
     (colorChoice === KEEP || colorChoice === currentBrandColor);
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border p-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border p-4">
       <div className="flex flex-col gap-2">
         <label htmlFor="brand-website-url" className="text-sm font-medium">
           Strona klienta
@@ -198,8 +199,8 @@ export function BrandingWebsiteFetch({
                     <label
                       key={c.url}
                       className={cn(
-                        "flex cursor-pointer flex-col gap-2 rounded-lg border p-2 text-xs transition-colors",
-                        logoChoice === c.url ? "border-primary ring-1 ring-primary" : "border-border hover:bg-muted/50"
+                        "flex cursor-pointer flex-col gap-2 rounded-2xl border p-2 text-xs transition-colors",
+                        logoChoice === c.url ? "border-anchor ring-1 ring-anchor" : "border-border hover:bg-muted/50"
                       )}
                     >
                       {/* Logos are made for light backgrounds - the PDF and the light panel. */}
@@ -224,7 +225,7 @@ export function BrandingWebsiteFetch({
                           value={c.url}
                           checked={logoChoice === c.url}
                           onChange={() => setLogoChoice(c.url)}
-                          className="mt-0.5"
+                          className={`mt-0.5 ${RADIO_CLASS}`}
                         />
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5">
@@ -251,6 +252,7 @@ export function BrandingWebsiteFetch({
                 value={KEEP}
                 checked={logoChoice === KEEP}
                 onChange={() => setLogoChoice(KEEP)}
+                className={RADIO_CLASS}
               />
               {currentLogoUrl ? "Zostaw obecne logo" : "Nie ustawiaj logo"}
             </label>
@@ -270,12 +272,13 @@ export function BrandingWebsiteFetch({
                     value={c.color}
                     checked={colorChoice === c.color}
                     onChange={() => setColorChoice(c.color)}
+                    className={RADIO_CLASS}
                   />
                   {/* Same CSS variable the dashboard uses - no hex in markup. */}
                   <span
                     aria-hidden
                     style={clientAccentStyle(c.color)}
-                    className="h-5 w-5 shrink-0 rounded border border-border bg-client-accent"
+                    className="h-5 w-5 shrink-0 rounded-md border border-border bg-client-accent"
                   />
                   <span className="font-mono uppercase">{c.color}</span>
                   <span className="text-muted-foreground">- {c.label}</span>
@@ -289,6 +292,7 @@ export function BrandingWebsiteFetch({
                 value={KEEP}
                 checked={colorChoice === KEEP}
                 onChange={() => setColorChoice(KEEP)}
+                className={RADIO_CLASS}
               />
               {currentBrandColor ? "Zostaw obecny kolor" : "Nie ustawiaj koloru"}
             </label>

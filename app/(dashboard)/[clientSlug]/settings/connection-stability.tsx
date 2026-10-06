@@ -51,7 +51,7 @@ export async function ConnectionStability({
   const metaPermanent = metaConnected && metaExpiresAt === null;
 
   return (
-    <div id="polaczenia" className="scroll-mt-24 space-y-4">
+    <div id="polaczenia" className="scroll-mt-32 space-y-4">
       <SectionHeader
         title="Połączenia bez rozłączeń"
         description="Integracje rozłączają się, bo wygasają tokeny dostępu - to ustawienie po stronie Google i Mety, nie błąd panelu. Każde da się naprawić raz, na stałe."

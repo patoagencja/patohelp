@@ -165,10 +165,17 @@ export function OverviewSummary({
       </p>
 
       {story.facts.length === 0 && story.note ? (
-        <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-relaxed text-muted-foreground">
-          <Hourglass className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {story.note}
-        </p>
+        // No data yet (first sync pending): a calm empty-state panel, not
+        // a row of zeros.
+        <div className="mt-5 flex max-w-2xl items-start gap-3 rounded-2xl bg-muted/60 p-4 sm:items-center">
+          <span
+            aria-hidden
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card"
+          >
+            <Hourglass className="h-4 w-4" />
+          </span>
+          <p className="text-sm leading-relaxed text-muted-foreground">{story.note}</p>
+        </div>
       ) : null}
 
       {aiSummary ? (

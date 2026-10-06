@@ -10,6 +10,7 @@ import {
   removeClientUserAccess,
 } from "./access-actions";
 import { AccessRemoveButton } from "./access-remove-button";
+import { CHECKBOX_CLASS } from "./form-styles";
 
 interface AccessUserRow {
   id: string;
@@ -76,7 +77,7 @@ export async function AccessSettingsSection({
   );
 
   return (
-    <div id="dostep" className="scroll-mt-24 space-y-4">
+    <div id="dostep" className="scroll-mt-32 space-y-4">
       <SectionHeader
         title="Dostęp do panelu"
         description="Klient loguje się linkiem z e-maila - bez hasła. Widzi tylko swój panel."
@@ -115,7 +116,7 @@ export async function AccessSettingsSection({
                   type="checkbox"
                   name="send_email"
                   defaultChecked
-                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                  className={CHECKBOX_CLASS}
                 />
                 Wyślij e-mail z zaproszeniem
               </label>

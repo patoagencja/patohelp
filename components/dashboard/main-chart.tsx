@@ -11,6 +11,7 @@ import {
 } from "react";
 import { differenceInCalendarDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import { LineChart } from "lucide-react";
 
 import {
   buildChartMarkers,
@@ -671,8 +672,23 @@ export function MainChart({
       <div ref={boxRef} className="relative mt-2 h-60 w-full sm:h-72">
         {isEmpty ? (
           // Same box height as the chart so the page doesn't jump between tabs.
-          <div className="flex h-full items-center justify-center rounded-2xl bg-muted/60 px-4 text-center text-sm text-muted-foreground">
-            {t.empty[metric]}
+          // v2 empty state: the chart's own dashed guides stay, with an icon
+          // chip and one plain sentence in the middle.
+          <div className="relative flex h-full flex-col items-center justify-center gap-3 rounded-2xl bg-muted/50 px-4 text-center">
+            <div aria-hidden className="absolute inset-x-5 inset-y-6 flex flex-col justify-between">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="border-t border-dashed border-border" />
+              ))}
+            </div>
+            <span
+              aria-hidden
+              className="relative flex h-11 w-11 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card"
+            >
+              <LineChart className="h-5 w-5" />
+            </span>
+            <p className="relative max-w-xs text-balance text-sm leading-relaxed text-muted-foreground">
+              {t.empty[metric]}
+            </p>
           </div>
         ) : width > 0 && n > 0 ? (
           <svg

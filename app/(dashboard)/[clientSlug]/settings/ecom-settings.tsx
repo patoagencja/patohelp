@@ -9,6 +9,7 @@ import {
 } from "@/lib/ecom/insights";
 
 import { saveEcomSettings } from "./ecom-actions";
+import { CHECKBOX_CLASS } from "./form-styles";
 
 /** Current month + the next two (October onward this covers Q4 planning). */
 function upcomingMonths(today: string): string[] {
@@ -38,7 +39,7 @@ export async function EcomSettingsSection({
   ]);
 
   return (
-    <div id="ecommerce" className="scroll-mt-24 space-y-4">
+    <div id="ecommerce" className="scroll-mt-32 space-y-4">
       <SectionHeader
         title="E-commerce: marża i cele sprzedaży"
         description="Marża zamienia ROAS w realny zysk po reklamie. Cele pokazują klientowi postęp miesiąca i prognozę, a na Q4 - budżet potrzebny do ich osiągnięcia."
@@ -77,7 +78,7 @@ export async function EcomSettingsSection({
                     type="checkbox"
                     name="revenue_includes_vat"
                     defaultChecked={settings.revenueIncludesVat}
-                    className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                    className={`mt-0.5 ${CHECKBOX_CLASS}`}
                   />
                   <span>
                     Przychód w GA4 zawiera VAT

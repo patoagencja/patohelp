@@ -1,7 +1,7 @@
 "use client";
 
 import { Component, Suspense, type ErrorInfo, type ReactNode } from "react";
-import { CloudOff } from "lucide-react";
+import { CloudOff, RotateCw } from "lucide-react";
 
 /**
  * Keeps one failing widget from taking the whole dashboard down. Without it a
@@ -38,13 +38,32 @@ export class SectionBoundary extends Component<
       // lands in this boundary. Content that renders fine is unaffected.
       return <Suspense fallback={null}>{this.props.children}</Suspense>;
     }
+    // v2: a calm muted panel in the card radius, so a failed section keeps
+    // the page's rhythm instead of looking like a broken box.
     return (
       <div
         role="status"
-        className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-3 text-sm text-muted-foreground"
+        className="flex flex-col items-start gap-3 rounded-card bg-muted/60 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:px-6"
       >
-        <CloudOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        <p>Tej sekcji nie udało się wczytać - reszta panelu działa. Odśwież za chwilę.</p>
+        <span
+          aria-hidden
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card shadow-card"
+        >
+          <CloudOff className="h-4 w-4" />
+        </span>
+        <p className="min-w-0 flex-1 leading-relaxed">
+          <span className="font-medium text-foreground">Tej sekcji nie udało się wczytać.</span>{" "}
+          Reszta panelu działa - odśwież za chwilę.
+        </p>
+        <button
+          type="button"
+          data-print-hide
+          onClick={() => window.location.reload()}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-card px-4 text-sm font-medium text-foreground shadow-card transition-colors duration-150 hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <RotateCw className="h-3.5 w-3.5" aria-hidden />
+          Odśwież
+        </button>
       </div>
     );
   }
