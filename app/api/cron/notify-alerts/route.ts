@@ -181,7 +181,7 @@ export async function GET(request: Request) {
         if (f.status !== "behind") continue;
         items.push({
           key: `pacing-${f.id}`,
-          title: `Nie dowozi: ${f.campaignName}`,
+          title: `Nie dowozi: ${f.adsetName ? `${f.adsetName} (${f.campaignName})` : f.campaignName}`,
           detail: `Realizacja ${(f.realizedPct * 100).toFixed(0)}% celu, ${Math.max(
             f.daysLeft,
             0

@@ -167,7 +167,7 @@ export function buildPlanRows({
     const fmt = (v: number) => (money ? wholePln(v) : formatNumberPL(v));
     rows.push({
       key: `flight-${f.id}`,
-      label: `${f.campaignName} - ${FLIGHT_METRIC[f.metric]}`,
+      label: `${f.adsetName ?? f.campaignName} - ${FLIGHT_METRIC[f.metric]}`,
       value: `${fmt(f.realized)} z ${fmt(f.target)}`,
       pct: clamp(f.realizedPct * 100),
       marker: f.realizedPct >= 1 ? null : clamp(f.expectedPct * 100),

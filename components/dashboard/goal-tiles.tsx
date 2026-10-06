@@ -23,13 +23,6 @@ const METRIC_LABEL: Record<FlightMetric, string> = {
   conversions: "Działania na stronie",
 };
 
-const METRIC_UNIT: Record<FlightMetric, [string, string, string]> = {
-  clicks: ["kliknięcie", "kliknięcia", "kliknięć"],
-  impressions: ["wyświetlenie", "wyświetlenia", "wyświetleń"],
-  spend: ["zł", "zł", "zł"],
-  conversions: ["działanie", "działania", "działań"],
-};
-
 const STATUS: Record<
   GoalTileStatus,
   { label: string; tone: PingTone; fill: string; line: string }
@@ -41,10 +34,11 @@ const STATUS: Record<
   ended: { label: "zakończony", tone: "muted", fill: "bg-chart-muted", line: "stroke-[var(--ink-3)]" },
 };
 
+// Non-breaking group separator: "10 215" must never wrap mid-number.
 const group = (n: number) =>
   Math.round(n)
     .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    .replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
 
 /** Tile-sized figure: "312", "12 400", "312 tys.", "1,2 mln" (spend: whole zł). */
 function figure(metric: FlightMetric, v: number): string {
@@ -54,14 +48,12 @@ function figure(metric: FlightMetric, v: number): string {
   return group(n);
 }
 
-/** Per-day pace in words: "412 kliknięć", "140 zł"; small counts keep a decimal. */
+/** Per-day pace: "412", "140 zł" (the tile names the metric); tiny counts keep a decimal. */
 function perDay(metric: FlightMetric, v: number, up = false): string {
   const n = metric === "spend" ? v / 100 : v;
   const r = up ? Math.ceil(n) : Math.round(n);
-  if (r === 0 && n > 0) return `${n.toFixed(1).replace(".", ",")} ${METRIC_UNIT[metric][2]}`;
-  if (metric === "spend") return `${group(r)} zł`;
-  const [one, few, many] = METRIC_UNIT[metric];
-  return `${group(r)} ${plPlural(r, one, few, many)}`;
+  if (r === 0 && n > 0) return `${n.toFixed(1).replace(".", ",")}${metric === "spend" ? " zł" : ""}`;
+  return metric === "spend" ? `${group(r)} zł` : group(r);
 }
 
 /** "2026-10-20" -> "20.10". */
@@ -164,7 +156,7 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
       : g.status === "ended"
         ? `zrealizowano ${Math.round(g.realizedPct * 100)}% celu`
         : g.neededPerDay !== null
-          ? `potrzeba ok. ${perDay(g.metric, g.neededPerDay, true)} dziennie (dotąd ok. ${perDay(g.metric, g.avgPerDay)})`
+          ? `potrzeba ok. ${perDay(g.metric, g.neededPerDay, true)} dziennie (dotąd ${perDay(g.metric, g.avgPerDay)})`
           : null;
   const summary = `${title}: ${figure(g.metric, g.realized)}${unit} z ${figure(g.metric, g.target)}${unit}, ${METRIC_LABEL[g.metric].toLowerCase()}, ${meta.label}`;
 

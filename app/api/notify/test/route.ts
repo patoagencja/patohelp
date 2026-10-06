@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       .filter((f) => f.status === "behind")
       .map((f) => ({
         key: `pacing-${f.id}`,
-        title: `Nie dowozi: ${f.campaignName}`,
+        title: `Nie dowozi: ${f.adsetName ? `${f.adsetName} (${f.campaignName})` : f.campaignName}`,
         detail: `Realizacja ${(f.realizedPct * 100).toFixed(0)}% celu.`,
         scope: "Pacing",
       })),
