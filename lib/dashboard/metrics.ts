@@ -161,6 +161,13 @@ export interface DashboardData {
   prevTrend?: TrendPoint[];
   /** Campaign starts/pauses/budget jumps derived from ads_daily (chart markers). */
   autoEvents?: ChartEvent[];
+  /**
+   * GA4 engagement rate (percent) over the selected range, sessions-weighted.
+   * The sales funnel multiplies range sessions by it; borrowing the Witryna
+   * tab's fixed 30-day rate mixed two windows in one card. Null when no
+   * daily-total row in range carries a rate. Optional for hand-built data.
+   */
+  engagementRate?: number | null;
 }
 
 interface AdsRow {
@@ -285,8 +292,8 @@ export async function getDashboardData(
     .select("revenue_minor_units")
     .limit(1);
   const ga4Select = ga4Probe.error
-    ? "date, sessions"
-    : "date, sessions, revenue_minor_units, transactions";
+    ? "date, sessions, engagement_rate"
+    : "date, sessions, engagement_rate, revenue_minor_units, transactions";
 
   // Paginated reads: a long range on a large account easily exceeds
   // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
@@ -309,13 +316,14 @@ export async function getDashboardData(
     fetchAll<{
       date: string;
       sessions: number | string;
+      engagement_rate: number | string | null;
       revenue_minor_units: number | string | null;
       transactions: number | string | null;
     }>((from, to) =>
       supabase
         .from("ga4_daily")
         .select(
-          ga4Select as "date, sessions, revenue_minor_units, transactions"
+          ga4Select as "date, sessions, engagement_rate, revenue_minor_units, transactions"
         )
         .eq("client_id", clientId)
         .is("source_medium", null)
@@ -359,6 +367,7 @@ export async function getDashboardData(
   let prevSessions = 0;
   let curRevenue = 0, prevRevenue = 0;
   let curTransactions = 0, prevTransactions = 0;
+  let curEngWeighted = 0, curEngSessions = 0;
   const sessionsByDate = new Map<string, number>();
   const revenueByDate = new Map<string, number>();
   const transactionsByDate = new Map<string, number>();
@@ -370,6 +379,10 @@ export async function getDashboardData(
       curSessions += sessions;
       curRevenue += revenue;
       curTransactions += transactions;
+      if (row.engagement_rate != null) {
+        curEngWeighted += sessions * Number(row.engagement_rate);
+        curEngSessions += sessions;
+      }
       sessionsByDate.set(
         row.date,
         (sessionsByDate.get(row.date) ?? 0) + sessions
@@ -641,5 +654,7 @@ export async function getDashboardData(
     rangeEnd: range.end,
     prevTrend,
     autoEvents,
+    engagementRate:
+      curEngSessions > 0 ? (curEngWeighted / curEngSessions) * 100 : null,
   };
 }

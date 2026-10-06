@@ -60,8 +60,11 @@ export function TopPages({
   pages,
   lang = "pl",
   headingLevel = 2,
+  periodNote,
 }: {
   pages: Array<{ path: string; views: number; engagementRate: number }>;
+  /** Data window, when the page around it shows a different period. */
+  periodNote?: string;
   lang?: "pl" | "en";
   /** 3 when nested under a section heading (Sprzedaż). */
   headingLevel?: 2 | 3;
@@ -74,6 +77,7 @@ export function TopPages({
       <Heading className="text-base font-semibold">
         {en ? "Top pages" : "Co oglądają najchętniej"}
       </Heading>
+      {periodNote ? <p className="mt-0.5 text-xs text-muted-foreground">{periodNote}</p> : null}
       <p className="mt-1 text-sm text-muted-foreground">
         {en
           ? "Most viewed pages and how engaging they are."

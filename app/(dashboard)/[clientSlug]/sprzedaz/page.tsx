@@ -50,6 +50,10 @@ import { formatDateWarsaw } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// GA4 page/device breakdowns are a fixed 30-day snapshot, not the picked
+// range - without this the device counts contradict the funnel next to them.
+const SNAPSHOT_30D_NOTE = "Ostatnie 30 dni - niezależnie od zakresu wybranego u góry";
+
 export default async function SprzedazPage({
   params,
   searchParams,
@@ -239,7 +243,11 @@ export default async function SprzedazPage({
         </SectionBoundary>
         {website.hasData ? (
           <SectionBoundary name="sales/top-pages">
-            <TopPages pages={website.topPages.slice(0, 5)} headingLevel={3} />
+            <TopPages
+              pages={website.topPages.slice(0, 5)}
+              headingLevel={3}
+              periodNote={SNAPSHOT_30D_NOTE}
+            />
           </SectionBoundary>
         ) : null}
       </StorySection>
@@ -263,13 +271,18 @@ export default async function SprzedazPage({
           <SectionBoundary name="sales/funnel">
             <ConversionFunnel
               sessions={totalSessions}
-              engagementRate={website.engagement.engagementRate}
+              // Same window as the sessions/orders beside it (the picked range).
+              engagementRate={data.engagementRate ?? website.engagement.engagementRate}
               transactions={data.ecommerce.transactions.value}
             />
           </SectionBoundary>
           {website.hasData ? (
             <SectionBoundary name="sales/devices">
-              <Devices devices={website.devices} headingLevel={3} />
+              <Devices
+                devices={website.devices}
+                headingLevel={3}
+                periodNote={SNAPSHOT_30D_NOTE}
+              />
             </SectionBoundary>
           ) : null}
         </div>

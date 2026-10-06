@@ -1,4 +1,8 @@
-import { ShareBars, type ShareRow } from "@/components/dashboard/website/share-bars";
+import {
+  ShareBars,
+  sharesSumming100,
+  type ShareRow,
+} from "@/components/dashboard/website/share-bars";
 import type { PlatformSplit as PlatformSplitData } from "@/lib/dashboard/metrics";
 
 type Lang = "pl" | "en";
@@ -28,8 +32,8 @@ function takeaway(rows: ShareRow[], total: number, lang: Lang): string {
       ? `The whole budget (${totalText}) went to ${top.label}.`
       : `Cały budżet (${totalText}) poszedł na ${top.label}.`;
   }
-  const topShare = Math.round((top.value / total) * 100);
-  const secondShare = Math.round((second.value / total) * 100);
+  // Same rounding as the bars below, so the sentence quotes the printed %.
+  const [topShare, secondShare] = sharesSumming100(sorted.map((r) => r.value));
   if (topShare - secondShare <= 10) {
     return en
       ? `${totalText} in total, split roughly evenly between ${top.label} and ${second.label}.`

@@ -12,8 +12,11 @@ export function Devices({
   devices,
   lang = "pl",
   headingLevel = 2,
+  periodNote,
 }: {
   devices: Array<{ device: string; sessions: number }>;
+  /** Data window, when the page around it shows a different period. */
+  periodNote?: string;
   lang?: "pl" | "en";
   headingLevel?: 2 | 3;
 }) {
@@ -38,6 +41,7 @@ export function Devices({
     <ShareBars
       title={en ? "Devices" : "Na czym oglądają"}
       headingLevel={headingLevel}
+      periodNote={periodNote}
       insight={insight}
       rows={rows}
       unit={en ? (n) => `${formatNumberPL(n)} sessions` : visitsUnit}

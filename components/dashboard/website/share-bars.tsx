@@ -25,6 +25,29 @@ export function outOfTen(share: number): string {
   return `${n} na 10`;
 }
 
+/**
+ * Whole-number percentages that add up to exactly 100 (largest remainder).
+ * Rounded one by one, 3 bars of 33.4/33.3/33.3 print "33% 33% 33%" and two
+ * of 50.5/49.5 print "51% 50%" - a share card that doesn't sum to 100 makes
+ * people doubt every other number on the page.
+ */
+export function sharesSumming100(values: number[]): number[] {
+  const total = values.reduce((a, v) => a + v, 0);
+  if (!(total > 0)) return values.map(() => 0);
+  const raw = values.map((v) => (v / total) * 100);
+  const out = raw.map(Math.floor);
+  let left = 100 - out.reduce((a, v) => a + v, 0);
+  const order = raw
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (const { i } of order) {
+    if (left <= 0) break;
+    out[i] += 1;
+    left -= 1;
+  }
+  return out;
+}
+
 export function ShareBars({
   title,
   insight,
@@ -34,8 +57,11 @@ export function ShareBars({
   emptyText,
   className,
   headingLevel = 2,
+  periodNote,
 }: {
   title: string;
+  /** Data window, when it differs from the page's own period. */
+  periodNote?: string;
   /** One-sentence takeaway shown above the bars. */
   insight?: string | null;
   rows: ShareRow[];
@@ -52,13 +78,15 @@ export function ShareBars({
   const total = rows.reduce((a, r) => a + r.value, 0);
   const visible = rows.filter((r) => r.value > 0);
   const sorted = keepOrder ? visible : [...visible].sort((a, b) => b.value - a.value);
+  const pcts = sharesSumming100(sorted.map((r) => r.value));
 
   return (
     <Card className={cn("flex flex-col", className)}>
       <Heading className="text-base font-semibold">{title}</Heading>
+      {periodNote ? <p className="mt-0.5 text-xs text-muted-foreground">{periodNote}</p> : null}
       {insight ? <p className="mt-1 text-sm text-muted-foreground">{insight}</p> : null}
       <ul className="mt-5 space-y-4">
-        {sorted.map((r) => {
+        {sorted.map((r, i) => {
           const share = total > 0 ? r.value / total : 0;
           return (
             <li key={r.key}>
@@ -73,7 +101,7 @@ export function ShareBars({
                 </div>
                 <div className="shrink-0 text-right">
                   <span className="text-sm font-semibold tabular-nums">
-                    {Math.round(share * 100)}%
+                    {pcts[i]}%
                   </span>
                   <span className="ml-2 text-xs tabular-nums text-muted-foreground">
                     {unit(r.value)}
