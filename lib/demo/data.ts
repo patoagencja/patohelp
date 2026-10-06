@@ -168,11 +168,11 @@ export function getDemoDashboard(
     date: format(today, "yyyy-MM-dd"),
     headline: en
       ? "Clicks up 16% this week 🔥"
-      : "Kliknięcia w tym tygodniu wyżej o 16% 🔥",
+      : "Kliknięcia: w tym tygodniu o 16% powyżej normy 🔥",
     factors: [
       { key: "ctr", label: "CTR", deltaPct: 8 },
       { key: "clicks", label: en ? "Clicks" : "Kliknięcia", deltaPct: 16 },
-      { key: "sessions", label: en ? "Sessions" : "Sesje", deltaPct: 12 },
+      { key: "sessions", label: en ? "Sessions" : "Wizyty na stronie", deltaPct: 12 },
       { key: "reach", label: en ? "Reach" : "Zasięg", deltaPct: 5 },
     ],
     rings: [
@@ -289,13 +289,13 @@ export function getDemoDashboard(
   const alerts: Anomaly[] = [
     { id: "a1", severity: "critical", scope: "campaign", scopeLabel: en ? "PMAX | Traffic · Google" : "PMAX | Ruch · Google", metric: "spend", direction: "up", changePct: 128, title: en ? "Spend spike today: 1,809 zł" : "Skok wydatków dziś: 1 809 zł", description: en ? "Campaign spend well above the daily average." : "Wydatki kampanii znacząco powyżej średniej dziennej." },
     { id: "a2", severity: "high", scope: "campaign", scopeLabel: en ? "RETARGETING | Visitors · Meta" : "RETARGETING | Odwiedzający · Meta", metric: "spend", direction: "up", changePct: 42, title: en ? "Elevated spend (7 days): 5,396 zł" : "Podwyższone wydatki (7 dni): 5 396 zł", description: en ? "This week above the previous two weeks." : "Tydzień powyżej poprzednich dwóch tygodni." },
-    { id: "a3", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "ctr", direction: "up", changePct: 11, title: en ? "CTR rising: +11% vs normal" : "CTR rośnie: +11% względem normy", description: en ? "Engagement higher than usual this week." : "Zaangażowanie w tym tygodniu wyższe niż zwykle." },
+    { id: "a3", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "ctr", direction: "up", changePct: 11, title: en ? "CTR rising: +11% vs normal" : "Klikalność rośnie: +11% względem normy", description: en ? "Engagement higher than usual this week." : "Zaangażowanie w tym tygodniu wyższe niż zwykle." },
   ];
   const alertsFull: Anomaly[] = [
     ...alerts,
     { id: "a4", severity: "high", scope: "campaign", scopeLabel: en ? "SEARCH | Generic · Google" : "SEARCH | Generyczne · Google", metric: "cpc", direction: "up", changePct: 24, title: en ? "CPC up 24% (7 days)" : "CPC wyższe o 24% (7 dni)", description: en ? "Rising auction competition pushes cost per click up." : "Rosnąca konkurencja w aukcji podbija koszt kliknięcia." },
-    { id: "a5", severity: "medium", scope: "campaign", scopeLabel: en ? "ENGAGEMENT | Instagram · Meta" : "ENGAGEMENT | Instagram · Meta", metric: "ctr", direction: "up", changePct: 18, title: en ? "CTR rising on Instagram: +18%" : "CTR rośnie na Instagramie: +18%", description: en ? "New Reels creatives clearly outperform the average." : "Nowe kreacje Reels pracują wyraźnie lepiej niż średnia." },
-    { id: "a6", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "sessions", direction: "up", changePct: 9, title: en ? "Paid sessions +9%" : "Sesje z ruchu płatnego +9%", description: en ? "Campaign traffic growth feeds GA4 sessions." : "Wzrost ruchu z kampanii przekłada się na sesje w GA4." },
+    { id: "a5", severity: "medium", scope: "campaign", scopeLabel: en ? "ENGAGEMENT | Instagram · Meta" : "ENGAGEMENT | Instagram · Meta", metric: "ctr", direction: "up", changePct: 18, title: en ? "CTR rising on Instagram: +18%" : "Klikalność rośnie na Instagramie: +18%", description: en ? "New Reels creatives clearly outperform the average." : "Nowe reklamy Reels działają wyraźnie lepiej niż średnia." },
+    { id: "a6", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "sessions", direction: "up", changePct: 9, title: en ? "Paid sessions +9%" : "Więcej wizyt z reklam: +9%", description: en ? "Campaign traffic growth feeds GA4 sessions." : "Wzrost ruchu z kampanii przekłada się na więcej wizyt na stronie." },
   ];
 
   // --- Budget ---------------------------------------------------------------
@@ -320,7 +320,7 @@ export function getDemoDashboard(
   const summary: AiSummary = {
     summaryText: en
       ? "Campaign traffic is growing this week - clicks are up 16% versus the previous period and CTR stays above average. The best performers are the video campaign „Install guide” and retargeting. GA4 sessions grow mainly from paid and organic Google traffic. Recommendation: shift some budget to the top video creatives and keep retargeting running."
-      : "W tym tygodniu ruch z kampanii rośnie - liczba kliknięć wzrosła o 16% względem poprzedniego okresu, a CTR utrzymuje się powyżej średniej. Najlepiej pracuje kampania wideo „Poradnik montażu” oraz retargeting. Sesje w GA4 rosną głównie z ruchu płatnego i organicznego z Google. Rekomendacja: przenieść część budżetu na najlepsze kreacje wideo i utrzymać retargeting.",
+      : "W tym tygodniu ruch z kampanii rośnie - liczba kliknięć wzrosła o 16% względem poprzedniego okresu, a klikalność reklam utrzymuje się powyżej średniej. Najlepiej działa film „Poradnik montażu” oraz reklamy przypominające ofertę osobom, które już były na stronie. Wizyt na stronie przybywa głównie z reklam i z bezpłatnych wyników Google. Warto omówić przesunięcie części budżetu na najlepsze filmy.",
     generatedAt: today.toISOString(),
     periodStart: format(subDays(today, 6), "yyyy-MM-dd"),
     periodEnd: format(today, "yyyy-MM-dd"),

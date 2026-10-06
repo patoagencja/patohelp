@@ -149,10 +149,10 @@ export async function detectAnomalies(
       metric: "CPC",
       direction: "up",
       changePct: cpcCh * 100,
-      title: `Skok CPC ${pct(cpcCh)}`,
+      title: `Kliknięcie zdrożało ${pct(cpcCh)}`,
       description: `Średni koszt kliknięcia wzrósł do ${formatMoneyPLN(
         Math.round(cpc(clientRecent) ?? 0)
-      )} (baza: ${formatMoneyPLN(Math.round(cpc(clientBase) ?? 0))}).`,
+      )} (zwykle: ${formatMoneyPLN(Math.round(cpc(clientBase) ?? 0))}).`,
     });
   }
 
@@ -166,8 +166,8 @@ export async function detectAnomalies(
       metric: "CTR",
       direction: "down",
       changePct: ctrCh * 100,
-      title: `Spadek CTR ${pct(ctrCh)}`,
-      description: `CTR spadł do ${formatPercent(ctr(clientRecent) ?? 0)} (baza: ${formatPercent(
+      title: `Spadek klikalności ${pct(ctrCh)}`,
+      description: `Klikalność spadła do ${formatPercent(ctr(clientRecent) ?? 0)} (zwykle: ${formatPercent(
         ctr(clientBase) ?? 0
       )}).`,
     });
@@ -229,7 +229,7 @@ export async function detectAnomalies(
       direction: "down",
       changePct: sessCh * 100,
       title: `Spadek ruchu ${pct(sessCh)}`,
-      description: `Dzienne sesje w GA4 wyraźnie spadły względem ostatnich 2 tygodni.`,
+      description: `Dzienne wizyty na stronie wyraźnie spadły względem ostatnich 2 tygodni.`,
     });
   }
 
@@ -269,8 +269,8 @@ export async function detectAnomalies(
         metric: "CPC",
         direction: "up",
         changePct: ccpc * 100,
-        title: `Skok CPC ${pct(ccpc)}`,
-        description: `CPC wzrósł do ${formatMoneyPLN(Math.round(cpc(c.recent) ?? 0))} (baza: ${formatMoneyPLN(
+        title: `Kliknięcie zdrożało ${pct(ccpc)}`,
+        description: `Koszt kliknięcia wzrósł do ${formatMoneyPLN(Math.round(cpc(c.recent) ?? 0))} (zwykle: ${formatMoneyPLN(
           Math.round(cpc(c.base) ?? 0)
         )}).`,
       });
@@ -286,8 +286,8 @@ export async function detectAnomalies(
         metric: "CTR",
         direction: "down",
         changePct: cctr * 100,
-        title: `Spadek CTR ${pct(cctr)}`,
-        description: `CTR spadł do ${formatPercent(ctr(c.recent) ?? 0)} (baza: ${formatPercent(
+        title: `Spadek klikalności ${pct(cctr)}`,
+        description: `Klikalność spadła do ${formatPercent(ctr(c.recent) ?? 0)} (zwykle: ${formatPercent(
           ctr(c.base) ?? 0
         )}).`,
       });
