@@ -1,13 +1,29 @@
-import { describeChange } from "@/lib/dashboard/glossary";
-import type { DashboardKpis } from "@/lib/dashboard/metrics";
-import { plPlural } from "@/lib/dashboard/story";
-import { formatMoneyPLN, formatNumberPL } from "@/lib/utils";
+import { InfoTip } from "@/components/dashboard/info-tip";
+import {
+  GLOSSARY,
+  describeChange,
+  type ChangeTone,
+  type GlossaryKey,
+} from "@/lib/dashboard/glossary";
+import type { DashboardKpis, Kpi } from "@/lib/dashboard/metrics";
+import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 type Lang = "pl" | "en";
 
-// Below this many clicks last period a "% cheaper" claim is noise (same
-// threshold the overview story uses).
-const MIN_CLICKS_BASE = 50;
+// Below these previous-period bases a % change is noise (+300% on 4 clicks),
+// so the tile says "not enough data" instead. Same cut-offs as KpiCards.
+const MIN_PREV_CLICKS = 50;
+// 100 zł in grosze.
+const MIN_PREV_SPEND = 10_000;
+// describeChange calls anything under this "about the same"; keep it grey.
+const FLAT_THRESHOLD = 3;
+
+// Tile labels are shorter than the glossary names ("Wydatki na reklamy"):
+// the whole page is about ads, and two tiles share a phone row.
+const TILE_LABEL: Record<Lang, Partial<Record<GlossaryKey, string>>> = {
+  pl: { spend: "Wydatki", clicks: "Kliknięcia", cpc: "Koszt kliknięcia", ctr: "Klikalność" },
+  en: { spend: "Spend", clicks: "Clicks", cpc: "Cost per click", ctr: "Click rate" },
+};
 
 // Always group thousands ("7 581 zł"): pl-PL Intl skips grouping for 4-digit
 // numbers, which looks inconsistent next to 5-digit figures.
@@ -19,67 +35,171 @@ function wholePln(minorUnits: number): string {
 }
 
 /**
- * Header of the Reklamy tab. States the question the page answers and gives
- * the answer in one sentence before any chart, so a manager can stop reading
- * here if that's all the board asked.
+ * Colour the change by whether it is good news, not by its sign: a pricier
+ * click is red even though the number went up, and spend is never judged.
  */
-export function AdsPageIntro({
-  kpis,
-  rangeLabel,
-  lang = "pl",
-  children,
-}: {
-  kpis: DashboardKpis;
-  rangeLabel: string;
-  lang?: Lang;
-  /** Right-hand slot, e.g. the date range picker. */
-  children?: React.ReactNode;
-}) {
-  const en = lang === "en";
-  const spend = kpis.spendMinorUnits.value;
-  const clicks = kpis.clicks.value;
-  const cpc = kpis.cpcMinorUnits.value;
-  const cpcChange = describeChange(kpis.cpcMinorUnits.deltaPercent, "cost", {
-    lang,
-    thinBase: kpis.clicks.previous < MIN_CLICKS_BASE,
-  });
-
-  // A new client has no previous period; "(brak danych z poprzedniego
-  // okresu)" tacked onto the headline sentence reads like an error.
-  const cpcTail =
-    kpis.cpcMinorUnits.deltaPercent === null || kpis.clicks.previous <= 0
-      ? ""
-      : ` (${cpcChange})`;
-
-  let answer: string;
-  if (spend <= 0) {
-    answer = en
-      ? "No ad spend in this period."
-      : "W tym okresie nie było wydatków na reklamy.";
-  } else if (clicks <= 0) {
-    answer = en
-      ? `We spent ${wholePln(spend)} on ads; no clicks were recorded yet.`
-      : `Wydaliśmy ${wholePln(spend)} na reklamy; nie odnotowano jeszcze kliknięć.`;
-  } else {
-    answer = en
-      ? `We spent ${wholePln(spend)} on ads and got ${formatNumberPL(clicks)} clicks - ${formatMoneyPLN(Math.round(cpc))} per click on average${cpcTail}.`
-      : `Wydaliśmy ${wholePln(spend)} na reklamy i dostaliśmy ${formatNumberPL(clicks)} ${plPlural(clicks, "kliknięcie", "kliknięcia", "kliknięć")} - średnio ${formatMoneyPLN(Math.round(cpc))} za jedno${cpcTail}.`;
+function changeTone(kpi: Kpi, metric: GlossaryKey, thinBase: boolean): string {
+  const d = kpi.deltaPercent;
+  const goodWhen = GLOSSARY[metric].goodWhen;
+  if (thinBase || d === null || !Number.isFinite(d) || goodWhen === "neutral") {
+    return "text-muted-foreground";
   }
+  if (Math.abs(d) < FLAT_THRESHOLD) return "text-muted-foreground";
+  const good = goodWhen === "lower" ? d < 0 : d > 0;
+  return good
+    ? "text-emerald-700 dark:text-emerald-400"
+    : "text-red-700 dark:text-red-400";
+}
+
+function Tile({
+  metric,
+  tone,
+  value,
+  kpi,
+  hint,
+  thinBase,
+  lang,
+}: {
+  metric: GlossaryKey;
+  tone: ChangeTone;
+  /** Formatted headline, or "-" when there is nothing to show. */
+  value: string;
+  kpi: Kpi;
+  /** Replaces the change sentence (no data yet, no clicks...). */
+  hint?: string;
+  thinBase: boolean;
+  lang: Lang;
+}) {
+  const g = GLOSSARY[metric];
+  const en = lang === "en";
+  const tag = en ? (g.en.short ?? g.short) : g.short;
+  const change = hint ?? describeChange(kpi.deltaPercent, tone, { thinBase, lang });
+  const d = kpi.deltaPercent;
+  const arrow =
+    hint || thinBase || d === null || !Number.isFinite(d) || Math.abs(d) < FLAT_THRESHOLD
+      ? null
+      : d > 0
+        ? "▲"
+        : "▼";
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{en ? "Ads" : "Reklamy"}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {en
-            ? `Where the money goes and what we get for it · ${rangeLabel}`
-            : `Na co idą pieniądze i co z tego mamy · ${rangeLabel}`}
-        </p>
-        <p className="mt-3 max-w-2xl text-balance text-base font-medium leading-snug tabular-nums">
-          {answer}
-        </p>
+    // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
+    <div className="surface relative flex min-w-0 flex-col gap-2 p-4 focus-within:z-10 hover:z-10 sm:p-5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-sm font-medium text-foreground">
+          {TILE_LABEL[lang][metric] ?? (en ? g.en.name : g.name)}
+        </span>
+        {/* The CTR/CPC tag people hear from platforms; no room on phones. */}
+        {tag ? (
+          <span className="hidden rounded bg-muted px-1.5 py-px text-[11px] font-medium text-muted-foreground sm:inline">
+            {tag}
+          </span>
+        ) : null}
+        <InfoTip label={tag ?? (en ? g.en.name : g.name)} text={en ? g.en.explain : g.explain} lang={lang} />
       </div>
-      {children ? <div className="shrink-0">{children}</div> : null}
+      <p className="truncate text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-metric">
+        {value}
+      </p>
+      <p
+        className={cn(
+          "text-sm leading-snug",
+          hint ? "text-muted-foreground" : changeTone(kpi, metric, thinBase)
+        )}
+      >
+        {arrow ? (
+          <span aria-hidden className="mr-1 text-[0.7em]">
+            {arrow}
+          </span>
+        ) : null}
+        {change}
+      </p>
     </div>
+  );
+}
+
+/**
+ * The four numbers that answer "where does the money go and what do we get":
+ * spend, clicks, cost per click and click rate, each with its change vs the
+ * previous period in words. Nothing else on the Reklamy page repeats them.
+ */
+export function AdsKpiTiles({
+  kpis,
+  lang = "pl",
+}: {
+  kpis: DashboardKpis;
+  lang?: Lang;
+}) {
+  const en = lang === "en";
+  const afterAds = en
+    ? "Ad data appears after the first sync"
+    : "Dane pojawią się po pierwszej synchronizacji";
+  const noAds =
+    kpis.spendMinorUnits.value === 0 &&
+    kpis.spendMinorUnits.previous === 0 &&
+    kpis.clicks.value === 0 &&
+    kpis.clicks.previous === 0;
+  const noSpend = kpis.spendMinorUnits.value === 0;
+  const noClicks = kpis.clicks.value === 0;
+  // CTR and CPC are ratios over clicks, so they inherit the clicks guard.
+  const thinClicks = kpis.clicks.previous < MIN_PREV_CLICKS;
+
+  const spendHint = noAds
+    ? afterAds
+    : noSpend
+      ? en
+        ? "no ad spend in this period"
+        : "brak wydatków w tym okresie"
+      : undefined;
+  const clicksHint = noAds
+    ? afterAds
+    : noClicks
+      ? en
+        ? "no ad clicks in this period"
+        : "brak kliknięć w tym okresie"
+      : undefined;
+
+  return (
+    <section aria-label={en ? "Key numbers" : "Najważniejsze liczby"}>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <Tile
+          metric="spend"
+          tone="amount"
+          // Whole złoty: grosze on a five-digit budget is noise.
+          value={noAds ? "-" : wholePln(kpis.spendMinorUnits.value)}
+          kpi={kpis.spendMinorUnits}
+          hint={spendHint}
+          thinBase={kpis.spendMinorUnits.previous < MIN_PREV_SPEND}
+          lang={lang}
+        />
+        <Tile
+          metric="clicks"
+          tone="amount"
+          value={noAds ? "-" : formatNumberPL(kpis.clicks.value)}
+          kpi={kpis.clicks}
+          hint={clicksHint}
+          thinBase={thinClicks}
+          lang={lang}
+        />
+        <Tile
+          metric="cpc"
+          tone="cost"
+          // CPC keeps grosze: 1,47 zł vs 1,52 zł is the whole story here.
+          value={noAds || noClicks ? "-" : formatMoneyPLN(Math.round(kpis.cpcMinorUnits.value))}
+          kpi={kpis.cpcMinorUnits}
+          hint={noAds ? afterAds : noClicks ? clicksHint : undefined}
+          thinBase={thinClicks}
+          lang={lang}
+        />
+        <Tile
+          metric="ctr"
+          tone="rate"
+          value={noAds ? "-" : formatPercent(kpis.ctr.value)}
+          kpi={kpis.ctr}
+          hint={noAds ? afterAds : undefined}
+          thinBase={thinClicks}
+          lang={lang}
+        />
+      </div>
+    </section>
   );
 }

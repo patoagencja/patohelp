@@ -82,13 +82,13 @@ export function CreativeThumb({
         />
       ) : (
         <div
-          className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-muted to-muted-foreground/10 text-muted-foreground"
+          className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-muted text-muted-foreground"
           role="img"
           aria-label={`${FORMAT_LABEL[lang][format]} · Meta`}
         >
           <Icon className={compact ? "h-4 w-4" : "h-7 w-7"} aria-hidden />
           {compact ? null : (
-            <span className="text-[11px] font-medium uppercase tracking-wide">
+            <span className="text-xs font-medium">
               {FORMAT_LABEL[lang][format]} · Meta
             </span>
           )}

@@ -331,6 +331,182 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
 const MOBILE_COLLAPSED = 4;
 
 /**
+ * Reklamy page version: five columns a first-time visitor can read (status,
+ * campaign, spend, clicks, click rate), biggest spenders first, top N with
+ * "Pokaż wszystkie". Cost per click, the spend change and the 7-day trend
+ * live in the full table behind the page's "Pokaż szczegóły". Hidden rows
+ * stay in the DOM and print, so the PDF always has every campaign.
+ */
+function SimpleCampaigns({
+  campaigns,
+  filter,
+  limit,
+  lang,
+}: {
+  campaigns: CampaignRow[];
+  filter: PositionFilter;
+  limit: number;
+  lang: Lang;
+}) {
+  const t = COPY[lang];
+  const en = lang === "en";
+  const [showAll, setShowAll] = useState(false);
+  const base =
+    filter === "active"
+      ? campaigns.filter((c) => c.status !== "off")
+      : filter === "attention"
+        ? campaigns.filter((c) => c.status === "attention" || c.status === "critical")
+        : campaigns;
+  const rows = [...base].sort((a, b) => b.spendMinorUnits - a.spendMinorUnits);
+  const totalSpend = rows.reduce((s, c) => s + c.spendMinorUnits, 0);
+  const collapsed = !showAll && rows.length > limit;
+  const hiddenCount = rows.length - limit;
+  const presentStatuses = (
+    ["active", "attention", "critical", "off"] as CampaignStatus[]
+  ).filter((s) => rows.some((c) => c.status === s));
+
+  return (
+    <section className="surface p-5 sm:p-6">
+      <div className="min-w-0 space-y-1">
+        <h2 className="text-section-title text-foreground">{t.title}</h2>
+        <p className="text-sm text-muted-foreground">
+          {summaryText(lang, filter, rows.length)}
+          <span aria-hidden> · </span>
+          <span className="font-medium tabular-nums text-foreground">
+            {wholePln(totalSpend)}
+          </span>{" "}
+          {t.spent}
+        </p>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="mt-6 text-sm text-muted-foreground">
+          {campaigns.length === 0 ? t.none : t.empty}
+        </p>
+      ) : (
+        <>
+          {/* Phones: name + spend on one line, clicks and click rate under. */}
+          <ul className="mt-4 divide-y divide-border md:hidden">
+            {rows.map((c, i) => (
+              <li
+                key={`${c.provider}:${c.campaignId}`}
+                className={cn(
+                  "flex items-start gap-3 py-3",
+                  collapsed && i >= limit && "hidden print:flex"
+                )}
+              >
+                <span className="flex h-5 items-center">
+                  <StatusDot c={c} lang={lang} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-medium leading-snug">{c.name}</p>
+                  {/* Each fact is unbreakable, so a narrow row wraps
+                      between facts rather than inside one. */}
+                  <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+                    <PlatformPill provider={c.provider} />
+                    <span className="whitespace-nowrap">
+                      {formatNumberPL(c.clicks)} {en ? "clicks" : plPlural(c.clicks, "kliknięcie", "kliknięcia", "kliknięć")}
+                    </span>
+                    <span className="whitespace-nowrap">
+                      {t.ctr.toLowerCase()} {formatPercent(c.ctr)}
+                    </span>
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold tabular-nums">
+                  {wholePln(c.spendMinorUnits)}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4 hidden overflow-x-auto md:block">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border text-left text-sm text-muted-foreground">
+                  <th scope="col" className="w-10 pb-3 font-medium">
+                    <span className="sr-only">Status</span>
+                  </th>
+                  <th scope="col" className="pb-3 pr-4 font-medium">{t.campaign}</th>
+                  <th scope="col" className="pb-3 pr-4 text-right font-medium">{t.spend}</th>
+                  <th scope="col" className="pb-3 pr-4 text-right font-medium">{t.clicks}</th>
+                  <th scope="col" className="pb-3 text-right font-medium" title={t.ctrHint}>
+                    {t.ctr}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((c, i) => (
+                  <tr
+                    key={`${c.provider}:${c.campaignId}`}
+                    className={cn(
+                      "h-14 border-b border-border/60 last:border-0",
+                      collapsed && i >= limit && "hidden print:table-row"
+                    )}
+                  >
+                    <td className="w-10">
+                      <span className="flex items-center">
+                        <StatusDot c={c} lang={lang} />
+                      </span>
+                    </td>
+                    <td className="max-w-[28rem] pr-4">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <PlatformPill provider={c.provider} />
+                        <span className="truncate text-sm font-medium" title={c.name}>
+                          {c.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="pr-4 text-right text-sm font-semibold tabular-nums">
+                      {wholePln(c.spendMinorUnits)}
+                    </td>
+                    <td className="pr-4 text-right text-sm tabular-nums">
+                      {formatNumberPL(c.clicks)}
+                    </td>
+                    <td className="text-right text-sm tabular-nums">{formatPercent(c.ctr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border pt-4">
+        {presentStatuses.length > 0 ? (
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+            {presentStatuses.map((s) => (
+              <li key={s} className="inline-flex items-center gap-1.5">
+                <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} aria-hidden />
+                {STATUS_LABEL[lang][s]}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span />
+        )}
+        {rows.length > limit ? (
+          <button
+            type="button"
+            data-print-hide
+            aria-expanded={showAll}
+            onClick={() => setShowAll((v) => !v)}
+            className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {showAll
+              ? en
+                ? "Show fewer"
+                : "Pokaż mniej"
+              : en
+                ? `Show all (${hiddenCount} more)`
+                : `Pokaż wszystkie (jeszcze ${hiddenCount})`}
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+/**
  * Combined Meta/Google/TikTok campaign list in plain language: spend, clicks,
  * click rate, cost per click, recent spend change and a 7-day trend line.
  * Table on desktop, stacked cards on phones.
@@ -339,10 +515,53 @@ export function CampaignPositions({
   campaigns,
   initialFilter = "all",
   lang = "pl",
+  variant = "full",
+  limit = 6,
+  title,
 }: {
   campaigns: CampaignRow[];
   initialFilter?: PositionFilter;
   lang?: Lang;
+  /**
+   * "full" (default): every column, filters and trends. "simple": the
+   * five-column Reklamy table with top `limit` rows and "Pokaż wszystkie".
+   */
+  variant?: "full" | "simple";
+  /** Simple variant only: rows shown before "Pokaż wszystkie". */
+  limit?: number;
+  /** Overrides the card heading (e.g. inside "Pokaż szczegóły"). */
+  title?: string;
+}) {
+  if (variant === "simple") {
+    return (
+      <SimpleCampaigns
+        campaigns={campaigns}
+        filter={initialFilter}
+        limit={limit}
+        lang={lang}
+      />
+    );
+  }
+  return (
+    <FullCampaigns
+      campaigns={campaigns}
+      initialFilter={initialFilter}
+      lang={lang}
+      title={title}
+    />
+  );
+}
+
+function FullCampaigns({
+  campaigns,
+  initialFilter,
+  lang,
+  title,
+}: {
+  campaigns: CampaignRow[];
+  initialFilter: PositionFilter;
+  lang: Lang;
+  title?: string;
 }) {
   const t = COPY[lang];
   // Client-side filtering: instant, no navigation, immune to stale-chunk errors
@@ -374,7 +593,7 @@ export function CampaignPositions({
     <Card className="p-5 sm:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold">{t.title}</h2>
+          <h2 className="text-base font-semibold">{title ?? t.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {summaryText(lang, filter, filtered.length)}
             <span aria-hidden> · </span>

@@ -1,5 +1,3 @@
-import { Card } from "@tremor/react";
-
 import { plPlural } from "@/lib/dashboard/story";
 import type { SearchTermRow } from "@/lib/dashboard/search-terms";
 import { cn, formatMoneyPLN, formatNumberPL } from "@/lib/utils";
@@ -132,7 +130,7 @@ export function SearchTerms({
   const maxRow = byClicks ? ranked[0].clicks : ranked[0].impressions;
 
   return (
-    <Card>
+    <section className="surface p-5 sm:p-6">
       <h2 className="text-base font-semibold">
         {en ? "What your customers search for" : "Czego szukają Twoi klienci"}
       </h2>
@@ -145,7 +143,7 @@ export function SearchTerms({
 
       {topics.length > 0 ? (
         <div className="mt-5">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="text-sm font-medium text-muted-foreground">
             {en ? "Most popular topics" : "Najpopularniejsze tematy"}
           </h3>
           <ul className="mt-2 flex flex-wrap items-center gap-2">
@@ -181,7 +179,7 @@ export function SearchTerms({
         </div>
       ) : null}
 
-      <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="mt-6 text-sm font-medium text-muted-foreground">
         {en ? `Top ${ranked.length} searches` : `${ranked.length} najczęstszych fraz`}
       </h3>
       {/* CSS columns (not grid) so the ranking reads down the first column
@@ -234,6 +232,6 @@ export function SearchTerms({
           );
         })}
       </ol>
-    </Card>
+    </section>
   );
 }

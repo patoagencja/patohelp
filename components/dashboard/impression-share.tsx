@@ -1,5 +1,3 @@
-import { Card } from "@tremor/react";
-
 import {
   roughCount,
   toOutOf100,
@@ -178,7 +176,7 @@ export function ImpressionShare({
   const top = data.campaigns.slice(0, TOP_CAMPAIGNS);
 
   return (
-    <Card>
+    <section className="surface p-5 sm:p-6">
       <h2 className="text-base font-semibold">
         {en ? "How visible you are on Google" : "Jak dobrze widać Twoje reklamy w Google"}
       </h2>
@@ -219,7 +217,7 @@ export function ImpressionShare({
 
       {top.length > 1 ? (
         <>
-          <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="mt-6 text-sm font-medium text-muted-foreground">
             {en ? "By campaign" : "Według kampanii"}
           </h3>
           <ul className="mt-1">
@@ -256,6 +254,6 @@ export function ImpressionShare({
           </p>
         ) : null}
       </div>
-    </Card>
+    </section>
   );
 }

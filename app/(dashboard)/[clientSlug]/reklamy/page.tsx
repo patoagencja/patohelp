@@ -1,17 +1,16 @@
 import { redirect } from "next/navigation";
 
-import { AdsPageIntro } from "@/components/dashboard/ads-page-intro";
+import { AdsKpiTiles } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { DetailsDisclosure } from "@/components/dashboard/details-disclosure";
 import { ImpressionShare } from "@/components/dashboard/impression-share";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SearchTerms } from "@/components/dashboard/search-terms";
-import {
-  TopCreatives,
-  type CreativeRow,
-} from "@/components/dashboard/top-creatives";
+import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   getDashboardData,
   normalizeRange,
@@ -20,29 +19,8 @@ import {
 import { getClientBySlug } from "@/lib/dashboard/context";
 import { getImpressionShare } from "@/lib/dashboard/impression-share";
 import { getSearchTerms } from "@/lib/dashboard/search-terms";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-
-async function getTopCreatives(clientId: string): Promise<CreativeRow[]> {
-  const supabase = createClient();
-  const { data } = await supabase
-    .from("creatives")
-    .select("ad_id, ad_name, thumbnail_url, spend_minor_units, ctr, cpc_minor_units")
-    .eq("client_id", clientId)
-    .eq("provider", "meta_ads")
-    .order("spend_minor_units", { ascending: false })
-    .limit(5);
-
-  return (data ?? []).map((c) => ({
-    adId: c.ad_id as string,
-    adName: (c.ad_name as string) || (c.ad_id as string),
-    thumbnailUrl: c.thumbnail_url as string | null,
-    spendMinorUnits: Number(c.spend_minor_units),
-    ctr: c.ctr != null ? Number(c.ctr) : null,
-    cpcMinorUnits: c.cpc_minor_units != null ? Number(c.cpc_minor_units) : null,
-  }));
-}
 
 export default async function AdsPage({
   params,
@@ -61,58 +39,82 @@ export default async function AdsPage({
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const [data, creatives, searchTerms, impressionShare] = await Promise.all([
+  // Top creatives used to be teased here too; they now live one tab over
+  // (Kreacje), so the page no longer queries them.
+  const [data, searchTerms, impressionShare] = await Promise.all([
     getDashboardData(client.id, range, custom),
-    getTopCreatives(client.id),
     getSearchTerms(client.id),
     getImpressionShare(client.id),
   ]);
 
-  return (
-    <div className="space-y-6 p-6">
-      <AdsPageIntro kpis={data.kpis} rangeLabel={data.rangeLabel}>
-        <DateRangePicker
-          value={range}
-          customFrom={custom?.start}
-          customTo={custom?.end}
-        />
-      </AdsPageIntro>
+  // Keep the chosen range when hopping between the Kampanie/Kreacje tabs.
+  const keep = new URLSearchParams();
+  if (searchParams.range) keep.set("range", searchParams.range);
+  if (searchParams.from) keep.set("from", searchParams.from);
+  if (searchParams.to) keep.set("to", searchParams.to);
+  const query = keep.toString() ? `?${keep.toString()}` : "";
+  const initialFilter =
+    searchParams.camp === "active" || searchParams.camp === "attention"
+      ? searchParams.camp
+      : "all";
 
-      {/* The two short answers first (where the money goes, what a click
-          costs); the per-campaign detail follows for anyone who wants it.
-          Each widget has its own boundary so one bad dataset can't blank
-          the tab. */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SectionBoundary name="ads/platform-split">
-          <PlatformSplit split={data.platformSplit} />
-        </SectionBoundary>
-        <SectionBoundary name="ads/cost-trends">
-          <CostTrends costTrend={data.costTrend} />
-        </SectionBoundary>
+  // Page skeleton: header + tabs -> 4 numbers -> one chart -> one table ->
+  // one "Pokaż szczegóły". Each top-level child is a presentation slide, and
+  // each widget has its own boundary so one bad dataset can't blank the tab.
+  return (
+    <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
+      <div className="space-y-6">
+        <PageHeader
+          title="Reklamy"
+          description="Na co idą pieniądze i co z tego mamy."
+          actions={
+            <DateRangePicker
+              value={range}
+              customFrom={custom?.start}
+              customTo={custom?.end}
+            />
+          }
+        />
+        <AdsSectionTabs base={`/${params.clientSlug}`} active="kampanie" query={query} />
       </div>
+
+      <SectionBoundary name="ads/kpis">
+        <AdsKpiTiles kpis={data.kpis} />
+      </SectionBoundary>
+
+      <SectionBoundary name="ads/cost-trends">
+        <CostTrends costTrend={data.costTrend} />
+      </SectionBoundary>
 
       <SectionBoundary name="ads/campaigns">
         <CampaignPositions
           campaigns={data.campaigns}
-          initialFilter={
-            searchParams.camp === "active" || searchParams.camp === "attention"
-              ? searchParams.camp
-              : "all"
-          }
+          variant="simple"
+          initialFilter={initialFilter}
         />
       </SectionBoundary>
 
-      <SectionBoundary name="ads/search-terms">
-        <SearchTerms terms={searchTerms} />
-      </SectionBoundary>
-
-      <SectionBoundary name="ads/impression-share">
-        <ImpressionShare data={impressionShare} />
-      </SectionBoundary>
-
-      <SectionBoundary name="ads/top-creatives">
-        <TopCreatives creatives={creatives} />
-      </SectionBoundary>
+      <DetailsDisclosure
+        storageKey="pato:details:reklamy"
+        summary="Podział budżetu na Meta i Google, czego szukają Twoi klienci, widoczność w Google i pełna tabela kampanii."
+      >
+        <SectionBoundary name="ads/platform-split">
+          <PlatformSplit split={data.platformSplit} />
+        </SectionBoundary>
+        <SectionBoundary name="ads/search-terms">
+          <SearchTerms terms={searchTerms} />
+        </SectionBoundary>
+        <SectionBoundary name="ads/impression-share">
+          <ImpressionShare data={impressionShare} />
+        </SectionBoundary>
+        <SectionBoundary name="ads/campaigns-full">
+          <CampaignPositions
+            campaigns={data.campaigns}
+            initialFilter={initialFilter}
+            title="Kampanie - wszystkie liczby"
+          />
+        </SectionBoundary>
+      </DetailsDisclosure>
     </div>
   );
 }

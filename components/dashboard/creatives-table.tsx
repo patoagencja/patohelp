@@ -264,7 +264,7 @@ export function CreativesTable({
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[40rem]">
           <thead>
-            <tr className="border-b border-border text-left tabular-nums text-[11px] uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b border-border text-left text-xs text-muted-foreground">
               <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Reklama"}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Spend" : "Wydatki"}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Impr." : "Wyśw."}</th>

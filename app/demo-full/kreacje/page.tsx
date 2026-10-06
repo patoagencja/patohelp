@@ -1,4 +1,7 @@
 import { CreativesExplorer } from "@/components/dashboard/creatives/creatives-explorer";
+import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
 import { getDemoDashboard } from "@/lib/demo/data";
 
@@ -97,13 +100,22 @@ export default function DemoFullKreacje({
   const creatives = d.creativesFull.map(withDiagnostics);
   return (
     <>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{en ? "Creatives" : "Kreacje"}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {en
-            ? `Which ads work best, and why · Meta · ${d.rangeLabel}`
-            : `Które reklamy działają najlepiej i dlaczego · Meta · ${d.rangeLabel}`}
-        </p>
+      <div className="space-y-6">
+        <PageHeader
+          title={en ? "Ads" : "Reklamy"}
+          description={
+            en
+              ? "Which ads work best - and which are worth refreshing."
+              : "Które reklamy działają najlepiej - i co warto odświeżyć."
+          }
+          actions={<Pill className="px-3 py-1 text-sm">Meta · {d.rangeLabel}</Pill>}
+        />
+        <AdsSectionTabs
+          base="/demo-full"
+          active="kreacje"
+          query={en ? "?lang=en" : ""}
+          lang={lang}
+        />
       </div>
 
       <CreativesExplorer creatives={creatives} lang={lang} />

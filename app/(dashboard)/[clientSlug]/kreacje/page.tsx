@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { ImageOff } from "lucide-react";
 
 import { CreativesExplorer } from "@/components/dashboard/creatives/creatives-explorer";
+import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
 import { createClient } from "@/lib/supabase/server";
@@ -23,8 +26,10 @@ function periodLabel(start: string | null, end: string | null): string {
 
 export default async function KreacjePage({
   params,
+  searchParams = {},
 }: {
   params: { clientSlug: string };
+  searchParams?: { range?: string; from?: string; to?: string };
 }) {
   // Shared per-request lookup: the layout already asked for this client, so
   // the page no longer pays its own round trip for the same row.
@@ -81,19 +86,34 @@ export default async function KreacjePage({
     (rows[0]?.period_end as string | null) ?? null
   );
 
+  // Creatives are a fixed synced window (not the page's range picker), but
+  // the range chosen on Kampanie is carried through so the way back keeps it.
+  const keep = new URLSearchParams();
+  if (searchParams.range) keep.set("range", searchParams.range);
+  if (searchParams.from) keep.set("from", searchParams.from);
+  if (searchParams.to) keep.set("to", searchParams.to);
+  const query = keep.toString() ? `?${keep.toString()}` : "";
+
+  // Same header and tabs as Kampanie: Kreacje is a tab of Reklamy, not a
+  // separate place. Top-level children are the presentation slides.
   return (
-    <div className="min-w-0 space-y-6 p-4 sm:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Kreacje - {client.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Które reklamy działają najlepiej i dlaczego · Meta · {period} ·
-          odświeżane automatycznie co 6 godzin
-        </p>
+    <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
+      <div className="space-y-6">
+        <PageHeader
+          title="Reklamy"
+          description="Które reklamy działają najlepiej - i co warto odświeżyć."
+          actions={
+            <Pill className="px-3 py-1 text-sm" title="Reklamy odświeżane automatycznie co 6 godzin">
+              Meta · {period}
+            </Pill>
+          }
+        />
+        <AdsSectionTabs base={`/${params.clientSlug}`} active="kreacje" query={query} />
       </div>
 
       {creatives.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-4 py-16 text-center">
-          <ImageOff className="mb-3 h-8 w-8 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-border px-4 py-16 text-center">
+          <ImageOff className="mb-3 h-8 w-8 text-muted-foreground" aria-hidden />
           <p className="text-sm font-medium">Brak danych o reklamach</p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
             Reklamy pojawią się tu po najbliższej synchronizacji (co 6 godzin).

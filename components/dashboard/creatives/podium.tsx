@@ -91,7 +91,7 @@ export function CreativesPodium({
 
   if (entries.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+      <p className="rounded-card border border-dashed border-border p-5 text-sm text-muted-foreground">
         {en
           ? `Not enough data to name the best ads yet - each ad needs at least ${formatNumberPL(MIN_IMPRESSIONS)} views.`
           : `Za mało danych, by wskazać najlepsze reklamy - każda potrzebuje min. ${formatNumberPL(MIN_IMPRESSIONS)} wyświetleń.`}
@@ -113,15 +113,14 @@ export function CreativesPodium({
             type="button"
             onClick={() => onSelect(c)}
             className={cn(
-              "group flex min-w-0 gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:flex-col lg:p-0",
-              i === 0 && "ring-1 ring-amber-400/50"
+              "surface group flex min-w-0 gap-3 p-3 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0 lg:flex-col lg:p-0"
             )}
           >
             <CreativeThumb
               src={c.thumbnailUrl}
               name={c.name}
               lang={lang}
-              className="aspect-square w-24 self-start sm:w-28 lg:aspect-[4/3] lg:w-full lg:rounded-b-none lg:rounded-t-2xl"
+              className="aspect-square w-24 self-start sm:w-28 lg:aspect-[4/3] lg:w-full lg:rounded-b-none lg:rounded-t-card"
             >
               <span
                 className={cn(

@@ -70,12 +70,15 @@ export function GalleryCard({
   bench,
   lang,
   onSelect,
+  wide = false,
 }: {
   c: CreativeItem;
   score: CreativeScore;
   bench: Benchmarks;
   lang: Lang;
   onSelect: (c: CreativeItem) => void;
+  /** 4:3 thumbnail for three-up rows, where squares get very tall. */
+  wide?: boolean;
 }) {
   const en = lang === "en";
   const ctr = ctrOf(c);
@@ -134,13 +137,13 @@ export function GalleryCard({
     <button
       type="button"
       onClick={() => onSelect(c)}
-      className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="surface group flex min-w-0 flex-col overflow-hidden text-left transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0"
     >
       <CreativeThumb
         src={c.thumbnailUrl}
         name={c.name}
         lang={lang}
-        className="aspect-square w-full rounded-none"
+        className={cn("w-full rounded-none", wide ? "aspect-square sm:aspect-[4/3]" : "aspect-square")}
       >
         {fatigue ? <FatigueBadge fatigue={fatigue} lang={lang} /> : null}
       </CreativeThumb>

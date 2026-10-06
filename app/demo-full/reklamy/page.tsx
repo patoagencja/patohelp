@@ -1,19 +1,16 @@
-import Link from "next/link";
-
-import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
-import { AD_PROVIDER_SHORT } from "@/lib/types";
-import { AdsPageIntro } from "@/components/dashboard/ads-page-intro";
+import { AdsKpiTiles } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
+import { DetailsDisclosure } from "@/components/dashboard/details-disclosure";
 import { ImpressionShare } from "@/components/dashboard/impression-share";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
 import { SearchTerms } from "@/components/dashboard/search-terms";
+import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
 import type { SearchTermRow } from "@/lib/dashboard/search-terms";
 import { summarizeImpressionShare } from "@/lib/dashboard/impression-share";
 import { getDemoDashboard } from "@/lib/demo/data";
-import { GLOSSARY } from "@/lib/dashboard/glossary";
-import { plPlural } from "@/lib/dashboard/story";
-import { formatMoneyPLN, formatPercent, formatPlnWhole } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -86,90 +83,55 @@ export default function DemoFullReklamy({
   const en = lang === "en";
   const d = getDemoDashboard(lang);
 
-  // The demo creatives are Meta ads (the thumb already says "· META"), so a
-  // "GOOG" badge on every third one contradicted its own label. The full
-  // gallery lives on Kreacje - here a short teaser is enough.
-  const ads = d.creativesFull.slice(0, 4).map((c) => ({
-    ...c,
-    provider: "meta_ads" as const,
-  }));
-
+  // Same skeleton as the real Reklamy tab: header + tabs -> 4 numbers ->
+  // one chart -> one table -> one "Pokaż szczegóły". The ads teaser that
+  // used to close the page lives one tab over, on Kreacje.
   return (
     <>
-      <AdsPageIntro kpis={d.kpis} rangeLabel={d.rangeLabel} lang={lang} />
-
-      {/* The two short answers first, campaign detail below - same order as
-          the real Reklamy tab. */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <PlatformSplit split={d.platformSplit} lang={lang} />
-        <CostTrends costTrend={d.costTrend} lang={lang} />
+      <div className="space-y-6">
+        <PageHeader
+          title={en ? "Ads" : "Reklamy"}
+          description={
+            en
+              ? "Where the money goes and what we get for it."
+              : "Na co idą pieniądze i co z tego mamy."
+          }
+          // The demo has one fixed period; show it where the picker sits.
+          actions={<Pill className="px-3 py-1 text-sm">{d.rangeLabel}</Pill>}
+        />
+        <AdsSectionTabs
+          base="/demo-full"
+          active="kampanie"
+          query={en ? "?lang=en" : ""}
+          lang={lang}
+        />
       </div>
 
-      <CampaignPositions campaigns={d.campaigns} lang={lang} />
+      <AdsKpiTiles kpis={d.kpis} lang={lang} />
 
-      <SearchTerms terms={DEMO_SEARCH_TERMS} lang={lang} />
+      <CostTrends costTrend={d.costTrend} lang={lang} />
 
-      <ImpressionShare data={DEMO_IMPRESSION_SHARE} lang={lang} />
+      <CampaignPositions campaigns={d.campaigns} lang={lang} variant="simple" />
 
-      {/* Example ads gallery */}
-      <section>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h2 className="text-base font-semibold">
-            {en ? "Active ads" : "Aktywne reklamy"}
-          </h2>
-          <Link
-            href={en ? "/demo-full/kreacje?lang=en" : "/demo-full/kreacje"}
-            className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-indigo-300"
-          >
-            {en
-              ? `All ${d.creativesFull.length} ads and what works best →`
-              : `Wszystkie ${d.creativesFull.length} ${plPlural(
-                  d.creativesFull.length,
-                  "reklama",
-                  "reklamy",
-                  "reklam"
-                )} i co działa najlepiej →`}
-          </Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {ads.map((c) => (
-            <div
-              key={c.adId}
-              className="overflow-hidden rounded-xl border border-border bg-card"
-            >
-              <CreativeThumb
-                src={c.thumbnailUrl ?? null}
-                name={c.name}
-                lang={lang}
-                className="aspect-square w-full"
-              >
-                <span className="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 tabular-nums text-[10px] font-semibold text-white">
-                  {AD_PROVIDER_SHORT[c.provider]}
-                </span>
-              </CreativeThumb>
-              <div className="space-y-1.5 p-3">
-                <p className="truncate text-sm font-medium" title={c.name}>
-                  {c.name}
-                </p>
-                <p className="text-sm font-bold tabular-nums">
-                  {formatPlnWhole(c.spend)}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {en ? "spent" : "wydane"}
-                  </span>
-                </p>
-                <div className="flex flex-wrap items-center justify-between gap-x-2 text-xs tabular-nums text-muted-foreground">
-                  <span>
-                    {en ? GLOSSARY.ctr.en.name : GLOSSARY.ctr.name} {formatPercent(c.ctr ?? 0)}
-                  </span>
-                  <span>
-                    {en ? "Per click" : "Za kliknięcie"} {c.cpc != null ? formatMoneyPLN(c.cpc) : "-"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <DetailsDisclosure
+        storageKey="pato:details:reklamy"
+        openLabel={en ? "Show details" : undefined}
+        closeLabel={en ? "Hide details" : undefined}
+        summary={
+          en
+            ? "Budget split between Meta and Google, what your customers search for, visibility on Google and the full campaign table."
+            : "Podział budżetu na Meta i Google, czego szukają Twoi klienci, widoczność w Google i pełna tabela kampanii."
+        }
+      >
+        <PlatformSplit split={d.platformSplit} lang={lang} />
+        <SearchTerms terms={DEMO_SEARCH_TERMS} lang={lang} />
+        <ImpressionShare data={DEMO_IMPRESSION_SHARE} lang={lang} />
+        <CampaignPositions
+          campaigns={d.campaigns}
+          lang={lang}
+          title={en ? "Campaigns - all numbers" : "Kampanie - wszystkie liczby"}
+        />
+      </DetailsDisclosure>
     </>
   );
 }

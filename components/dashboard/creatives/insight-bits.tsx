@@ -94,7 +94,7 @@ export function RefreshList({
   const shown = items.slice(0, REFRESH_LIST_MAX);
   const rest = items.length - shown.length;
   return (
-    <section className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+    <section className="surface space-y-3 p-5 sm:p-6">
       <div>
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <RefreshCw className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-hidden />
