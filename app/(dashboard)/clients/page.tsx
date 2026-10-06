@@ -22,7 +22,8 @@ import { RECONNECT_PATH } from "@/components/dashboard/integration-health-banner
 import { getAgencyTodo } from "@/lib/agency/todo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PageHeader, SectionHeader } from "@/components/ui/page-header";
+import { Sky } from "@/components/ui/sky";
+import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
@@ -207,12 +208,16 @@ export default async function ClientsPage({
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    // relative + isolate: the pastel sky sits under the content, above the
+    // wrapper's own background (same as the dashboard shell).
+    <div className="relative isolate min-h-screen bg-background">
+      <Sky />
+      <div className="pointer-events-none sticky top-0 z-30 mx-auto w-full max-w-6xl px-3 pt-2.5 sm:px-6 md:pt-3.5 lg:px-8 print:hidden">
       <header
         data-chrome-header
-        className="sticky top-0 z-30 border-b border-transparent bg-chrome/75 backdrop-blur-xl backdrop-saturate-150 print:hidden"
+        className="glass glass-blur pointer-events-auto rounded-full"
       >
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:h-16 lg:px-8">
+        <div className="flex min-h-[62px] w-full items-center justify-between gap-3 py-[7px] pl-4 pr-2 md:min-h-16 md:pl-[18px]">
           <div className="flex items-center gap-2.5">
             {/* Agency mark: the anchor tile with the lime dot, same "selected"
                 language as the client dashboard's sidebar pill. */}
@@ -220,24 +225,26 @@ export default async function ClientsPage({
               <LayoutDashboard className="h-4 w-4" aria-hidden />
               <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-anchor-dot ring-2 ring-background" />
             </span>
-            <span className="font-semibold">Pato</span>
+            <span className="font-semibold tracking-[-0.02em]">Pato</span>
+            <span className="kick hidden sm:inline">· Agencja</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground sm:inline">
+            <span className="hidden text-sm text-ink-3 sm:inline">
               {user.email}
             </span>
             <form action={signOut}>
-              <Button type="submit" variant="outline" size="sm">
+              <Button type="submit" variant="chip" size="pill">
                 Wyloguj
               </Button>
             </form>
           </div>
         </div>
       </header>
+      </div>
 
       <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16 pt-6 sm:px-6 md:pt-8 lg:px-8">
         <PageHeader
-          eyebrow="Panel agencji"
+          eyebrow={<span className="kick">Panel agencji · {clientList.length} klientów</span>}
           title="Wybierz klienta"
           description="Każdy klient ma własny panel, raporty i alerty - wybierz, żeby do niego wejść."
         />
@@ -248,18 +255,18 @@ export default async function ClientsPage({
 
         {/* Summary strip across all clients */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="p-5 sm:p-6">
-            <p className="text-sm text-muted-foreground">Klienci</p>
-            <p className="mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums">{clientList.length}</p>
+          <Card className="p-[22px]">
+            <p className="kick">Klienci</p>
+            <p className="mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums">{clientList.length}</p>
           </Card>
-          <Card className="p-5 sm:p-6">
-            <p className="text-sm text-muted-foreground">Wydatki wczoraj (łącznie)</p>
-            <p className="mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums">
+          <Card className="p-[22px]">
+            <p className="kick">Wydatki wczoraj · łącznie</p>
+            <p className="mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums">
               {formatMoneyPLN(totalYesterday)}
             </p>
           </Card>
-          <Card className="p-5 sm:p-6">
-            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Card className="p-[22px]">
+            <p className="kick flex items-center gap-2">
               <span
                 aria-hidden
                 className={cn(
@@ -271,15 +278,15 @@ export default async function ClientsPage({
             </p>
             <p
               className={cn(
-                "mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums",
+                "mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums",
                 totalAlerts > 0 && "text-negative"
               )}
             >
               {totalAlerts}
             </p>
           </Card>
-          <Card className="p-5 sm:p-6">
-            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Card className="p-[22px]">
+            <p className="kick flex items-center gap-2">
               <span
                 aria-hidden
                 className={cn(
@@ -291,7 +298,7 @@ export default async function ClientsPage({
             </p>
             <p
               className={cn(
-                "mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums",
+                "mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums",
                 totalBroken > 0 && "text-warning"
               )}
             >
@@ -306,7 +313,12 @@ export default async function ClientsPage({
         </div>
 
         <section aria-labelledby="klienci-title" className="space-y-4">
-          <SectionHeader title={<span id="klienci-title">Klienci</span>} />
+          <div className="px-1">
+            <p className="kick">Twoi klienci</p>
+            <h2 id="klienci-title" className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+              Klienci
+            </h2>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {clientList.map((c) => {
             const spend = spendByClient.get(c.id as string) ?? 0;
@@ -315,7 +327,7 @@ export default async function ClientsPage({
             return (
               <Card
                 key={c.slug}
-                className="group relative p-5 transition-shadow duration-200 focus-within:ring-2 focus-within:ring-ring hover:shadow-raised sm:p-6"
+                className="group relative p-[22px] transition-[box-shadow,transform] duration-200 focus-within:ring-2 focus-within:ring-ring hover:-translate-y-0.5 hover:shadow-lime-ring motion-reduce:hover:translate-y-0 sm:p-6"
               >
                 {/* Whole tile opens the client; the reconnect links below sit
                     above this layer so they stay clickable on their own. */}
@@ -330,8 +342,8 @@ export default async function ClientsPage({
                     {c.name.slice(0, 2)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[17px] font-semibold">{c.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">/{c.slug}</p>
+                    <p className="truncate text-[17px] font-medium tracking-[-0.015em]">{c.name}</p>
+                    <p className="truncate font-mono text-xs text-ink-3">/{c.slug}</p>
                   </div>
                   <ArrowRight
                     aria-hidden
@@ -351,11 +363,11 @@ export default async function ClientsPage({
                 </div>
 
                 <div className="pointer-events-none relative mt-4">
-                  <p className="text-xs text-muted-foreground">Wydatki wczoraj</p>
-                  <p className="mt-0.5 text-xl font-medium tracking-[-0.02em] tabular-nums">{formatMoneyPLN(spend)}</p>
+                  <p className="kick !text-[11px]">Wydatki wczoraj</p>
+                  <p className="mt-1.5 text-[1.75rem] font-light leading-none tracking-[-0.045em] tabular-nums">{formatMoneyPLN(spend)}</p>
                 </div>
 
-                <div className="relative z-10 mt-4 border-t border-border pt-3 text-xs">
+                <div className="relative z-10 mt-4 border-t border-line pt-3 text-xs">
                   {health.down.length === 0 && health.expiring.length === 0 ? (
                     <p className="pointer-events-none flex items-center gap-1.5 text-muted-foreground">
                       <CheckCircle2 className="h-3.5 w-3.5 text-positive" aria-hidden />
@@ -410,38 +422,41 @@ export default async function ClientsPage({
 
         {isAdmin ? (
           <section aria-labelledby="dodaj-klienta-title" className="space-y-4">
-            <SectionHeader
-              title={<span id="dodaj-klienta-title">Dodaj klienta</span>}
-              description="Po dodaniu przejdziesz do Ustawień, żeby połączyć Meta / Google / GA4 dla tego klienta."
-            />
+            <div className="px-1">
+              <p className="kick">Tylko admin</p>
+              <h2 id="dodaj-klienta-title" className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+                Dodaj klienta
+              </h2>
+              <p className="mt-1.5 text-[15px] text-ink-2">
+                Po dodaniu przejdziesz do Ustawień, żeby połączyć Meta / Google / GA4 dla tego klienta.
+              </p>
+            </div>
             {searchParams.error ? (
               <p className="text-sm text-destructive">{searchParams.error}</p>
             ) : null}
             <form
               action={addClient}
-              className="surface flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:p-6"
+              className="glass flex flex-col gap-4 rounded-card p-5 sm:flex-row sm:items-end sm:p-6"
             >
               <label className="flex flex-1 flex-col gap-1.5 text-xs">
-                <span className="font-medium text-muted-foreground">Nazwa</span>
+                <span className="kick">Nazwa</span>
                 <input
                   name="name"
                   required
                   placeholder="np. DRE"
-                  className="h-10 rounded-xl border border-transparent bg-muted px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-ring"
+                  className="h-11 rounded-[14px] border border-transparent bg-chip px-3.5 text-[15px] outline-none transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus:bg-card focus:ring-2 focus:ring-ring dark:focus:bg-[var(--chip-hover)]"
                 />
               </label>
               <label className="flex flex-1 flex-col gap-1.5 text-xs">
-                <span className="font-medium text-muted-foreground">
-                  Slug (adres URL)
-                </span>
+                <span className="kick">Slug (adres URL)</span>
                 <input
                   name="slug"
                   required
                   placeholder="np. dre"
-                  className="h-10 rounded-xl border border-transparent bg-muted px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-ring"
+                  className="h-11 rounded-[14px] border border-transparent bg-chip px-3.5 text-[15px] outline-none transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus:bg-card focus:ring-2 focus:ring-ring dark:focus:bg-[var(--chip-hover)]"
                 />
               </label>
-              <Button type="submit" className="h-10 gap-1.5">
+              <Button type="submit" size="pill" className="gap-1.5">
                 <Plus className="h-4 w-4" />
                 Dodaj i połącz konta
               </Button>

@@ -19,7 +19,8 @@ import {
   TopCreatives,
   type CreativeRow,
 } from "@/components/dashboard/top-creatives";
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { Sky } from "@/components/ui/sky";
 import {
   RANGE_KEYS,
   RANGE_LABELS,
@@ -243,14 +244,20 @@ export default async function SharedOverviewPage({
   const basePath = `/s/${params.token}`;
 
   return (
+    // relative + isolate: the pastel sky (and the presentation stage) sit
+    // under the content, above this wrapper's own background.
     <div
-      className="min-h-screen bg-background"
+      className="relative isolate min-h-screen bg-background"
       style={clientAccentStyle(branding.brandColor)}
     >
-      <header
+      <Sky />
+      <div
         data-present-hide
+        className="pointer-events-none sticky top-0 z-30 mx-auto w-full max-w-6xl px-3 pt-2.5 sm:px-6 md:pt-3.5 print:hidden"
+      >
+      <header
         data-chrome-header
-        className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-transparent bg-chrome/75 px-4 py-2 backdrop-blur-xl backdrop-saturate-150 sm:px-6 print:hidden"
+        className="glass glass-blur pointer-events-auto flex min-h-[62px] flex-wrap items-center gap-x-3 gap-y-2 rounded-[31px] py-[7px] pl-4 pr-2 md:min-h-16 md:pl-[18px] sm:rounded-full"
       >
         {/* The board sees the client's own mark first; no initials badge when
             there is no logo - the name right next to it says it already. */}
@@ -262,8 +269,9 @@ export default async function SharedOverviewPage({
           fallback={null}
         />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{client.name}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="truncate text-[15px] font-semibold tracking-[-0.015em]">{client.name}</p>
+          <p className="flex items-center gap-1.5 text-xs text-ink-3">
+            <span className="ping ping-still" aria-hidden />
             Podgląd tylko do odczytu · przygotowane przez Pato
           </p>
         </div>
@@ -281,8 +289,9 @@ export default async function SharedOverviewPage({
         />
         <PrintButton />
       </header>
+      </div>
 
-      <main className="mx-auto w-full max-w-6xl p-4 sm:p-6">
+      <main id="main" className="mx-auto w-full max-w-6xl p-4 sm:p-6">
         <PrintHeader
           clientName={client.name}
           periodLabel={data.rangeLabel}
@@ -290,11 +299,12 @@ export default async function SharedOverviewPage({
           logoUrl={branding.logoUrl}
         />
 
-        <nav
+        <SegmentedTrack
+          as="nav"
           aria-label="Zakres dat"
           data-present-hide
           data-print-hide
-          className={cn(segmentedTrack, "mb-6 mt-2")}
+          className={cn(segmentedTrack, "mb-6 mt-3")}
         >
           {RANGE_KEYS.map((key) => (
             <Link
@@ -302,12 +312,12 @@ export default async function SharedOverviewPage({
               href={`${basePath}?range=${key}`}
               prefetch={false}
               aria-current={key === range ? "page" : undefined}
-              className={segmentedItem(key === range)}
+              className={segmentedItem(key === range, "min-h-10 px-4")}
             >
               {RANGE_LABELS[key]}
             </Link>
           ))}
-        </nav>
+        </SegmentedTrack>
 
         <div data-present-deck className="space-y-6">
           <StoryHero
@@ -357,7 +367,7 @@ export default async function SharedOverviewPage({
 
       <footer
         data-present-hide
-        className="pb-8 text-center text-xs text-muted-foreground print:hidden"
+        className="pb-8 text-center font-mono text-[11px] tracking-[0.06em] text-ink-3 print:hidden"
       >
         Dane z platform reklamowych i Google Analytics 4 · przygotowane przez
         Pato

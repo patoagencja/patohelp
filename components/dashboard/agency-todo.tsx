@@ -3,7 +3,6 @@ import { CheckCircle2, ChevronDown } from "lucide-react";
 
 import { Shimmer } from "@/components/dashboard/skeletons";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/ui/page-header";
 import { Pill, pillVariants } from "@/components/ui/pill";
 import {
   countTodoByClient,
@@ -63,9 +62,9 @@ function ActionLink({ item }: { item: AgencyTodoItem }) {
   return (
     <Button
       asChild
-      size="sm"
-      variant={urgent ? "default" : "outline"}
-      className="h-8 shrink-0 rounded-full px-3 text-xs"
+      size="pill"
+      variant={urgent ? "default" : "chip"}
+      className="shrink-0 px-4 text-[13px]"
     >
       {isApi ? (
         <a href={item.actionHref}>{item.actionLabel}</a>
@@ -78,7 +77,7 @@ function ActionLink({ item }: { item: AgencyTodoItem }) {
 
 function TodoRow({ item }: { item: AgencyTodoItem }) {
   return (
-    <li className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
+    <li className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <span aria-hidden className={cn(CLIENT_AVATAR, "h-9 w-9 text-xs")}>
           {item.clientName.slice(0, 2)}
@@ -86,11 +85,11 @@ function TodoRow({ item }: { item: AgencyTodoItem }) {
         <div className="min-w-0">
           <Link
             href={`/${item.clientSlug}`}
-            className="text-sm font-semibold hover:underline"
+            className="rounded-sm text-[15px] font-medium tracking-[-0.01em] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {item.clientName}
           </Link>
-          <p className="text-sm tabular-nums text-muted-foreground">{item.text}</p>
+          <p className="text-sm tabular-nums text-ink-2">{item.text}</p>
         </div>
       </div>
       <div className="flex sm:justify-end">
@@ -117,31 +116,34 @@ export function AgencyTodoCard({
     <section
       id={TODO_ANCHOR}
       aria-labelledby={`${TODO_ANCHOR}-title`}
-      className="surface scroll-mt-24 p-6 sm:p-7"
+      className="glass scroll-mt-24 rounded-glass p-6 sm:p-7"
     >
-      <SectionHeader
-        title={<span id={`${TODO_ANCHOR}-title`}>Dziś do zrobienia</span>}
-        description="Sprawy u wszystkich klientów, najpilniejsze na górze."
-        actions={
-          groups.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {groups.map((g) => (
-                <Pill key={g.severity} tone={SEVERITY_UI[g.severity].tone} className="tabular-nums">
-                  {SEVERITY_UI[g.severity].count(g.items.length)}
-                </Pill>
-              ))}
-            </div>
-          ) : null
-        }
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="kick">Agencja · dziś</p>
+          <h2 id={`${TODO_ANCHOR}-title`} className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+            Dziś do zrobienia
+          </h2>
+          <p className="mt-1 text-sm text-ink-2">Sprawy u wszystkich klientów, najpilniejsze na górze.</p>
+        </div>
+        {groups.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {groups.map((g) => (
+              <Pill key={g.severity} tone={SEVERITY_UI[g.severity].tone} className="min-h-7 px-3 tabular-nums">
+                {SEVERITY_UI[g.severity].count(g.items.length)}
+              </Pill>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       {groups.length === 0 ? (
         <div className="mt-6 flex flex-col items-center gap-2 px-6 py-6 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-positive-soft">
-            <CheckCircle2 className="h-5 w-5 text-positive" aria-hidden />
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-positive-soft">
+            <CheckCircle2 className="h-6 w-6 text-positive" aria-hidden />
           </span>
-          <p className="text-base font-semibold">Wszystko pod kontrolą</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-1 text-[22px] font-medium tracking-[-0.03em]">Wszystko pod kontrolą</p>
+          <p className="text-sm text-ink-2">
             Połączenia działają, budżety idą zgodnie z planem, klienci widzą Waszą pracę.
           </p>
         </div>
@@ -149,24 +151,24 @@ export function AgencyTodoCard({
         <div className="mt-6 space-y-6">
           {groups.map((g) => {
             const list = (
-              <ul className="mt-1 divide-y divide-border">
+              <ul className="mt-1 divide-y divide-line">
                 {g.items.map((item, i) => (
                   <TodoRow key={`${item.clientSlug}-${i}`} item={item} />
                 ))}
               </ul>
             );
             const heading = (
-              <span className="flex items-center gap-2 text-sm font-semibold">
+              <span className="kick flex items-center gap-2.5 !text-ink-2">
                 <span className={cn("h-2 w-2 rounded-full ring-[3px]", SEVERITY_UI[g.severity].dot)} aria-hidden />
                 {SEVERITY_UI[g.severity].heading}
-                <span className="font-normal text-muted-foreground tabular-nums">{g.items.length}</span>
+                <span className="text-ink-3 tabular-nums">{g.items.length}</span>
               </span>
             );
             // Tips are nice-to-haves: folded by default so they never push
             // the urgent rows below the fold. Native <details>, no client JS.
             return g.severity === "wskazowka" ? (
               <details key={g.severity} className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md [&::-webkit-details-marker]:hidden">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                   {heading}
                   <ChevronDown
                     className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
@@ -186,7 +188,7 @@ export function AgencyTodoCard({
       )}
 
       {todo.failedChecks > 0 ? (
-        <p className="mt-4 text-xs tabular-nums text-muted-foreground">
+        <p className="mt-4 text-xs tabular-nums text-ink-3">
           Nie udało się wykonać {todo.failedChecks}{" "}
           {plPlural(todo.failedChecks, "sprawdzenia", "sprawdzeń", "sprawdzeń")} - lista
           może być niepełna.
@@ -212,7 +214,7 @@ export function AgencyTodoSkeleton() {
     <div
       aria-busy
       aria-label="Ładowanie listy do zrobienia"
-      className="surface p-6 sm:p-7"
+      className="glass rounded-glass p-6 sm:p-7"
     >
       <div className="space-y-2">
         <Shimmer className="h-6 w-44" />

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { Sky } from "@/components/ui/sky";
+
 export const metadata: Metadata = {
   title: "Polityka prywatności — Pato Dashboard",
 };
@@ -7,19 +9,21 @@ export const metadata: Metadata = {
 // Public privacy policy (required for Google OAuth verification).
 export default function PrivacyPage() {
   return (
-    <main className="min-h-screen bg-background px-4 py-10 text-foreground sm:px-6 sm:py-16">
-      <article className="surface mx-auto max-w-2xl p-6 sm:p-10">
-      <h1 className="text-page-title">Polityka prywatności</h1>
-      <p className="mt-2 text-sm text-muted-foreground">patoagencja · Pato Dashboard</p>
+    <main className="relative isolate min-h-screen bg-background px-4 py-10 text-foreground sm:px-6 sm:py-16">
+      <Sky />
+      <article className="glass mx-auto max-w-2xl rounded-glass p-6 sm:p-10">
+      <p className="kick">Dokument · prywatność</p>
+      <h1 className="mt-3 text-[2.25rem] font-light leading-tight tracking-[-0.045em] sm:text-[2.75rem]">Polityka prywatności</h1>
+      <p className="mt-2 font-mono text-xs tracking-[0.06em] text-ink-3">patoagencja · Pato Dashboard</p>
 
-      <div className="mt-8 space-y-5 text-sm leading-relaxed">
+      <div className="mt-8 space-y-5 text-[15px] leading-relaxed text-ink-2">
         <p>
           Pato Dashboard („Aplikacja") to wewnętrzne narzędzie raportowe agencji
           Pato, służące do prezentowania klientom danych z ich kont reklamowych
           (Meta Ads, Google Ads, TikTok Ads) oraz Google Analytics 4.
         </p>
 
-        <h2 className="text-section-title">Jakie dane przetwarzamy</h2>
+        <h2 className="pt-2 text-[19px] font-medium tracking-[-0.025em] text-foreground">Jakie dane przetwarzamy</h2>
         <p>
           Za zgodą właściciela konta pobieramy — wyłącznie w trybie do odczytu —
           statystyki kampanii i ruchu (wydatki, wyświetlenia, kliknięcia, CTR,
@@ -27,7 +31,7 @@ export default function PrivacyPage() {
           użytkowników końcowych ani treści prywatnych.
         </p>
 
-        <h2 className="text-section-title">Wykorzystanie danych Google</h2>
+        <h2 className="pt-2 text-[19px] font-medium tracking-[-0.025em] text-foreground">Wykorzystanie danych Google</h2>
         <p>
           Dostęp do interfejsów API Google (Google Ads, Google Analytics) jest
           używany wyłącznie do wyświetlania statystyk w panelu klienta. Dane nie
@@ -45,7 +49,7 @@ export default function PrivacyPage() {
           , w tym z wymogami Limited Use.
         </p>
 
-        <h2 className="text-section-title">Przechowywanie i bezpieczeństwo</h2>
+        <h2 className="pt-2 text-[19px] font-medium tracking-[-0.025em] text-foreground">Przechowywanie i bezpieczeństwo</h2>
         <p>
           Tokeny dostępu są przechowywane w postaci zaszyfrowanej. Dane
           statystyczne trzymamy w bazie z dostępem ograniczonym do właściwego
@@ -54,7 +58,7 @@ export default function PrivacyPage() {
           Google.
         </p>
 
-        <h2 className="text-section-title">Kontakt</h2>
+        <h2 className="pt-2 text-[19px] font-medium tracking-[-0.025em] text-foreground">Kontakt</h2>
         <p>
           W sprawach prywatności: kontakt@patoagencja.com
         </p>

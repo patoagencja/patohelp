@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
+import { Sky } from "@/components/ui/sky";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,20 +51,23 @@ export default async function SharedReportPage({
   const foot = `${client.name} · ${sm.periodLabel} · patoagencja`;
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <header className="flex h-14 items-center justify-between border-b border-border bg-card px-6 print:hidden">
-        <span className="text-sm font-semibold">
-          Raport - {client.name}{" "}
-          <span className="font-normal text-muted-foreground">
-            · {sm.monthLabel}
+    // relative + isolate: the pastel sky sits under the content.
+    <div className="relative isolate min-h-screen bg-background">
+      <Sky />
+      <div className="pointer-events-none sticky top-0 z-30 mx-auto w-full max-w-6xl px-3 pt-2.5 sm:px-6 md:pt-3.5 print:hidden">
+        <header className="glass glass-blur pointer-events-auto flex min-h-[62px] items-center justify-between gap-3 rounded-full py-2 pl-5 pr-5 md:min-h-16">
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="kick !text-[11px]">Raport · {sm.monthLabel}</span>
+            <span className="truncate text-[15px] font-semibold tracking-[-0.015em]">{client.name}</span>
           </span>
-        </span>
-        <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          patoagencja
-        </span>
-      </header>
+          <span className="kick hidden items-center gap-2 sm:inline-flex">
+            <span className="ping ping-lime ping-still" aria-hidden />
+            patoagencja
+          </span>
+        </header>
+      </div>
 
-      <main className="mx-auto max-w-6xl space-y-6 p-6">
+      <main id="main" className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:p-6">
         <ReportDeck
           clientSlug={client.slug}
           range="prev_month"
@@ -75,7 +79,7 @@ export default async function SharedReportPage({
         </ReportDeck>
       </main>
 
-      <footer className="pb-8 text-center text-xs text-muted-foreground print:hidden">
+      <footer className="px-4 pb-8 text-center font-mono text-[11px] tracking-[0.06em] text-ink-3 print:hidden">
         Raport wygenerowany automatycznie przez patoagencja · dane z Meta Ads,
         Google Ads i TikTok Ads
       </footer>

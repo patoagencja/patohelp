@@ -28,11 +28,12 @@ export default function DemoOnePager({
 
   return (
     <>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="px-1">
+        <p className="kick">{en ? "Overview · " : "Przegląd · "}{d.rangeLabel}</p>
+        <h1 className="mt-2 text-[2.25rem] font-light leading-tight tracking-[-0.045em] sm:text-[2.75rem]">
           {en ? "Hi 👋" : "Cześć 👋"}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1.5 max-w-2xl text-[15px] leading-relaxed text-ink-2">
           {en
             ? "All your marketing in one place — Meta, Google and GA4, refreshed automatically. (Demo view on sample data.)"
             : "Cały Twój marketing w jednym miejscu — Meta, Google i GA4, odświeżane automatycznie. (Widok demonstracyjny na przykładowych danych.)"}
@@ -61,7 +62,7 @@ export default function DemoOnePager({
 
       <AiSummaryCard summary={d.summary} lang={lang} />
 
-      <p className="pb-6 pt-2 text-center text-xs text-muted-foreground">
+      <p className="pb-6 pt-2 text-center font-mono text-[11px] tracking-[0.06em] text-ink-3">
         {en ? "Demo view · sample data" : "Widok demonstracyjny · dane przykładowe"}
       </p>
     </>
