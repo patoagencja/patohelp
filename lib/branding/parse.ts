@@ -366,7 +366,9 @@ export function isGreyish(hex: string): boolean {
   const l = (max + min) / 2;
   const chroma = max - min;
   const s = chroma === 0 ? 0 : chroma / (1 - Math.abs(2 * l - 1));
-  return chroma < 0.1 || s < 0.15 || l > 0.95 || l < 0.05;
+  // The last clause catches "almost black" UI defaults (Tailwind slate-900,
+  // shadcn's --primary) while keeping genuinely dark brand navies.
+  return chroma < 0.1 || s < 0.15 || l > 0.95 || l < 0.05 || (l < 0.15 && chroma < 0.15);
 }
 
 // Theme / framework defaults that show up in CSS variables of sites which
@@ -639,7 +641,7 @@ export function parseBrandingHtml(html: string, pageUrl: string): ParsedPage {
   type RawLogo = { src: string; confidence: Confidence; rank: number; label: string; kind: LogoKind; size?: number; type?: string };
   const raw: RawLogo[] = [];
   const themeColors: Array<{ content: string; media: string }> = [];
-  // Assigned inside walker callbacks - the cast stops TS narrowing it to null.
+  // Assigned inside walker callbacks - the casts stop TS narrowing them to null.
   let maskColor = null as string | null;
   let tileColor = null as string | null;
   let manifestHref = null as string | null;
@@ -783,20 +785,27 @@ export function parseBrandingHtml(html: string, pageUrl: string): ParsedPage {
   // Resolve now that <base href> is known. Rank first, so when the same file
   // is both og:image (in <head>) and the header logo, the logo entry wins.
   raw.sort((x, y) => x.rank - y.rank);
-  const seen = new Set<string>();
+  // Keyed without the scheme: og:image + og:image:secure_url (Shopify) are
+  // the same file over http and https - keep one entry, the https one.
+  const seen = new Map<string, LogoCandidate>();
   const logos: LogoCandidate[] = [];
   for (const r of raw) {
     const u = resolveUrl(r.src, base);
     if (!u) continue;
     const key = u.toString();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    // An SVG favicon declared without an "svg" type still counts as SVG icon.
-    if (r.kind === "favicon" && isSvgUrl(u, r.type)) {
-      logos.push({ url: key, kind: "icon", confidence: "medium", rank: RANK.svgIcon, label: "Ikona SVG strony", size: 512 });
+    const dedupeKey = key.replace(/^https?:/, "");
+    const existing = seen.get(dedupeKey);
+    if (existing) {
+      if (u.protocol === "https:") existing.url = key;
       continue;
     }
-    logos.push({ url: key, kind: r.kind, confidence: r.confidence, label: r.label, size: r.size, rank: r.rank });
+    // An SVG favicon declared without an "svg" type still counts as SVG icon.
+    const candidate: LogoCandidate =
+      r.kind === "favicon" && isSvgUrl(u, r.type)
+        ? { url: key, kind: "icon", confidence: "medium", rank: RANK.svgIcon, label: "Ikona SVG strony", size: 512 }
+        : { url: key, kind: r.kind, confidence: r.confidence, label: r.label, size: r.size, rank: r.rank };
+    seen.set(dedupeKey, candidate);
+    logos.push(candidate);
   }
   sortLogos(logos);
 

@@ -13,7 +13,7 @@ import {
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
-import { HeaderMenu } from "@/components/dashboard/header-menu";
+import { AlertsBell, HeaderMenu } from "@/components/dashboard/header-menu";
 import { HeaderTitle } from "@/components/dashboard/header-title";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
@@ -128,59 +128,64 @@ export default async function ClientDashboardLayout({
         <header
           data-present-hide
           data-chrome-header
-          className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-transparent bg-chrome/75 px-4 backdrop-blur-xl backdrop-saturate-150 sm:gap-3 sm:px-6 md:h-16 lg:px-8 print:hidden"
+          className="sticky top-0 z-30 border-b border-transparent bg-chrome/75 backdrop-blur-xl backdrop-saturate-150 print:hidden"
         >
-          <HeaderTitle
-            clientName={clientName}
-            base={`/${params.clientSlug}`}
-            isEcommerce={isEcommerce}
-            isAgency={isAgency}
-            brand={
-              <ClientBrandMark
-                name={clientName}
-                slug={params.clientSlug}
-                logoUrl={client?.logoUrl}
-                className="h-5 max-w-[6rem] text-foreground [&:is(img)]:h-7"
-                fallback={
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <LayoutDashboard className="h-3.5 w-3.5" />
-                  </span>
-                }
-              />
-            }
-          />
-          <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
-          <span className="flex-1" />
-          {/* Overlays and shortcuts stay live (⌘K, "/", first-visit tour);
-              their header triggers moved into the "…" menu. */}
-          <div className="hidden">
-            <CommandPalette
-              clientSlug={params.clientSlug}
-              isAgency={isAgency}
+          {/* Same column and gutters as <main>, so the title sits exactly
+              above the page content. */}
+          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 md:h-16 lg:px-8">
+            <HeaderTitle
+              clientName={clientName}
+              base={`/${params.clientSlug}`}
               isEcommerce={isEcommerce}
-              clients={allClients}
-            />
-            <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
-          </div>
-          {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
-          <PresentationMode
-            brand={
-              client ? (
+              isAgency={isAgency}
+              brand={
                 <ClientBrandMark
-                  name={client.name}
+                  name={clientName}
                   slug={params.clientSlug}
-                  logoUrl={client.logoUrl}
-                  className="h-8"
-                  fallback={<span className="text-sm font-semibold">{client.name}</span>}
+                  logoUrl={client?.logoUrl}
+                  className="h-5 max-w-[8rem] text-foreground [&:is(img)]:h-7"
+                  fallback={
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                      <LayoutDashboard className="h-3.5 w-3.5" />
+                    </span>
+                  }
                 />
-              ) : null
-            }
-          />
-          <HeaderMenu
-            overviewPath={`/${params.clientSlug}`}
-            email={user?.email}
-            signOut={signOut}
-          />
+              }
+            />
+            <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
+            <span className="flex-1" />
+            {/* Overlays and shortcuts stay live (⌘K, "/", first-visit tour);
+                their header triggers moved into the "…" menu. */}
+            <div className="hidden">
+              <CommandPalette
+                clientSlug={params.clientSlug}
+                isAgency={isAgency}
+                isEcommerce={isEcommerce}
+                clients={allClients}
+              />
+              <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
+            </div>
+            {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
+            <AlertsBell href={`/${params.clientSlug}/alerty`} />
+            <PresentationMode
+              brand={
+                client ? (
+                  <ClientBrandMark
+                    name={client.name}
+                    slug={params.clientSlug}
+                    logoUrl={client.logoUrl}
+                    className="h-8"
+                    fallback={<span className="text-sm font-semibold">{client.name}</span>}
+                  />
+                ) : null
+              }
+            />
+            <HeaderMenu
+              overviewPath={`/${params.clientSlug}`}
+              email={user?.email}
+              signOut={signOut}
+            />
+          </div>
         </header>
 
         <div data-present-hide>

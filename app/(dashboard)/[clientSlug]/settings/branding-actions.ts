@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { BrandingFetchError, fetchBrandingFromWebsite } from "@/lib/branding/fetch";
+import type { ColorCandidate, LogoCandidate } from "@/lib/branding/parse";
+import { URL_PROBLEM_MESSAGE, WEBSITE_URL_MAX, parseWebsiteUrl } from "@/lib/branding/website";
 import { BRAND_COLOR_RE, LOGO_URL_MAX, safeLogoUrl } from "@/lib/dashboard/branding";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -74,4 +77,87 @@ export async function saveClientBranding(input: {
   // The logo sits in the shared layout (sidebar) of every client page.
   revalidatePath(`/${clientSlug}`, "layout");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// "Pobierz ze strony": fetch the client's website and PROPOSE a logo and a
+// colour. Nothing branding-related is written here - the agency user picks
+// from the preview and saves through saveClientBranding above.
+
+const PreviewInput = z.object({
+  clientSlug: z.string().min(1).max(100),
+  websiteUrl: z
+    .string()
+    .trim()
+    .min(1, "Wpisz adres strony klienta.")
+    .max(WEBSITE_URL_MAX, `Adres może mieć maksymalnie ${WEBSITE_URL_MAX} znaków.`),
+});
+
+export interface BrandingPreview {
+  /** Normalised URL that was fetched (and remembered, see websiteSaved). */
+  websiteUrl: string;
+  /** False before migration 0032 - the preview still works, the URL isn't kept. */
+  websiteSaved: boolean;
+  siteName: string | null;
+  finalUrl: string;
+  notes: string[];
+  logoCandidates: Array<Pick<LogoCandidate, "url" | "kind" | "confidence" | "label">>;
+  colorCandidates: Array<Pick<ColorCandidate, "color" | "source" | "label">>;
+}
+
+export type BrandingPreviewResult = { ok: true; preview: BrandingPreview } | { ok: false; error: string };
+
+/** Remember the website for next time and for the bulk fill on /clients. */
+async function saveWebsiteUrl(clientId: string, websiteUrl: string): Promise<boolean> {
+  const { error } = await createAdminClient()
+    .from("clients")
+    .update({ website_url: websiteUrl })
+    .eq("id", clientId);
+  // 42703 / PGRST204: migration 0032 not run yet - not worth failing over.
+  return !error;
+}
+
+export async function fetchBrandingPreview(input: {
+  clientSlug: string;
+  websiteUrl: string;
+}): Promise<BrandingPreviewResult> {
+  const parsed = PreviewInput.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Nieprawidłowe dane." };
+  }
+  const website = parseWebsiteUrl(parsed.data.websiteUrl);
+  if (!website.ok) return { ok: false, error: URL_PROBLEM_MESSAGE[website.problem] };
+
+  // The fetch is an outbound request to a user-typed host: agency only.
+  const access = await requireAgencyClientAccess(parsed.data.clientSlug);
+  if (!access.ok) return { ok: false, error: "Brak uprawnień do tego klienta." };
+
+  try {
+    const result = await fetchBrandingFromWebsite(website.url);
+    const websiteSaved = await saveWebsiteUrl(access.clientId, website.url);
+    if (websiteSaved) revalidatePath(`/${access.clientSlug}/settings`);
+    return {
+      ok: true,
+      preview: {
+        websiteUrl: website.url,
+        websiteSaved,
+        siteName: result.siteName,
+        finalUrl: result.finalUrl,
+        notes: result.notes,
+        logoCandidates: result.logoCandidates.map(({ url, kind, confidence, label }) => ({ url, kind, confidence, label })),
+        colorCandidates: result.colorCandidates.map(({ color, source, label }) => ({ color, source, label })),
+      },
+    };
+  } catch (err) {
+    if (err instanceof BrandingFetchError) {
+      // The site exists but misbehaved (timeout, 403, bad TLS): the address
+      // is probably right, keep it so the next try doesn't need retyping.
+      if (!["invalid_url", "blocked_host", "dns"].includes(err.code)) {
+        await saveWebsiteUrl(access.clientId, website.url);
+      }
+      return { ok: false, error: err.message };
+    }
+    console.error("[branding] fetchBrandingPreview failed", err);
+    return { ok: false, error: "Nie udało się pobrać strony. Spróbuj ponownie." };
+  }
 }

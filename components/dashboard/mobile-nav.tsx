@@ -3,9 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight, MoreHorizontal, X } from "lucide-react";
+import { ChevronRight, HelpCircle, MoreHorizontal, X } from "lucide-react";
 
-import { buildNav, findActive, TONE_TILE, type NavItem } from "@/components/dashboard/nav-items";
+import {
+  buildNav,
+  findActive,
+  findSection,
+  HELP_EVENT,
+  type NavItem,
+} from "@/components/dashboard/nav-items";
 import { useModalFocus } from "@/components/dashboard/use-modal-focus";
 import { cn } from "@/lib/utils";
 
@@ -42,22 +48,21 @@ export function MobileNav({
 
   const groups = buildNav({ base, isEcommerce, isAgency, omit });
   const active = findActive(groups, pathname, base);
+  // Kreacje lights up the Reklamy tab: it is a part of that place.
+  const section = findSection(groups, active);
   const mainItems = groups.find((g) => g.id === "main")?.items ?? [];
   const primary = mainItems.slice(0, 4);
   // Sub-pages (Kreacje) and any overflow go to the sheet, ahead of "Więcej".
   const sheetSections: { label?: string; items: NavItem[] }[] = [
     {
-      items: [
-        ...mainItems.slice(4),
-        ...mainItems.flatMap((i) => i.children ?? []),
-      ],
+      label: "Reklamy",
+      items: [...mainItems.slice(4), ...mainItems.flatMap((i) => i.children ?? [])],
     },
     ...groups
       .filter((g) => g.id !== "main")
-      .map((g) => ({ label: g.label, items: g.items })),
+      .map((g) => ({ label: g.id === "more" ? undefined : g.label, items: g.items })),
   ].filter((s) => s.items.length > 0);
-  const moreActive =
-    !!active && !primary.some((i) => i.href === active.href);
+  const moreActive = !!section && !primary.some((i) => i.href === section.href);
 
   return (
     <>
@@ -91,7 +96,7 @@ export function MobileNav({
             <div className="space-y-5">
               {sheetSections.map((section, si) => (
                 <div key={section.label ?? `s${si}`}>
-                  {section.label && section.label !== "Więcej" ? (
+                  {section.label ? (
                     <p className="px-4 pb-1.5 text-xs font-medium text-muted-foreground">{section.label}</p>
                   ) : null}
                   {/* Inset grouped list: one white surface, hairline rows. */}
@@ -106,15 +111,10 @@ export function MobileNav({
                             aria-current={isActive ? "page" : undefined}
                             className="flex items-center gap-3 px-4 py-3 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:bg-muted"
                           >
-                            <span
-                              className={cn(
-                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.6rem]",
-                                TONE_TILE[item.tone]
-                              )}
+                            <Icon
+                              className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
                               aria-hidden
-                            >
-                              <Icon className="h-[17px] w-[17px]" />
-                            </span>
+                            />
                             <span className={cn("flex-1", isActive ? "font-semibold" : "font-medium")}>
                               {item.label}
                             </span>
@@ -126,6 +126,17 @@ export function MobileNav({
                   </ul>
                 </div>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  close();
+                  window.dispatchEvent(new Event(HELP_EVENT));
+                }}
+                className="flex w-full items-center gap-3 rounded-2xl bg-card px-4 py-3 text-left text-[15px] font-medium shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted"
+              >
+                <HelpCircle className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                Jak czytać panel
+              </button>
             </div>
           </div>
         </div>
@@ -142,7 +153,7 @@ export function MobileNav({
           )}
         >
           {primary.map(({ href, label, short, icon: Icon }) => {
-            const isActive = active?.href === href;
+            const isActive = section?.href === href;
             return (
               <Link
                 key={href}

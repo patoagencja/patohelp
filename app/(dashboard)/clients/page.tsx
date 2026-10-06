@@ -37,7 +37,11 @@ import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 import { cn, formatMoneyPLN } from "@/lib/utils";
 
+import { BrandingFillButton } from "./branding-fill-button";
+
 export const dynamic = "force-dynamic";
+// "Uzupełnij brandingi" fetches several client websites in one Server Action.
+export const maxDuration = 120;
 
 // Sign out and return to login.
 async function signOut() {
@@ -464,6 +468,8 @@ export default async function ClientsPage({
             );
           })}
         </div>
+
+        <BrandingFillButton className="mt-6" />
 
         {isAdmin ? (
           <div className="mt-12">

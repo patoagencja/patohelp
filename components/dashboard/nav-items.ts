@@ -13,19 +13,17 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-/** Soft colour of the icon tile; each main section keeps its own. */
-export type NavTone = "indigo" | "emerald" | "orange" | "pink" | "sky" | "neutral";
-
 export type NavItem = {
   href: string;
   label: string;
   /** Shorter label for the phone tab bar. */
   short?: string;
-  /** One plain line under the label (desktop sidebar only). */
-  description?: string;
   icon: LucideIcon;
-  tone: NavTone;
-  /** Sub-pages listed under their parent (Kreacje lives under Reklamy). */
+  /**
+   * Sub-pages that belong to this place (Kreacje inside Reklamy). The
+   * sidebar reveals them only while you are in that place, so the resting
+   * menu stays at four items.
+   */
   children?: NavItem[];
 };
 
@@ -36,12 +34,21 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+/** Fired by "Jak czytać panel" in the menus; HeaderMenu starts the tour. */
+export const HELP_EVENT = "pato:help";
+
 /**
  * Single source of truth for the dashboard navigation (desktop sidebar, demo
- * sidebar, phone tab bar, header page title). A first-time visitor should see
- * only the few places that answer "how are we doing": Przegląd, Sprzedaż
- * (shops), Reklamy (with Kreacje inside) and Strona internetowa. Everything
- * else sits under "Więcej"; agency tools are a separate group at the bottom.
+ * sidebar, phone tab bar, header page title). Benchmark IA: four visible
+ * places + "Więcej", the same five slots on desktop and phone.
+ *
+ *   engagement client: Przegląd · Reklamy · Strona www · Raporty · Więcej
+ *   e-commerce client: Przegląd · Sprzedaż · Reklamy · Strona www · Więcej
+ *                      (Raporty moves into Więcej)
+ *
+ * Kreacje lives inside Reklamy; Alerty, Newsy and Słowniczek are under
+ * "Więcej" (alerts are also one tap away via the header bell); agency tools
+ * are a separate group at the bottom. Routes are unchanged.
  */
 export function buildNav({
   base,
@@ -56,62 +63,33 @@ export function buildNav({
 }): NavGroup[] {
   const keep = (i: NavItem) => !omit.includes(i.href);
 
+  const reports: NavItem = { href: `${base}/raport`, label: "Raporty", icon: FileText };
+
   const main: NavItem[] = [
-    {
-      href: base,
-      label: "Przegląd",
-      description: "Najważniejsze w skrócie",
-      icon: LayoutDashboard,
-      tone: "indigo",
-    },
-    ...(isEcommerce
-      ? [
-          {
-            href: `${base}/sprzedaz`,
-            label: "Sprzedaż",
-            description: "Zamówienia i przychód",
-            icon: ShoppingBag,
-            tone: "emerald" as const,
-          },
-        ]
-      : []),
+    { href: base, label: "Przegląd", icon: LayoutDashboard },
+    ...(isEcommerce ? [{ href: `${base}/sprzedaz`, label: "Sprzedaż", icon: ShoppingBag }] : []),
     {
       href: `${base}/reklamy`,
       label: "Reklamy",
-      description: "Na co idą pieniądze",
       icon: Megaphone,
-      tone: "orange",
-      children: [
-        {
-          href: `${base}/kreacje`,
-          label: "Kreacje",
-          description: "Które reklamy działają",
-          icon: ImageIcon,
-          tone: "pink",
-        },
-      ],
+      children: [{ href: `${base}/kreacje`, label: "Kreacje", icon: ImageIcon }],
     },
-    {
-      href: `${base}/witryna`,
-      label: "Strona internetowa",
-      short: "Strona",
-      description: "Kto odwiedza stronę",
-      icon: Globe,
-      tone: "sky",
-    },
+    { href: `${base}/witryna`, label: "Strona www", short: "Strona", icon: Globe },
+    ...(isEcommerce ? [] : [reports]),
   ];
 
   const more: NavItem[] = [
-    { href: `${base}/alerty`, label: "Alerty", icon: BellRing, tone: "neutral" },
-    { href: `${base}/raport`, label: "Raport", icon: FileText, tone: "neutral" },
-    { href: `${base}/newsy`, label: "Newsy", icon: Newspaper, tone: "neutral" },
-    { href: `${base}/slowniczek`, label: "Słowniczek pojęć", short: "Słowniczek", icon: BookOpen, tone: "neutral" },
+    ...(isEcommerce ? [reports] : []),
+    { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
+    // Phase 2 merges agency activity into this feed and renames it "Co robimy".
+    { href: `${base}/newsy`, label: "Newsy", icon: Newspaper },
+    { href: `${base}/slowniczek`, label: "Słowniczek pojęć", short: "Słowniczek", icon: BookOpen },
   ];
 
   const agency: NavItem[] = isAgency
     ? [
-        { href: `${base}/settings`, label: "Ustawienia", icon: Settings, tone: "neutral" },
-        { href: `/clients`, label: "Wszyscy klienci", icon: LayoutGrid, tone: "neutral" },
+        { href: `${base}/settings`, label: "Ustawienia", icon: Settings },
+        { href: `/clients`, label: "Wszyscy klienci", icon: LayoutGrid },
       ]
     : [];
 
@@ -147,12 +125,13 @@ export function findActive(groups: NavGroup[], pathname: string, base: string): 
     .sort((a, b) => b.href.length - a.href.length)[0];
 }
 
-/** Tile classes per tone: soft tint, tinted glyph (AA on its own tint). */
-export const TONE_TILE: Record<NavTone, string> = {
-  indigo: "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-300",
-  emerald: "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300",
-  orange: "bg-orange-500/10 text-orange-700 dark:bg-orange-400/15 dark:text-orange-300",
-  pink: "bg-pink-500/10 text-pink-600 dark:bg-pink-400/15 dark:text-pink-300",
-  sky: "bg-sky-500/10 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300",
-  neutral: "bg-foreground/[0.06] text-muted-foreground dark:bg-foreground/10",
-};
+/** The top-level place an item belongs to (Kreacje -> Reklamy). */
+export function findSection(groups: NavGroup[], item: NavItem | undefined): NavItem | undefined {
+  if (!item) return undefined;
+  for (const g of groups) {
+    for (const i of g.items) {
+      if (i.href === item.href || i.children?.some((c) => c.href === item.href)) return i;
+    }
+  }
+  return undefined;
+}

@@ -80,7 +80,7 @@ const config: Config = {
           border: { DEFAULT: "hsl(var(--border))" },
           ring: { DEFAULT: "hsl(var(--hairline))" },
           content: {
-            subtle: "hsl(var(--muted-foreground) / 0.75)",
+            subtle: "hsl(var(--muted-foreground))",
             DEFAULT: "hsl(var(--muted-foreground))",
             emphasis: "hsl(var(--foreground) / 0.85)",
             strong: "hsl(var(--foreground))",
@@ -105,7 +105,7 @@ const config: Config = {
           border: { DEFAULT: "hsl(var(--border))" },
           ring: { DEFAULT: "hsl(var(--hairline))" },
           content: {
-            subtle: "hsl(var(--muted-foreground) / 0.75)",
+            subtle: "hsl(var(--muted-foreground))",
             DEFAULT: "hsl(var(--muted-foreground))",
             emphasis: "hsl(var(--foreground) / 0.85)",
             strong: "hsl(var(--foreground))",

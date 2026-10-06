@@ -65,116 +65,55 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_1fr]">
-      {/* Brand panel - what the client gets, before they even log in. */}
-      {/* Brand panel: complementary, so its slogan is not a heading - the
-          page's only h1 is the form's "Zaloguj się". */}
-      <aside
-        aria-label="O panelu Pato"
-        className="relative hidden overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 p-12 text-white lg:flex lg:flex-col lg:justify-between"
-      >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-white/10 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-fuchsia-400/20 blur-3xl"
-        />
-
-        <div className="relative flex items-center gap-2.5 text-lg font-semibold">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25">
-            <Sparkles className="h-4 w-4" aria-hidden />
+    // One calm column on the grey page: who we are, one field, one button.
+    // The benefits stay as a quiet list underneath for first-time visitors.
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 sm:px-6">
+      <div className="w-full max-w-[25rem]">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-card">
+            <Sparkles className="h-5 w-5" aria-hidden />
           </span>
-          Pato
+          <p className="mt-4 text-sm font-medium text-muted-foreground">Panel klienta Pato</p>
         </div>
 
-        <div className="relative max-w-md">
-          <p className="text-balance text-4xl font-semibold leading-tight tracking-tight">
-            Twoje wyniki marketingu. Jasno, w jednym miejscu.
-          </p>
-          <ul className="mt-8 space-y-4">
-            {BENEFITS.map((b) => (
-              <li key={b.text} className="flex items-start gap-3 text-indigo-50">
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/20">
-                  <b.icon className="h-3.5 w-3.5" aria-hidden />
-                </span>
-                <span className="text-[15px] leading-relaxed">{b.text}</span>
-              </li>
-            ))}
-          </ul>
-
-          {/* A taste of the dashboard's tone - illustrative, not real data. */}
-          <div className="mt-10 rounded-2xl bg-white/10 p-5 ring-1 ring-white/20 backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-wider text-indigo-200">
-              Najważniejsze w skrócie
-            </p>
-            <p className="mt-2 text-lg font-medium leading-snug">
-              Reklamy przyciągnęły o 16% więcej osób niż miesiąc wcześniej.
-            </p>
-            <div className="mt-4 flex gap-6">
-              <div>
-                <p className="text-2xl font-bold tabular-nums">2,2 mln</p>
-                <p className="text-xs text-indigo-200">wyświetleń reklam</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold tabular-nums">0,95 zł</p>
-                <p className="text-xs text-indigo-200">za jedno kliknięcie</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <p className="relative text-xs text-indigo-200">Panel klienta agencji Pato</p>
-      </aside>
-
-      {/* Form */}
-      <section className="flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-2.5 text-lg font-semibold lg:hidden">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Sparkles className="h-4 w-4" aria-hidden />
-            </span>
-            Pato
-          </div>
-
+        <section className="rounded-card border border-hairline bg-card p-6 shadow-card sm:p-8">
           {status === "sent" ? (
             <div role="status" className="animate-in fade-in slide-in-from-bottom-2 motion-reduce:animate-none">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                 <MailCheck className="h-6 w-6" aria-hidden />
               </span>
               <h1 className="mt-5 text-2xl font-semibold tracking-tight">Sprawdź skrzynkę</h1>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Wysłaliśmy link do logowania na <strong className="text-foreground">{email}</strong>.
+              <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+                Wysłaliśmy link do logowania na <strong className="font-medium text-foreground">{email}</strong>.
                 Kliknij go na tym urządzeniu - otworzy panel od razu, bez hasła.
               </p>
               <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
                   Nie widzisz maila? Zajrzyj do folderu Spam lub Oferty.
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
                   Link działa przez godzinę i tylko raz.
                 </li>
               </ul>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setStatus("idle")}
-                className="mt-8 text-sm font-medium text-primary dark:text-indigo-300 hover:underline"
+                className="mt-8 w-full"
               >
                 Użyj innego adresu
-              </button>
+              </Button>
             </div>
           ) : (
             <>
-              <h1 className="text-2xl font-semibold tracking-tight">Zaloguj się</h1>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Bez hasła - podaj swój e-mail, a wyślemy Ci link, który od razu
-                otworzy panel.
+              <h1 className="text-center text-2xl font-semibold tracking-tight">Zaloguj się</h1>
+              <p className="mt-2 text-center text-[15px] leading-relaxed text-muted-foreground">
+                Bez hasła. Podaj swój e-mail, a wyślemy link, który od razu otworzy panel.
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+              <form onSubmit={handleSubmit} className="mt-7 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Adres e-mail</Label>
                   <Input
@@ -187,14 +126,13 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={status === "sending"}
-                    className="h-11"
                   />
                 </div>
 
                 {errorMessage ? (
                   <p
                     role="alert"
-                    className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                    className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive dark:text-red-300"
                   >
                     {errorMessage}
                   </p>
@@ -202,7 +140,8 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  className="h-11 w-full gap-2 text-[15px]"
+                  size="lg"
+                  className="w-full"
                   disabled={status === "sending"}
                 >
                   {status === "sending" ? (
@@ -218,15 +157,27 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
-
-              <p className="mt-8 text-xs leading-relaxed text-muted-foreground">
-                Nie masz dostępu? Napisz do swojego opiekuna w Pato - dodamy Cię
-                w kilka minut.
-              </p>
             </>
           )}
-        </div>
-      </section>
+        </section>
+
+        <p className="mt-6 text-center text-sm leading-relaxed text-muted-foreground">
+          Nie masz dostępu? Napisz do swojego opiekuna w Pato - dodamy Cię w kilka minut.
+        </p>
+
+        {/* What the client gets, before they even log in. Complementary, so
+            the page's only h1 stays "Zaloguj się". */}
+        <aside aria-label="Co znajdziesz w panelu" className="mt-10 border-t border-border pt-8">
+          <ul className="space-y-3">
+            {BENEFITS.map((b) => (
+              <li key={b.text} className="flex items-start gap-3 text-sm text-muted-foreground">
+                <b.icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <span className="leading-relaxed">{b.text}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      </div>
     </main>
   );
 }

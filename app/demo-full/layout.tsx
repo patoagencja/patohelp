@@ -5,7 +5,7 @@ import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
-import { HeaderMenu } from "@/components/dashboard/header-menu";
+import { AlertsBell, HeaderMenu } from "@/components/dashboard/header-menu";
 import { HeaderTitle } from "@/components/dashboard/header-title";
 import { Pill } from "@/components/ui/pill";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
@@ -49,37 +49,44 @@ export default function DemoFullLayout({
         <header
           data-present-hide
           data-chrome-header
-          className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-transparent bg-chrome/75 px-4 backdrop-blur-xl backdrop-saturate-150 sm:gap-3 sm:px-6 md:h-16 lg:px-8 print:hidden"
+          className="sticky top-0 z-30 border-b border-transparent bg-chrome/75 backdrop-blur-xl backdrop-saturate-150 print:hidden"
         >
-          <HeaderTitle
-            clientName="lokalnepomidorki"
-            base="/demo-full"
-            isEcommerce
-            isAgency={false}
-            brand={
-              <ClientBrandMark
-                name="lokalnepomidorki"
-                logoUrl={DEMO_BRANDING.logoUrl}
-                className="h-6 max-w-[2rem] object-cover object-left"
-              />
-            }
-          />
-          <Pill tone="warning" className="shrink-0" title="Dane przykładowe">
-            Demo
-          </Pill>
-          <span className="flex-1" />
-          <div className="hidden">
-            <CommandPalette
-              clientSlug="demo-full"
-              isAgency={false}
+          {/* Same column and gutters as <main>, so the title sits exactly
+              above the page content. */}
+          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 md:h-16 lg:px-8">
+            <HeaderTitle
+              clientName="lokalnepomidorki"
+              base="/demo-full"
               isEcommerce
-              omit={["/demo-full/raport"]}
+              isAgency={false}
+              brand={
+                <ClientBrandMark
+                  name="lokalnepomidorki"
+                  logoUrl={DEMO_BRANDING.logoUrl}
+                  className="h-6 max-w-[8rem]"
+                />
+              }
             />
-            <GuidedTour isAgency={false} overviewPath="/demo-full" />
+            <Pill tone="warning" className="hidden shrink-0 sm:inline-flex" title="Dane przykładowe">
+              Demo
+            </Pill>
+            <span className="flex-1" />
+            <div className="hidden">
+              <CommandPalette
+                clientSlug="demo-full"
+                isAgency={false}
+                isEcommerce
+                omit={["/demo-full/raport"]}
+              />
+              <GuidedTour isAgency={false} overviewPath="/demo-full" />
+            </div>
+            <div className="hidden sm:block">
+              <LangToggle />
+            </div>
+            <AlertsBell href="/demo-full/alerty" />
+            <PresentationMode brand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-8" />} />
+            <HeaderMenu overviewPath="/demo-full" />
           </div>
-          <LangToggle />
-          <PresentationMode brand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-8" />} />
-          <HeaderMenu overviewPath="/demo-full" />
         </header>
 
         <div data-present-hide>

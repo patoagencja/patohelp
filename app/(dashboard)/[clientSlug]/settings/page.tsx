@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getClientWebsite } from "@/lib/branding/website";
 import { getClientBranding } from "@/lib/dashboard/branding";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
@@ -29,6 +30,9 @@ import { TestConnectionButton } from "./test-connection-button";
 
 // Always render fresh so the account selection reflects the latest save.
 export const dynamic = "force-dynamic";
+// "Pobierz ze strony" (branding Server Action) fetches the client's site:
+// page + manifest + image checks, each capped at 8 s.
+export const maxDuration = 60;
 
 interface Account {
   id: string;
@@ -269,9 +273,10 @@ export default async function SettingsPage({
     (ct as { client_type?: string } | null)?.client_type === "ecommerce";
 
   // Separate read so a missing 0031 migration only disables this section.
-  const [branding, brandedClient] = await Promise.all([
+  const [branding, brandedClient, website] = await Promise.all([
     getClientBranding(createAdminClient(), access.clientId),
     getClientBySlug(params.clientSlug),
+    getClientWebsite(createAdminClient(), access.clientId),
   ]);
 
   return (
@@ -763,6 +768,9 @@ export default async function SettingsPage({
         available={branding.available}
         initialLogoUrl={branding.logoUrl}
         initialBrandColor={branding.brandColor}
+        websiteAvailable={website.available}
+        initialWebsiteUrl={website.websiteUrl}
+        websiteSuggestion={website.suggestion}
       />
 
       <ShareOverviewSection clientId={access.clientId} clientSlug={params.clientSlug} />

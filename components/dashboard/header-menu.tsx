@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { HelpCircle, LogOut, Moon, MoreHorizontal, Printer, Search, Sun } from "lucide-react";
+import { Bell, HelpCircle, LogOut, Moon, MoreHorizontal, Printer, Search, Sun } from "lucide-react";
 
+import { HELP_EVENT } from "@/components/dashboard/nav-items";
 import { useThemeToggle } from "@/components/dashboard/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,18 @@ import { cn } from "@/lib/utils";
  *
  * Owns the theme state for the page: don't also mount <ThemeToggle/>.
  */
+/** Alerts one tap away from every page (the Alerty page itself sits under
+ *  "Więcej"). Phase 2 may add an unread count badge. */
+export function AlertsBell({ href }: { href: string }) {
+  return (
+    <Button asChild variant="ghost" size="icon">
+      <Link href={href} aria-label="Alerty" title="Alerty">
+        <Bell className="h-[18px] w-[18px]" aria-hidden />
+      </Link>
+    </Button>
+  );
+}
+
 export function HeaderMenu({
   overviewPath,
   email,
@@ -99,7 +113,7 @@ export function HeaderMenu({
       new KeyboardEvent("keydown", { key: "k", metaKey: isMac, ctrlKey: !isMac, bubbles: true })
     );
 
-  const startTour = () => {
+  const startTour = useCallback(() => {
     if (pathname === overviewPath) {
       window.dispatchEvent(new Event("pato:tour"));
     } else {
@@ -107,7 +121,13 @@ export function HeaderMenu({
       const lang = new URLSearchParams(window.location.search).get("lang");
       router.push(lang ? `${overviewPath}?lang=${encodeURIComponent(lang)}` : overviewPath);
     }
-  };
+  }, [pathname, overviewPath, router]);
+
+  // "Jak czytać panel" in the sidebar / phone sheet routes through here.
+  useEffect(() => {
+    window.addEventListener(HELP_EVENT, startTour);
+    return () => window.removeEventListener(HELP_EVENT, startTour);
+  }, [startTour]);
 
   const itemClass =
     "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";

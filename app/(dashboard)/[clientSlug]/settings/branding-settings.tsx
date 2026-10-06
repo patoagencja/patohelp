@@ -16,6 +16,7 @@ import {
 } from "@/lib/dashboard/branding";
 
 import { saveClientBranding } from "./branding-actions";
+import { BrandingWebsiteFetch } from "./branding-website-fetch";
 
 /**
  * "Wygląd panelu" (agency only): the client's logo and accent colour, so the
@@ -29,6 +30,9 @@ export function BrandingSettingsSection({
   available,
   initialLogoUrl,
   initialBrandColor,
+  websiteAvailable,
+  initialWebsiteUrl,
+  websiteSuggestion,
 }: {
   clientSlug: string;
   clientName: string;
@@ -36,6 +40,10 @@ export function BrandingSettingsSection({
   available: boolean;
   initialLogoUrl: string | null;
   initialBrandColor: string | null;
+  /** False before migration 0032 (clients.website_url). */
+  websiteAvailable: boolean;
+  initialWebsiteUrl: string | null;
+  websiteSuggestion: string | null;
 }) {
   const [logoUrl, setLogoUrl] = useState(initialLogoUrl ?? "");
   const [color, setColor] = useState(initialBrandColor ?? "");
@@ -86,162 +94,172 @@ export function BrandingSettingsSection({
               żeby ustawić logo i kolor klienta.
             </p>
           ) : (
-            <form
-              className="flex flex-col gap-6"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (logoError || colorError) return;
-                save({ logoUrl: trimmedLogo, brandColor: trimmedColor }, "Zapisano wygląd panelu");
-              }}
-            >
-              {/* Logo */}
-              <div className="flex flex-col gap-2">
-                <label htmlFor="brand-logo-url" className="text-sm font-medium">
-                  Link do logo
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    id="brand-logo-url"
-                    type="url"
-                    inputMode="url"
-                    maxLength={LOGO_URL_MAX}
-                    placeholder="https://www.example.pl/logo.png"
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    aria-invalid={logoError ? true : undefined}
-                    aria-describedby="brand-logo-hint"
-                    className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={pending || !initialLogoUrl}
-                    onClick={() =>
-                      save(
-                        { logoUrl: "", brandColor: initialBrandColor ?? "" },
-                        "Przywrócono domyślne logo"
-                      )
-                    }
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                    Przywróć domyślne
-                  </Button>
-                </div>
-                <p id="brand-logo-hint" className="text-xs text-muted-foreground">
-                  {logoError ? (
-                    <span className="text-destructive">{logoError}</span>
-                  ) : (
-                    <>
-                      Wklej link do logo w PNG/SVG, najlepiej z przezroczystym tłem.
-                      Do e-maila użyjemy tylko PNG/JPG - skrzynki pocztowe nie
-                      pokazują SVG.
-                    </>
-                  )}
-                </p>
+            <div className="flex flex-col gap-6">
+              <BrandingWebsiteFetch
+                clientSlug={clientSlug}
+                currentLogoUrl={initialLogoUrl}
+                currentBrandColor={initialBrandColor}
+                websiteAvailable={websiteAvailable}
+                initialWebsiteUrl={initialWebsiteUrl}
+                websiteSuggestion={websiteSuggestion}
+              />
+              <form
+                className="flex flex-col gap-6"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (logoError || colorError) return;
+                  save({ logoUrl: trimmedLogo, brandColor: trimmedColor }, "Zapisano wygląd panelu");
+                }}
+              >
+                {/* Logo */}
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="brand-logo-url" className="text-sm font-medium">
+                    Link do logo
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      id="brand-logo-url"
+                      type="url"
+                      inputMode="url"
+                      maxLength={LOGO_URL_MAX}
+                      placeholder="https://www.example.pl/logo.png"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      aria-invalid={logoError ? true : undefined}
+                      aria-describedby="brand-logo-hint"
+                      className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={pending || !initialLogoUrl}
+                      onClick={() =>
+                        save(
+                          { logoUrl: "", brandColor: initialBrandColor ?? "" },
+                          "Przywrócono domyślne logo"
+                        )
+                      }
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                      Przywróć domyślne
+                    </Button>
+                  </div>
+                  <p id="brand-logo-hint" className="text-xs text-muted-foreground">
+                    {logoError ? (
+                      <span className="text-destructive">{logoError}</span>
+                    ) : (
+                      <>
+                        Wklej link do logo w PNG/SVG, najlepiej z przezroczystym tłem.
+                        Do e-maila użyjemy tylko PNG/JPG - skrzynki pocztowe nie
+                        pokazują SVG.
+                      </>
+                    )}
+                  </p>
 
-                {/* Live preview on both backgrounds: the sidebar flips to dark
-                    with the theme, the PDF is always white. */}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {[
-                    { label: "Jasne tło", box: "border-border bg-white text-slate-900" },
-                    { label: "Ciemne tło", box: "border-slate-700 bg-slate-900 text-white" },
-                  ].map((bg) => (
-                    <div key={bg.label} className="flex flex-col gap-1">
-                      <span className="text-xs text-muted-foreground">{bg.label}</span>
-                      <div
-                        className={`flex h-20 items-center justify-center rounded-lg border px-4 ${bg.box}`}
-                      >
-                        <ClientBrandMark
-                          name={clientName}
-                          slug={clientSlug}
-                          logoUrl={previewUrl}
-                          className="h-10 max-w-[12rem] [&:not(img)]:h-7"
-                          fallback={
-                            <span className="text-sm font-semibold">{clientName}</span>
-                          }
-                        />
+                  {/* Live preview on both backgrounds: the sidebar flips to dark
+                      with the theme, the PDF is always white. */}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      { label: "Jasne tło", box: "border-border bg-white text-slate-900" },
+                      { label: "Ciemne tło", box: "border-slate-700 bg-slate-900 text-white" },
+                    ].map((bg) => (
+                      <div key={bg.label} className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">{bg.label}</span>
+                        <div
+                          className={`flex h-20 items-center justify-center rounded-lg border px-4 ${bg.box}`}
+                        >
+                          <ClientBrandMark
+                            name={clientName}
+                            slug={clientSlug}
+                            logoUrl={previewUrl}
+                            className="h-10 max-w-[12rem] [&:not(img)]:h-7"
+                            fallback={
+                              <span className="text-sm font-semibold">{clientName}</span>
+                            }
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Accent colour */}
-              <div className="flex flex-col gap-2">
-                <label htmlFor="brand-color-text" className="text-sm font-medium">
-                  Kolor akcentu
-                </label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="color"
-                    aria-label="Wybierz kolor akcentu"
-                    value={colorValid ? trimmedColor.toLowerCase() : BRAND_COLOR_PICKER_START}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
-                  />
-                  <input
-                    id="brand-color-text"
-                    placeholder="brak (kolor panelu)"
-                    maxLength={7}
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    aria-invalid={colorError ? true : undefined}
-                    className="h-9 w-40 rounded-md border border-input bg-background px-2 font-mono text-sm uppercase"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={pending || !initialBrandColor}
-                    onClick={() =>
-                      save(
-                        { logoUrl: initialLogoUrl ?? "", brandColor: "" },
-                        "Przywrócono domyślny kolor"
-                      )
-                    }
+                {/* Accent colour */}
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="brand-color-text" className="text-sm font-medium">
+                    Kolor akcentu
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="color"
+                      aria-label="Wybierz kolor akcentu"
+                      value={colorValid ? trimmedColor.toLowerCase() : BRAND_COLOR_PICKER_START}
+                      onChange={(e) => setColor(e.target.value)}
+                      className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
+                    />
+                    <input
+                      id="brand-color-text"
+                      placeholder="brak (kolor panelu)"
+                      maxLength={7}
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      aria-invalid={colorError ? true : undefined}
+                      className="h-9 w-40 rounded-md border border-input bg-background px-2 font-mono text-sm uppercase"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={pending || !initialBrandColor}
+                      onClick={() =>
+                        save(
+                          { logoUrl: initialLogoUrl ?? "", brandColor: "" },
+                          "Przywrócono domyślny kolor"
+                        )
+                      }
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                      Przywróć domyślny
+                    </Button>
+                  </div>
+                  {colorError ? (
+                    <p className="text-xs text-destructive">{colorError}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Cienki pasek nad podsumowaniem i linia w nagłówku PDF. Reszta
+                      panelu zostaje w naszych kolorach, żeby wykresy były czytelne.
+                    </p>
+                  )}
+                  {/* Same token the dashboard uses, scoped to this preview. */}
+                  <div
+                    style={clientAccentStyle(colorValid ? trimmedColor : null)}
+                    className="relative max-w-sm overflow-hidden rounded-xl border border-border bg-card px-4 pb-3 pt-4 text-sm"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                    Przywróć domyślny
-                  </Button>
+                    <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-client-accent" />
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Podgląd akcentu
+                    </p>
+                    <p className="mt-1 font-medium">Najważniejsze w skrócie</p>
+                  </div>
                 </div>
-                {colorError ? (
-                  <p className="text-xs text-destructive">{colorError}</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Cienki pasek nad podsumowaniem i linia w nagłówku PDF. Reszta
-                    panelu zostaje w naszych kolorach, żeby wykresy były czytelne.
-                  </p>
-                )}
-                {/* Same token the dashboard uses, scoped to this preview. */}
-                <div
-                  style={clientAccentStyle(colorValid ? trimmedColor : null)}
-                  className="relative max-w-sm overflow-hidden rounded-xl border border-border bg-card px-4 pb-3 pt-4 text-sm"
-                >
-                  <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-client-accent" />
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Podgląd akcentu
-                  </p>
-                  <p className="mt-1 font-medium">Najważniejsze w skrócie</p>
-                </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="w-fit"
-                  disabled={pending || !dirty || Boolean(logoError || colorError)}
-                >
-                  {pending ? "Zapisuję…" : "Zapisz wygląd"}
-                </Button>
-                {dirty ? (
-                  <span className="text-xs text-muted-foreground">Masz niezapisane zmiany.</span>
-                ) : null}
-              </div>
-            </form>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="w-fit"
+                    disabled={pending || !dirty || Boolean(logoError || colorError)}
+                  >
+                    {pending ? "Zapisuję…" : "Zapisz wygląd"}
+                  </Button>
+                  {dirty ? (
+                    <span className="text-xs text-muted-foreground">Masz niezapisane zmiany.</span>
+                  ) : null}
+                </div>
+              </form>
+            </div>
           )}
         </CardContent>
       </Card>
