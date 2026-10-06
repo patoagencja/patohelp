@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Client health diagnostic: what's connected, how many accounts are SELECTED,
 // last sync per provider (with errors) and row counts - so we can see exactly
-// why a client has no data. Agency only. /api/debug/client?client=miracle
+// why a client has no data. Agency only. /api/debug/client?client=sunew
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
