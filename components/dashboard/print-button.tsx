@@ -14,6 +14,7 @@ export function PrintButton() {
       variant="outline"
       size="sm"
       data-print-hide
+      data-present-hide
       onClick={() => window.print()}
       className="gap-1.5"
       title="Zapisz przegląd jako PDF (np. dla zarządu)"
