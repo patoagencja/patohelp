@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/page-header";
 import {
   getEcomSettings,
   getRevenueGoals,
@@ -37,15 +38,14 @@ export async function EcomSettingsSection({
   ]);
 
   return (
-    <div id="ecommerce" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">E-commerce: marża i cele sprzedaży</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Marża zamienia ROAS w realny zysk po reklamie. Cele pokazują klientowi
-        postęp miesiąca i prognozę, a na Q4 - budżet potrzebny do ich osiągnięcia.
-      </p>
+    <div id="ecommerce" className="scroll-mt-24 space-y-4">
+      <SectionHeader
+        title="E-commerce: marża i cele sprzedaży"
+        description="Marża zamienia ROAS w realny zysk po reklamie. Cele pokazują klientowi postęp miesiąca i prognozę, a na Q4 - budżet potrzebny do ich osiągnięcia."
+      />
 
       {!settings.available ? (
-        <Card className="mt-4 max-w-2xl">
+        <Card className="max-w-2xl">
           <CardContent className="pt-6 text-sm text-muted-foreground">
             Uruchom w Supabase migrację{" "}
             <code className="rounded bg-muted px-1">0021_ecom_settings.sql</code>, żeby
@@ -53,7 +53,7 @@ export async function EcomSettingsSection({
           </CardContent>
         </Card>
       ) : (
-        <Card className="mt-4 max-w-2xl">
+        <Card className="max-w-2xl">
           <CardContent className="pt-6">
             <form action={saveEcomSettings} className="flex flex-col gap-5">
               <input type="hidden" name="client" value={clientSlug} />

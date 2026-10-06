@@ -1,5 +1,7 @@
-import { ArrowDownRight, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown } from "lucide-react";
 
+import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { plPlural } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
@@ -20,22 +22,10 @@ export const SEVERITY_LABEL: Record<Lang, Record<Severity, string>> = {
   en: { critical: "Urgent", high: "Important", medium: "FYI" },
 };
 
-const SEVERITY_PILL: Record<Severity, string> = {
-  critical: "bg-red-500/10 text-red-700 dark:text-red-400",
-  high: "bg-amber-500/15 text-amber-800 dark:text-amber-400",
-  medium: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
-};
-
 const SEVERITY_DOT: Record<Severity, string> = {
   critical: "bg-red-600",
   high: "bg-amber-500",
   medium: "bg-sky-500",
-};
-
-const SEVERITY_EDGE: Record<Severity, string> = {
-  critical: "border-l-red-500",
-  high: "border-l-amber-500",
-  medium: "border-l-sky-500",
 };
 
 const SECTION_HINT: Record<Lang, Record<Severity, string>> = {
@@ -338,6 +328,12 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
   return { headline, happened, why, action };
 }
 
+/**
+ * One alert as a calm list row: where, what (headline), and the one
+ * sentence of what happened. "Why it matters" and "what we're doing" sit
+ * behind a native <details> "Więcej", so the list scans in seconds and
+ * works without client JS. The severity lives on the group heading.
+ */
 export function AlertCard({ a, lang = "pl" }: { a: Anomaly; lang?: Lang }) {
   const en = lang === "en";
   const x = explainAlert(a, lang);
@@ -345,27 +341,11 @@ export function AlertCard({ a, lang = "pl" }: { a: Anomaly; lang?: Lang }) {
   const Arrow = a.direction === "up" ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <article
-      className={cn(
-        "rounded-xl border border-l-4 border-border bg-card p-4 sm:p-5",
-        SEVERITY_EDGE[a.severity]
-      )}
-    >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span
-          className={cn(
-            "rounded-full px-2.5 py-0.5 text-xs font-medium",
-            SEVERITY_PILL[a.severity]
-          )}
-        >
-          {SEVERITY_LABEL[lang][a.severity]}
-        </span>
-        <span className="min-w-0 truncate text-xs text-muted-foreground" title={a.scopeLabel}>
-          {scopeText(a, lang)}
-        </span>
-      </div>
-
-      <h3 className="mt-2 flex items-start gap-2 text-base font-semibold leading-snug">
+    <article className="px-5 py-4 sm:px-6">
+      <p className="truncate text-xs text-muted-foreground" title={a.scopeLabel}>
+        {scopeText(a, lang)}
+      </p>
+      <h3 className="mt-1 flex items-start gap-2 text-[15px] font-semibold leading-snug">
         <Arrow
           className={cn(
             "mt-0.5 h-4 w-4 shrink-0",
@@ -375,27 +355,34 @@ export function AlertCard({ a, lang = "pl" }: { a: Anomaly; lang?: Lang }) {
         />
         <span className="min-w-0 break-words">{x.headline}</span>
       </h3>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
+        {x.happened}
+      </p>
 
-      <dl className="mt-3 space-y-2 text-sm leading-relaxed">
-        <div>
-          <dt className="text-xs font-medium text-muted-foreground">
-            {en ? "What happened" : "Co się stało"}
-          </dt>
-          <dd className="tabular-nums">{x.happened}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-muted-foreground">
-            {en ? "Why it matters" : "Dlaczego to ważne"}
-          </dt>
-          <dd>{x.why}</dd>
-        </div>
-        <div className="rounded-lg bg-muted/50 px-3 py-2">
-          <dt className="text-xs font-medium text-muted-foreground">
-            {en ? "What we're doing" : "Co z tym robimy"}
-          </dt>
-          <dd>{x.action}</dd>
-        </div>
-      </dl>
+      <details className="group mt-2" data-print-open>
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+          <span className="group-open:hidden">{en ? "More" : "Więcej"}</span>
+          <span className="hidden group-open:inline">{en ? "Less" : "Mniej"}</span>
+          <ChevronDown
+            className="h-3.5 w-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+            aria-hidden
+          />
+        </summary>
+        <dl className="mt-3 space-y-3 text-sm leading-relaxed">
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              {en ? "Why it matters" : "Dlaczego to ważne"}
+            </dt>
+            <dd className="mt-0.5">{x.why}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-muted-foreground">
+              {en ? "What we're doing" : "Co z tym robimy"}
+            </dt>
+            <dd className="mt-0.5">{x.action}</dd>
+          </div>
+        </dl>
+      </details>
     </article>
   );
 }
@@ -422,28 +409,30 @@ export function alertsHeadline(alerts: Anomaly[], lang: Lang = "pl"): string {
   return `${alerts.length} ${plPlural(alerts.length, "sprawa", "sprawy", "spraw")}: ${parts.join(", ")}.`;
 }
 
-/** All alerts grouped Pilne -> Ważne -> Informacja, most urgent first. */
+/** All alerts grouped Pilne -> Ważne -> Informacja, most urgent first:
+ *  one quiet card per group, alerts as divided rows inside it. */
 export function AlertGroups({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?: Lang }) {
   const order: Severity[] = ["critical", "high", "medium"];
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {order.map((s) => {
         const items = alerts.filter((a) => a.severity === s);
         if (items.length === 0) return null;
         return (
-          <section key={s}>
-            <h2 className="mb-3 flex flex-wrap items-baseline gap-x-2">
-              <span className="flex items-center gap-2 text-sm font-semibold">
+          <section key={s} aria-labelledby={`alerts-${s}`}>
+            <h2 id={`alerts-${s}`} className="mb-3 flex flex-wrap items-baseline gap-x-2">
+              <span className="flex items-center gap-2 text-[15px] font-semibold">
                 <span className={cn("h-2 w-2 rounded-full", SEVERITY_DOT[s])} aria-hidden />
-                {SEVERITY_LABEL[lang][s]} ({items.length})
+                {SEVERITY_LABEL[lang][s]}
+                <Pill className="tabular-nums">{items.length}</Pill>
               </span>
-              <span className="text-xs text-muted-foreground">{SECTION_HINT[lang][s]}</span>
+              <span className="text-sm text-muted-foreground">{SECTION_HINT[lang][s]}</span>
             </h2>
-            <div className="grid gap-3">
+            <Card className="divide-y divide-border overflow-hidden">
               {items.map((a) => (
                 <AlertCard key={a.id} a={a} lang={lang} />
               ))}
-            </div>
+            </Card>
           </section>
         );
       })}
@@ -451,19 +440,22 @@ export function AlertGroups({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?:
   );
 }
 
+/** Nothing to report: say so plainly and say we're still watching. */
 export function AlertsAllClear({ lang = "pl" }: { lang?: Lang }) {
   const en = lang === "en";
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-6 py-12 text-center">
-      <CheckCircle2 className="mb-3 h-10 w-10 text-emerald-500" aria-hidden />
-      <p className="text-base font-semibold">
-        {en ? "All good - nothing needs attention" : "Wszystko w porządku - nic nie wymaga uwagi"}
+    <Card className="flex flex-col items-center px-6 py-14 text-center">
+      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
+        <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden />
+      </span>
+      <p className="text-section-title">
+        {en ? "All good - nothing needs your attention" : "Wszystko w porządku - nic nie wymaga Twojej uwagi"}
       </p>
-      <p className="mt-1 max-w-md text-sm text-muted-foreground">
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
         {en
-          ? "Every day we compare spend, clicks and website visits with the last two weeks. If anything moves out of the ordinary, you'll see it here."
-          : "Codziennie porównujemy wydatki, kliknięcia i wizyty na stronie z ostatnimi dwoma tygodniami. Jeśli coś odbiegnie od normy, zobaczysz to tutaj."}
+          ? "We check the campaigns every day. If anything moves out of the ordinary, you'll see it here - and we'll already be on it."
+          : "Codziennie sprawdzamy kampanie. Jeśli coś odbiegnie od normy, zobaczysz to tutaj - a my już będziemy się tym zajmować."}
       </p>
-    </div>
+    </Card>
   );
 }

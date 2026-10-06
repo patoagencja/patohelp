@@ -20,12 +20,22 @@ import { cn } from "@/lib/utils";
  * Owns the theme state for the page: don't also mount <ThemeToggle/>.
  */
 /** Alerts one tap away from every page (the Alerty page itself sits under
- *  "Więcej"). Phase 2 may add an unread count badge. */
-export function AlertsBell({ href }: { href: string }) {
+ *  "Więcej"). `count` = alerts that need a look (Pilne + Ważne); the badge
+ *  shows only when there are any, so a calm account has a plain bell. */
+export function AlertsBell({ href, count = 0 }: { href: string; count?: number }) {
+  const label = count > 0 ? `Alerty - do sprawdzenia: ${count}` : "Alerty";
   return (
-    <Button asChild variant="ghost" size="icon">
-      <Link href={href} aria-label="Alerty" title="Alerty">
+    <Button asChild variant="ghost" size="icon" className="relative">
+      <Link href={href} aria-label={label} title={label}>
         <Bell className="h-[18px] w-[18px]" aria-hidden />
+        {count > 0 ? (
+          <span
+            aria-hidden
+            className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums ring-2 ring-background"
+          >
+            {count > 9 ? "9+" : count}
+          </span>
+        ) : null}
       </Link>
     </Button>
   );

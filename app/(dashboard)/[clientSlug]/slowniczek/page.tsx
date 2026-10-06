@@ -11,7 +11,7 @@ export default async function GlossaryPage({
   const client = await getClientBySlug(params.clientSlug);
   if (!client) redirect("/login");
   return (
-    <div className="p-6">
+    <div className="px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       <GlossaryList isEcommerce={client.clientType === "ecommerce"} />
     </div>
   );

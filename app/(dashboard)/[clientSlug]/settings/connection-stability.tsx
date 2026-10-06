@@ -1,7 +1,8 @@
-import { CheckCircle2, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/page-header";
 import { decrypt } from "@/lib/integrations/encryption";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -50,17 +51,13 @@ export async function ConnectionStability({
   const metaPermanent = metaConnected && metaExpiresAt === null;
 
   return (
-    <div id="polaczenia" className="mt-8 scroll-mt-6">
-      <h2 className="flex items-center gap-2 text-lg font-semibold">
-        <ShieldCheck className="h-5 w-5 text-emerald-500" />
-        Połączenia bez rozłączeń
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Integracje rozłączają się, bo wygasają tokeny dostępu - to ustawienie po
-        stronie Google i Mety, nie błąd panelu. Każde da się naprawić raz, na stałe.
-      </p>
+    <div id="polaczenia" className="scroll-mt-24 space-y-4">
+      <SectionHeader
+        title="Połączenia bez rozłączeń"
+        description="Integracje rozłączają się, bo wygasają tokeny dostępu - to ustawienie po stronie Google i Mety, nie błąd panelu. Każde da się naprawić raz, na stałe."
+      />
 
-      <div className="mt-4 grid max-w-4xl gap-4 md:grid-cols-2">
+      <div className="grid max-w-4xl gap-4 md:grid-cols-2">
         {/* Meta */}
         <Card>
           <CardContent className="space-y-3 pt-6 text-sm">

@@ -1,62 +1,56 @@
-import { ExternalLink } from "lucide-react";
-
+import {
+  NewsFilterControl,
+  NewsList,
+  parseNewsFilter,
+} from "@/components/dashboard/news-list";
+import { PageHeader } from "@/components/ui/page-header";
 import { getDemoDashboard } from "@/lib/demo/data";
-import { dayMonthPL } from "@/lib/dashboard/story";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-
-const CAT = {
-  meta: { label: "Meta", cls: "bg-blue-500/10 text-blue-700 dark:text-blue-400" },
-  google: { label: "Google / YT", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
-  tiktok: { label: "TikTok", cls: "bg-pink-500/10 text-pink-700 dark:text-pink-400" },
-  ai: { label: "AI", cls: "bg-violet-500/10 text-violet-700 dark:text-violet-400" },
-} as const;
 
 export default function DemoFullNewsy({
   searchParams,
 }: {
-  searchParams: { lang?: string };
+  searchParams: { lang?: string; cat?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
+  const filter = parseNewsFilter(searchParams.cat);
   const d = getDemoDashboard(lang);
+  const items = d.news
+    .map((n, i) => ({ id: String(i), ...n }))
+    .filter((n) => filter === "all" || n.category === filter);
+
+  const hrefFor = (f: string) => {
+    const p = new URLSearchParams();
+    if (en) p.set("lang", "en");
+    if (f !== "all") p.set("cat", f);
+    const q = p.toString();
+    return q ? `/demo-full/newsy?${q}` : "/demo-full/newsy";
+  };
+
   return (
     <>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {en ? "News — ads & AI" : "Newsy - reklama i AI"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {en
-            ? "Daily digest: Meta, Google/YouTube, TikTok and AI — gathered automatically from the web."
-            : "Codzienny przegląd: Meta, Google/YouTube, TikTok i AI - zbierany automatycznie z sieci."}
-        </p>
+      <PageHeader
+        title={en ? "News" : "Newsy"}
+        description={
+          en
+            ? "What's new in Meta, Google, TikTok ads and in AI - gathered automatically every morning."
+            : "Co nowego w reklamie Meta, Google, TikTok i w AI - zbierane automatycznie każdego ranka."
+        }
+      />
+
+      <div data-print-hide>
+        <NewsFilterControl active={filter} hrefFor={hrefFor} lang={lang} />
       </div>
 
-      <div className="space-y-3">
-        {d.news.map((n, i) => {
-          const c = CAT[n.category];
-          return (
-            <article key={i} className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", c.cls)}>{c.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {/* "2026-10-05" read like a database dump; the real tab says "5 października". */}
-                  {en ? n.publishedOn : dayMonthPL(n.publishedOn)}
-                </span>
-              </div>
-              <h2 className="mt-2 text-balance text-base font-semibold">{n.title}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{n.summary}</p>
-              <a href={n.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-accent-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {n.sourceName}
-                <ExternalLink className="h-3 w-3" aria-hidden />
-                <span className="sr-only">{en ? "(opens in a new tab)" : "(otwiera się w nowej karcie)"}</span>
-              </a>
-            </article>
-          );
-        })}
-      </div>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {en ? "No news in this category yet." : "Brak newsów w tej kategorii."}
+        </p>
+      ) : (
+        <NewsList items={items} lang={lang} />
+      )}
     </>
   );
 }

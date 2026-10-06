@@ -8,9 +8,7 @@ import {
   ArrowRight,
   CheckCircle2,
   LayoutDashboard,
-  Plug,
   Plus,
-  Sparkles,
 } from "lucide-react";
 
 import {
@@ -18,11 +16,14 @@ import {
   AgencyTodoChipSkeleton,
   AgencyTodoSection,
   AgencyTodoSkeleton,
-  CLIENT_GRADIENTS,
+  CLIENT_AVATAR,
 } from "@/components/dashboard/agency-todo";
 import { RECONNECT_PATH } from "@/components/dashboard/integration-health-banner";
 import { getAgencyTodo } from "@/lib/agency/todo";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { PageHeader, SectionHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
 import {
@@ -34,6 +35,7 @@ import {
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { plPlural } from "@/lib/dashboard/story";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 import { cn, formatMoneyPLN } from "@/lib/utils";
 
@@ -204,126 +206,89 @@ export default async function ClientsPage({
     0
   );
 
-  // A distinct gradient per client tile, cycled by index - the pop of colour
-  // that makes the picker feel alive (shared with the to-do avatars).
-  const GRADIENTS = CLIENT_GRADIENTS;
-
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-muted/40 via-background to-background">
-      {/* Decorative colour blobs */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full bg-primary/25 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute right-0 top-10 h-80 w-80 rounded-full bg-violet-400/20 blur-3xl"
-      />
-
-      <header className="relative flex h-16 items-center justify-between border-b border-border/60 bg-card/70 px-6 backdrop-blur">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-white shadow-lg shadow-primary/20">
-            <LayoutDashboard className="h-4 w-4" />
-          </span>
-          <span className="font-semibold tracking-tight">Pato · Klienci</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-muted-foreground sm:inline">
-            {user.email}
-          </span>
-          <form action={signOut}>
-            <Button type="submit" variant="outline" size="sm">
-              Wyloguj
-            </Button>
-          </form>
+    <div className="min-h-screen bg-background">
+      <header
+        data-chrome-header
+        className="sticky top-0 z-30 border-b border-transparent bg-chrome/75 backdrop-blur-xl backdrop-saturate-150 print:hidden"
+      >
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:h-16 lg:px-8">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-[0.6rem] bg-primary text-primary-foreground">
+              <LayoutDashboard className="h-4 w-4" aria-hidden />
+            </span>
+            <span className="font-semibold">Pato</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-muted-foreground sm:inline">
+              {user.email}
+            </span>
+            <form action={signOut}>
+              <Button type="submit" variant="outline" size="sm">
+                Wyloguj
+              </Button>
+            </form>
+          </div>
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-5xl px-6 py-12">
-        <div className="max-w-2xl">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            Panel agencji
-          </span>
-          <h1 className="mt-4 bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
-            Wybierz klienta
-          </h1>
-          <p className="mt-3 text-base text-muted-foreground">
-            Każdy klient ma własny dashboard, raporty i alerty. Wybierz, żeby
-            wejść do jego panelu.
-          </p>
-        </div>
+      <main className="mx-auto max-w-6xl space-y-10 px-4 pb-16 pt-6 sm:px-6 md:pt-8 lg:px-8">
+        <PageHeader
+          eyebrow="Panel agencji"
+          title="Wybierz klienta"
+          description="Każdy klient ma własny panel, raporty i alerty - wybierz, żeby do niego wejść."
+        />
 
-        <div className="mt-8">
-          <Suspense fallback={<AgencyTodoSkeleton />}>
-            <AgencyTodoSection todo={todo} clientSlugs={clientSlugs} />
-          </Suspense>
-        </div>
+        <Suspense fallback={<AgencyTodoSkeleton />}>
+          <AgencyTodoSection todo={todo} clientSlugs={clientSlugs} />
+        </Suspense>
 
         {/* Summary strip across all clients */}
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-3xl border border-border/70 bg-card p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Klienci
-            </p>
-            <p className="mt-1 tabular-nums text-2xl font-bold tabular-nums">
-              {clientList.length}
-            </p>
-          </div>
-          <div className="rounded-3xl border border-border/70 bg-card p-5 shadow-sm">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Wydatki wczoraj (łącznie)
-            </p>
-            <p className="mt-1 tabular-nums text-2xl font-bold tabular-nums">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="p-5">
+            <p className="text-sm text-muted-foreground">Klienci</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{clientList.length}</p>
+          </Card>
+          <Card className="p-5">
+            <p className="text-sm text-muted-foreground">Wydatki wczoraj (łącznie)</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
               {formatMoneyPLN(totalYesterday)}
             </p>
-          </div>
-          <div
-            className={cn(
-              "rounded-3xl border p-5 shadow-sm",
-              totalAlerts > 0
-                ? "border-red-500/30 bg-red-500/5"
-                : "border-border/70 bg-card"
-            )}
-          >
-            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <AlertTriangle
+          </Card>
+          <Card className="p-5">
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span
+                aria-hidden
                 className={cn(
-                  "h-3.5 w-3.5",
-                  totalAlerts > 0 ? "text-red-500" : "text-muted-foreground"
+                  "h-2 w-2 rounded-full",
+                  totalAlerts > 0 ? "bg-red-500" : "bg-emerald-500"
                 )}
               />
               Krytyczne alerty
             </p>
             <p
               className={cn(
-                "mt-1 tabular-nums text-2xl font-bold tabular-nums",
+                "mt-1 text-2xl font-semibold tabular-nums",
                 totalAlerts > 0 && "text-red-600 dark:text-red-400"
               )}
             >
               {totalAlerts}
             </p>
-          </div>
-          <div
-            className={cn(
-              "rounded-3xl border p-5 shadow-sm",
-              totalBroken > 0
-                ? "border-amber-500/40 bg-amber-500/5"
-                : "border-border/70 bg-card"
-            )}
-          >
-            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <Plug
+          </Card>
+          <Card className="p-5">
+            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span
+                aria-hidden
                 className={cn(
-                  "h-3.5 w-3.5",
-                  totalBroken > 0 ? "text-amber-500" : "text-emerald-500"
+                  "h-2 w-2 rounded-full",
+                  totalBroken > 0 ? "bg-amber-500" : "bg-emerald-500"
                 )}
               />
               Połączenia
             </p>
             <p
               className={cn(
-                "mt-1 text-2xl font-bold tabular-nums",
+                "mt-1 text-2xl font-semibold tabular-nums",
                 totalBroken > 0 && "text-amber-700 dark:text-amber-400"
               )}
             >
@@ -334,94 +299,63 @@ export default async function ClientsPage({
                 Tokeny wygasające w ciągu 14 dni: {totalExpiring}
               </p>
             ) : null}
-          </div>
+          </Card>
         </div>
 
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {clientList.map((c, i) => {
-            const grad = GRADIENTS[i % GRADIENTS.length];
+        <section aria-labelledby="klienci-title" className="space-y-4">
+          <SectionHeader title={<span id="klienci-title">Klienci</span>} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {clientList.map((c) => {
             const spend = spendByClient.get(c.id as string) ?? 0;
             const alerts = alertCounts.get(c.id as string) ?? 0;
             const health = healthByClient.get(c.id as string) ?? { down: [], expiring: [] };
             return (
-              <div
+              <Card
                 key={c.slug}
-                className={cn(
-                  "group relative overflow-hidden rounded-3xl border bg-card p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/10",
-                  alerts > 0
-                    ? "border-red-500/40"
-                    : health.down.length > 0
-                      ? "border-amber-500/40"
-                      : "border-border/70 hover:border-transparent"
-                )}
+                className="group relative p-5 transition-shadow duration-200 focus-within:ring-2 focus-within:ring-ring hover:shadow-raised sm:p-6"
               >
                 {/* Whole tile opens the client; the reconnect links below sit
                     above this layer so they stay clickable on their own. */}
                 <Link
                   href={`/${c.slug}`}
                   aria-label={`Otwórz panel ${c.name}`}
-                  className="absolute inset-0 z-0"
-                />
-                <div
-                  aria-hidden
-                  className={cn(
-                    "absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-[0.08]",
-                    grad
-                  )}
+                  className="absolute inset-0 z-0 rounded-card focus-visible:outline-none"
                 />
 
-                {/* Red alert badge */}
-                {alerts > 0 ? (
-                  <span className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full rounded-full motion-safe:animate-ping bg-white/80" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
-                    </span>
-                    {alerts} {alerts === 1 ? "krytyczny" : "krytycznych"}
-                  </span>
-                ) : null}
-
-                <div className="relative flex items-center gap-4">
-                  <span
-                    className={cn(
-                      "flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-lg font-bold uppercase text-white shadow-lg transition-transform duration-300 group-hover:scale-105",
-                      grad
-                    )}
-                  >
+                <div className="pointer-events-none relative flex items-center gap-3">
+                  <span aria-hidden className={cn(CLIENT_AVATAR, "h-11 w-11 text-sm")}>
                     {c.name.slice(0, 2)}
                   </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-lg font-semibold">{c.name}</p>
-                    <p className="truncate tabular-nums text-xs text-muted-foreground">
-                      /{c.slug}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[17px] font-semibold">{c.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">/{c.slug}</p>
                   </div>
+                  <ArrowRight
+                    aria-hidden
+                    className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground motion-reduce:transition-none"
+                  />
                 </div>
 
-                <div className="pointer-events-none relative z-10 mt-3 flex flex-wrap gap-1.5">
+                <div className="pointer-events-none relative z-10 mt-4 flex flex-wrap gap-1.5">
+                  {alerts > 0 ? (
+                    <Pill tone="negative" className="tabular-nums">
+                      {alerts} {plPlural(alerts, "krytyczny", "krytyczne", "krytycznych")}
+                    </Pill>
+                  ) : null}
                   <Suspense fallback={<AgencyTodoChipSkeleton />}>
                     <AgencyTodoChipAsync todo={todo} clientSlug={c.slug as string} />
                   </Suspense>
                 </div>
 
-                <div className="relative mt-5 flex items-end justify-between">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                      Wydatki wczoraj
-                    </p>
-                    <p className="tabular-nums text-lg font-bold tabular-nums">
-                      {formatMoneyPLN(spend)}
-                    </p>
-                  </div>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground">
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </span>
+                <div className="pointer-events-none relative mt-4">
+                  <p className="text-xs text-muted-foreground">Wydatki wczoraj</p>
+                  <p className="text-lg font-semibold tabular-nums">{formatMoneyPLN(spend)}</p>
                 </div>
 
-                <div className="relative z-10 mt-4 border-t border-border/60 pt-3 text-xs">
+                <div className="relative z-10 mt-4 border-t border-border pt-3 text-xs">
                   {health.down.length === 0 && health.expiring.length === 0 ? (
-                    <p className="pointer-events-none flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    <p className="pointer-events-none flex items-center gap-1.5 text-muted-foreground">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
                       Wszystkie połączenia działają
                     </p>
                   ) : (
@@ -431,7 +365,7 @@ export default async function ClientsPage({
                         return (
                           <li key={h.provider} className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               <span className="truncate">
                                 {h.label}:{" "}
                                 {h.tokenExpired ? "token wygasł" : "brak danych"}
@@ -455,7 +389,7 @@ export default async function ClientsPage({
                           </span>
                           <Link
                             href={`/${c.slug}/settings#polaczenia`}
-                            className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium hover:bg-muted/70"
+                            className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-medium hover:bg-secondary"
                           >
                             Napraw
                           </Link>
@@ -464,25 +398,25 @@ export default async function ClientsPage({
                     </ul>
                   )}
                 </div>
-              </div>
+              </Card>
             );
           })}
-        </div>
-
-        <BrandingFillButton className="mt-6" />
+          </div>
+          <BrandingFillButton />
+        </section>
 
         {isAdmin ? (
-          <div className="mt-12">
-            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              <Plus className="h-4 w-4" />
-              Dodaj klienta
-            </h2>
+          <section aria-labelledby="dodaj-klienta-title" className="space-y-4">
+            <SectionHeader
+              title={<span id="dodaj-klienta-title">Dodaj klienta</span>}
+              description="Po dodaniu przejdziesz do Ustawień, żeby połączyć Meta / Google / GA4 dla tego klienta."
+            />
             {searchParams.error ? (
-              <p className="mt-2 text-sm text-destructive">{searchParams.error}</p>
+              <p className="text-sm text-destructive">{searchParams.error}</p>
             ) : null}
             <form
               action={addClient}
-              className="mt-4 flex flex-col gap-4 rounded-3xl border border-border/70 bg-card/80 p-6 shadow-sm backdrop-blur sm:flex-row sm:items-end"
+              className="surface flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:p-6"
             >
               <label className="flex flex-1 flex-col gap-1.5 text-xs">
                 <span className="font-medium text-muted-foreground">Nazwa</span>
@@ -490,7 +424,7 @@ export default async function ClientsPage({
                   name="name"
                   required
                   placeholder="np. DRE"
-                  className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-primary/40"
+                  className="h-10 rounded-xl border border-transparent bg-muted px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-ring"
                 />
               </label>
               <label className="flex flex-1 flex-col gap-1.5 text-xs">
@@ -501,19 +435,15 @@ export default async function ClientsPage({
                   name="slug"
                   required
                   placeholder="np. dre"
-                  className="h-10 rounded-xl border border-input bg-background px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-primary/40"
+                  className="h-10 rounded-xl border border-transparent bg-muted px-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-ring"
                 />
               </label>
-              <Button type="submit" className="h-10 gap-1.5 rounded-xl">
+              <Button type="submit" className="h-10 gap-1.5">
                 <Plus className="h-4 w-4" />
                 Dodaj i połącz konta
               </Button>
             </form>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Po dodaniu przejdziesz do Ustawień, żeby połączyć Meta / Google /
-              GA4 dla tego klienta.
-            </p>
-          </div>
+          </section>
         ) : null}
       </main>
     </div>

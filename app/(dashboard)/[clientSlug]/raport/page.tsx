@@ -18,6 +18,8 @@ import {
 } from "@/components/dashboard/report/deck";
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { clientLogo } from "@/components/dashboard/client-logo";
@@ -234,35 +236,37 @@ export default async function RaportPage({
     const smFoot = `${client.name} · ${sm.periodLabel} · patoagencja`;
 
     return (
-      <div className="space-y-6 bg-muted/20 p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
-          <h1 className="text-xl font-semibold">Raport SM - {client.name}</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <form method="get" className="flex items-center gap-1.5">
-              <input
-                type="month"
-                name="month"
-                defaultValue={monthParam ?? ""}
-                aria-label="Miesiąc raportu"
-                className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-              <button
-                type="submit"
-                className="h-9 rounded-lg border border-border bg-card px-3 text-sm font-medium hover:bg-muted"
-              >
-                OK
-              </button>
-            </form>
-            <a
-              href={`/api/report/pptx?client=${params.clientSlug}${
-                monthParam ? `&month=${monthParam}` : ""
-              }`}
-              className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Pobierz PPTX
-            </a>
-          </div>
-        </div>
+      <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
+        <PageHeader
+          className="print:hidden"
+          title="Raporty"
+          description={`Raport social media ${client.name} za wybrany miesiąc, do pobrania jako PPTX.`}
+          actions={
+            <>
+              <form method="get" className="flex items-center gap-1.5">
+                <input
+                  type="month"
+                  name="month"
+                  defaultValue={monthParam ?? ""}
+                  aria-label="Miesiąc raportu"
+                  className="h-9 rounded-lg border border-hairline bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+                <Button type="submit" variant="outline" size="sm">
+                  OK
+                </Button>
+              </form>
+              <Button asChild size="sm">
+                <a
+                  href={`/api/report/pptx?client=${params.clientSlug}${
+                    monthParam ? `&month=${monthParam}` : ""
+                  }`}
+                >
+                  Pobierz PPTX
+                </a>
+              </Button>
+            </>
+          }
+        />
 
         {isAgency ? (
           <ShareBox
@@ -335,24 +339,27 @@ export default async function RaportPage({
     src === "meta" ? "Wg wyświetleń reklam (Meta)" : "Wg wizyt na stronie (Google Analytics)";
 
   return (
-    <div className="space-y-6 bg-muted/20 p-6">
+    <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       {/* Controls (not printed) */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
-        <h1 className="text-xl font-semibold">Raport - {client.name}</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={`/api/report/pptx?client=${params.clientSlug}`}
-            className="inline-flex h-9 items-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Pobierz PPTX (poprz. miesiąc)
-          </a>
-          <DateRangePicker
-            value={range}
-            customFrom={custom?.start}
-            customTo={custom?.end}
-          />
-        </div>
-      </div>
+      <PageHeader
+        className="print:hidden"
+        title="Raporty"
+        description="Wyniki za wybrany okres w formie slajdów - do pokazania na spotkaniu albo pobrania."
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm">
+              <a href={`/api/report/pptx?client=${params.clientSlug}`}>
+                Pobierz PPTX (poprz. miesiąc)
+              </a>
+            </Button>
+            <DateRangePicker
+              value={range}
+              customFrom={custom?.start}
+              customTo={custom?.end}
+            />
+          </>
+        }
+      />
 
       <ReportDeck
         clientSlug={params.clientSlug}

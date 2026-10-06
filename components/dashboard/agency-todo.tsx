@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { ChevronDown, ListChecks, PartyPopper } from "lucide-react";
+import { CheckCircle2, ChevronDown } from "lucide-react";
 
 import { Shimmer } from "@/components/dashboard/skeletons";
 import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/page-header";
+import { Pill, pillVariants } from "@/components/ui/pill";
 import {
   countTodoByClient,
   TODO_SEVERITIES,
@@ -17,16 +19,10 @@ import { cn } from "@/lib/utils";
 // status chip per client tile. Server-only (no interaction beyond links), fed
 // by a promise so the page can stream it in under a Suspense boundary.
 
-/** Avatar gradient per client, cycled by position in the picker - shared
- *  with the tiles so a client keeps one colour across the page. */
-export const CLIENT_GRADIENTS = [
-  "from-violet-500 to-indigo-500",
-  "from-amber-400 to-orange-500",
-  "from-emerald-400 to-teal-500",
-  "from-sky-400 to-blue-500",
-  "from-pink-500 to-rose-500",
-  "from-fuchsia-500 to-purple-600",
-];
+/** Client initials avatar - one calm neutral chip everywhere (tiles and
+ *  to-do rows), so colour on the agency picker only ever means status. */
+export const CLIENT_AVATAR =
+  "flex shrink-0 items-center justify-center rounded-xl bg-muted font-semibold uppercase text-foreground";
 
 export const TODO_ANCHOR = "dzis-do-zrobienia";
 
@@ -36,30 +32,26 @@ const SEVERITY_UI: Record<
     heading: string;
     count: (n: number) => string;
     dot: string;
-    pill: string;
-    rowBorder: string;
+    tone: "negative" | "warning" | "neutral";
   }
 > = {
   pilne: {
     heading: "Pilne",
     count: (n) => `${n} ${plPlural(n, "pilna", "pilne", "pilnych")}`,
     dot: "bg-red-500",
-    pill: "bg-red-500/10 text-red-700 ring-red-500/30 dark:text-red-400",
-    rowBorder: "border-l-red-500",
+    tone: "negative",
   },
   wazne: {
     heading: "Ważne",
     count: (n) => `${n} ${plPlural(n, "ważna", "ważne", "ważnych")}`,
     dot: "bg-amber-500",
-    pill: "bg-amber-500/10 text-amber-800 ring-amber-500/30 dark:text-amber-400",
-    rowBorder: "border-l-amber-500",
+    tone: "warning",
   },
   wskazowka: {
     heading: "Wskazówki",
     count: (n) => `${n} ${plPlural(n, "wskazówka", "wskazówki", "wskazówek")}`,
     dot: "bg-sky-500",
-    pill: "bg-sky-500/10 text-sky-800 ring-sky-500/30 dark:text-sky-300",
-    rowBorder: "border-l-sky-500",
+    tone: "neutral",
   },
 };
 
@@ -84,22 +76,11 @@ function ActionLink({ item }: { item: AgencyTodoItem }) {
   );
 }
 
-function TodoRow({ item, gradient }: { item: AgencyTodoItem; gradient: string }) {
+function TodoRow({ item }: { item: AgencyTodoItem }) {
   return (
-    <li
-      className={cn(
-        "flex flex-col gap-3 rounded-2xl border border-l-4 border-border/60 bg-background/60 px-4 py-3 sm:flex-row sm:items-center",
-        SEVERITY_UI[item.severity].rowBorder
-      )}
-    >
+    <li className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <span
-          aria-hidden
-          className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-xs font-bold uppercase text-white shadow-sm",
-            gradient
-          )}
-        >
+        <span aria-hidden className={cn(CLIENT_AVATAR, "h-9 w-9 text-xs")}>
           {item.clientName.slice(0, 2)}
         </span>
         <div className="min-w-0">
@@ -122,16 +103,11 @@ function TodoRow({ item, gradient }: { item: AgencyTodoItem; gradient: string })
 /** The card itself - pure, so it renders the same from real or demo data. */
 export function AgencyTodoCard({
   todo,
-  clientSlugs,
 }: {
   todo: AgencyTodo;
-  /** Picker order, to give each avatar the same gradient as its tile. */
-  clientSlugs: string[];
+  /** Kept for callers; avatars no longer vary per client. */
+  clientSlugs?: string[];
 }) {
-  const gradientFor = (slug: string) => {
-    const i = clientSlugs.indexOf(slug);
-    return CLIENT_GRADIENTS[(i < 0 ? 0 : i) % CLIENT_GRADIENTS.length];
-  };
   const groups = TODO_SEVERITIES.map((severity) => ({
     severity,
     items: todo.items.filter((i) => i.severity === severity),
@@ -141,76 +117,61 @@ export function AgencyTodoCard({
     <section
       id={TODO_ANCHOR}
       aria-labelledby={`${TODO_ANCHOR}-title`}
-      className="scroll-mt-6 rounded-3xl border border-border/70 bg-card p-6 shadow-sm"
+      className="surface scroll-mt-24 p-6 sm:p-7"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <ListChecks className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 id={`${TODO_ANCHOR}-title`} className="text-xl font-bold tracking-tight">
-              Dziś do zrobienia
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Sprawy u wszystkich klientów, najpilniejsze na górze.
-            </p>
-          </div>
-        </div>
-        {groups.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {groups.map((g) => (
-              <span
-                key={g.severity}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ring-1 ring-inset",
-                  SEVERITY_UI[g.severity].pill
-                )}
-              >
-                <span className={cn("h-1.5 w-1.5 rounded-full", SEVERITY_UI[g.severity].dot)} />
-                {SEVERITY_UI[g.severity].count(g.items.length)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      <SectionHeader
+        title={<span id={`${TODO_ANCHOR}-title`}>Dziś do zrobienia</span>}
+        description="Sprawy u wszystkich klientów, najpilniejsze na górze."
+        actions={
+          groups.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {groups.map((g) => (
+                <Pill key={g.severity} tone={SEVERITY_UI[g.severity].tone} className="tabular-nums">
+                  {SEVERITY_UI[g.severity].count(g.items.length)}
+                </Pill>
+              ))}
+            </div>
+          ) : null
+        }
+      />
 
       {groups.length === 0 ? (
-        <div className="mt-6 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-emerald-500/40 bg-emerald-500/5 px-6 py-8 text-center">
-          <PartyPopper className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-          <p className="text-lg font-semibold">Wszystko pod kontrolą 🎉</p>
+        <div className="mt-6 flex flex-col items-center gap-2 px-6 py-6 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          </span>
+          <p className="text-base font-semibold">Wszystko pod kontrolą</p>
           <p className="text-sm text-muted-foreground">
             Połączenia działają, budżety idą zgodnie z planem, klienci widzą Waszą pracę.
           </p>
         </div>
       ) : (
-        <div className="mt-6 space-y-5">
+        <div className="mt-6 space-y-6">
           {groups.map((g) => {
             const list = (
-              <ul className="mt-2 space-y-2">
+              <ul className="mt-1 divide-y divide-border">
                 {g.items.map((item, i) => (
-                  <TodoRow
-                    key={`${item.clientSlug}-${i}`}
-                    item={item}
-                    gradient={gradientFor(item.clientSlug)}
-                  />
+                  <TodoRow key={`${item.clientSlug}-${i}`} item={item} />
                 ))}
               </ul>
             );
             const heading = (
-              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span className={cn("h-2 w-2 rounded-full", SEVERITY_UI[g.severity].dot)} />
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span className={cn("h-2 w-2 rounded-full", SEVERITY_UI[g.severity].dot)} aria-hidden />
                 {SEVERITY_UI[g.severity].heading}
-                <span className="tabular-nums">({g.items.length})</span>
+                <span className="font-normal text-muted-foreground tabular-nums">{g.items.length}</span>
               </span>
             );
             // Tips are nice-to-haves: folded by default so they never push
             // the urgent rows below the fold. Native <details>, no client JS.
             return g.severity === "wskazowka" ? (
               <details key={g.severity} className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md [&::-webkit-details-marker]:hidden">
                   {heading}
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180" />
+                  <ChevronDown
+                    className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                    aria-hidden
+                  />
                 </summary>
                 {list}
               </details>
@@ -251,18 +212,15 @@ export function AgencyTodoSkeleton() {
     <div
       aria-busy
       aria-label="Ładowanie listy do zrobienia"
-      className="rounded-3xl border border-border/70 bg-card p-6 shadow-sm"
+      className="surface p-6 sm:p-7"
     >
-      <div className="flex items-center gap-3">
-        <Shimmer className="h-10 w-10 rounded-2xl" />
-        <div className="space-y-2">
-          <Shimmer className="h-5 w-44" />
-          <Shimmer className="h-3.5 w-64" />
-        </div>
+      <div className="space-y-2">
+        <Shimmer className="h-6 w-44" />
+        <Shimmer className="h-3.5 w-64" />
       </div>
       <div className="mt-6 space-y-2">
         {[0, 1, 2].map((i) => (
-          <Shimmer key={i} className="h-14 w-full rounded-2xl" />
+          <Shimmer key={i} className="h-12 w-full rounded-xl" />
         ))}
       </div>
     </div>
@@ -280,10 +238,10 @@ export function AgencyTodoChip({
   const total = counts ? counts.pilne + counts.wazne + counts.wskazowka : 0;
   if (!counts || total === 0) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      <Pill tone="positive">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
         Nic do zrobienia
-      </span>
+      </Pill>
     );
   }
   const worst: TodoSeverity =
@@ -294,11 +252,11 @@ export function AgencyTodoChip({
       className={cn(
         // The tile row is pointer-events-none so the rest of it still opens
         // the client; only the chip itself jumps to the to-do card.
-        "pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ring-1 ring-inset transition-opacity hover:opacity-80",
-        SEVERITY_UI[worst].pill
+        pillVariants({ tone: SEVERITY_UI[worst].tone }),
+        "pointer-events-auto tabular-nums transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", SEVERITY_UI[worst].dot)} />
+      <span className={cn("h-1.5 w-1.5 rounded-full", SEVERITY_UI[worst].dot)} aria-hidden />
       {total} do zrobienia
       {counts.pilne > 0 ? (
         <span className="font-normal opacity-80">· {SEVERITY_UI.pilne.count(counts.pilne)}</span>

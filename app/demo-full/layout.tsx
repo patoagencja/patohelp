@@ -9,7 +9,9 @@ import { AlertsBell, HeaderMenu } from "@/components/dashboard/header-menu";
 import { HeaderTitle } from "@/components/dashboard/header-title";
 import { Pill } from "@/components/ui/pill";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
+import { countAttentionAlerts } from "@/lib/alerts/current";
 import { DEMO_BRANDING } from "@/lib/demo/branding";
+import { getDemoDashboard } from "@/lib/demo/data";
 
 // Full showcase with a working sidebar and clickable tabs. Public, synthetic.
 export const metadata = {
@@ -83,7 +85,11 @@ export default function DemoFullLayout({
             <div className="hidden sm:block">
               <LangToggle />
             </div>
-            <AlertsBell href="/demo-full/alerty" />
+            {/* Same rule as live: Pilne + Ważne from the (static) demo alerts. */}
+            <AlertsBell
+              href="/demo-full/alerty"
+              count={countAttentionAlerts(getDemoDashboard().alertsFull)}
+            />
             <PresentationMode brand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-8" />} />
             <HeaderMenu overviewPath="/demo-full" />
           </div>

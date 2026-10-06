@@ -13,6 +13,7 @@ import {
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
+import { AlertsBellLive } from "@/components/dashboard/alerts-bell-live";
 import { AlertsBell, HeaderMenu } from "@/components/dashboard/header-menu";
 import { HeaderTitle } from "@/components/dashboard/header-title";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
@@ -166,7 +167,14 @@ export default async function ClientDashboardLayout({
               <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
             </div>
             {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
-            <AlertsBell href={`/${params.clientSlug}/alerty`} />
+            {/* Count streams in after the shell; plain bell until then. */}
+            <Suspense fallback={<AlertsBell href={`/${params.clientSlug}/alerty`} />}>
+              {client ? (
+                <AlertsBellLive clientId={client.id} href={`/${params.clientSlug}/alerty`} />
+              ) : (
+                <AlertsBell href={`/${params.clientSlug}/alerty`} />
+              )}
+            </Suspense>
             <PresentationMode
               brand={
                 client ? (

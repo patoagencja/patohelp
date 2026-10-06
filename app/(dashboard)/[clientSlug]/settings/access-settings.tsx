@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/page-header";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -75,13 +76,13 @@ export async function AccessSettingsSection({
   );
 
   return (
-    <div id="dostep" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">Dostęp do panelu</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Klient loguje się linkiem z e-maila - bez hasła. Widzi tylko swój panel.
-      </p>
+    <div id="dostep" className="scroll-mt-24 space-y-4">
+      <SectionHeader
+        title="Dostęp do panelu"
+        description="Klient loguje się linkiem z e-maila - bez hasła. Widzi tylko swój panel."
+      />
 
-      <Card className="mt-4 max-w-2xl">
+      <Card className="max-w-2xl">
         <CardContent className="flex flex-col gap-5 pt-6">
           {invitesRes.error ? (
             <p className="text-sm text-muted-foreground">

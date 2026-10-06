@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/page-header";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -42,15 +43,13 @@ export async function ShareOverviewSection({
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
-    <div id="udostepnianie" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">Link dla zarządu</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Podgląd przeglądu tylko do odczytu, bez logowania - do wysłania np.
-        zarządowi klienta. Bez ustawień, alertów i budżetów; każdy link można w
-        każdej chwili unieważnić.
-      </p>
+    <div id="udostepnianie" className="scroll-mt-24 space-y-4">
+      <SectionHeader
+        title="Link dla zarządu"
+        description="Podgląd przeglądu tylko do odczytu, bez logowania - do wysłania np. zarządowi klienta. Bez ustawień, alertów i budżetów; każdy link można w każdej chwili unieważnić."
+      />
 
-      <Card className="mt-4 max-w-2xl">
+      <Card className="max-w-2xl">
         <CardContent className="flex flex-col gap-5 pt-6">
           {error ? (
             <p className="text-sm text-muted-foreground">

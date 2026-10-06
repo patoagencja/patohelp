@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader, SectionHeader } from "@/components/ui/page-header";
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import {
   Card,
   CardContent,
@@ -280,132 +282,77 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <div className="p-6">
+    <div className="space-y-12 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       <ConnectedToast
         connected={searchParams.connected}
         error={searchParams.error}
         saved={searchParams.saved}
       />
 
-      <h1 className="text-xl font-semibold">Ustawienia - {params.clientSlug.toUpperCase()}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Połącz konta reklamowe i zaznacz, które należą do tego klienta.
-      </p>
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow={brandedClient?.name ?? params.clientSlug.toUpperCase()}
+          title="Ustawienia"
+          description="Integracje, cele, powiadomienia i dostęp tego klienta. Widzi je tylko agencja."
+        />
 
-      {/* The page grew to five sections; jump links beat scrolling. */}
-      <nav aria-label="Sekcje ustawień" className="mt-4 flex flex-wrap gap-2 text-sm">
-        {[
-          { href: "#integracje", label: "Integracje" },
-          { href: "#polaczenia", label: "Połączenia bez rozłączeń" },
-          ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
-          ...(isEcommerce ? [] : [{ href: "#cele", label: "Cele miesięczne" }]),
-          { href: "#powiadomienia", label: "Powiadomienia" },
-          { href: "#wyglad", label: "Wygląd panelu" },
-          { href: "#udostepnianie", label: "Link dla zarządu" },
-          { href: "#dostep", label: "Dostęp do panelu" },
-        ].map((l) => (
-          <a
-            key={l.href}
-            href={l.href}
-            className="rounded-full border border-border bg-card px-3 py-1 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-          >
-            {l.label}
-          </a>
-        ))}
-      </nav>
+        {/* The page grew to eight sections; jump links beat scrolling. */}
+        <nav aria-label="Sekcje ustawień" className={segmentedTrack} data-print-hide>
+          {[
+            { href: "#integracje", label: "Integracje" },
+            { href: "#polaczenia", label: "Połączenia" },
+            ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
+            ...(isEcommerce ? [] : [{ href: "#cele", label: "Cele miesięczne" }]),
+            { href: "#powiadomienia", label: "Powiadomienia" },
+            { href: "#wyglad", label: "Wygląd panelu" },
+            { href: "#udostepnianie", label: "Link dla zarządu" },
+            { href: "#dostep", label: "Dostęp" },
+          ].map((l) => (
+            <a key={l.href} href={l.href} className={segmentedItem(false)}>
+              {l.label}
+            </a>
+          ))}
+        </nav>
+      </div>
 
-      <div id="integracje" className="mt-6 grid scroll-mt-6 gap-4 md:grid-cols-2">
-        {PROVIDERS.map((provider) => {
-          const integration = byProvider.get(provider.key);
-          const accounts = (
-            Array.isArray(integration?.account_ids)
-              ? (integration!.account_ids as Account[])
-              : []
-          )
-            .slice()
-            .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
-          const connected = Boolean(integration);
-          const selectedCount = accounts.filter((a) => a.selected).length;
+      <section id="integracje" aria-label="Integracje" className="scroll-mt-24 space-y-4">
+        <SectionHeader
+          title="Integracje"
+          description="Połącz konta reklamowe i zaznacz, które należą do tego klienta."
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          {PROVIDERS.map((provider) => {
+            const integration = byProvider.get(provider.key);
+            const accounts = (
+              Array.isArray(integration?.account_ids)
+                ? (integration!.account_ids as Account[])
+                : []
+            )
+              .slice()
+              .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+            const connected = Boolean(integration);
+            const selectedCount = accounts.filter((a) => a.selected).length;
 
-          return (
-            <Card key={provider.key}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {provider.label}
+            return (
+              <Card key={provider.key}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    {provider.label}
+                    {connected ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    ) : null}
+                  </CardTitle>
+                  <CardDescription>{provider.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
                   {connected ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                  ) : null}
-                </CardTitle>
-                <CardDescription>{provider.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                {connected ? (
-                  <>
-                    <p className="text-sm text-foreground">
-                      ✅ Połączono · {selectedCount} z {accounts.length} kont
-                      wybranych
-                    </p>
+                    <>
+                      <p className="text-sm text-foreground">
+                        ✅ Połączono · {selectedCount} z {accounts.length} kont
+                        wybranych
+                      </p>
 
-                    <form action={saveAccounts} className="flex flex-col gap-3">
-                      <input
-                        type="hidden"
-                        name="client"
-                        value={params.clientSlug}
-                      />
-                      <input
-                        type="hidden"
-                        name="provider"
-                        value={provider.key}
-                      />
-                      <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                        {accounts.map((account) => (
-                          <label
-                            key={account.id}
-                            className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted"
-                          >
-                            <input
-                              type="checkbox"
-                              name="account"
-                              value={account.id}
-                              defaultChecked={account.selected}
-                              className="h-4 w-4 rounded border-input"
-                            />
-                            <span className="truncate">
-                              {account.name || account.id}
-                            </span>
-                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                              {account.id}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                      {provider.key === "google_ads" ? (
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            name="video_only"
-                            defaultChecked={accounts.some(
-                              (a) => a.selected && a.video_only
-                            )}
-                            className="h-4 w-4 rounded border-input"
-                          />
-                          Tylko kampanie YouTube (VIDEO)
-                          <span className="text-xs text-muted-foreground">
-                            - gdy resztę konta prowadzi inna agencja
-                          </span>
-                        </label>
-                      ) : null}
-                      <Button type="submit" size="sm" className="w-fit">
-                        Zapisz wybór kont
-                      </Button>
-                    </form>
-
-                    <div className="flex gap-2">
-                      <TestConnectionButton
-                        provider={provider.routeSlug}
-                        clientSlug={params.clientSlug}
-                      />
-                      <form action={disconnectIntegration}>
+                      <form action={saveAccounts} className="flex flex-col gap-3">
                         <input
                           type="hidden"
                           name="client"
@@ -416,110 +363,170 @@ export default async function SettingsPage({
                           name="provider"
                           value={provider.key}
                         />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          Rozłącz
+                        <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                          {accounts.map((account) => (
+                            <label
+                              key={account.id}
+                              className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted"
+                            >
+                              <input
+                                type="checkbox"
+                                name="account"
+                                value={account.id}
+                                defaultChecked={account.selected}
+                                className="h-4 w-4 rounded border-input"
+                              />
+                              <span className="truncate">
+                                {account.name || account.id}
+                              </span>
+                              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                                {account.id}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {provider.key === "google_ads" ? (
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              name="video_only"
+                              defaultChecked={accounts.some(
+                                (a) => a.selected && a.video_only
+                              )}
+                              className="h-4 w-4 rounded border-input"
+                            />
+                            Tylko kampanie YouTube (VIDEO)
+                            <span className="text-xs text-muted-foreground">
+                              - gdy resztę konta prowadzi inna agencja
+                            </span>
+                          </label>
+                        ) : null}
+                        <Button type="submit" size="sm" className="w-fit">
+                          Zapisz wybór kont
                         </Button>
                       </form>
-                    </div>
-                  </>
-                ) : (
-                  <Button asChild className="w-fit">
-                    <a
-                      href={`/api/integrations/${provider.routeSlug}/connect?client=${params.clientSlug}`}
-                    >
-                      Połącz {provider.label}
-                    </a>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {(() => {
-          const ga4 = byProvider.get("ga4");
-          const ga4Ids = (ga4?.account_ids ?? {}) as {
-            propertyId?: string | null;
-            properties?: Array<{ propertyId: string; displayName: string }>;
-          };
-          const connected = Boolean(ga4);
-          const propName = ga4Ids.properties?.find(
-            (p) => p.propertyId === ga4Ids.propertyId
-          )?.displayName;
-          const multi = (ga4Ids.properties?.length ?? 0) > 1;
-
-          return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  Google Analytics 4
-                  {connected ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                  ) : null}
-                </CardTitle>
-                <CardDescription>
-                  Ruch na stronie: źródła, urządzenia, podstrony.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                {connected ? (
-                  <>
-                    <p className="text-sm text-foreground">
-                      {ga4Ids.propertyId
-                        ? `✅ Połączono · property ${propName ?? ga4Ids.propertyId}`
-                        : "⚠️ Połączono, ale nie wybrano property"}
-                    </p>
-                    <div className="flex gap-2">
-                      <TestConnectionButton
-                        provider="ga4"
-                        clientSlug={params.clientSlug}
-                      />
-                      {multi ? (
-                        <Button asChild variant="outline" size="sm">
-                          <a href={`/${params.clientSlug}/settings/ga4-select`}>
-                            Zmień property
-                          </a>
-                        </Button>
-                      ) : null}
-                      <form action={disconnectIntegration}>
-                        <input
-                          type="hidden"
-                          name="client"
-                          value={params.clientSlug}
+                      <div className="flex gap-2">
+                        <TestConnectionButton
+                          provider={provider.routeSlug}
+                          clientSlug={params.clientSlug}
                         />
-                        <input type="hidden" name="provider" value="ga4" />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          Rozłącz
-                        </Button>
-                      </form>
-                    </div>
-                  </>
-                ) : (
-                  <Button asChild className="w-fit">
-                    <a
-                      href={`/api/integrations/ga4/connect?client=${params.clientSlug}`}
-                    >
-                      Połącz GA4
-                    </a>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })()}
-      </div>
+                        <form action={disconnectIntegration}>
+                          <input
+                            type="hidden"
+                            name="client"
+                            value={params.clientSlug}
+                          />
+                          <input
+                            type="hidden"
+                            name="provider"
+                            value={provider.key}
+                          />
+                          <Button
+                            type="submit"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            Rozłącz
+                          </Button>
+                        </form>
+                      </div>
+                    </>
+                  ) : (
+                    <Button asChild className="w-fit">
+                      <a
+                        href={`/api/integrations/${provider.routeSlug}/connect?client=${params.clientSlug}`}
+                      >
+                        Połącz {provider.label}
+                      </a>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {(() => {
+            const ga4 = byProvider.get("ga4");
+            const ga4Ids = (ga4?.account_ids ?? {}) as {
+              propertyId?: string | null;
+              properties?: Array<{ propertyId: string; displayName: string }>;
+            };
+            const connected = Boolean(ga4);
+            const propName = ga4Ids.properties?.find(
+              (p) => p.propertyId === ga4Ids.propertyId
+            )?.displayName;
+            const multi = (ga4Ids.properties?.length ?? 0) > 1;
+
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    Google Analytics 4
+                    {connected ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                    ) : null}
+                  </CardTitle>
+                  <CardDescription>
+                    Ruch na stronie: źródła, urządzenia, podstrony.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  {connected ? (
+                    <>
+                      <p className="text-sm text-foreground">
+                        {ga4Ids.propertyId
+                          ? `✅ Połączono · property ${propName ?? ga4Ids.propertyId}`
+                          : "⚠️ Połączono, ale nie wybrano property"}
+                      </p>
+                      <div className="flex gap-2">
+                        <TestConnectionButton
+                          provider="ga4"
+                          clientSlug={params.clientSlug}
+                        />
+                        {multi ? (
+                          <Button asChild variant="outline" size="sm">
+                            <a href={`/${params.clientSlug}/settings/ga4-select`}>
+                              Zmień property
+                            </a>
+                          </Button>
+                        ) : null}
+                        <form action={disconnectIntegration}>
+                          <input
+                            type="hidden"
+                            name="client"
+                            value={params.clientSlug}
+                          />
+                          <input type="hidden" name="provider" value="ga4" />
+                          <Button
+                            type="submit"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            Rozłącz
+                          </Button>
+                        </form>
+                      </div>
+                    </>
+                  ) : (
+                    <Button asChild className="w-fit">
+                      <a
+                        href={`/api/integrations/ga4/connect?client=${params.clientSlug}`}
+                      >
+                        Połącz GA4
+                      </a>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+        </div>
+      </section>
 
       <ConnectionStability clientId={access.clientId} clientSlug={params.clientSlug} />
 
@@ -530,14 +537,13 @@ export default async function SettingsPage({
       )}
 
       {/* Alert notifications */}
-      <div id="powiadomienia" className="mt-8 scroll-mt-6">
-        <h2 className="text-lg font-semibold">Powiadomienia o alertach</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Wysyłamy alerty (anomalie + „cel zagrożony”) na wskazane kanały, tylko w
-          wybranych godzinach. Jeden alert = maks. raz dziennie.
-        </p>
+      <div id="powiadomienia" className="scroll-mt-24 space-y-4">
+        <SectionHeader
+          title="Powiadomienia o alertach"
+          description="Wysyłamy alerty (anomalie + „cel zagrożony”) na wskazane kanały, tylko w wybranych godzinach. Jeden alert = maks. raz dziennie."
+        />
 
-        <Card className="mt-4 max-w-2xl">
+        <Card className="max-w-2xl">
           <CardContent className="pt-6">
             <form action={saveNotificationSettings} className="flex flex-col gap-5">
               <input type="hidden" name="client" value={params.clientSlug} />

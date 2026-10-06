@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BellRing, Target, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { z } from "zod";
 
 import {
@@ -9,8 +9,8 @@ import {
   alertsHeadline,
 } from "@/components/dashboard/alert-explained";
 import { Button } from "@/components/ui/button";
-import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
-import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
+import { PageHeader, SectionHeader } from "@/components/ui/page-header";
+import { getCurrentAlerts } from "@/lib/alerts/current";
 import { getPacing, type FlightMetric, type PacingFlight } from "@/lib/alerts/pacing";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { dayMonthPL, plPlural } from "@/lib/dashboard/story";
@@ -259,28 +259,6 @@ export default async function AlertyPage({
     redirect("/login");
   }
 
-  // Budget-spike thresholds are configured per client in settings; the spike
-  // detector needs them, so chain just those two.
-  const spikesPromise = createAdminClient()
-    .from("notification_settings")
-    .select(
-      "daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
-    )
-    .eq("client_id", client.id)
-    .maybeSingle()
-    .then(({ data: notif }) => {
-      const budgetConfig: BudgetConfig = {
-        campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
-        accountCap:
-          (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
-        multiplier:
-          notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
-            ? Number(notif.spike_multiplier)
-            : 3,
-      };
-      return detectBudgetSpikes(client.id, undefined, budgetConfig);
-    });
-
   // Campaign options for the flight form (agency only; top spenders). Needs
   // the role, not the alerts, so it starts as soon as the role is known.
   const campaignOptionsPromise = viewerPromise.then(async (viewer) => {
@@ -307,50 +285,43 @@ export default async function AlertyPage({
       .map(([id, v]) => ({ id, name: v.name }));
   });
 
-  const [spikes, anomalies, pacing, viewer, campaignOptions] = await Promise.all([
-    spikesPromise,
-    detectAnomalies(client.id),
+  // One list, grouped by urgency: the client shouldn't have to know which
+  // detector found what. Spend spikes go first within their severity. Shared
+  // (per request) with the header bell's count.
+  const [alerts, pacing, viewer, campaignOptions] = await Promise.all([
+    getCurrentAlerts(client.id),
     getPacing(client.id),
     viewerPromise,
     campaignOptionsPromise,
   ]);
   const isAgency = viewer.isAgency;
-  // One list, grouped by urgency: the client shouldn't have to know which
-  // detector found what. Spend spikes go first within their severity.
-  const alerts: Anomaly[] = [...spikes, ...anomalies];
 
   // Clients only see the goals section once the agency has set goals - an
   // empty "no goals" box is noise for them.
   const showPacing = isAgency || pacing.length > 0;
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Alerty</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Co w kampaniach odbiega od normy - i co z tym robimy. Codziennie
-          porównujemy ostatnie dni z poprzednimi dwoma tygodniami.
-        </p>
-      </div>
+    <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
+      <PageHeader
+        title="Alerty"
+        description="Co w kampaniach odbiega od normy i co z tym robimy."
+      />
 
       {alerts.length === 0 ? (
         <AlertsAllClear />
       ) : (
-        <>
+        <div className="space-y-6">
           <p className="text-balance text-base font-medium">{alertsHeadline(alerts)}</p>
           <AlertGroups alerts={alerts} />
-        </>
+        </div>
       )}
 
       {showPacing ? (
-        <section>
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Target className="h-4 w-4 text-sky-500" aria-hidden />
-            Czy kampanie realizują zaplanowane cele
-          </h2>
-          <p className="mb-3 mt-1 text-sm text-muted-foreground">
-            Pionowa kreska na pasku pokazuje, gdzie według planu powinniśmy być dzisiaj.
-          </p>
+        <section className="space-y-4">
+          <SectionHeader
+            title="Czy kampanie realizują zaplanowane cele"
+            description="Pionowa kreska na pasku pokazuje, gdzie według planu powinniśmy być dzisiaj."
+          />
 
           {pacing.length > 0 ? (
             <div className="grid gap-3 lg:grid-cols-2">
@@ -373,7 +344,9 @@ export default async function AlertyPage({
           {isAgency ? (
             <form
               action={addFlight}
-              className="mt-4 grid gap-2 rounded-xl border border-border bg-card p-4 sm:grid-cols-6 sm:items-end"
+              data-present-hide
+              data-print-hide
+              className="surface grid gap-2 p-4 sm:grid-cols-6 sm:items-end sm:p-5"
             >
               <input type="hidden" name="client" value={params.clientSlug} />
               <label className="flex flex-col gap-1 text-xs sm:col-span-2">
@@ -441,14 +414,11 @@ export default async function AlertyPage({
         </section>
       ) : null}
 
-      <div className="flex items-start gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
-        <BellRing className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span>
-          {isAgency
-            ? "Skoki wydatków trafiają natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach."
-            : "Pilne sprawy, np. nagły skok wydatków, wykrywamy automatycznie - powiadomienie trafia do nas od razu."}
-        </span>
-      </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {isAgency
+          ? "Skoki wydatków trafiają natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach."
+          : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}
+      </p>
     </div>
   );
 }

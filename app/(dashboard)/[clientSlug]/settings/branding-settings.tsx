@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/page-header";
 import {
   BRAND_COLOR_PICKER_START,
   BRAND_COLOR_RE,
@@ -77,15 +78,13 @@ export function BrandingSettingsSection({
   }
 
   return (
-    <div id="wyglad" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">Wygląd panelu</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Logo i kolor klienta w panelu, w PDF-ie dla zarządu, w linku dla zarządu
-        i w cotygodniowym e-mailu - żeby raport wyglądał jak jego własny. Kolor
-        pojawia się tylko jako delikatny akcent.
-      </p>
+    <div id="wyglad" className="scroll-mt-24 space-y-4">
+      <SectionHeader
+        title="Wygląd panelu"
+        description="Logo i kolor klienta w panelu, w PDF-ie dla zarządu, w linku dla zarządu i w cotygodniowym e-mailu - żeby raport wyglądał jak jego własny. Kolor pojawia się tylko jako delikatny akcent."
+      />
 
-      <Card className="mt-4 max-w-3xl">
+      <Card className="max-w-3xl">
         <CardContent className="pt-6">
           {!available ? (
             <p className="text-sm text-muted-foreground">

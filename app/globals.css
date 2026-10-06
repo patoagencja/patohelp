@@ -328,6 +328,15 @@ html[data-present="true"] {
   main {
     padding: 0 !important;
   }
+  /* "Więcej" disclosures marked data-print-open (alert explanations) print
+     expanded, without the toggle: paper can't be clicked. */
+  details[data-print-open]::details-content {
+    content-visibility: visible;
+    display: block;
+  }
+  details[data-print-open] > summary {
+    display: none;
+  }
   main section,
   main [class*="rounded-xl"],
   main [class*="rounded-2xl"],

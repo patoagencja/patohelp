@@ -1,66 +1,23 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ExternalLink, Newspaper } from "lucide-react";
+import { Newspaper } from "lucide-react";
 
+import {
+  NewsFilterControl,
+  NewsList,
+  parseNewsFilter,
+  type NewsListItem,
+} from "@/components/dashboard/news-list";
 import { NewsRefreshButton } from "@/components/dashboard/news-refresh-button";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { NewsCategory } from "@/lib/news/fetch";
-import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 // The on-demand refresh action waits for the news cron (Claude + web search,
 // ~1-2 min) before revalidating, so give the route a generous budget.
 export const maxDuration = 240;
-
-const CATEGORY_META: Record<
-  NewsCategory,
-  { label: string; chip: string; dot: string }
-> = {
-  meta: {
-    label: "META",
-    chip: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    dot: "bg-blue-500",
-  },
-  google: {
-    label: "GOOGLE / YT",
-    chip: "bg-red-500/10 text-red-600 dark:text-red-400",
-    dot: "bg-red-500",
-  },
-  tiktok: {
-    label: "TIKTOK",
-    chip: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
-    dot: "bg-slate-500",
-  },
-  ai: {
-    label: "AI",
-    chip: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-    dot: "bg-violet-500",
-  },
-  other: {
-    label: "INNE",
-    chip: "bg-muted text-muted-foreground",
-    dot: "bg-muted-foreground",
-  },
-};
-
-const FILTERS: Array<{ key: string; label: string }> = [
-  { key: "all", label: "Wszystkie" },
-  { key: "meta", label: "Meta" },
-  { key: "google", label: "Google / YT" },
-  { key: "tiktok", label: "TikTok" },
-  { key: "ai", label: "AI" },
-];
-
-const MONTHS_PL = [
-  "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
-  "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
-];
-
-function dateLabel(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return `${d} ${MONTHS_PL[m - 1]} ${y}`;
-}
 
 export default async function NewsyPage({
   params,
@@ -69,7 +26,7 @@ export default async function NewsyPage({
   params: { clientSlug: string };
   searchParams: { cat?: string };
 }) {
-  const filter = FILTERS.find((f) => f.key === searchParams.cat)?.key ?? "all";
+  const filter = parseNewsFilter(searchParams.cat);
 
   // News are global (not per client) - read via admin (RLS, no policy).
   // Nothing here depends on the client, so it runs alongside the access
@@ -89,126 +46,43 @@ export default async function NewsyPage({
   ]);
   if (!client) redirect("/login");
 
-  const items = data ?? [];
-  const byDate = new Map<string, typeof items>();
-  for (const item of items) {
-    const key = item.published_on as string;
-    const arr = byDate.get(key) ?? [];
-    arr.push(item);
-    byDate.set(key, arr);
-  }
+  const items: NewsListItem[] = (data ?? []).map((r) => ({
+    id: r.id as string,
+    publishedOn: r.published_on as string,
+    category: r.category as NewsCategory,
+    title: r.title as string,
+    summary: r.summary as string,
+    sourceName: r.source_name as string | null,
+    sourceUrl: r.source_url as string | null,
+  }));
+  const base = `/${params.clientSlug}/newsy`;
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <Newspaper className="h-5 w-5 text-primary" aria-hidden />
-            Newsy - reklama & AI
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Codzienna prasówka: co nowego w Mecie, Google/YouTube, TikToku i AI -
-            zbierana automatycznie każdego ranka.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-lg bg-muted p-1">
-            {FILTERS.map((f) => (
-              <Link
-                key={f.key}
-                scroll={false}
-                href={`/${params.clientSlug}/newsy${f.key === "all" ? "" : `?cat=${f.key}`}`}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                  filter === f.key
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {f.label}
-              </Link>
-            ))}
-          </div>
-          <NewsRefreshButton clientSlug={params.clientSlug} />
-        </div>
+    <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
+      <PageHeader
+        title="Newsy"
+        description="Co nowego w reklamie Meta, Google, TikTok i w AI - zbierane automatycznie każdego ranka."
+        actions={<NewsRefreshButton clientSlug={params.clientSlug} />}
+      />
+
+      <div data-print-hide>
+        <NewsFilterControl
+          active={filter}
+          hrefFor={(f) => (f === "all" ? base : `${base}?cat=${f}`)}
+        />
       </div>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
-          <Newspaper className="mb-3 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">Brak newsów</p>
-          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        <Card className="flex flex-col items-center px-6 py-14 text-center">
+          <Newspaper className="mb-3 h-7 w-7 text-muted-foreground" aria-hidden />
+          <p className="text-base font-semibold">Brak newsów</p>
+          <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
             Lista wypełnia się automatycznie raz dziennie. Kliknij ikonę
             odświeżania, aby pobrać pierwszą porcję (potrwa ~1 min).
           </p>
-        </div>
+        </Card>
       ) : (
-        <div className="space-y-8">
-          {Array.from(byDate.entries()).map(([date, dayItems]) => (
-            <section key={date}>
-              <h2 className="mb-3 flex items-center gap-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                {dateLabel(date)}
-                <span className="h-px flex-1 bg-border" />
-              </h2>
-              <div className="space-y-3">
-                {dayItems.map((item) => {
-                  const meta =
-                    CATEGORY_META[item.category as NewsCategory] ??
-                    CATEGORY_META.other;
-                  return (
-                    <article
-                      key={item.id as string}
-                      className="group rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span
-                          className={cn(
-                            "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                            meta.dot
-                          )}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={cn(
-                                "rounded px-1.5 py-0.5 tabular-nums text-[10px] font-bold tracking-wide",
-                                meta.chip
-                              )}
-                            >
-                              {meta.label}
-                            </span>
-                            <h3 className="text-sm font-semibold leading-snug">
-                              {item.title as string}
-                            </h3>
-                          </div>
-                          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                            {item.summary as string}
-                          </p>
-                          {item.source_url ? (
-                            <a
-                              href={item.source_url as string}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary dark:text-indigo-300 hover:underline"
-                            >
-                              {(item.source_name as string) || "Źródło"}
-                              <ExternalLink className="h-3 w-3" aria-hidden />
-                              <span className="sr-only">(otwiera się w nowej karcie)</span>
-                            </a>
-                          ) : item.source_name ? (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              {item.source_name as string}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
+        <NewsList items={items} />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/page-header";
 import {
   GOAL_METRICS,
   getGoalTargets,
@@ -41,15 +42,14 @@ export async function GoalsSettingsSection({
   const lastMonthName = monthLabelPl(lastMonth).split(" ")[0];
 
   return (
-    <div id="cele" className="mt-8 scroll-mt-6">
-      <h2 className="text-lg font-semibold">Cele miesięczne</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Klient zobaczy na przeglądzie postęp każdego celu, prognozę na koniec
-        miesiąca i ile trzeba dziennie, żeby go osiągnąć. Puste pole = brak celu.
-      </p>
+    <div id="cele" className="scroll-mt-24 space-y-4">
+      <SectionHeader
+        title="Cele miesięczne"
+        description="Klient zobaczy na przeglądzie postęp każdego celu, prognozę na koniec miesiąca i ile trzeba dziennie, żeby go osiągnąć. Puste pole = brak celu."
+      />
 
       {!targets.available ? (
-        <Card className="mt-4 max-w-3xl">
+        <Card className="max-w-3xl">
           <CardContent className="pt-6 text-sm text-muted-foreground">
             Uruchom w Supabase migrację{" "}
             <code className="rounded bg-muted px-1">0030_engagement_goals.sql</code>, żeby
@@ -57,7 +57,7 @@ export async function GoalsSettingsSection({
           </CardContent>
         </Card>
       ) : (
-        <Card className="mt-4 max-w-3xl">
+        <Card className="max-w-3xl">
           <CardContent className="pt-6">
             {/* Remount on save so inputs show what was actually stored (an
                 unparseable entry is skipped, not saved). */}
