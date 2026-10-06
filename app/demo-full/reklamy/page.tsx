@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { AD_PROVIDER_SHORT } from "@/lib/types";
 import { AdsPageIntro } from "@/components/dashboard/ads-page-intro";
@@ -10,6 +12,7 @@ import type { SearchTermRow } from "@/lib/dashboard/search-terms";
 import { summarizeImpressionShare } from "@/lib/dashboard/impression-share";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { GLOSSARY } from "@/lib/dashboard/glossary";
+import { plPlural } from "@/lib/dashboard/story";
 import { formatMoneyPLN, formatPercent, formatPlnWhole } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -83,10 +86,12 @@ export default function DemoFullReklamy({
   const en = lang === "en";
   const d = getDemoDashboard(lang);
 
-  // Pair each creative with a plausible platform for the little badge.
-  const ads = d.creativesFull.map((c, i) => ({
+  // The demo creatives are Meta ads (the thumb already says "· META"), so a
+  // "GOOG" badge on every third one contradicted its own label. The full
+  // gallery lives on Kreacje - here a short teaser is enough.
+  const ads = d.creativesFull.slice(0, 4).map((c) => ({
     ...c,
-    provider: (i % 3 === 2 ? "google_ads" : "meta_ads") as "meta_ads" | "google_ads",
+    provider: "meta_ads" as const,
   }));
 
   return (
@@ -108,9 +113,24 @@ export default function DemoFullReklamy({
 
       {/* Example ads gallery */}
       <section>
-        <h2 className="mb-3 text-base font-semibold">
-          {en ? "Active ads" : "Aktywne reklamy"}
-        </h2>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h2 className="text-base font-semibold">
+            {en ? "Active ads" : "Aktywne reklamy"}
+          </h2>
+          <Link
+            href={en ? "/demo-full/kreacje?lang=en" : "/demo-full/kreacje"}
+            className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-indigo-300"
+          >
+            {en
+              ? `All ${d.creativesFull.length} ads and what works best →`
+              : `Wszystkie ${d.creativesFull.length} ${plPlural(
+                  d.creativesFull.length,
+                  "reklama",
+                  "reklamy",
+                  "reklam"
+                )} i co działa najlepiej →`}
+          </Link>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {ads.map((c) => (
             <div

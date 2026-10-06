@@ -53,13 +53,23 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
         </div>
       </div>
 
-      <ul className={cn("grid gap-3 p-4 sm:p-5", COLS[items.length])}>
+      {/* Phones: one swipeable row instead of four tall stacked tiles (that
+          stack alone was most of a screen); sm+ is the usual grid. */}
+      <ul
+        className={cn(
+          "flex snap-x snap-mandatory gap-3 overflow-x-auto p-4 sm:grid sm:overflow-visible sm:p-5",
+          COLS[items.length]
+        )}
+      >
         {items.map((r) => {
           const Icon = ICONS[r.icon] ?? Trophy;
           return (
             <li
               key={r.id}
-              className="group relative flex flex-col overflow-hidden rounded-lg border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-card to-card p-4 transition-colors hover:border-amber-500/40"
+              className={cn(
+                "group relative flex shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-card to-card p-4 transition-colors hover:border-amber-500/40 sm:w-auto",
+                items.length > 1 ? "w-[80%]" : "w-full"
+              )}
             >
               {/* Oversized faded icon: decoration only, keeps tiles from feeling flat. */}
               <Icon

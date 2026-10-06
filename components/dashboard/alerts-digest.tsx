@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
 
+import { explainAlert } from "@/components/dashboard/alert-explained";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { cn } from "@/lib/utils";
 
@@ -28,13 +29,15 @@ const SEVERITY_PILL: Record<Anomaly["severity"], string> = {
 const COPY = {
   pl: {
     title: "Najważniejsze alerty",
-    intro: "Rzeczy, którym się przyglądamy",
+    intro: "Rzeczy, którym się przyglądamy - przy każdej piszemy, co z tym robimy.",
+    doing: "Co robimy:",
     all: "Wszystkie alerty",
     empty: "Wszystko w normie - wyniki zgodne z ostatnimi 2 tygodniami.",
   },
   en: {
     title: "Top alerts",
-    intro: "Things we're keeping an eye on",
+    intro: "Things we're keeping an eye on - each says what we're doing about it.",
+    doing: "What we're doing:",
     all: "All alerts",
     empty: "All clear - results are in line with the last 2 weeks.",
   },
@@ -94,11 +97,14 @@ export function AlertsDigest({
       ) : (
         <ul className="mt-4 divide-y divide-border/60">
           {top.map((a, i) => {
+            // A pulsing red "Pilne" with no next step read as "panic"; the
+            // Alerty tab's calm "Co z tym robimy" line belongs right here.
+            const x = explainAlert(a, lang);
             const body = (
               <>
                 {/* Only urgent items pulse - draws the eye without making the
                     whole list feel alarming. */}
-                <span className="relative flex h-2 w-2 shrink-0">
+                <span className="relative mt-1.5 flex h-2 w-2 shrink-0">
                   {a.severity === "critical" ? (
                     <span
                       className={cn(
@@ -121,6 +127,10 @@ export function AlertsDigest({
                   <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                     {a.scopeLabel}
                   </span>
+                  <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+                    <span className="font-medium text-foreground/80">{t.doing}</span>{" "}
+                    {x.action}
+                  </span>
                 </span>
                 <span
                   className={cn(
@@ -132,7 +142,7 @@ export function AlertsDigest({
                 </span>
               </>
             );
-            const cls = "group flex items-center gap-3 rounded-md py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+            const cls = "group flex items-start gap-3 rounded-md py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
             return (
               <li
                 key={a.id}

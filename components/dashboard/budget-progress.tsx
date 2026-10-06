@@ -82,6 +82,19 @@ function paceSentence(budget: BudgetStatus, lang: Lang): string {
   return en ? "We're spending in line with the plan." : "Wydajemy zgodnie z planem.";
 }
 
+const MONTHS_PL = [
+  "styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec",
+  "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień",
+];
+const MONTHS_PL_GEN = [
+  "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+  "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
+];
+const MONTHS_EN = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 export function BudgetProgress({
   budget,
   clientSlug,
@@ -96,7 +109,23 @@ export function BudgetProgress({
   lang?: Lang;
 }) {
   const en = lang === "en";
-  const title = en ? "Monthly budget" : "Budżet miesięczny";
+  // "9 216 zł z 50 000 zł" right under a chart saying "43 885 zł" (30 days)
+  // read as a contradiction - name the month and say where it starts.
+  const monthIdx = budget.hasBudget ? Number(budget.month.slice(5, 7)) - 1 : -1;
+  const title =
+    monthIdx >= 0 && monthIdx < 12
+      ? en
+        ? `Budget for ${MONTHS_EN[monthIdx]}`
+        : `Budżet na ${MONTHS_PL[monthIdx]}`
+      : en
+        ? "Monthly budget"
+        : "Budżet miesięczny";
+  const since =
+    monthIdx >= 0 && monthIdx < 12
+      ? en
+        ? `Spend since ${MONTHS_EN[monthIdx]} 1 - a different window than the 30-day figures elsewhere.`
+        : `Wydatki od 1 ${MONTHS_PL_GEN[monthIdx]} - to inny okres niż liczby z ostatnich dni wyżej.`
+      : null;
 
   if (!budget.hasBudget) {
     return (
@@ -136,7 +165,10 @@ export function BudgetProgress({
   return (
     <Card className="p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <h2 className="text-base font-semibold">{title}</h2>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold">{title}</h2>
+          {since ? <p className="mt-0.5 text-xs text-muted-foreground">{since}</p> : null}
+        </div>
         {isAgency ? (
           <form action={setBudgetAction} className="flex items-center gap-2">
             <input type="hidden" name="client" value={clientSlug} />

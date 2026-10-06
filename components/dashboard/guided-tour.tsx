@@ -74,7 +74,7 @@ function findKpiInfoButton(): HTMLElement | null {
 const STEPS: Step[] = [
   {
     title: "Najważniejsze w skrócie",
-    body: "Tu w jednym zdaniu: jak poszło w wybranym okresie. Zacznij od tego miejsca.",
+    body: "Tu w jednym zdaniu: ile wydaliśmy, co z tego mamy i czy to dobry wynik. Zacznij od tego miejsca.",
     find: () => firstShown('section[aria-label="Najważniejsze w skrócie"]'),
   },
   {

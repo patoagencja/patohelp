@@ -15,8 +15,12 @@ const PLATFORM_PILL: Record<AdProvider, string> = {
 function spendDelta(spark: number[]): number | null {
   if (spark.length < 4) return null;
   const half = Math.floor(spark.length / 2);
-  const prior = spark.slice(0, half).reduce((a, b) => a + b, 0);
-  const recent = spark.slice(half).reduce((a, b) => a + b, 0);
+  // Daily averages, not sums: a 7-day spark splits 3 + 4 days, and summing
+  // made every campaign look ~33% "up" (+76% rows next to a +11% total).
+  const priorDays = spark.slice(0, half);
+  const recentDays = spark.slice(half);
+  const prior = priorDays.reduce((a, b) => a + b, 0) / priorDays.length;
+  const recent = recentDays.reduce((a, b) => a + b, 0) / recentDays.length;
   if (prior <= 0) return null;
   return ((recent - prior) / prior) * 100;
 }

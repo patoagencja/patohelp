@@ -123,7 +123,9 @@ const AUTO: Record<
 // A busy month can produce a dozen budget wobbles; past three a week they
 // stop reading as "work" and start reading as noise.
 const MAX_AUTO_PER_WEEK = 3;
-const COLLAPSED_ITEMS = 8;
+// Four entries fill one screen; the rest is a click away. On a phone the full
+// list was a screen and a half of scrolling before the next section.
+const COLLAPSED_ITEMS = 4;
 
 const MONTHS_GEN = [
   "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
@@ -339,14 +341,16 @@ function demoWork(today: string): { work: AgencyWork; autoEvents: ChartEvent[] }
     autoEvents: [
       {
         id: "demo-auto-1",
-        date: d(6),
+        // Same days and % as the demo chart's markers (buildDemoChartExtras:
+        // 25% / 55% into a 30-day trend) - the two used to disagree.
+        date: d(13),
         kind: "budget_up",
-        text: "Zwiększono budżet: TRAFFIC | Ruch na stronę (Meta, +40%)",
+        text: "Zwiększono budżet: TRAFFIC | Ruch na stronę (Meta, +60%)",
         weight: 1,
       },
       {
         id: "demo-auto-2",
-        date: d(20),
+        date: d(22),
         kind: "start",
         text: "Start kampanii: PMAX | Ruch (Google)",
         weight: 1,
@@ -455,6 +459,7 @@ export function AgencyActivity({
           {items.length > COLLAPSED_ITEMS ? (
             <button
               type="button"
+              data-print-hide
               onClick={() => setShowAll((v) => !v)}
               className="rounded-sm text-sm font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >

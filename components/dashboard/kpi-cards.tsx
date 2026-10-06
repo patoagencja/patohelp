@@ -13,6 +13,7 @@ import {
   type GoodWhen,
 } from "@/lib/dashboard/glossary";
 import type { DashboardKpis, Kpi, TrendPoint } from "@/lib/dashboard/metrics";
+import { comparisonPhrase } from "@/lib/dashboard/story";
 import {
   cn,
   formatMoneyPLN,
@@ -174,10 +175,18 @@ export function KpiCards({
   kpis,
   trend,
   lang = "pl",
+  periodLabel,
 }: {
   kpis: DashboardKpis;
   trend: TrendPoint[];
   lang?: "pl" | "en";
+  /**
+   * Overview only: turns the hidden heading into a visible "Szczegółowe
+   * wskaźniki" intro naming the comparison period. The hero already carries spend, clicks,
+   * visits and CPC, so on the overview these tiles are the "for the curious"
+   * layer: every metric with its ⓘ definition and a sparkline.
+   */
+  periodLabel?: string;
 }) {
   const en = lang === "en";
   const headingId = useId();
@@ -240,9 +249,27 @@ export function KpiCards({
 
   return (
     <section aria-labelledby={headingId}>
-    <h2 id={headingId} className="sr-only">
-      {en ? "Key metrics" : "Najważniejsze wskaźniki"}
-    </h2>
+    {periodLabel === undefined ? (
+      <h2 id={headingId} className="sr-only">
+        {en ? "Key metrics" : "Najważniejsze wskaźniki"}
+      </h2>
+    ) : (
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2
+          id={headingId}
+          className="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          {en ? "Detailed metrics" : "Szczegółowe wskaźniki"}
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          {en
+            ? "Every metric with a plain-language ⓘ. Changes vs the previous period of the same length."
+            : `Każdy wskaźnik z wyjaśnieniem pod ⓘ. Zmiany w porównaniu ${comparisonPhrase(
+                periodLabel
+              )}.`}
+        </p>
+      </div>
+    )}
     <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
       <KpiCard
         metric="spend"

@@ -1,14 +1,19 @@
 import {
   ArrowDownRight,
   ArrowUpRight,
+  CircleCheck,
+  CircleMinus,
   Eye,
   Hourglass,
+  MessageSquareQuote,
   PartyPopper,
   Sparkles,
+  TriangleAlert,
 } from "lucide-react";
 
-import type { Story, Tone } from "@/lib/dashboard/story";
-import { cn } from "@/lib/utils";
+import type { AiSummary } from "@/lib/dashboard/overview";
+import { comparisonPhrase, type Story, type Tone } from "@/lib/dashboard/story";
+import { cn, formatDateWarsaw } from "@/lib/utils";
 
 const TONE_CLASS: Record<Tone, string> = {
   good: "text-emerald-700 dark:text-emerald-400",
@@ -16,18 +21,35 @@ const TONE_CLASS: Record<Tone, string> = {
   flat: "text-muted-foreground",
 };
 
+const VERDICT_CLASS: Record<Tone, string> = {
+  good: "bg-emerald-500/10 text-emerald-800 ring-emerald-500/25 dark:text-emerald-300",
+  bad: "bg-rose-500/10 text-rose-700 ring-rose-500/25 dark:text-rose-300",
+  flat: "bg-muted text-foreground ring-border",
+};
+
+const VERDICT_ICON = { good: CircleCheck, bad: TriangleAlert, flat: CircleMinus } as const;
+
+/** "2026-09-29" -> "29.09" (period dates are already Warsaw days). */
+const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+
 /**
- * First thing on the overview: the period in one sentence, four big numbers
- * with words instead of acronyms, and the good news. Built to be read aloud
- * in a board meeting by someone who never opened Ads Manager.
+ * First thing on the overview: the period in one sentence, a verdict ("czy to
+ * dobrze?"), four big numbers with words instead of acronyms, the good news
+ * and - when there is one - the agency's weekly AI commentary. Built to be
+ * read aloud in a board meeting by someone who never opened Ads Manager, so
+ * it is the one place that says what every "niż wcześniej" compares against.
  */
 export function StoryHero({
   story,
   periodLabel,
+  aiSummary,
 }: {
   story: Story;
   periodLabel: string;
+  /** Weekly AI commentary; folded in here so the page has one summary, not two. */
+  aiSummary?: AiSummary | null;
 }) {
+  const VerdictIcon = story.verdict ? VERDICT_ICON[story.verdict.tone] : null;
   return (
     <section
       aria-label="Najważniejsze w skrócie"
@@ -45,6 +67,23 @@ export function StoryHero({
       <h2 className="mt-2 max-w-3xl text-balance text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
         {story.headline}
       </h2>
+
+      {story.verdict && VerdictIcon ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ring-1",
+              VERDICT_CLASS[story.verdict.tone]
+            )}
+          >
+            <VerdictIcon className="h-4 w-4 shrink-0" aria-hidden />
+            {story.verdict.text}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            „Wcześniej” = w porównaniu {comparisonPhrase(periodLabel)}.
+          </span>
+        </div>
+      ) : null}
 
       {story.facts.length === 0 && story.note ? (
         <p className="mt-3 flex max-w-2xl items-start gap-2 text-sm leading-relaxed text-muted-foreground">
@@ -79,6 +118,9 @@ export function StoryHero({
                 {f.change.text}
               </dd>
             ) : null}
+            {f.hint ? (
+              <dd className="order-4 mt-0.5 text-xs text-muted-foreground">{f.hint}</dd>
+            ) : null}
           </div>
         ))}
       </dl>
@@ -108,6 +150,27 @@ export function StoryHero({
             </p>
           ) : null}
         </div>
+      ) : null}
+
+      {aiSummary ? (
+        <figure className="mt-5 rounded-xl border border-primary/15 bg-card/70 p-4 sm:p-5">
+          <figcaption className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold">
+            <MessageSquareQuote className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            Komentarz tygodnia
+            {/* Its own fixed 7-day window, not the range above - say which
+                days, or its numbers look like they contradict the tiles. */}
+            <span className="text-xs font-normal text-muted-foreground">
+              podsumowanie AI
+              {aiSummary.periodStart && aiSummary.periodEnd
+                ? ` · dane ${ddmm(aiSummary.periodStart)}–${ddmm(aiSummary.periodEnd)}`
+                : ""}
+              {` · ${formatDateWarsaw(aiSummary.generatedAt, "d MMM, HH:mm")}`}
+            </span>
+          </figcaption>
+          <blockquote className="mt-2 max-w-4xl text-sm leading-relaxed text-foreground">
+            {aiSummary.summaryText.replace(/[–—]/g, "-")}
+          </blockquote>
+        </figure>
       ) : null}
     </section>
   );

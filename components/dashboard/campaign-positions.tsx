@@ -57,7 +57,7 @@ const COPY = {
     change: "Zmiana",
     trend: "Trend 7 dni",
     changeHint:
-      "Zmiana wydatków: ostatnie dni w porównaniu z wcześniejszymi dniami tygodnia",
+      "średnie dzienne wydatki z ostatnich 4 dni w porównaniu z 3 wcześniejszymi (nie z poprzednim okresem)",
     trendHint: "Dzienne wydatki z ostatnich 7 dni",
     ctrHint: "Klikalność (CTR): jaki odsetek osób, które zobaczyły reklamę, kliknął w nią",
     spent: "wydane",
@@ -74,7 +74,7 @@ const COPY = {
     cpc: "Cost per click",
     change: "Change",
     trend: "7-day trend",
-    changeHint: "Spend change: the last few days compared with earlier in the week",
+    changeHint: "average daily spend over the last 4 days vs the 3 days before (not the previous period)",
     trendHint: "Daily spend over the last 7 days",
     ctrHint: "Click rate (CTR): share of people who saw the ad and clicked it",
     spent: "spent",
@@ -168,8 +168,12 @@ function Sparkline({ values, up }: { values: number[]; up: boolean }) {
 function spendChange(spark: number[]): number | null {
   if (spark.length < 4) return null;
   const half = Math.floor(spark.length / 2);
-  const prior = spark.slice(0, half).reduce((a, b) => a + b, 0);
-  const recent = spark.slice(half).reduce((a, b) => a + b, 0);
+  // Daily averages, not sums: a 7-day spark splits 3 + 4 days, and summing
+  // made every campaign look ~33% "up" (+76% rows next to a +11% total).
+  const priorDays = spark.slice(0, half);
+  const recentDays = spark.slice(half);
+  const prior = priorDays.reduce((a, b) => a + b, 0) / priorDays.length;
+  const recent = recentDays.reduce((a, b) => a + b, 0) / recentDays.length;
   if (prior <= 0) return null;
   return ((recent - prior) / prior) * 100;
 }
@@ -324,6 +328,8 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
   );
 }
 
+const MOBILE_COLLAPSED = 4;
+
 /**
  * Combined Meta/Google/TikTok campaign list in plain language: spend, clicks,
  * click rate, cost per click, recent spend change and a 7-day trend line.
@@ -342,6 +348,9 @@ export function CampaignPositions({
   // Client-side filtering: instant, no navigation, immune to stale-chunk errors
   // after a fresh deploy (which broke the previous URL-param approach).
   const [filter, setFilter] = useState<PositionFilter>(initialFilter);
+  // Phones only: each campaign is a tall card, so eight of them were two
+  // screens of scrolling. The biggest spenders first, the rest on request.
+  const [showAllMobile, setShowAllMobile] = useState(false);
 
   const base =
     filter === "active"
@@ -407,10 +416,26 @@ export function CampaignPositions({
       ) : (
         <>
           <ul className="mt-5 divide-y divide-border/60 md:hidden">
-            {filtered.map((c) => (
+            {(showAllMobile ? filtered : filtered.slice(0, MOBILE_COLLAPSED)).map((c) => (
               <MobileCard key={`${c.provider}:${c.campaignId}`} c={c} lang={lang} />
             ))}
           </ul>
+          {filtered.length > MOBILE_COLLAPSED ? (
+            <button
+              type="button"
+              data-print-hide
+              onClick={() => setShowAllMobile((v) => !v)}
+              className="mt-3 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-indigo-300 md:hidden"
+            >
+              {showAllMobile
+                ? lang === "en"
+                  ? "Show fewer"
+                  : "Pokaż mniej"
+                : lang === "en"
+                  ? `Show all (${filtered.length - MOBILE_COLLAPSED} more)`
+                  : `Pokaż wszystkie (jeszcze ${filtered.length - MOBILE_COLLAPSED})`}
+            </button>
+          ) : null}
 
           {/* Inner scroll as a safety net for mid-size screens with long names. */}
           <div className="mt-5 hidden overflow-x-auto md:block">
@@ -451,6 +476,11 @@ export function CampaignPositions({
               {STATUS_LABEL[lang][s]}
             </span>
           ))}
+          {/* Visible, not only a header tooltip: "+76%" on every row next to
+              "+11%" in the summary looked like a contradiction. */}
+          <span className="basis-full sm:ml-auto sm:basis-auto">
+            {t.change}: {t.changeHint}.
+          </span>
         </div>
       ) : null}
     </Card>

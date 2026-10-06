@@ -331,14 +331,14 @@ export function CommandPalette({
     const tab = pathname.split("/")[2] ?? "";
 
     const tabs: Array<{ path: string; label: string; icon: Icon; keywords?: string }> = [
-      { path: "", label: "Przegląd", icon: LayoutDashboard, keywords: "overview start home kpi" },
+      { path: "", label: "Przegląd", icon: LayoutDashboard, keywords: "overview start home kpi podsumowanie wyniki budzet cele rekordy wydatki ile wydalismy" },
       ...(isEcommerce
         ? [{ path: "sprzedaz", label: "Sprzedaż", icon: ShoppingBag, keywords: "sales sklep zamowienia przychod" }]
         : []),
-      { path: "reklamy", label: "Reklamy", icon: Megaphone, keywords: "ads kampanie meta google" },
-      { path: "kreacje", label: "Kreacje", icon: ImageIcon, keywords: "creatives grafiki wideo" },
-      { path: "witryna", label: "Witryna", icon: Globe, keywords: "strona website ga4 ruch sesje" },
-      { path: "alerty", label: "Alerty", icon: BellRing, keywords: "alerts powiadomienia" },
+      { path: "reklamy", label: "Reklamy", icon: Megaphone, keywords: "ads kampanie meta google facebook instagram koszt klikniecia cpc klikalnosc ctr wydatki frazy wyszukiwania" },
+      { path: "kreacje", label: "Kreacje", icon: ImageIcon, keywords: "creatives grafiki wideo filmy obrazki najlepsze reklamy" },
+      { path: "witryna", label: "Witryna", icon: Globe, keywords: "strona website ga4 ruch sesje wizyty odwiedziny telefon urzadzenia zrodla odbiorcy wiek" },
+      { path: "alerty", label: "Alerty", icon: BellRing, keywords: "alerts powiadomienia problemy ostrzezenia pilne anomalie" },
       { path: "raport", label: "Raport", icon: FileText, keywords: "report miesieczny" },
       { path: "newsy", label: "Newsy", icon: Newspaper, keywords: "news aktualnosci" },
       ...(isAgency

@@ -5,7 +5,10 @@ import type { RecordItem } from "@/lib/dashboard/records";
 /**
  * Hand-written records for the public demo. Written in the exact shape and
  * tone computeRecords() produces, with dates relative to today so the demo
- * never shows a stale "milestone".
+ * never shows a stale "milestone". The engagement numbers must stay in scale
+ * with the demo trend in data.ts (~1 500 clicks, ~1 200 visits, ~73 tys.
+ * impressions a day): "1 mln wyświetleń w roku" next to "2,2 mln w 30 dni"
+ * is exactly the contradiction a board member spots first.
  */
 export function getDemoRecords(
   opts: { ecommerce?: boolean; today?: Date } = {}
@@ -63,7 +66,7 @@ export function getDemoRecords(
     {
       id: "month-clicks",
       icon: "trending",
-      title: "Najlepszy miesiąc od marca: 12 344 kliknięcia w reklamy",
+      title: "Najlepszy miesiąc od marca: 44 960 kliknięć w reklamy",
       detail:
         "Więcej kliknięć w reklamy niż w każdym z 6 poprzednich miesięcy z danymi.",
       achievedOn: day(4),
@@ -71,17 +74,17 @@ export function getDemoRecords(
     {
       id: "cpc-90d",
       icon: "sparkles",
-      title: "Najtańsze kliknięcie od 90 dni: 0,71 zł",
+      title: "Najtańsze kliknięcie od 90 dni: 0,86 zł",
       detail:
-        "Średni koszt kliknięcia z ostatnich 7 dni (2862 kliknięcia) jest najniższy spośród wszystkich 7-dniowych okresów z ostatnich 90 dni i o 17% niższy niż średnia z tego czasu.",
+        "Średni koszt kliknięcia z ostatnich 7 dni (12 480 kliknięć) jest najniższy spośród wszystkich 7-dniowych okresów z ostatnich 90 dni i o 12% niższy niż średnia z tego czasu.",
       achievedOn: day(1),
     },
     {
       id: "ytd-impressions",
       icon: "flag",
-      title: `Przekroczyliśmy 1 mln wyświetleń reklam w ${year} roku`,
+      title: `Przekroczyliśmy 20 mln wyświetleń reklam w ${year} roku`,
       detail:
-        "Od 1 stycznia Wasze reklamy zebrały 1 018 452 wyświetlenia - próg 1 mln padł kilka dni temu.",
+        "Od 1 stycznia Wasze reklamy zebrały 20 184 300 wyświetleń - próg 20 mln padł kilka dni temu.",
       achievedOn: day(5),
     },
   ];

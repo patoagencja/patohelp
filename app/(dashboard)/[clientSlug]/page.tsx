@@ -5,7 +5,6 @@ import {
   AddActivityButton,
   AgencyActivity,
 } from "@/components/dashboard/agency-activity";
-import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { CampaignRings } from "@/components/dashboard/campaign-rings";
@@ -20,7 +19,6 @@ import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsSection } from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { StoryHero } from "@/components/dashboard/story-hero";
-import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing, type PacingFlight } from "@/lib/alerts/pacing";
@@ -149,69 +147,33 @@ export default async function OverviewPage({
       </div>
 
       {/* Each section gets its own boundary: one widget choking on odd data
-          (or a streamed query failing) must not blank the whole overview. */}
+          (or a streamed query failing) must not blank the whole overview.
+          Order (same as app/demo-full/page.tsx - keep in sync): summary ->
+          records & plan vs actual -> trend -> attention/what we did ->
+          detailed metrics. Sections stay flat siblings: presentation mode
+          turns each top-level child into one slide. */}
+
+      {/* 1. Summary - the AI weekly commentary lives inside it, so the page
+          has one summary instead of two saying the same in other words. */}
       <SectionBoundary name="overview/story">
         <StoryHero
           story={buildStory({
             kpis: data.kpis,
             trend: data.trend,
             ecommerce: clientType === "ecommerce" ? data.ecommerce : null,
+            includeSpend: true,
           })}
           periodLabel={data.rangeLabel}
+          aiSummary={summary}
         />
       </SectionBoundary>
 
-      {/* History scan is cached but can be cold - never hold the page for it. */}
+      {/* 2. Records, then plan vs actual. History scan is cached but can be
+          cold - never hold the page for it. */}
       <SectionBoundary name="overview/records">
         <Suspense fallback={null}>
           <RecordsSection clientId={client.id} ecommerce={clientType === "ecommerce"} />
         </Suspense>
-      </SectionBoundary>
-
-      {clientType !== "ecommerce" ? (
-        <SectionBoundary name="overview/goals">
-          <GoalsCard
-            goals={engagementGoals}
-            clientSlug={params.clientSlug}
-            isAgency={isAgency}
-          />
-        </SectionBoundary>
-      ) : null}
-
-      {score ? (
-        <SectionBoundary name="overview/score">
-          <DailyScoreCard data={score} />
-        </SectionBoundary>
-      ) : null}
-
-      <SectionBoundary name="overview/ticker">
-        <TickerBar campaigns={data.campaigns} />
-      </SectionBoundary>
-
-      {isDre && pacing.length > 0 ? (
-        <SectionBoundary name="overview/rings">
-          <CampaignRings flights={pacing} />
-        </SectionBoundary>
-      ) : null}
-
-      {/* GA-style: the big picture first, details below. */}
-      <SectionBoundary name="overview/main-chart">
-        <MainChart
-          trend={data.trend}
-          prevTrend={data.prevTrend}
-          events={events}
-          autoEvents={data.autoEvents}
-          label={data.rangeLabel}
-        />
-      </SectionBoundary>
-
-      <SectionBoundary name="overview/agency-activity">
-        <AgencyActivity
-          work={agencyWork}
-          autoEvents={data.autoEvents}
-          isAgency={isAgency}
-          clientSlug={params.clientSlug}
-        />
       </SectionBoundary>
 
       {monthPacing ? (
@@ -224,15 +186,15 @@ export default async function OverviewPage({
         </SectionBoundary>
       ) : null}
 
-      {clientType === "ecommerce" ? (
-        <SectionBoundary name="overview/ecommerce-kpis">
-          <EcommerceKpis data={data.ecommerce} />
+      {clientType !== "ecommerce" ? (
+        <SectionBoundary name="overview/goals">
+          <GoalsCard
+            goals={engagementGoals}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+          />
         </SectionBoundary>
       ) : null}
-
-      <SectionBoundary name="overview/kpis">
-        <KpiCards kpis={data.kpis} trend={data.trend} />
-      </SectionBoundary>
 
       <SectionBoundary name="overview/budget">
         <BudgetProgress
@@ -243,16 +205,57 @@ export default async function OverviewPage({
         />
       </SectionBoundary>
 
-      {/* Anomaly detection scans weeks of rows - stream it in last. */}
+      {isDre && pacing.length > 0 ? (
+        <SectionBoundary name="overview/rings">
+          <CampaignRings flights={pacing} />
+        </SectionBoundary>
+      ) : null}
+
+      {/* 3. GA-style: the big picture, then what needs attention and what
+          the agency did about it. */}
+      <SectionBoundary name="overview/main-chart">
+        <MainChart
+          trend={data.trend}
+          prevTrend={data.prevTrend}
+          events={events}
+          autoEvents={data.autoEvents}
+          label={data.rangeLabel}
+        />
+      </SectionBoundary>
+
+      {/* Anomaly detection scans weeks of rows - stream it in. */}
       <SectionBoundary name="overview/alerts-digest">
         <Suspense fallback={null}>
           <DigestSection alerts={anomaliesPromise} clientSlug={params.clientSlug} />
         </Suspense>
       </SectionBoundary>
 
-      <SectionBoundary name="overview/ai-summary">
-        <AiSummaryCard summary={summary} />
+      <SectionBoundary name="overview/agency-activity">
+        <AgencyActivity
+          work={agencyWork}
+          autoEvents={data.autoEvents}
+          isAgency={isAgency}
+          clientSlug={params.clientSlug}
+        />
       </SectionBoundary>
+
+      {/* 4. Details for the curious. The hero already carries the headline
+          numbers; these tiles add the rest, each with its ⓘ definition. */}
+      {clientType === "ecommerce" ? (
+        <SectionBoundary name="overview/ecommerce-kpis">
+          <EcommerceKpis data={data.ecommerce} />
+        </SectionBoundary>
+      ) : null}
+
+      <SectionBoundary name="overview/kpis">
+        <KpiCards kpis={data.kpis} trend={data.trend} periodLabel={data.rangeLabel} />
+      </SectionBoundary>
+
+      {score ? (
+        <SectionBoundary name="overview/score">
+          <DailyScoreCard data={score} compact />
+        </SectionBoundary>
+      ) : null}
     </div>
   );
 }

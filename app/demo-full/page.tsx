@@ -10,7 +10,6 @@ import { MainChart } from "@/components/dashboard/main-chart";
 import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsCard } from "@/components/dashboard/records-card";
 import { StoryHero } from "@/components/dashboard/story-hero";
-import { TickerBar } from "@/components/dashboard/ticker-bar";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
 import { buildStory } from "@/lib/dashboard/story";
 import { getDemoDashboard } from "@/lib/demo/data";
@@ -23,6 +22,9 @@ async function noop() {
   "use server";
 }
 
+// Same section order as the real overview (app/(dashboard)/[clientSlug]/
+// page.tsx) - keep the two in sync. Every top-level child is one slide in
+// presentation mode, so sections stay flat siblings (no wrapper groups).
 export default function DemoFullOverview({
   searchParams,
 }: {
@@ -48,21 +50,22 @@ export default function DemoFullOverview({
        <PrintButton />
       </div>
 
-      {en ? null : (
+      {/* 1. Summary: what happened, is it good, what to tell the board. */}
+      {en ? (
+        <AiSummaryCard summary={d.summary} lang={lang} />
+      ) : (
         <StoryHero
-          story={buildStory({ kpis: d.kpis, trend: d.trend })}
+          story={buildStory({ kpis: d.kpis, trend: d.trend, includeSpend: true })}
           periodLabel={d.rangeLabel}
+          aiSummary={d.summary}
         />
       )}
+
+      {/* 2. Records and plan vs actual (goals, then the money side). */}
       {en ? null : <RecordsCard records={getDemoRecords({ ecommerce: false })} />}
       {en ? null : (
         <GoalsCard goals={demoEngagementGoals()} clientSlug="demo-full" isAgency={false} />
       )}
-      <TickerBar campaigns={d.campaigns} />
-      <DailyScoreCard data={d.score} lang={lang} />
-      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} demo />
-      {en ? null : <AgencyActivity demo isAgency={false} clientSlug="demo-full" />}
-      <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} />
       <BudgetProgress
         budget={d.budget}
         clientSlug="demo-full"
@@ -70,10 +73,17 @@ export default function DemoFullOverview({
         setBudgetAction={noop}
         lang={lang}
       />
+
+      {/* 3. The trend, then anything that needs attention and what we did. */}
+      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} demo />
       <AlertsDigest alerts={d.alerts} clientSlug="demo-full" lang={lang} linkless />
+      {en ? null : <AgencyActivity demo isAgency={false} clientSlug="demo-full" />}
+
+      {/* 4. Details for the curious: every metric with its definition. */}
+      <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} periodLabel={d.rangeLabel} />
+      <DailyScoreCard data={d.score} lang={lang} compact />
       <CampaignPositions campaigns={d.campaigns} lang={lang} />
       <TopCreatives creatives={d.creatives} lang={lang} />
-      <AiSummaryCard summary={d.summary} lang={lang} />
     </>
   );
 }

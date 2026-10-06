@@ -20,6 +20,17 @@ export interface StoryFact {
   caption: string;
   /** Comparison with the previous period, already phrased. */
   change: { text: string; tone: Tone } | null;
+  /**
+   * One plain-language line that translates the number into something a
+   * board understands ("ok. 105 kliknięć za każde 100 zł"). Dashboard only.
+   */
+  hint?: string;
+}
+
+/** The answer to "czy to dobrze czy źle?" in one short phrase. */
+export interface StoryVerdict {
+  tone: Tone;
+  text: string;
 }
 
 export interface Story {
@@ -27,6 +38,8 @@ export interface Story {
   facts: StoryFact[];
   wins: string[];
   watch: string | null;
+  /** Overall call for the period; null when there is nothing to compare. */
+  verdict: StoryVerdict | null;
   /**
    * Shown instead of the numbers when there is nothing to tell yet (a brand
    * new client before the first sync): what is going on and when to look.
@@ -116,15 +129,43 @@ export function dayMonthPL(iso: string): string {
   return `${d} ${MONTHS_GEN[m - 1]}`;
 }
 
+/**
+ * What "niż wcześniej" means for a given range label, phrased to follow
+ * "w porównaniu " / "względem ". Mirrors resolveRange() in metrics.ts: presets
+ * compare with the same-length period right before, "Bieżący miesiąc" with the
+ * same days of last month. Managers kept asking "wcześniej, czyli kiedy?".
+ */
+export function comparisonPhrase(periodLabel: string): string {
+  const days = periodLabel.match(/(\d+)\s*dni/i);
+  if (days) {
+    const n = Number(days[1]);
+    return `z poprzednimi ${n} ${n === 1 ? "dniem" : "dniami"}`;
+  }
+  const l = periodLabel.toLowerCase();
+  if (l.includes("bieżący miesiąc")) return "z tymi samymi dniami poprzedniego miesiąca";
+  if (l.includes("poprzedni miesiąc")) return "z miesiącem wcześniej";
+  return "z okresem tej samej długości tuż przed nim";
+}
+
+// Minimum previous spend (grosze) before a spend % is worth saying: 100 zł,
+// same cut-off as the KPI tile (MIN_PREV_SPEND in kpi-cards.tsx).
+const MIN_PREV_SPEND = 10_000;
+
 export function buildStory({
   kpis,
   trend,
   ecommerce,
+  includeSpend = false,
 }: {
   kpis: DashboardKpis;
   trend: TrendPoint[];
   /** Pass for e-commerce clients only - engagement clients never see revenue. */
   ecommerce?: EcommerceKpis | null;
+  /**
+   * Lead with ad spend ("ile wydaliśmy?" is the board's first question). The
+   * weekly e-mail shows spend in its own block, so it leaves this off.
+   */
+  includeSpend?: boolean;
 }): Story {
   const impressions = trend.reduce((a, t) => a + t.impressions, 0);
   const clicks = kpis.clicks.value;
@@ -221,12 +262,18 @@ export function buildStory({
       "wizyty",
       "wizyt"
     )}`;
+    const spend = kpis.spendMinorUnits.value;
+    const leadSpend = includeSpend && spend > 0;
+    // "Za 43 885 zł reklamy przyciągnęły..." answers "ile wydaliśmy i co mamy".
+    const forMoney = leadSpend ? `Za ${formatPlnWhole(spend)} reklamy` : "Reklamy";
     // Each source can be missing on its own (no ads yet, GA4 not synced) -
     // never claim "0 kliknięć" when the honest story is "no ads data yet".
+    // Sessions are ALL GA4 visits (organic, direct...), not only the ones ads
+    // brought - "reklamy przyciągnęły X wizyt" overstated the ads' effect.
     if (clicks > 0 && hasSessions) {
-      headline = `Reklamy przyciągnęły ${clicksText} i ${visitsText} na stronie.`;
+      headline = `${forMoney} przyciągnęły ${clicksText}, a strona miała łącznie ${visitsText}.`;
     } else if (clicks > 0) {
-      headline = `Reklamy przyciągnęły ${clicksText}.`;
+      headline = `${forMoney} przyciągnęły ${clicksText}.`;
     } else if (hasSessions) {
       headline = `Strona zanotowała ${visitsText}.`;
     } else if (impressions > 0) {
@@ -240,7 +287,25 @@ export function buildStory({
       headline = "Pierwsze dane już spływają.";
     }
 
-    if (impressions > 0) {
+    const impressionsText = `${formatCompactPL(impressions)} ${nounFor(
+      impressions,
+      "wyświetlenia",
+      "wyświetleń",
+      "wyświetleń"
+    )}`;
+    if (leadSpend) {
+      // Spend replaces the impressions tile; impressions move under clicks
+      // ("z 2,2 mln wyświetleń") where they explain the number next to them.
+      const spendDelta =
+        kpis.spendMinorUnits.previous >= MIN_PREV_SPEND ? pct(kpis.spendMinorUnits) : null;
+      facts.push({
+        key: "spend",
+        value: formatPlnWhole(spend),
+        caption: "wydane na reklamy",
+        // More spend is neither good nor bad on its own - it's a decision.
+        change: phraseChange(spendDelta, "neutral"),
+      });
+    } else if (impressions > 0) {
       facts.push({
         key: "impressions",
         value: formatCompactPL(impressions),
@@ -254,6 +319,7 @@ export function buildStory({
         value: formatCompactPL(clicks),
         caption: `${nounFor(clicks, "kliknięcie", "kliknięcia", "kliknięć")} w reklamy`,
         change: phraseChange(clicksDelta, "more_is_good"),
+        hint: leadSpend && impressions > 0 ? `z ${impressionsText} reklam` : undefined,
       });
     }
     if (hasSessions) {
@@ -262,21 +328,34 @@ export function buildStory({
         value: formatCompactPL(sessions),
         caption: `${nounFor(sessions, "wizyta", "wizyty", "wizyt")} na stronie`,
         change: phraseChange(sessionsDelta, "more_is_good"),
+        hint: leadSpend ? "ze wszystkich źródeł, nie tylko z reklam" : undefined,
       });
     }
     if (kpis.cpcMinorUnits.value > 0) {
+      // "Ile nas kosztuje jedna osoba?" - the board thinks in "za 100 zł mamy X".
+      const per100 = Math.round(10_000 / kpis.cpcMinorUnits.value);
       facts.push({
         key: "cpc",
         value: formatMoneyPLN(kpis.cpcMinorUnits.value),
         caption: "średni koszt jednego kliknięcia",
         change: phraseChange(cpcDelta, "cost"),
+        hint:
+          includeSpend && per100 >= 1
+            ? `czyli ok. ${formatNumberPL(per100)} ${plPlural(
+                per100,
+                "kliknięcie",
+                "kliknięcia",
+                "kliknięć"
+              )} za każde 100 zł`
+            : undefined,
       });
     }
   }
 
   // Wins that apply to every client. Changes already shown under the big
   // numbers aren't repeated here - this list is for what the numbers hide.
-  if (cpcDelta !== null && cpcDelta <= -3)
+  const cpcShown = facts.some((f) => f.key === "cpc");
+  if (cpcDelta !== null && cpcDelta <= -3 && !cpcShown)
     wins.push(
       `Kliknięcie tańsze o ${Math.round(-cpcDelta)}% - za te same pieniądze więcej ruchu.`
     );
@@ -313,11 +392,31 @@ export function buildStory({
       ? "Gdy reklamy i Google Analytics zbiorą pierwsze dni danych, pokażemy tu najważniejsze liczby i porównanie z poprzednim okresem. Zajrzyj jutro."
       : null;
 
+  const shown = facts.slice(0, 4);
+
   return {
     headline,
-    facts: facts.slice(0, 4),
+    facts: shown,
     wins: wins.slice(0, 4),
     watch,
+    verdict: buildVerdict(shown, watch),
     note,
   };
+}
+
+/**
+ * "Czy to dobrze czy źle?" - a manager shouldn't have to add up arrow colours.
+ * Counts the judged changes (neutral ones like spend don't vote) and only
+ * calls a good period when nothing went the wrong way.
+ */
+function buildVerdict(facts: StoryFact[], watch: string | null): StoryVerdict | null {
+  const judged = facts.filter((f) => f.change);
+  if (judged.length === 0) return null;
+  const good = judged.filter((f) => f.change?.tone === "good").length;
+  const bad = judged.filter((f) => f.change?.tone === "bad").length + (watch ? 1 : 0);
+  if (bad === 0 && good >= 2) return { tone: "good", text: "Dobry okres - wyniki lepsze niż wcześniej" };
+  if (bad === 0 && good === 1) return { tone: "good", text: "Stabilnie, z jednym plusem" };
+  if (bad > good) return { tone: "bad", text: "Słabszy okres - szczegóły niżej" };
+  if (bad > 0) return { tone: "flat", text: "Mieszany okres - są plusy i minusy" };
+  return { tone: "flat", text: "Stabilnie - podobnie jak wcześniej" };
 }

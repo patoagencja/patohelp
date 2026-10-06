@@ -304,14 +304,16 @@ export function demoEngagementGoals(today = todayWarsaw()): EngagementGoal[] {
     }
     return m;
   };
+  // Daily bases in scale with the demo trend (lib/demo/data.ts: ~1 220
+  // visits and ~1 540 clicks a day) so the goal bars and the hero agree.
   const sessions = series(1420, 1);
-  const clicks = series(530, 2);
+  const clicks = series(1650, 2);
   const conversions = series(41, 3);
   const round = (n: number, step: number) => Math.max(step, Math.round(n / step) * step);
 
   const goals = [
     computeGoal("sessions", round(1420 * dim * 0.96, 500), sessions, today),
-    computeGoal("clicks", round(530 * dim * 1.18, 500), clicks, today),
+    computeGoal("clicks", round(1650 * dim * 1.1, 500), clicks, today),
   ];
   const convSoFar = Array.from({ length: completeDays }, (_, i) =>
     conversions.get(addDays(monthStart, i)) ?? 0

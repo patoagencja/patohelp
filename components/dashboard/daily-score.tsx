@@ -60,7 +60,7 @@ const FACTOR_LABEL: Record<Lang, Record<ScoreFactor["key"], string>> = {
 
 const COPY = {
   pl: {
-    title: "Puls · ostatnie 7 dni",
+    title: "Puls tygodnia · ostatnie 7 dni na tle Twojej normy",
     vsPrev: (d: number) => `${d > 0 ? "+" : ""}${d} pkt względem poprzedniego tygodnia`,
     streak: (n: number) =>
       `${n} ${n === 1 ? "dzień" : "dni"} z rzędu bez przestojów`,
@@ -68,13 +68,25 @@ const COPY = {
     scale: "Skala 0-100. Wynik ok. 78 oznacza typowy dla Ciebie tydzień, wyżej - lepszy niż zwykle.",
   },
   en: {
-    title: "Pulse · last 7 days",
+    title: "Weekly pulse · last 7 days vs your usual level",
     vsPrev: (d: number) => `${d > 0 ? "+" : ""}${d} pts vs previous week`,
     streak: (n: number) => `${n} ${n === 1 ? "day" : "days"} in a row without gaps`,
     factorsIntro: "Compared with your usual level:",
     scale: "Scale 0-100. Around 78 means a typical week for you; higher is better than usual.",
   },
 } as const;
+
+// "86 - to dobrze?" A number on a 0-100 dial reads like a school grade, but
+// 78 is "a normal week for you" (lib/dashboard/score.ts), so every ring gets
+// the verdict in words. Bands are a few points wide around 78 so ordinary
+// week-to-week noise still reads as "typowo".
+function ringVerdict(value: number, lang: Lang): { text: string } {
+  const pl = lang === "pl";
+  if (value >= 82) return { text: pl ? "lepiej niż zwykle" : "better than usual" };
+  if (value >= 74) return { text: pl ? "typowo" : "typical" };
+  if (value >= 66) return { text: pl ? "trochę słabiej" : "a bit weaker" };
+  return { text: pl ? "słabiej niż zwykle" : "weaker than usual" };
+}
 
 // The score module phrases its headline with the jargon label "CTR"; swap it
 // for the plain word so the headline matches the rest of the card.
@@ -120,14 +132,17 @@ function Ring({
   primary,
   delay,
   lang,
+  compact,
 }: {
   ring: ScoreRing;
   primary: boolean;
   delay: number;
   lang: Lang;
+  compact: boolean;
 }) {
   const tier = TIER[ring.tier];
   const copy = RING_COPY[lang][ring.key];
+  const verdict = ringVerdict(ring.value, lang);
   const count = useCountUp(ring.value, 950, delay);
   const [offset, setOffset] = useState(C);
   useEffect(() => {
@@ -136,14 +151,23 @@ function Ring({
   }, [ring.value]);
 
   return (
-    <div className="flex items-center gap-4 sm:flex-col sm:items-center sm:gap-3 sm:text-center">
+    <div
+      className={cn(
+        "flex items-center gap-4",
+        !compact && "sm:flex-col sm:items-center sm:gap-3 sm:text-center"
+      )}
+    >
       <div
         className={cn(
           "relative shrink-0",
-          primary ? "h-24 w-24 sm:h-32 sm:w-32" : "h-20 w-20 sm:h-24 sm:w-24"
+          compact
+            ? "h-16 w-16"
+            : primary
+              ? "h-24 w-24 sm:h-32 sm:w-32"
+              : "h-20 w-20 sm:h-24 sm:w-24"
         )}
         role="img"
-        aria-label={`${copy.label}: ${ring.value}/100`}
+        aria-label={`${copy.label}: ${ring.value}/100, ${verdict.text}`}
       >
         <svg viewBox={`0 0 ${VB} ${VB}`} className="h-full w-full -rotate-90" aria-hidden>
           <circle
@@ -174,7 +198,7 @@ function Ring({
           <span
             className={cn(
               "font-semibold tabular-nums tracking-tight",
-              primary ? "text-3xl sm:text-4xl" : "text-2xl",
+              compact ? "text-xl" : primary ? "text-3xl sm:text-4xl" : "text-2xl",
               tier.text
             )}
           >
@@ -183,8 +207,21 @@ function Ring({
         </div>
       </div>
       <div className="min-w-0 sm:max-w-[15rem]">
-        <p className="text-sm font-semibold text-foreground">{copy.label}</p>
-        <p className="mt-0.5 text-sm leading-snug text-muted-foreground">{copy.hint}</p>
+        <p className="text-sm font-semibold text-foreground">
+          {copy.label}
+          {/* Coloured like the ring itself so word and dial never disagree. */}
+          <span className={cn("ml-1.5 text-xs font-medium", tier.text)}>
+            · {verdict.text}
+          </span>
+        </p>
+        <p
+          className={cn(
+            "mt-0.5 leading-snug text-muted-foreground",
+            compact ? "text-xs" : "text-sm"
+          )}
+        >
+          {copy.hint}
+        </p>
       </div>
     </div>
   );
@@ -193,9 +230,15 @@ function Ring({
 export function DailyScoreCard({
   data,
   lang = "pl",
+  compact = false,
 }: {
   data: DailyScore;
   lang?: Lang;
+  /**
+   * Overview "details" layer: small dials beside their words instead of a
+   * tall row of big rings - the hero already tells the headline story.
+   */
+  compact?: boolean;
 }) {
   const t = COPY[lang];
   const factors = data.factors.filter((f) => f.deltaPct !== null);
@@ -223,20 +266,42 @@ export function DailyScoreCard({
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-balance text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+      <p
+        className={cn(
+          "mt-2 text-balance font-semibold leading-snug tracking-tight",
+          compact ? "text-lg" : "text-xl sm:text-2xl"
+        )}
+      >
         {plainHeadline(data.headline, lang)}
       </p>
 
       {/* Rings with plain explanations */}
-      <div className="mt-6 grid gap-5 sm:mt-8 sm:grid-cols-3 sm:gap-6">
+      <div
+        className={cn(
+          "grid gap-5",
+          compact ? "mt-5 gap-4 md:grid-cols-3" : "mt-6 sm:mt-8 sm:grid-cols-3 sm:gap-6"
+        )}
+      >
         {data.rings.map((r, i) => (
-          <Ring key={r.key} ring={r} primary={i === 0} delay={i * 140} lang={lang} />
+          <Ring
+            key={r.key}
+            ring={r}
+            primary={i === 0}
+            delay={i * 140}
+            lang={lang}
+            compact={compact}
+          />
         ))}
       </div>
 
       {/* What moved the score */}
       {factors.length > 0 || data.streak > 0 ? (
-        <div className="mt-6 border-t border-border/60 pt-5 sm:mt-8">
+        <div
+          className={cn(
+            "border-t border-border/60",
+            compact ? "mt-5 pt-4" : "mt-6 pt-5 sm:mt-8"
+          )}
+        >
           {factors.length > 0 ? (
             <p className="text-sm text-muted-foreground">{t.factorsIntro}</p>
           ) : null}
@@ -279,7 +344,7 @@ export function DailyScoreCard({
         </div>
       ) : null}
 
-      <p className="mt-5 text-xs text-muted-foreground">{t.scale}</p>
+      <p className={cn("text-xs text-muted-foreground", compact ? "mt-3" : "mt-5")}>{t.scale}</p>
     </div>
   );
 }

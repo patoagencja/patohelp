@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 
 import { getDemoDashboard } from "@/lib/demo/data";
+import { dayMonthPL } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,10 @@ export default function DemoFullNewsy({
             <article key={i} className="rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", c.cls)}>{c.label}</span>
-                <span className="text-xs text-muted-foreground">{n.publishedOn}</span>
+                <span className="text-xs text-muted-foreground">
+                  {/* "2026-10-05" read like a database dump; the real tab says "5 października". */}
+                  {en ? n.publishedOn : dayMonthPL(n.publishedOn)}
+                </span>
               </div>
               <h2 className="mt-2 text-balance text-base font-semibold">{n.title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{n.summary}</p>
