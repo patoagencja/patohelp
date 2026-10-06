@@ -213,6 +213,17 @@ function computeLayout(step: number, def: Step, el: HTMLElement | null, card: HT
 }
 
 /**
+ * Bottom edge of the floating sticky top bar (AppShell). Page content
+ * scrolled to the very top of the viewport sits UNDER that glass bar, so
+ * "in view" starts below it.
+ */
+function stickyTopInset(): number {
+  const bar = document.querySelector<HTMLElement>("[data-present-hide] > header");
+  if (!bar || !isShown(bar)) return 0;
+  return Math.max(0, bar.getBoundingClientRect().bottom);
+}
+
+/**
  * Scroll just enough that the target and the card are both readable.
  * Returns whether a scroll was started.
  */
@@ -222,24 +233,25 @@ function bringIntoView(el: HTMLElement, cardH: number): boolean {
   const vh = window.innerHeight;
   const mobile = document.documentElement.clientWidth < MOBILE_MAX;
   const behavior: ScrollBehavior = prefersReducedMotion() ? "auto" : "smooth";
+  const minTop = stickyTopInset() + EDGE;
 
   if (mobile) {
     const free = vh - cardH - GAP;
-    if (r.top >= EDGE && r.bottom <= free) return false;
-    window.scrollTo({ top: Math.max(0, window.scrollY + r.top - 24), behavior });
+    if (r.top >= minTop && r.bottom <= free) return false;
+    window.scrollTo({ top: Math.max(0, window.scrollY + r.top - minTop), behavior });
     return true;
   }
 
   const roomBelow = r.bottom + GAP + cardH <= vh - EDGE;
-  const roomAbove = r.top - GAP - cardH >= EDGE;
-  if (r.top >= EDGE && r.bottom <= vh - EDGE && (roomBelow || roomAbove || r.height > vh / 2)) {
+  const roomAbove = r.top - GAP - cardH >= minTop;
+  if (r.top >= minTop && r.bottom <= vh - EDGE && (roomBelow || roomAbove || r.height > vh / 2)) {
     return false;
   }
   const block = r.height + GAP + cardH;
   const top =
-    block < vh - EDGE * 2
-      ? window.scrollY + r.top - (vh - block) / 2
-      : window.scrollY + r.top - 24;
+    block < vh - minTop - EDGE
+      ? window.scrollY + r.top - Math.max(minTop, (vh - block) / 2)
+      : window.scrollY + r.top - minTop;
   window.scrollTo({ top: Math.max(0, top), behavior });
   return true;
 }

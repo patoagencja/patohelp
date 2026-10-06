@@ -66,8 +66,11 @@ export function SalesOverview({
         : "W tym okresie nie ma jeszcze danych o sprzedaży.";
     lead = takeaway;
   } else {
+    // Exact whole złoty, not aboutPln(): the chart pins this same day with
+    // its exact value right below, and "(11 000 zł)" next to a "10 590 zł"
+    // tooltip reads as two different numbers.
     const bestText = best
-      ? `${dayMonthPL(best.date)} (${aboutPln(best.revenueMinorUnits)})`
+      ? `${dayMonthPL(best.date)} (${formatPlnWhole(best.revenueMinorUnits)})`
       : null;
     const shareText =
       adShare !== null && totalSpend > 0

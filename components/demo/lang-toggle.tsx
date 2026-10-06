@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -13,6 +14,18 @@ export function LangToggle() {
   const pathname = usePathname();
   const sp = useSearchParams();
   const current = sp.get("lang") === "en" ? "en" : "pl";
+
+  // <html lang="pl"> comes from the root layout, which can't see ?lang=.
+  // The demo's chrome stays Polish but the page body switches, so mark
+  // <main> - otherwise screen readers read the English demo with Polish
+  // pronunciation.
+  useEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return;
+    if (current === "en") main.setAttribute("lang", "en");
+    else main.removeAttribute("lang");
+    return () => main.removeAttribute("lang");
+  }, [current, pathname]);
 
   const href = (lang: "pl" | "en") => {
     const p = new URLSearchParams(sp.toString());
