@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BellRing,
+  BookOpen,
   FileText,
   Globe,
   Image as ImageIcon,
@@ -40,6 +41,7 @@ export function DashboardSidebar({
     { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
     { href: `${base}/raport`, label: "Raport", icon: FileText },
     { href: `${base}/newsy`, label: "Newsy", icon: Newspaper },
+    { href: `${base}/slowniczek`, label: "Słowniczek", icon: BookOpen },
     ...(isAgency
       ? [
           { href: `${base}/settings`, label: "Ustawienia", icon: Settings },

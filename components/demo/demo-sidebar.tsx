@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   BellRing,
+  BookOpen,
   Globe,
   Image as ImageIcon,
   LayoutDashboard,
@@ -23,6 +24,7 @@ const ITEMS = [
   { href: "/demo-full/witryna", label: "Witryna", icon: Globe },
   { href: "/demo-full/alerty", label: "Alerty", icon: BellRing },
   { href: "/demo-full/newsy", label: "Newsy", icon: Newspaper },
+  { href: "/demo-full/slowniczek", label: "Słowniczek", icon: BookOpen },
 ];
 
 export function DemoSidebar() {

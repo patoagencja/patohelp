@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BookOpen,
   BellRing,
   Building2,
   CalendarRange,
@@ -341,6 +342,7 @@ export function CommandPalette({
       { path: "alerty", label: "Alerty", icon: BellRing, keywords: "alerts powiadomienia problemy ostrzezenia pilne anomalie" },
       { path: "raport", label: "Raport", icon: FileText, keywords: "report miesieczny" },
       { path: "newsy", label: "Newsy", icon: Newspaper, keywords: "news aktualnosci" },
+      { path: "slowniczek", label: "Słowniczek pojęć", icon: BookOpen, keywords: "slownik pojecia co to znaczy wyjasnienia ctr cpc roas pomoc glossary" },
       ...(isAgency
         ? [{ path: "settings", label: "Ustawienia", icon: Settings, keywords: "settings integracje konfiguracja" }]
         : []),

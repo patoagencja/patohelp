@@ -209,7 +209,7 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
   },
   engagementRate: {
-    name: "Zaangażowanie",
+    name: "Zainteresowani goście",
     short: null,
     explain:
       "Jaka część wizyt to prawdziwe zainteresowanie: ktoś został dłużej niż 10 sekund, obejrzał 2+ podstrony lub wykonał ważną akcję. 60% = 6 na 10 wizyt.",
