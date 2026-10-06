@@ -48,7 +48,7 @@ const PACING_META: Record<
   PacingFlight["status"],
   { label: string; tone: PingTone; bar: string }
 > = {
-  behind: { label: "Poniżej planu", tone: "amber", bar: "share-fill-warn" },
+  behind: { label: "Poniżej tempa", tone: "amber", bar: "share-fill-warn" },
   on_track: { label: "Zgodnie z planem", tone: "live", bar: "share-fill" },
   ahead: { label: "Szybciej niż plan", tone: "lime", bar: "share-fill" },
   upcoming: { label: "Jeszcze nie ruszyła", tone: "muted", bar: "bg-chart-muted" },
@@ -94,7 +94,11 @@ function PacingCard({
   isAgency: boolean;
   deleteAction: FormAction;
 }) {
-  const meta = PACING_META[f.status];
+  // A reached target is the headline, running or not (same as the tiles).
+  const meta =
+    f.realizedPct >= 1 && f.status !== "upcoming"
+      ? { label: "Cel osiągnięty", tone: "lime" as PingTone, bar: "share-fill" }
+      : PACING_META[f.status];
   const realizedPct = Math.min(f.realizedPct * 100, 100);
   const expectedPct = Math.min(f.expectedPct * 100, 100);
   const running = f.status !== "upcoming" && f.status !== "ended";

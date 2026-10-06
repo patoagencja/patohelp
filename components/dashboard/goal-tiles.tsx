@@ -136,6 +136,9 @@ function StatusBadge({ status }: { status: GoalTileStatus }) {
   );
 }
 
+const OVERLAY =
+  "absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
 function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) {
   const meta = STATUS[g.status];
   const title = g.adsetName ?? g.campaignName;
@@ -166,12 +169,14 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
       className="glass glass-blur relative flex w-[16.5rem] shrink-0 snap-start flex-col gap-3.5 rounded-tile p-5 pb-[18px] transition-[transform,box-shadow] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[5px] sm:w-auto sm:p-[22px] sm:pb-5"
       style={{ "--d": `${0.3 + index * 0.08}s` } as React.CSSProperties}
     >
-      {/* The whole tile opens the goal's card on Alerty. */}
-      <Link
-        href={href}
-        aria-label={`${summary}. Pokaż szczegóły celu`}
-        className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      />
+      {/* The whole tile opens the goal's card on Alerty. Same-page anchors
+          stay plain <a>: only a real fragment navigation sets :target, which
+          rings the card (Next's Link uses pushState). */}
+      {href.startsWith("#") ? (
+        <a href={href} aria-label={`${summary}. Pokaż szczegóły celu`} className={OVERLAY} />
+      ) : (
+        <Link href={href} aria-label={`${summary}. Pokaż szczegóły celu`} className={OVERLAY} />
+      )}
       <div className="pointer-events-none relative min-w-0">
         <p className="kick truncate text-[11px] tracking-[0.08em] tabular-nums xl:tracking-[0.12em]">{kicker(g)}</p>
         <h3 className="mt-2 truncate text-[15px] font-medium leading-snug tracking-[-0.01em]" title={title}>
