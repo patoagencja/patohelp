@@ -174,6 +174,7 @@ export default async function SprzedazPage({
   return (
     <div className="min-w-0 space-y-8 p-4 sm:p-6">
       <PageHeader
+        eyebrow={<span className="kick">Sklep · {data.rangeLabel}</span>}
         title="Sprzedaż"
         description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
         actions={

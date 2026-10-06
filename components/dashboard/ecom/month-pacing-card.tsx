@@ -1,9 +1,12 @@
 import Link from "next/link";
+import type React from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 
 import { InfoTip, MetricLabel } from "@/components/dashboard/info-tip";
 import { Card } from "@/components/ui/card";
-import { Pill, type PillProps } from "@/components/ui/pill";
+import { CountUp } from "@/components/ui/count-up";
+import type { PillProps } from "@/components/ui/pill";
+import { StatusChip } from "@/components/ui/primitives";
 import { plPlural } from "@/lib/dashboard/story";
 import type { MonthPacing } from "@/lib/ecom/insights";
 import { cn, formatPlnWhole, formatSignedPct } from "@/lib/utils";
@@ -129,51 +132,59 @@ export function MonthPacingCard({
         )} ${p.seasonalFactor > 1 ? "więcej" : "mniej"} niż dwa tygodnie przed nią.`
       : null;
 
+  const statTile = "min-w-0 rounded-[22px] bg-chip px-[18px] py-4";
+  const statLabel = "text-[13px] leading-snug text-ink-3";
+  const statValue = "mt-1.5 text-[22px] font-light leading-none tracking-[-0.03em] tabular-nums";
+  const statNote = "mt-1.5 block text-[13px] leading-snug text-ink-3";
+
   return (
-    <Card className="p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+    <Card className="rounded-glass p-6 sm:p-[28px_30px]">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-3">
         <div className="min-w-0">
-          <h2 className="text-section-title text-foreground">Plan miesiąca</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {p.goal ? "Sprzedaż na tle celu" : "Prognoza sprzedaży"} · {p.monthLabel}
-          </p>
+          <p className="kick">Plan miesiąca · {p.monthLabel}</p>
+          <h2 className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+            {p.goal ? "Sprzedaż na tle celu" : "Prognoza sprzedaży"}
+          </h2>
         </div>
-        {status ? <Pill tone={status.tone}>{status.label}</Pill> : null}
+        {status ? (
+          <StatusChip tone={status.tone === "warning" ? "amber" : "lime"}>{status.label}</StatusChip>
+        ) : null}
       </div>
 
-      <p className="mt-4 text-[15px] leading-snug text-foreground">{takeaway.text}</p>
+      <p className="mt-4 max-w-3xl text-base leading-relaxed text-foreground">{takeaway.text}</p>
 
-      <div className="mt-5 min-w-0">
+      <div className="mt-6 min-w-0">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <MetricLabel name={ECOM_TERMS.mtd.name} explain={ECOM_TERMS.mtd.explain} />
-            <p className="mt-1.5 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums sm:text-metric">
-              {formatPlnWhole(p.mtdRevenue)}
+            <p className="mt-2.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <span className="text-[2.25rem] font-light leading-none tracking-[-0.055em] tabular-nums sm:text-[2.875rem]">
+                <CountUp text={formatPlnWhole(p.mtdRevenue).replace(/\s?zł$/, "")} />
+                <small className="ml-[3px] text-[0.48em] tracking-[-0.02em]">zł</small>
+              </span>
               {p.goal ? (
-                <span className="ml-2 text-base font-medium tracking-normal text-muted-foreground">
-                  z {formatPlnWhole(p.goal)}
-                </span>
+                <span className="text-[17px] tabular-nums text-ink-3">z {formatPlnWhole(p.goal)}</span>
               ) : null}
             </p>
           </div>
-          {/* Sales Goals (benchmark 4): the share of the goal as the big
-              coloured percent; the pill and the sentence say it in words. */}
+          {/* The share of the goal as the big percent; the chip and the
+              sentence say it in words. */}
           {goalPct !== null ? (
             <p
               className={cn(
-                "shrink-0 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums sm:text-metric",
+                "shrink-0 text-[2.25rem] font-light leading-none tracking-[-0.05em] tabular-nums sm:text-[2.875rem]",
                 behind ? "text-warning" : "text-positive"
               )}
             >
               {Math.round(goalPct)}
-              <span className="ml-0.5 text-lg sm:text-xl">%</span>
+              <span className="ml-0.5 text-[0.5em]">%</span>
             </p>
           ) : null}
         </div>
         {/* "Pełne" on purpose: the count is finished days only (the same
             days summed above), so day 6 of the month reads "5 pełnych dni",
             with today's running total shown separately. */}
-        <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+        <p className="mt-2.5 text-[13px] tabular-nums text-ink-3">
           {p.completeDays}{" "}
           {plPlural(p.completeDays, "pełny dzień", "pełne dni", "pełnych dni")} z{" "}
           {p.daysInMonth} za nami
@@ -182,167 +193,166 @@ export function MonthPacingCard({
             : ""}
         </p>
 
-        {/* Thick striped bar: sold (striped lime, amber when behind) over the
-            forecast (soft ghost), with the goal as a dark tick. */}
-        <div className="relative mt-4">
-          <div className="relative h-3.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+        {/* Sold (lime gradient, amber when behind) over the forecast (soft
+            ghost), with the goal as an ink tick. */}
+        <div className="relative mt-5">
+          <div className="relative h-4 overflow-hidden rounded-full bg-chip" aria-hidden>
             {p.forecastReliable ? (
               <div
                 className={cn(
                   "absolute inset-y-0 left-0 rounded-full",
-                  behind ? "bg-warning-fill/25" : "bg-lime/30"
+                  behind ? "bg-amber/25" : "bg-lime/30"
                 )}
                 style={{ width: pct(p.forecast) }}
               />
             ) : null}
             <div
-              // bg-stripes outside cn(): tailwind-merge would drop the colour.
-              className={`${cn(
-                "absolute inset-y-0 left-0 rounded-full transition-all duration-700 motion-reduce:transition-none",
-                behind ? "bg-warning-fill" : "bg-lime"
-              )} bg-stripes`}
-              style={{ width: `max(${pct(p.mtdRevenue)}, ${p.mtdRevenue > 0 ? "0.875rem" : "0px"})` }}
+              className={cn(
+                "absolute inset-y-0 left-0 origin-left rounded-full animate-grow",
+                behind ? "share-fill-warn" : "share-fill"
+              )}
+              style={{
+                width: `max(${pct(p.mtdRevenue)}, ${p.mtdRevenue > 0 ? "1rem" : "0px"})`,
+                "--d": ".3s",
+              } as React.CSSProperties}
             />
           </div>
           {p.goal ? (
             <span
               aria-hidden
-              className="absolute -top-1 h-[1.375rem] w-[3px] -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
-              style={{ left: pct(p.goal) }}
+              className="absolute -top-1.5 h-7 w-[3px] -translate-x-1/2 rounded-full bg-foreground"
+              style={{ left: `min(${pct(p.goal)}, calc(100% - 2px))` }}
             />
           ) : null}
         </div>
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[13px] text-ink-2">
+          <span className="inline-flex items-center gap-2">
             <span
               aria-hidden
-              className={`${cn("h-2.5 w-2.5 rounded-full", behind ? "bg-warning-fill" : "bg-lime")} bg-stripes`}
+              className={cn("h-2.5 w-2.5 rounded-full", behind ? "bg-amber" : "bg-lime")}
             />
             sprzedane
           </span>
           {p.forecastReliable ? (
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-2">
               <span
                 aria-hidden
-                className={cn("h-2.5 w-2.5 rounded-full", behind ? "bg-warning-fill/30" : "bg-lime/35")}
+                className={cn(
+                  "h-2.5 w-2.5 rounded-full ring-1 ring-inset",
+                  behind ? "bg-amber/25 ring-amber" : "bg-lime/30 ring-lime"
+                )}
               />
               prognoza
             </span>
           ) : null}
           {p.goal ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className="h-3 w-[3px] rounded-full bg-foreground" />
+            <span className="inline-flex items-center gap-2">
+              <span aria-hidden className="h-3.5 w-[3px] rounded-full bg-foreground" />
               cel
             </span>
           ) : null}
         </div>
       </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-3 text-sm lg:grid-cols-4">
-          <div className="min-w-0 rounded-2xl bg-muted/50 px-4 py-3">
-            <dt className="text-xs text-muted-foreground">Prognoza na koniec miesiąca</dt>
-            <dd className="mt-1 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">
+      <dl className="mt-6 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-4">
+          <div className={statTile}>
+            <dt className={statLabel}>Prognoza na koniec miesiąca</dt>
+            <dd>
               {p.forecastReliable ? (
                 <>
-                  {formatPlnWhole(p.forecast)}
+                  <span className={cn(statValue, "block")}>{formatPlnWhole(p.forecast)}</span>
                   {p.forecastPct !== null ? (
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      {pctOf(p.forecastPct)} celu
-                    </span>
+                    <span className={statNote}>{pctOf(p.forecastPct)} celu</span>
                   ) : null}
                 </>
               ) : (
-                <span className="font-normal text-muted-foreground">
-                  za mało danych z ostatnich dni
-                </span>
+                <span className={statNote}>za mało danych z ostatnich dni</span>
               )}
             </dd>
           </div>
-          <div className="min-w-0 rounded-2xl bg-muted/50 px-4 py-3">
-            <dt className="text-xs text-muted-foreground">
+          <div className={statTile}>
+            <dt className={statLabel}>
               {p.requiredDaily !== null
                 ? "Potrzeba dziennie, żeby osiągnąć cel"
                 : "Sprzedaż dziennie (śr. z 2 tygodni)"}
             </dt>
-            <dd className="mt-1 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">
-              {p.requiredDaily !== null
-                ? formatPlnWhole(p.requiredDaily)
-                : formatPlnWhole(p.recentDailyAvg)}
+            <dd>
+              <span className={cn(statValue, "block")}>
+                {p.requiredDaily !== null
+                  ? formatPlnWhole(p.requiredDaily)
+                  : formatPlnWhole(p.recentDailyAvg)}
+              </span>
               {p.requiredDaily !== null ? (
-                <span className="block text-xs font-normal text-muted-foreground">
-                  ostatnio {formatPlnWhole(p.recentDailyAvg)} dziennie
-                </span>
+                <span className={statNote}>ostatnio {formatPlnWhole(p.recentDailyAvg)} dziennie</span>
               ) : null}
             </dd>
           </div>
-          <div className="min-w-0 rounded-2xl bg-muted/50 px-4 py-3">
-            <dt className="text-xs text-muted-foreground">Ten sam miesiąc rok temu</dt>
-            <dd className="mt-1 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">
+          <div className={statTile}>
+            <dt className={statLabel}>Ten sam miesiąc rok temu</dt>
+            <dd>
               {p.lastYearMonthRevenue !== null ? (
                 <>
-                  {formatPlnWhole(p.lastYearMonthRevenue)}
+                  <span className={cn(statValue, "block")}>{formatPlnWhole(p.lastYearMonthRevenue)}</span>
                   {vsLastYear !== null ? (
                     <span
                       className={cn(
-                        "flex items-start gap-1 text-xs font-medium",
+                        "mt-1.5 flex items-start gap-1 text-[13px] font-medium",
                         vsLastYear >= 0 ? "text-positive" : "text-negative"
                       )}
                     >
                       {vsLastYear >= 0 ? (
-                        <TrendingUp className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                        <TrendingUp className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                       ) : (
-                        <TrendingDown className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                        <TrendingDown className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                       )}
                       prognoza {formatSignedPct(vsLastYear)} r/r
                     </span>
                   ) : null}
                 </>
               ) : (
-                <span className="font-normal text-muted-foreground">brak danych</span>
+                <span className={statNote}>brak danych</span>
               )}
             </dd>
           </div>
-          <div className="min-w-0 rounded-2xl bg-muted/50 px-4 py-3">
-            <dt className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div className={statTile}>
+            <dt className={cn(statLabel, "flex items-center gap-1")}>
               {ECOM_TERMS.roas.name}
               <InfoTip label={ECOM_TERMS.roas.tag} text={ECOM_TERMS.roas.explain} />
             </dt>
-            <dd className="mt-1 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">
+            <dd>
               {p.mtdRoas !== null ? (
                 <>
-                  {zlPerZl(p.mtdRoas)}
-                  <span className="block text-xs font-normal text-muted-foreground">
+                  <span className={cn(statValue, "block")}>{zlPerZl(p.mtdRoas)}</span>
+                  <span className={statNote}>
                     sprzedaży z każdej 1 zł · wydano {formatPlnWhole(p.mtdSpend)}
                   </span>
                 </>
               ) : (
-                <span className="font-normal text-muted-foreground">
-                  brak wydatków na reklamy
-                </span>
+                <span className={statNote}>brak wydatków na reklamy</span>
               )}
             </dd>
           </div>
       </dl>
 
       {seasonalNote ? (
-        <p className="mt-4 text-xs text-muted-foreground">{seasonalNote}</p>
+        <p className="mt-4 text-[13px] text-ink-3">{seasonalNote}</p>
       ) : null}
       {p.missingDays > 0 ? (
-        <p className="mt-2 text-xs text-warning">
+        <p className="mt-2 text-[13px] text-warning">
           Google Analytics nie przekazał danych z {p.missingDays}{" "}
           {p.missingDays === 1 ? "dnia" : "dni"} tego miesiąca - liczby są przez to
           zaniżone.
         </p>
       ) : null}
       {!p.goal && isAgency ? (
-        <p className="mt-3 text-xs">
+        <p className="mt-3 text-[13px]">
           <Link
             href={`/${clientSlug}/settings#ecommerce`}
             className="font-medium text-primary underline-offset-2 hover:underline"
           >
             Ustaw cel miesięczny
           </Link>{" "}
-          <span className="text-muted-foreground">
+          <span className="text-ink-3">
             - pokażemy postęp i ile trzeba dziennie, żeby go osiągnąć.
           </span>
         </p>

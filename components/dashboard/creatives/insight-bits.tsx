@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
+import { Ping } from "@/components/ui/primitives";
 import {
   fatigueHeadline,
   fatigueReason,
@@ -18,7 +19,7 @@ import { cn, formatPlnWhole } from "@/lib/utils";
 // look closer, not proof the ad is failing (the verdict chip owns red).
 const RANKING_TONE: Record<RankingTone, string> = {
   good: "bg-positive-soft text-positive",
-  neutral: "bg-muted text-muted-foreground",
+  neutral: "bg-chip text-ink-2",
   bad: "bg-warning-soft text-warning",
 };
 
@@ -66,10 +67,10 @@ export function RankingChipList({
 export function FatigueBadge({ fatigue, lang }: { fatigue: Fatigue; lang: Lang }) {
   return (
     <span
-      className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold text-warning shadow-md sm:text-[11px]"
+      className="glass-tip absolute left-2 top-2 z-[1] inline-flex h-7 items-center gap-2 rounded-full pl-2.5 pr-3 text-[11px] font-semibold sm:left-3 sm:top-3 sm:text-[12px]"
       title={`${fatigueHeadline(lang)}. ${fatigueReason(fatigue, lang)}`}
     >
-      <RefreshCw className="h-3 w-3" aria-hidden />
+      <Ping tone="amber" still />
       {lang === "en" ? "Refresh" : "Do odświeżenia"}
     </span>
   );
@@ -95,45 +96,49 @@ export function RefreshList({
   const shown = items.slice(0, REFRESH_LIST_MAX);
   const rest = items.length - shown.length;
   return (
-    <section className="surface space-y-3 p-5 sm:p-6">
+    <section aria-labelledby="refresh-list-heading" className="glass min-w-0 space-y-4 rounded-glass p-6 sm:p-7">
       <div>
-        <h2 className="flex items-center gap-2 text-section-title text-foreground">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning">
-            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+        <p className="kick flex items-center gap-2">
+          <Ping tone="amber" />
+          {en ? "Ad fatigue" : "Zmęczenie reklam"}
+        </p>
+        <h2 id="refresh-list-heading" className="mt-2 flex items-center gap-2 text-[22px] font-medium tracking-[-0.03em] text-foreground">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning">
+            <RefreshCw className="h-4 w-4" aria-hidden />
           </span>
           {en ? "Worth refreshing" : "Do odświeżenia"}{" "}
-          <span className="font-normal tabular-nums text-muted-foreground">({items.length})</span>
+          <span className="font-light tabular-nums text-ink-3">({items.length})</span>
         </h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <p className="mt-1.5 max-w-3xl text-sm text-ink-3">
           {en
             ? "People have seen these ads many times and respond less and less. A new image, video or headline usually helps."
             : "Te reklamy odbiorcy widzieli już wiele razy i reagują coraz słabiej. Zwykle pomaga nowa grafika, film lub nagłówek."}
         </p>
       </div>
-      <ul className="divide-y divide-border">
+      <ul className="divide-y divide-line">
         {shown.map(({ c, fatigue }) => (
           <li key={c.adId}>
             <button
               type="button"
               onClick={() => onSelect(c)}
-              className="flex w-full min-w-0 items-center gap-3 rounded-xl py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full min-w-0 items-center gap-3 rounded-[16px] px-1 py-2.5 text-left transition-colors hover:bg-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <CreativeThumb
                 src={c.thumbnailUrl}
                 name={c.name}
                 lang={lang}
                 compact
-                className="h-11 w-11 rounded-lg"
+                className="h-12 w-12 rounded-[14px]"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium" title={c.name}>
+                <p className="truncate text-[15px] font-medium" title={c.name}>
                   {c.name}
                 </p>
-                <p className="text-xs leading-snug text-muted-foreground">
+                <p className="mt-0.5 text-xs leading-snug text-ink-3">
                   {fatigueReason(fatigue, lang)}
                 </p>
               </div>
-              <span className="hidden shrink-0 tabular-nums text-xs text-muted-foreground sm:block">
+              <span className="hidden shrink-0 text-sm font-medium tabular-nums sm:block">
                 {formatPlnWhole(c.spend)}
               </span>
             </button>
@@ -141,7 +146,7 @@ export function RefreshList({
         ))}
       </ul>
       {rest > 0 ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-ink-3">
           {en
             ? `+${rest} more - marked "Refresh" in the gallery below.`
             : `+${rest} ${plPlural(rest, "kolejna", "kolejne", "kolejnych")} - ${plPlural(rest, "oznaczona", "oznaczone", "oznaczonych")} „Do odświeżenia” w galerii poniżej.`}

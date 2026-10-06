@@ -1,6 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { Ping } from "@/components/ui/primitives";
 import { useState } from "react";
 
 import type { ActivityHeatmap as ActivityHeatmapData } from "@/lib/dashboard/activity";
@@ -19,7 +20,7 @@ const DAY_NAME = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "S
 // hours read as "the point" in both themes. Literal class strings so
 // Tailwind generates every level.
 const LEVEL_CLASSES = [
-  "bg-muted",
+  "bg-chip",
   "bg-lime/15",
   "bg-lime/30",
   "bg-lime/50",
@@ -139,9 +140,12 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
   ];
 
   return (
-    <Card className="p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">Kiedy Twoi klienci są aktywni</h2>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{data.takeaway}</p>
+    <Card className="p-6 sm:p-[28px_30px]">
+      <p className="kick">Godziny aktywności · 4 tygodnie</p>
+      <h2 className="mt-2 text-[22px] font-medium leading-tight tracking-[-0.03em]">
+        Kiedy Twoi klienci są aktywni
+      </h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{data.takeaway}</p>
 
       <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-start">
         <div
@@ -172,7 +176,7 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <p className="inline-flex items-center gap-2 text-sm font-medium tabular-nums" aria-live="polite">
-              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-lime" />
+              <Ping tone="lime" still />
               {readout}
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-hidden>
@@ -187,15 +191,15 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
 
         <dl className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 lg:w-56 lg:grid-cols-1">
           {facts.map((f) => (
-            <div key={f.label} className="rounded-2xl bg-muted/60 px-4 py-3">
-              <dt className="text-xs text-muted-foreground">{f.label}</dt>
-              <dd className="mt-1 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">{f.value}</dd>
+            <div key={f.label} className="rounded-[22px] bg-chip px-[18px] py-4">
+              <dt className="text-[13px] text-ink-3">{f.label}</dt>
+              <dd className="mt-1.5 text-[22px] font-light leading-tight tabular-nums tracking-[-0.03em]">{f.value}</dd>
             </div>
           ))}
         </dl>
       </div>
 
-      <p className="mt-4 text-xs text-muted-foreground">
+      <p className="mt-4 text-xs text-ink-3">
         Suma wizyt z ostatnich 4 tygodni wg dnia tygodnia i godziny (czas polski).
       </p>
     </Card>

@@ -81,23 +81,29 @@ export default function DashboardError({
     hardReload();
   }
 
-  // v2: one calm card in the page column - icon chip, plain words, the
-  // anchor pill as the one primary action.
+  // 2026 pastel: one frosted card in the page column - mono kicker, a
+  // soft icon tile, plain words, the ink pill as the one primary action.
   if (isChunkError && !gaveUp) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-4 py-10 sm:px-6">
-        <div role="status" className="surface w-full max-w-md p-7 text-center sm:p-8">
+        <div
+          role="status"
+          className="glass glass-blur flex w-full max-w-[28rem] flex-col items-start gap-5 rounded-glass p-7 sm:p-10"
+        >
           <span
             aria-hidden
-            className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+            className="grid h-14 w-14 place-items-center rounded-[18px] bg-lime-soft text-positive"
           >
-            <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
+            <Loader2 className="h-6 w-6 animate-spin motion-reduce:animate-none" />
           </span>
-          <h1 className="mt-4 text-section-title">Ładuję nową wersję…</h1>
-          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Aplikacja została zaktualizowana. Za chwilę odświeży się automatycznie.
-          </p>
-          <Button type="button" onClick={freshReload} className="mt-6">
+          <div>
+            <p className="kick">Nowa wersja panelu</p>
+            <h1 className="mt-2 text-[26px] font-medium leading-tight tracking-[-0.03em]">Ładuję nową wersję…</h1>
+            <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
+              Aplikacja została zaktualizowana. Za chwilę odświeży się automatycznie.
+            </p>
+          </div>
+          <Button type="button" size="pill" onClick={freshReload}>
             <RotateCw aria-hidden />
             Odśwież teraz
           </Button>
@@ -108,32 +114,38 @@ export default function DashboardError({
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4 py-10 sm:px-6">
-      <div role="alert" className="surface w-full max-w-lg p-7 text-center sm:p-8">
+      <div
+        role="alert"
+        className="glass glass-blur flex w-full max-w-[32rem] flex-col items-start gap-5 rounded-glass p-7 sm:p-10"
+      >
         <span
           aria-hidden
-          className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-negative-soft text-negative"
+          className="grid h-14 w-14 place-items-center rounded-[18px] bg-negative-soft text-negative"
         >
-          <CloudOff className="h-5 w-5" />
+          <CloudOff className="h-6 w-6" />
         </span>
-        <h1 className="mt-4 text-section-title">Coś poszło nie tak</h1>
-        <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-          Nie udało się wczytać tego widoku. Spróbuj ponownie - jeśli błąd się
-          powtarza, prześlij nam szczegóły poniżej.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <Button type="button" variant="secondary" onClick={freshReload}>
-            Odśwież stronę
-          </Button>
-          <Button type="button" onClick={reset}>
+        <div>
+          <p className="kick">Błąd widoku</p>
+          <h1 className="mt-2 text-[26px] font-medium leading-tight tracking-[-0.03em]">Coś poszło nie tak</h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-ink-2 [text-wrap:pretty]">
+            Nie udało się wczytać tego widoku. Spróbuj ponownie - jeśli błąd się
+            powtarza, prześlij nam szczegóły poniżej.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="pill" onClick={reset}>
             <RotateCw aria-hidden />
             Spróbuj ponownie
           </Button>
+          <Button type="button" variant="chip" size="pill" onClick={freshReload}>
+            Odśwież stronę
+          </Button>
         </div>
-        <details className="group mt-6 text-left">
-          <summary className="mx-auto w-fit cursor-pointer list-none rounded-full px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <details className="group w-full">
+          <summary className="-ml-3 inline-flex min-h-11 cursor-pointer list-none items-center rounded-full px-3 text-[13px] font-medium text-ink-3 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
             Szczegóły techniczne
           </summary>
-          <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-muted/70 p-4 text-xs text-muted-foreground">
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-[18px] bg-chip p-4 font-mono text-xs text-ink-2">
             {error.message || "Nieznany błąd"}
             {error.digest ? `\n\ndigest: ${error.digest}` : ""}
           </pre>

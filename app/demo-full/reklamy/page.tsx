@@ -1,4 +1,6 @@
-import { AdsKpiTiles } from "@/components/dashboard/ads-page-intro";
+import { CalendarDays } from "lucide-react";
+
+import { AdsKpiTiles, AdsPageHeader } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DetailsDisclosure } from "@/components/dashboard/details-disclosure";
@@ -6,7 +8,6 @@ import { ImpressionShare } from "@/components/dashboard/impression-share";
 import { PlatformSplit } from "@/components/dashboard/platform-split";
 import { SearchTerms } from "@/components/dashboard/search-terms";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
-import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import type { SearchTermRow } from "@/lib/dashboard/search-terms";
 import { summarizeImpressionShare } from "@/lib/dashboard/impression-share";
@@ -88,24 +89,30 @@ export default function DemoFullReklamy({
   // used to close the page lives one tab over, on Kreacje.
   return (
     <>
-      <div className="space-y-6">
-        <PageHeader
-          title={en ? "Ads" : "Reklamy"}
-          description={
-            en
-              ? "Where the money goes and what we get for it."
-              : "Na co idą pieniądze i co z tego mamy."
-          }
-          // The demo has one fixed period; show it where the picker sits.
-          actions={<Pill className="px-3 py-1 text-sm">{d.rangeLabel}</Pill>}
-        />
-        <AdsSectionTabs
-          base="/demo-full"
-          active="kampanie"
-          query={en ? "?lang=en" : ""}
-          lang={lang}
-        />
-      </div>
+      <AdsPageHeader
+        kicker={`${en ? "Paid campaigns" : "Płatne kampanie"} · ${d.rangeLabel.toLowerCase()}`}
+        title={en ? "Ads" : "Reklamy"}
+        lead={
+          en
+            ? "Where the money goes and what we get for it."
+            : "Na co idą pieniądze i co z tego mamy."
+        }
+        // The demo has one fixed period; show it where the picker sits.
+        actions={
+          <Pill tone="neutral" className="min-h-11 gap-2 bg-chip px-4 text-sm text-ink-2 [&_svg]:size-4">
+            <CalendarDays aria-hidden />
+            {d.rangeLabel}
+          </Pill>
+        }
+        tabs={
+          <AdsSectionTabs
+            base="/demo-full"
+            active="kampanie"
+            query={en ? "?lang=en" : ""}
+            lang={lang}
+          />
+        }
+      />
 
       <AdsKpiTiles kpis={d.kpis} trend={d.trend} lang={lang} />
 

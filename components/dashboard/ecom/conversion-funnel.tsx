@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { GLOSSARY } from "@/lib/dashboard/glossary";
 import { cn, formatNumberPL } from "@/lib/utils";
 
-import { ECOM_TERMS, perHundred, Takeaway, type TakeawayTone } from "./plain";
+import { ECOM_TERMS, perHundred, SECTION_PAD, SECTION_TITLE, Takeaway, type TakeawayTone } from "./plain";
 
 interface Step {
   label: string;
@@ -101,8 +101,9 @@ export function ConversionFunnel({
   const colW = 300 / steps.length;
 
   return (
-    <Card className="flex flex-col p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">Od wizyty do zakupu</h2>
+    <Card className={cn("flex flex-col", SECTION_PAD)}>
+      <p className="kick">Droga do zakupu</p>
+      <h2 className={cn(SECTION_TITLE, "mt-2")}>Od wizyty do zakupu</h2>
       <Takeaway tone={takeaway.tone} className="mt-3">
         {takeaway.text}
       </Takeaway>
@@ -113,7 +114,7 @@ export function ConversionFunnel({
           tag={ECOM_TERMS.cr.tag}
           explain={ECOM_TERMS.cr.explain}
         />
-        <span className="text-sm font-semibold tabular-nums">
+        <span className="text-[22px] font-light tracking-[-0.03em] tabular-nums">
           {rate !== null ? perHundred(rate) : "—"}
         </span>
       </div>
@@ -127,7 +128,7 @@ export function ConversionFunnel({
                 key={s.label}
                 className={cn(
                   "flex min-w-0 flex-col pb-3",
-                  i > 0 && "border-l border-border/70 pl-2.5 sm:pl-3.5",
+                  i > 0 && "border-l border-line pl-2.5 sm:pl-3.5",
                   i < steps.length - 1 && "pr-2"
                 )}
               >
@@ -137,14 +138,14 @@ export function ConversionFunnel({
                   <LabelWithTip label={s.label} explain={s.explain} />
                 </span>
                 <div className="pt-2">
-                  <p className="text-xl font-medium leading-none tracking-[-0.03em] tabular-nums text-foreground sm:text-2xl">
+                  <p className="text-2xl font-light leading-none tracking-[-0.045em] tabular-nums text-foreground sm:text-[30px]">
                     {formatNumberPL(s.value)}
                   </p>
                   <p className="mt-1.5 flex flex-wrap items-center gap-1 text-xs tabular-nums text-muted-foreground">
                     <span
                       className={cn(
                         "rounded-full px-1.5 py-px font-semibold",
-                        i === steps.length - 1 ? "bg-lime text-lime-foreground" : "bg-muted text-foreground"
+                        i === steps.length - 1 ? "bg-lime text-lime-foreground" : "bg-chip text-foreground"
                       )}
                     >
                       {pctText(share(s.value))}
@@ -165,7 +166,7 @@ export function ConversionFunnel({
           viewBox="0 0 300 100"
           preserveAspectRatio="none"
           aria-hidden
-          className="block h-28 w-full text-chart-1 sm:h-36"
+          className="block h-28 w-full text-[hsl(var(--lime-line))] sm:h-36"
         >
           {steps.map((s, i) => {
             const x0 = i * colW;
@@ -204,7 +205,7 @@ export function ConversionFunnel({
           ))}
         </svg>
       </div>
-      <p className="mt-4 text-[11px] text-muted-foreground">
+      <p className="mt-4 text-xs text-ink-3">
         Procent pod liczbą to część wszystkich wizyt w sklepie.
       </p>
     </Card>

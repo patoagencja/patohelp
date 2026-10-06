@@ -1,3 +1,5 @@
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+
 import { InfoTip } from "@/components/dashboard/info-tip";
 import {
   GLOSSARY,
@@ -5,11 +7,10 @@ import {
   type ChangeTone,
   type GlossaryKey,
 } from "@/lib/dashboard/glossary";
-import { MetricTile } from "@/components/dashboard/metric-tile";
-import { DeltaPill, type DeltaTone } from "@/components/ui/pill";
-import type { SparklineTone } from "@/components/ui/sparkline";
+import { CountUp } from "@/components/ui/count-up";
+import type { DeltaTone } from "@/components/ui/pill";
 import type { DashboardKpis, Kpi, TrendPoint } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 type Lang = "pl" | "en";
 
@@ -50,14 +51,34 @@ function changeTone(kpi: Kpi, metric: GlossaryKey, thinBase: boolean): DeltaTone
   return good ? "good" : "bad";
 }
 
-// Sparkline colour = the delta's judgement; spend (never judged) draws in
-// the "this period" green so the row doesn't read as four grey squiggles.
-const SPARK_TONE: Record<DeltaTone, SparklineTone> = {
-  good: "positive",
-  bad: "negative",
-  flat: "neutral",
+// Delta colour = the judgement (spend is a decision, never judged: ink).
+const DELTA_TONE: Record<DeltaTone, string> = {
+  good: "text-positive",
+  bad: "text-negative",
+  flat: "text-ink-2",
 };
 
+/** Sparkline path in a 200x40 box (Przeglad-pastel tile). */
+function sparkPath(v: number[]): string | null {
+  if (v.length < 2) return null;
+  const mn = Math.min(...v);
+  const mx = Math.max(...v);
+  const span = mx - mn || 1;
+  return v
+    .map(
+      (p, j) =>
+        `${j ? "L" : "M"}${((j * 200) / (v.length - 1)).toFixed(1)} ${(mx === mn ? 20 : 37 - ((p - mn) / span) * 34).toFixed(1)}`
+    )
+    .join(" ");
+}
+
+/**
+ * One 2026 KPI tile (Reklamy board `.kpi` in the pastel skin): mono label +
+ * CPC/CTR tag + ⓘ, the judged delta on the right, a big light number that
+ * counts up, a drawn sparkline and the change in words. Not a button: on
+ * this page the chart below is fixed (cost per click), so a "selectable"
+ * tile would promise something that doesn't happen.
+ */
 function Tile({
   metric,
   tone,
@@ -67,6 +88,7 @@ function Tile({
   thinBase,
   series,
   lang,
+  index,
 }: {
   metric: GlossaryKey;
   tone: ChangeTone;
@@ -79,60 +101,117 @@ function Tile({
   /** Daily values for the sparkline, oldest -> newest (decorative). */
   series?: number[];
   lang: Lang;
+  index: number;
 }) {
   const g = GLOSSARY[metric];
   const en = lang === "en";
   const tag = en ? (g.en.short ?? g.short) : g.short;
+  const name = TILE_LABEL[lang][metric] ?? (en ? g.en.name : g.name);
   const change = hint ?? describeChange(kpi.deltaPercent, tone, { thinBase, lang });
   const d = kpi.deltaPercent;
   const moved =
     !hint && !thinBase && d !== null && Number.isFinite(d) && Math.abs(d) >= FLAT_THRESHOLD;
   const judged = changeTone(kpi, metric, thinBase);
-  // The pill carries "16%", the words after it say what that means
-  // ("więcej niż wcześniej"), so colour is never the only cue.
+  // The corner carries "↗ 16%", the line under the sparkline says what it
+  // means ("więcej niż wcześniej"), so colour is never the only cue.
   const pct = moved ? `${Math.round(Math.abs(d!)).toLocaleString(en ? "en-GB" : "pl-PL")}%` : null;
   const words = pct ? change.replace(/^(o\s)?\d[\d\s.,]*%\s*/, "") : change;
+  const unit = /^(.*?)\s?(zł)$/.exec(value);
+  const spark = hint || value === "-" ? null : sparkPath(series ?? []);
 
   return (
-    <MetricTile
-      label={
+    <div
+      className="glass glass-blur relative flex min-w-0 flex-col gap-3 rounded-tile p-4 pb-[18px] transition-transform duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[4px] sm:gap-4 sm:p-[22px] sm:pb-5"
+      style={{ "--d": `${0.2 + index * 0.08}s` } as React.CSSProperties}
+    >
+      {/* Phones: room for a two-line label, so the numbers line up. */}
+      <div className="flex min-h-[30px] items-start justify-between gap-2 sm:min-h-0 sm:items-center">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-medium leading-5 text-muted-foreground">
-            {TILE_LABEL[lang][metric] ?? (en ? g.en.name : g.name)}
+          {/* Phones: two tiles share a row, so a long label wraps instead
+              of being cut to "KOSZT KL…". */}
+          <span className="kick min-w-0 break-words text-[11px] leading-[1.35] tracking-[0.08em] sm:truncate sm:leading-4 xl:text-[11.5px] xl:tracking-[0.12em]">
+            {name}
           </span>
           {/* The CTR/CPC tag people hear from platforms; no room on phones. */}
           {tag ? (
-            <span
-              data-caps
-              className="hidden rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:inline"
-            >
+            <span className="hidden h-[18px] items-center rounded-full bg-chip px-1.5 font-mono text-[10px] tracking-[0.06em] text-ink-2 sm:inline-flex">
               {tag}
             </span>
           ) : null}
-          <InfoTip
-            label={tag ?? (en ? g.en.name : g.name)}
-            text={en ? g.en.explain : g.explain}
-            lang={lang}
-            className="shrink-0"
-          />
+          <InfoTip label={tag ?? name} text={en ? g.en.explain : g.explain} lang={lang} className="shrink-0" />
         </span>
-      }
-      value={value}
-      delta={
-        pct ? (
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-snug text-muted-foreground">
-            <DeltaPill tone={judged} direction={d! > 0 ? "up" : "down"}>
-              {pct}
-            </DeltaPill>
-            <span>{words}</span>
-          </p>
+        {pct ? (
+          <span
+            aria-hidden
+            className={cn(
+              "hidden shrink-0 items-center gap-0.5 text-[13.5px] font-semibold tabular-nums sm:inline-flex",
+              DELTA_TONE[judged]
+            )}
+          >
+            {d! > 0 ? (
+              <ArrowUpRight className="h-[13px] w-[13px]" strokeWidth={2.4} />
+            ) : (
+              <ArrowDownRight className="h-[13px] w-[13px]" strokeWidth={2.4} />
+            )}
+            {pct}
+          </span>
+        ) : null}
+      </div>
+      <p className="truncate text-[1.875rem] font-light leading-none tracking-[-0.05em] tabular-nums sm:text-[2.5rem] xl:text-[2.75rem]">
+        {value === "-" ? (
+          <span className="text-ink-3">-</span>
+        ) : unit ? (
+          <>
+            <CountUp text={unit[1]} delayMs={200 + index * 80} />
+            <small className="ml-[3px] text-[0.48em] tracking-[-0.02em]">{unit[2]}</small>
+          </>
         ) : (
-          <p className="text-[13px] leading-snug text-muted-foreground">{change}</p>
-        )
-      }
-      sparkline={hint || value === "-" ? undefined : series}
-      sparkTone={metric === "spend" ? "accent" : SPARK_TONE[judged]}
-    />
+          <CountUp text={value} delayMs={200 + index * 80} />
+        )}
+      </p>
+      {spark ? (
+        <svg aria-hidden width="100%" height="40" viewBox="0 0 200 40" preserveAspectRatio="none" className="overflow-visible">
+          <path
+            d={spark}
+            pathLength={1}
+            fill="none"
+            // Spend is never judged: it draws in the page's lime.
+            stroke={
+              metric === "spend" || judged === "good"
+                ? "hsl(var(--lime-line))"
+                : judged === "bad"
+                  ? "hsl(var(--negative))"
+                  : "var(--ink-3)"
+            }
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="draw-path animate-draw"
+            style={{ "--d": `${0.7 + index * 0.12}s` } as React.CSSProperties}
+          />
+        </svg>
+      ) : null}
+      <p className="text-[13px] leading-snug text-ink-3">
+        {/* sm+: the corner figure is visual and screen readers get it here;
+            phones have no room in the corner, so it leads the line. */}
+        {pct ? (
+          <span
+            className={cn(
+              "mr-1 inline-flex items-center gap-0.5 font-semibold tabular-nums sm:sr-only",
+              DELTA_TONE[judged]
+            )}
+          >
+            {d! > 0 ? (
+              <ArrowUpRight className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+            ) : (
+              <ArrowDownRight className="h-3 w-3" strokeWidth={2.4} aria-hidden />
+            )}
+            {pct}
+          </span>
+        ) : null}
+        {words}
+      </p>
+    </div>
   );
 }
 
@@ -193,6 +272,7 @@ export function AdsKpiTiles({
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Tile
           metric="spend"
+          index={0}
           series={series.spend}
           tone="amount"
           // Whole złoty: grosze on a five-digit budget is noise.
@@ -204,6 +284,7 @@ export function AdsKpiTiles({
         />
         <Tile
           metric="clicks"
+          index={1}
           series={series.clicks}
           tone="amount"
           value={noAds ? "-" : formatNumberPL(kpis.clicks.value)}
@@ -214,6 +295,7 @@ export function AdsKpiTiles({
         />
         <Tile
           metric="cpc"
+          index={2}
           series={series.cpc}
           tone="cost"
           // CPC keeps grosze: 1,47 zł vs 1,52 zł is the whole story here.
@@ -225,6 +307,7 @@ export function AdsKpiTiles({
         />
         <Tile
           metric="ctr"
+          index={3}
           series={series.ctr}
           tone="rate"
           value={noAds ? "-" : formatPercent(kpis.ctr.value)}
@@ -235,5 +318,52 @@ export function AdsKpiTiles({
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * Reklamy / Kreacje page opening (board `.hdr`, pastel skin): a mono kicker,
+ * a big light title and one plain sentence, the page's period control on the
+ * right, and the Kampanie | Kreacje tabs under it. One block, so it stays
+ * the first presentation slide together with the tabs.
+ */
+export function AdsPageHeader({
+  kicker,
+  title,
+  lead,
+  actions,
+  tabs,
+}: {
+  kicker?: React.ReactNode;
+  title: React.ReactNode;
+  lead?: React.ReactNode;
+  /** Right-aligned controls (date range or the fixed period). */
+  actions?: React.ReactNode;
+  /** The <AdsSectionTabs>. */
+  tabs?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-6 animate-rise sm:space-y-7" style={{ "--d": ".05s" } as React.CSSProperties}>
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5 pt-2 sm:pt-4">
+        <div className="min-w-0">
+          {kicker ? <p className="kick">{kicker}</p> : null}
+          <h1 className="mt-2.5 text-[2.5rem] font-light leading-[1.02] tracking-[-0.05em] text-foreground sm:text-[3.25rem]">
+            {title}
+          </h1>
+          {lead ? <p className="mt-2.5 max-w-2xl text-base leading-relaxed text-ink-2">{lead}</p> : null}
+        </div>
+        {actions ? (
+          // min-w-0 lets the date segments scroll inside a phone screen
+          // instead of widening the page.
+          <div
+            className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2 [&>*]:min-w-0 [&>*]:max-w-full"
+            data-print-hide
+          >
+            {actions}
+          </div>
+        ) : null}
+      </header>
+      {tabs}
+    </div>
   );
 }

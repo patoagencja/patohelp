@@ -8,7 +8,7 @@ import { GalleryCard } from "@/components/dashboard/creatives/gallery-card";
 import { RefreshList } from "@/components/dashboard/creatives/insight-bits";
 import { CreativesPodium, PodiumFootnote } from "@/components/dashboard/creatives/podium";
 import { DetailsDisclosure } from "@/components/dashboard/details-disclosure";
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import {
   computeBenchmarks,
   fatigueOf,
@@ -20,7 +20,7 @@ import {
   type GallerySort,
   type Lang,
 } from "@/lib/dashboard/creatives";
-import { formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 // Enough to fill a few rows on desktop without rendering 300 images at once.
 const PAGE = 24;
@@ -28,6 +28,10 @@ const PAGE = 24;
 const TOP_GALLERY = 6;
 
 type View = "gallery" | "table";
+
+// Section card + heading (2026 pastel): glass, mono kicker, 22px title.
+const CARD = "glass min-w-0 rounded-glass p-6 sm:p-7";
+const H2 = "mt-2 text-[22px] font-medium tracking-[-0.03em] text-foreground";
 
 function Segmented<T extends string>({
   value,
@@ -41,7 +45,7 @@ function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="group" aria-label={label} className={segmentedTrack}>
+    <SegmentedTrack role="group" aria-label={label} className={segmentedTrack}>
       {options.map((o) => {
         const Icon = o.icon;
         return (
@@ -50,14 +54,14 @@ function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(o.value)}
             aria-pressed={value === o.value}
-            className={segmentedItem(value === o.value, "px-2.5 sm:px-3")}
+            className={segmentedItem(value === o.value, "min-h-11 px-3 sm:px-3.5")}
           >
             {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden /> : null}
             {o.label}
           </button>
         );
       })}
-    </div>
+    </SegmentedTrack>
   );
 }
 
@@ -136,12 +140,13 @@ export function CreativesExplorer({
 
   return (
     <>
-      <section className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-section-title text-foreground">
+      <section aria-labelledby="podium-heading" className={cn(CARD, "sm:p-8")}>
+        <div className="mb-7">
+          <p className="kick">Podium · Meta</p>
+          <h2 id="podium-heading" className={H2}>
             {en ? "Best ads" : "Najlepsze reklamy"}
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-ink-3">
             {en
               ? "The winners of this period, and what they do better than the rest."
               : "Zwycięzcy tego okresu - i w czym wygrywają z pozostałymi."}
@@ -151,12 +156,13 @@ export function CreativesExplorer({
       </section>
 
       {topSpend.length > 0 ? (
-        <section className="min-w-0 space-y-4">
-          <div className="space-y-1">
-            <h2 className="text-section-title text-foreground">
+        <section aria-labelledby="top-spend-heading" className={CARD}>
+          <div className="mb-5">
+            <p className="kick">{en ? "Biggest spenders" : "Największe wydatki"}</p>
+            <h2 id="top-spend-heading" className={H2}>
               {en ? "Where most of the money goes" : "Reklamy z największymi wydatkami"}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-1.5 text-sm text-ink-3">
               {en
                 ? "Each one compared with your average. Click an ad to see it bigger."
                 : "Każda porównana z Twoją średnią. Kliknij reklamę, by ją powiększyć."}
@@ -165,7 +171,7 @@ export function CreativesExplorer({
           {/* Three-up only once the content column is wide enough: beside
               the sidebar (tablet, small laptop) three cards squeezed every
               label into an ellipsis. */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
             {topSpend.map((c) => card(c, true))}
           </div>
         </section>
@@ -183,14 +189,15 @@ export function CreativesExplorer({
       >
         <RefreshList items={fatigued} lang={lang} onSelect={setSelected} />
 
-        <section className="min-w-0 space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <section aria-labelledby="all-ads-heading" className={cn(CARD, "space-y-5")}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
-              <h2 className="text-section-title text-foreground">
+              <p className="kick">{en ? "Every ad" : "Każda reklama"}</p>
+              <h2 id="all-ads-heading" className={H2}>
                 {en ? "All ads" : "Wszystkie reklamy"}{" "}
-                <span className="font-normal text-muted-foreground">({creatives.length})</span>
+                <span className="font-light tabular-nums text-ink-3">({creatives.length})</span>
               </h2>
-              <p className="mt-0.5 text-sm text-muted-foreground">
+              <p className="mt-1.5 text-sm text-ink-3">
                 {en
                   ? `${counts.better} above and ${counts.worse} below your average.`
                   : `Lepiej niż Twoja średnia: ${counts.better}, słabiej: ${counts.worse}.`}
@@ -225,8 +232,8 @@ export function CreativesExplorer({
           </div>
 
           {/* The yardstick every "better/worse" chip is measured against. */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-2xl bg-card px-4 py-3 text-sm text-muted-foreground shadow-card sm:rounded-full sm:px-5">
-            <span className="rounded-full bg-anchor px-2.5 py-0.5 text-xs font-semibold text-anchor-foreground">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-[20px] bg-chip px-4 py-3 text-sm text-ink-2 sm:rounded-full sm:py-2 sm:pl-2 sm:pr-5">
+            <span className="inline-flex min-h-7 items-center rounded-full bg-anchor px-3 text-xs font-semibold text-anchor-foreground">
               {en ? "Your average" : "Twoja średnia"}
             </span>
             <span>
@@ -258,12 +265,10 @@ export function CreativesExplorer({
           </div>
 
           {view === "table" ? (
-            <div className="surface p-5 sm:p-6">
-              <CreativesTable creatives={creatives} lang={lang} embedded />
-            </div>
+            <CreativesTable creatives={creatives} lang={lang} embedded />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3 min-[1360px]:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3 min-[1360px]:grid-cols-4">
                 {sorted.slice(0, limit).map((c) => card(c))}
               </div>
               {sorted.length > limit ? (
@@ -271,7 +276,7 @@ export function CreativesExplorer({
                   <button
                     type="button"
                     onClick={() => setLimit((l) => l + PAGE)}
-                    className="rounded-full bg-card px-5 py-2 text-sm font-medium text-foreground shadow-card transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="inline-flex min-h-11 items-center rounded-full bg-chip px-[18px] text-sm font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-[var(--chip-hover)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:active:scale-100"
                   >
                     {en
                       ? `Show more (${sorted.length - limit} left)`
@@ -280,7 +285,7 @@ export function CreativesExplorer({
                 </div>
               ) : null}
               {sort === "newest" ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-ink-3">
                   {en
                     ? "Newest = most recently created ads first."
                     : "Najnowsze = najpóźniej utworzone reklamy na początku."}

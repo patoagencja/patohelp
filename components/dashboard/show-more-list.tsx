@@ -41,7 +41,8 @@ export function ShowMoreList({
       <ol
         id={id}
         className={cn(
-          "[&>[data-collapsed]]:hidden print:[&>[data-collapsed]]:flex",
+          // Screen-only hide: rows keep their own display (flex, grid) on paper.
+          "[@media_screen]:[&>[data-collapsed]]:hidden",
           className
         )}
       >
@@ -60,8 +61,8 @@ export function ShowMoreList({
           aria-expanded={open}
           aria-controls={id}
           data-print-hide
-          // Soft pill (v2): same family as the segmented controls.
-          className="mt-4 inline-flex items-center gap-1 self-start rounded-full bg-muted px-3.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          // 2026 chip pill: 44px target, same family as the segmented track.
+          className="mt-4 inline-flex min-h-11 items-center gap-1.5 self-start rounded-full bg-chip px-[18px] text-sm font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-[var(--chip-hover)] active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:active:scale-100"
         >
           {open ? lessLabel : `${moreLabel} (${items.length})`}
           <ChevronDown

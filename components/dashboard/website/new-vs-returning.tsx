@@ -23,6 +23,7 @@ export function NewVsReturning({
 
   return (
     <ShareBars
+      kicker={en ? "Visitors" : "Odwiedzający"}
       title={en ? "New vs returning" : "Nowi i powracający goście"}
       insight={insight}
       rows={[

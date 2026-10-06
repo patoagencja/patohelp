@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
@@ -13,11 +14,12 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Small daily line chart in the overview's main-chart style (v2 skin): the
- * current series as a chart-1 line over a soft lime gradient, an optional
- * comparison series dashed in chart-muted, faint dashed guides, a dark
- * rounded tooltip and a crosshair with a halo. Shared by "Sprzedaż dzień po
- * dniu" and "Wizyty na stronie dzień po dniu" so both read like the overview.
+ * Small daily line chart in the overview's MainChart style (2026 pastel):
+ * the series as a glowing lime line drawn in over a soft lime area, an
+ * optional comparison dashed in --prev, hairline guides with mono labels, a
+ * soft crosshair, a lime dot and a glass tooltip. An optional resting
+ * marker ("najlepszy dzień") shows while nothing is hovered. Shared by
+ * "Sprzedaż dzień po dniu" and "Wizyty na stronie dzień po dniu".
  *
  * Keyboard: the plot is focusable; arrows step days, Home/End jump. The
  * focused day is announced through a polite live region.
@@ -33,8 +35,9 @@ export interface TrendLinePoint {
 
 const WEEKDAY = ["niedz.", "pon.", "wt.", "śr.", "czw.", "pt.", "sob."];
 const WEEKDAY_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1";
-const TIP_W = 184;
+const MONTH_PL = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"];
+const MONTH_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const EASE = "cubic-bezier(.2,.8,.2,1)";
 
 const ddmm = (iso: string) => {
   const [, m, d] = iso.split("-");
@@ -104,6 +107,8 @@ export function TrendLineChart({
   ariaLabel,
   lang = "pl",
   className,
+  highlightIndex,
+  highlightNote,
 }: {
   points: TrendLinePoint[];
   /** Legend / tooltip name of the main series ("Sprzedaż"). */
@@ -119,6 +124,10 @@ export function TrendLineChart({
   lang?: "pl" | "en";
   /** Height of the plot box, e.g. "h-64 sm:h-72". */
   className?: string;
+  /** A point pinned while nothing is hovered (e.g. the best day). */
+  highlightIndex?: number | null;
+  /** Its tooltip tag ("najlepszy dzień"). */
+  highlightNote?: string;
 }) {
   const gradId = useId();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -153,9 +162,9 @@ export function TrendLineChart({
 
   const { w: width, h: H } = size;
   // Left gutter sized to the longest axis label (no measuring pass needed:
-  // 11px tabular digits are ~6.3px wide).
+  // 11px mono digits are ~6.7px wide).
   const longest = Math.max(...ticks.map((v) => formatAxis(v).length));
-  const pad = { top: 12, right: 12, bottom: 26, left: Math.round(longest * 6.3 + 14) };
+  const pad = { top: 14, right: 14, bottom: 28, left: Math.round(longest * 6.7 + 16) };
   const plotW = Math.max(1, width - pad.left - pad.right);
   const plotH = Math.max(1, H - pad.top - pad.bottom);
   const x = (i: number) => pad.left + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
@@ -181,7 +190,7 @@ export function TrendLineChart({
     if (run.length > 1) cmpRuns.push(monotonePath(run));
   }
 
-  const labelStep = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 58))));
+  const labelStep = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 62))));
 
   const pick = (clientX: number, rect: DOMRect) => {
     if (n === 0) return;
@@ -209,30 +218,49 @@ export function TrendLineChart({
 
   const weekday = (iso: string) =>
     (lang === "en" ? WEEKDAY_EN : WEEKDAY)[new Date(`${iso}T12:00:00Z`).getUTCDay()];
+  const tipDate = (iso: string) => {
+    const [, m, d] = iso.split("-").map(Number);
+    return `${d} ${(lang === "en" ? MONTH_EN : MONTH_PL)[m - 1]} · ${weekday(iso).replace(".", "")}`.toUpperCase();
+  };
+  const resting =
+    highlightIndex != null && highlightIndex >= 0 && highlightIndex < n ? highlightIndex : null;
+  // Hover / keyboard wins; otherwise the pinned point (if any) shows.
+  const shownIdx = active ?? resting;
   const ap = active !== null ? points[active] : null;
-  const activeX = active !== null ? x(active) : 0;
-  const tipLeft =
-    activeX + 14 + TIP_W <= width ? activeX + 14 : Math.max(0, activeX - 14 - TIP_W);
+  const sp = shownIdx !== null ? points[shownIdx] : null;
+  const spX = shownIdx !== null ? x(shownIdx) : 0;
+  const spY = sp ? y(sp.value) : 0;
+  const xPct = width > 0 ? spX / width : 0.5;
+  // Tooltip beside the dot near the edges, above it (below when the dot is
+  // near the top) elsewhere - the MainChart rule.
+  const tipTransform =
+    xPct > 0.78
+      ? "translate(calc(-100% - 18px), -50%)"
+      : xPct < 0.16
+        ? "translate(18px, -50%)"
+        : spY < 96
+          ? "translate(-50%, 22px)"
+          : "translate(-50%, calc(-100% - 22px))";
+  const move = { transition: `left .25s ${EASE}, top .25s ${EASE}` };
 
   return (
     <div>
       {hasCompare ? (
-        <div className="mb-2 flex flex-wrap items-center justify-end gap-1.5 text-xs text-muted-foreground">
-          <span className={LEGEND_CHIP}>
-            <svg width="14" height="8" aria-hidden className="text-chart-1">
-              <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[13px] text-ink-2">
+          <span className="inline-flex items-center gap-2">
+            <i
+              aria-hidden
+              className="h-[3px] w-[18px] rounded-sm bg-[hsl(var(--lime-line))] shadow-[0_0_8px_var(--lime-glow)]"
+            />
             {valueLabel}
           </span>
-          <span className={LEGEND_CHIP}>
-            <svg width="14" height="8" aria-hidden className="text-chart-muted">
-              <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2.5" />
-            </svg>
+          <span className="inline-flex items-center gap-2">
+            <i aria-hidden className="w-[18px] border-t-2 border-dashed border-[color:var(--prev)]" />
             {compareLabel}
           </span>
         </div>
       ) : null}
-      <div ref={boxRef} className={cn("relative w-full", className ?? "h-64 sm:h-72")}>
+      <div ref={boxRef} className={cn("relative w-full cursor-crosshair", className ?? "h-64 sm:h-72")}>
         {width > 0 && H > 0 ? (
           <svg
             width={width}
@@ -242,15 +270,13 @@ export function TrendLineChart({
             tabIndex={0}
             onKeyDown={onKey}
             onBlur={() => setActive(null)}
-            className="block touch-pan-y select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+            className="relative block touch-pan-y select-none overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-card"
           >
             <defs>
-              {/* currentColor resolves where the gradient is defined: the
-                  vivid lime fills, the deeper chart-1 draws the line. */}
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1" className="text-lime">
-                <stop offset="0%" stopColor="currentColor" stopOpacity={0.42} />
-                <stop offset="70%" stopColor="currentColor" stopOpacity={0.08} />
-                <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="var(--lime-hex)" stopOpacity={0.34} />
+                <stop offset="0.6" stopColor="var(--lime-hex)" stopOpacity={0.06} />
+                <stop offset="1" stopColor="var(--lime-hex)" stopOpacity={0} />
               </linearGradient>
             </defs>
 
@@ -261,16 +287,15 @@ export function TrendLineChart({
                   x2={width - pad.right}
                   y1={y(v)}
                   y2={y(v)}
-                  className="stroke-border"
+                  stroke="var(--line)"
                   strokeWidth={1}
-                  strokeDasharray={v === 0 ? undefined : "2 5"}
                 />
                 <text
-                  x={pad.left - 8}
+                  x={pad.left - 10}
                   y={y(v)}
                   dy="0.32em"
                   textAnchor="end"
-                  className="fill-muted-foreground text-[11px] tabular-nums"
+                  className="fill-[var(--ink-3)] font-mono text-[11px] tabular-nums"
                 >
                   {formatAxis(v)}
                 </text>
@@ -284,11 +309,11 @@ export function TrendLineChart({
                   x={x(i)}
                   y={H - 6}
                   textAnchor={
-                    x(i) + 18 > width ? "end" : x(i) - 18 < pad.left - 8 ? "start" : "middle"
+                    x(i) + 20 > width ? "end" : x(i) - 20 < pad.left - 8 ? "start" : "middle"
                   }
                   className={cn(
-                    "text-[11px] tabular-nums",
-                    active === i ? "fill-foreground font-medium" : "fill-muted-foreground"
+                    "font-mono text-[11px] tabular-nums",
+                    active === i ? "fill-foreground" : "fill-[var(--ink-3)]"
                   )}
                 >
                   {ddmm(p.date)}
@@ -296,63 +321,57 @@ export function TrendLineChart({
               ) : null
             )}
 
+            {area ? (
+              <path
+                d={area}
+                fill={`url(#${gradId})`}
+                className="animate-fade"
+                style={{ "--d": ".7s" } as CSSProperties}
+              />
+            ) : null}
+
             {cmpRuns.map((d, i) => (
               <path
                 key={i}
                 d={d}
                 fill="none"
-                strokeWidth={1.75}
-                strokeDasharray="4 4"
+                stroke="var(--prev)"
+                strokeWidth={1.5}
+                strokeDasharray="3 5"
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                className="stroke-chart-muted"
+                className="animate-fade"
+                style={{ "--d": "1s" } as CSSProperties}
               />
             ))}
 
-            <g className="text-chart-1">
-              {area ? <path d={area} fill={`url(#${gradId})`} /> : null}
-              <path
-                d={line}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-              {n <= 3
-                ? curPts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="currentColor" />)
-                : null}
-            </g>
+            <path
+              d={line}
+              pathLength={1}
+              fill="none"
+              stroke="hsl(var(--lime-line))"
+              strokeWidth={2.6}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              className="draw-path animate-draw"
+              style={{ "--d": ".3s", filter: "drop-shadow(0 4px 10px var(--lime-glow))" } as CSSProperties}
+            />
+            {n <= 3
+              ? curPts.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r={3.5} fill="hsl(var(--lime-line))" />
+                ))
+              : null}
 
-            {ap && active !== null ? (
-              <g pointerEvents="none">
-                <line
-                  x1={activeX}
-                  x2={activeX}
-                  y1={pad.top}
-                  y2={pad.top + plotH}
-                  className="stroke-foreground"
-                  strokeOpacity={0.25}
-                  strokeDasharray="2 3"
-                />
-                {hasCompare && ap.compare != null ? (
-                  <circle
-                    cx={activeX}
-                    cy={y(ap.compare)}
-                    r={4}
-                    className="fill-chart-muted stroke-card"
-                    strokeWidth={2}
-                  />
-                ) : null}
-                <circle cx={activeX} cy={y(ap.value)} r={11} className="fill-lime/30" />
-                <circle
-                  cx={activeX}
-                  cy={y(ap.value)}
-                  r={5.5}
-                  className="fill-chart-1 stroke-card"
-                  strokeWidth={2.5}
-                />
-              </g>
+            {hasCompare && ap && active !== null && ap.compare != null ? (
+              <circle
+                cx={x(active)}
+                cy={y(ap.compare)}
+                r={4}
+                fill="var(--prev)"
+                className="stroke-card"
+                strokeWidth={2}
+                pointerEvents="none"
+              />
             ) : null}
 
             <rect
@@ -370,6 +389,41 @@ export function TrendLineChart({
           </svg>
         ) : null}
 
+        {sp && width > 0 ? (
+          <>
+            {active !== null ? (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute w-px bg-[linear-gradient(180deg,transparent,var(--ink-3)_30%,var(--ink-3)_70%,transparent)] motion-reduce:!transition-none"
+                style={{ left: spX, top: pad.top, bottom: pad.bottom, ...move }}
+              />
+            ) : null}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -ml-2 -mt-2 h-4 w-4 rounded-full bg-[hsl(var(--lime-line))] shadow-[0_0_0_5px_var(--lime-glow),0_6px_16px_-4px_rgb(40_36_28/0.25)] motion-reduce:!transition-none"
+              style={{ left: spX, top: spY, ...move }}
+            />
+            <div
+              aria-hidden
+              className="glass-tip pointer-events-none absolute z-10 flex max-w-[16rem] flex-col gap-1 rounded-[18px] px-3.5 py-3 text-[12.5px] motion-reduce:!transition-none print:hidden"
+              style={{ left: spX, top: spY, transform: tipTransform, ...move }}
+            >
+              <span className="whitespace-nowrap font-mono text-[11px] tracking-[0.08em] text-ink-3">
+                {tipDate(sp.date)}
+                {active === null && highlightNote ? ` · ${highlightNote.toUpperCase()}` : ""}
+              </span>
+              <b className="whitespace-nowrap text-lg font-medium tracking-[-0.02em] tabular-nums">
+                {formatValue(sp.value)}
+              </b>
+              {hasCompare ? (
+                <span className="whitespace-nowrap text-ink-3 tabular-nums">
+                  {compareLabel?.toLowerCase()} {sp.compare != null ? formatValue(sp.compare) : "-"}
+                </span>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+
         <p className="sr-only" aria-live="polite">
           {ap
             ? `${weekday(ap.date)} ${ddmm(ap.date)}: ${valueLabel} ${formatValue(ap.value)}${
@@ -377,36 +431,6 @@ export function TrendLineChart({
               }`
             : ""}
         </p>
-        {ap && width > 0 ? (
-          // Dark rounded tooltip card (benchmarks 3 / 4) in both themes.
-          <div
-            aria-hidden
-            className="pointer-events-none absolute z-10 rounded-2xl bg-tooltip p-3 text-xs text-tooltip-foreground shadow-raised"
-            style={{ left: tipLeft, top: pad.top, width: TIP_W }}
-          >
-            <p className="font-medium tabular-nums text-tooltip-foreground/70">
-              {weekday(ap.date)} {ddmm(ap.date)}
-            </p>
-            <div className="mt-1.5 space-y-1 tabular-nums">
-              <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
-                  <span className="h-2 w-2 rounded-full bg-lime" />
-                  {valueLabel}
-                </span>
-                <span className="text-sm font-semibold">{formatValue(ap.value)}</span>
-              </div>
-              {hasCompare ? (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
-                    <span className="h-2 w-2 rounded-full border border-current" />
-                    {compareLabel}
-                  </span>
-                  <span>{ap.compare != null ? formatValue(ap.compare) : "-"}</span>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </div>
     </div>
   );

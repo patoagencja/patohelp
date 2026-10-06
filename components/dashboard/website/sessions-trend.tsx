@@ -52,23 +52,27 @@ export function SessionsTrend({
       : null;
 
   return (
-    <Card className="p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">
-        {en ? "Sessions - last 30 days" : "Wizyty na stronie dzień po dniu"}
+    <Card className="rounded-glass p-6 sm:p-[28px_30px]">
+      <p className="kick">{en ? "Website · last 30 days" : "Strona · ostatnie 30 dni"}</p>
+      <h2 className="mt-2 text-[22px] font-medium leading-tight tracking-[-0.03em]">
+        {en ? "Sessions day by day" : "Wizyty na stronie dzień po dniu"}
       </h2>
+      {summary ? <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{summary}</p> : null}
       {empty ? (
-        <div className="mt-4 flex h-64 items-center justify-center rounded-2xl bg-muted/60 px-4 text-center text-sm text-muted-foreground">
+        <div className="mt-5 flex h-64 items-center justify-center rounded-[22px] bg-chip px-4 text-center text-sm text-ink-2">
           {empty}
         </div>
       ) : (
         <TrendLineChart
-          className="mt-4 h-64"
+          className="mt-5 h-64 sm:h-72"
           points={trend.map((p) => ({ date: p.date, value: p.sessions }))}
           valueLabel={key}
           formatValue={(v) => formatNumberPL(v)}
           formatAxis={en ? (v) => (v >= 1000 ? `${(v / 1000).toLocaleString("en-US", { maximumFractionDigits: 1 })}k` : String(v)) : compactCount}
           ariaLabel={`${en ? "Daily sessions chart" : "Wykres wizyt dzień po dniu"}. ${summary ?? ""}`}
           lang={lang}
+          highlightIndex={peak ? trend.indexOf(peak) : null}
+          highlightNote={en ? "busiest" : "najwięcej"}
         />
       )}
     </Card>

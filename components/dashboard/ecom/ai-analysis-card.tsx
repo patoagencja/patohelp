@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
+import { Ping } from "@/components/ui/primitives";
 import type { EcomAnalysis } from "@/lib/ecom/analysis";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -29,7 +30,7 @@ function withChips(text: string) {
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <h3 className="mb-1.5 text-sm font-medium text-muted-foreground">{title}</h3>
+      <h3 className="kick mb-2 text-[11px]">{title}</h3>
       {children}
     </div>
   );
@@ -49,36 +50,41 @@ export function AiAnalysisCard({
   action?: ReactNode;
 }) {
   return (
-    // Card with an "Analiza AI" banner on top (v2, benchmark 2): the soft
-    // lavender -> pink wash, the chip saying it is AI-written, the headline.
-    // Print drops the wash (globals.css) and keeps a plain card.
+    // The 2026 AI surface (overview's AI card): the pastel orb, "Claude" +
+    // what it is, then the headline as the lead sentence.
     <Card className="overflow-hidden p-0">
-      <div className="bg-ai-wash p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-xl bg-card/70 px-2.5 py-1.5 text-[13px] font-semibold text-ai shadow-sm dark:bg-card/40 print:shadow-none">
-              <Sparkles className="h-4 w-4" aria-hidden />
-              Analiza AI
+      <div className="border-b border-line p-6 sm:p-[28px_30px]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <span aria-hidden className="orb h-[52px] w-[52px] sm:h-[56px] sm:w-[56px]">
+              <span className="orb-halo" />
+              <span className="orb-ring" />
+              <span className="orb-core" />
             </span>
-            <h2 className="mt-3 text-section-title text-foreground">
-              {/* The chip above already says "Analiza AI". */}
-              Co dalej ze sprzedażą
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Twoja sprzedaż na tle sezonu w branży i tego, co dzieje się na rynku.
-            </p>
+            <div className="min-w-0">
+              <p className="kick flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                Analiza AI
+              </p>
+              <h2 className="mt-1.5 text-[22px] font-medium leading-tight tracking-[-0.03em]">
+                Co dalej ze sprzedażą
+              </h2>
+              <p className="mt-1 text-[13px] text-ink-3">
+                Twoja sprzedaż na tle sezonu w branży i tego, co dzieje się na rynku.
+              </p>
+            </div>
           </div>
           {action}
         </div>
         {analysis ? (
-          <p className="mt-4 max-w-3xl text-lg font-semibold leading-snug tracking-[-0.01em] text-foreground">
+          <p className="mt-5 max-w-3xl text-xl font-normal leading-snug tracking-[-0.02em] text-foreground">
             {analysis.headline}
           </p>
         ) : null}
       </div>
 
       {analysis ? (
-        <div className="max-w-3xl space-y-5 p-5 sm:p-6">
+        <div className="max-w-3xl space-y-6 p-6 sm:p-[28px_30px]">
           <p className="text-[15px] leading-relaxed text-foreground">
             {withChips(analysis.performance)}
           </p>
@@ -88,7 +94,7 @@ export function AiAnalysisCard({
               <ul className="space-y-1.5">
                 {analysis.peaks.map((p, i) => (
                   <li key={i} className="flex gap-2.5 text-sm">
-                    <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-lime" />
+                    <Ping tone="lime" still className="mt-1.5" />
                     <span>
                       <span className="font-medium">{p.label}</span>
                       {p.note ? <span className="text-muted-foreground"> - {p.note}</span> : null}
@@ -138,7 +144,7 @@ export function AiAnalysisCard({
           ) : null}
         </div>
       ) : (
-        <p className="max-w-3xl p-5 text-sm leading-relaxed text-muted-foreground sm:p-6">
+        <p className="max-w-3xl p-6 text-sm leading-relaxed text-ink-2 sm:p-[28px_30px]">
           Kliknij „Przygotuj analizę” - AI przejrzy Twoją sprzedaż, wskaże
           najmocniejsze dni, opisze, jak zwykle wygląda sezon w Twojej branży i co
           dzieje się na rynku (sprawdzając aktualne informacje w internecie), a na

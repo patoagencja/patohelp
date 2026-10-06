@@ -1,7 +1,7 @@
 "use client";
 
 import { Component, Suspense, type ErrorInfo, type ReactNode } from "react";
-import { CloudOff, RotateCw } from "lucide-react";
+import { RotateCw, TriangleAlert } from "lucide-react";
 
 /**
  * Keeps one failing widget from taking the whole dashboard down. Without it a
@@ -38,32 +38,34 @@ export class SectionBoundary extends Component<
       // lands in this boundary. Content that renders fine is unaffected.
       return <Suspense fallback={null}>{this.props.children}</Suspense>;
     }
-    // v2: a calm muted panel in the card radius, so a failed section keeps
-    // the page's rhythm instead of looking like a broken box.
+    // Stany board: the section's own glass card with a calm chip panel -
+    // coral alert tile, plain words, "Spróbuj ponownie" - so a failed
+    // section keeps the page's rhythm and says the rest is fine.
     return (
-      <div
-        role="status"
-        className="flex flex-col items-start gap-3 rounded-card bg-muted/60 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:px-6"
-      >
-        <span
-          aria-hidden
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-card shadow-card"
-        >
-          <CloudOff className="h-4 w-4" />
-        </span>
-        <p className="min-w-0 flex-1 leading-relaxed">
-          <span className="font-medium text-foreground">Tej sekcji nie udało się wczytać.</span>{" "}
-          Reszta panelu działa - odśwież za chwilę.
-        </p>
-        <button
-          type="button"
-          data-print-hide
-          onClick={() => window.location.reload()}
-          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-card px-4 text-sm font-medium text-foreground shadow-card transition-colors duration-150 hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          <RotateCw className="h-3.5 w-3.5" aria-hidden />
-          Odśwież
-        </button>
+      <div role="status" className="glass rounded-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-4 rounded-[20px] bg-chip p-5 sm:p-[22px]">
+          <span
+            aria-hidden
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-negative-soft text-negative"
+          >
+            <TriangleAlert className="h-[18px] w-[18px]" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-[1_1_15rem]">
+            <p className="text-[15px] font-semibold text-foreground">Nie udało się wczytać tej sekcji</p>
+            <p className="mt-0.5 text-sm leading-relaxed text-ink-3">
+              To chwilowy problem po naszej stronie. Pozostałe liczby na stronie są aktualne.
+            </p>
+          </div>
+          <button
+            type="button"
+            data-print-hide
+            onClick={() => window.location.reload()}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-card px-[18px] text-sm font-medium text-foreground shadow-card transition-[background-color,color,transform] duration-200 hover:bg-anchor hover:text-anchor-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:active:scale-100 dark:bg-chip"
+          >
+            <RotateCw className="h-4 w-4" aria-hidden />
+            Spróbuj ponownie
+          </button>
+        </div>
       </div>
     );
   }

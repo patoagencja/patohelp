@@ -53,6 +53,8 @@ export function TrafficSources({
 
   return (
     <ShareBars
+      kicker={en ? "Traffic sources" : "Źródła ruchu"}
+      stacked
       title={en ? "Where visitors come from" : "Skąd przychodzą goście"}
       insight={insight}
       rows={rows}

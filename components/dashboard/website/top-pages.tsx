@@ -75,79 +75,84 @@ export function TopPages({
 }) {
   const en = lang === "en";
   const Heading = headingLevel === 3 ? "h3" : "h2";
-  const max = Math.max(1, ...pages.map((p) => p.views));
+  const cols = "grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[30px_minmax(0,1fr)_7rem_8.5rem] sm:gap-x-4";
   return (
-    <Card className="flex flex-col p-5 sm:p-6">
-      <Heading className="text-section-title text-foreground">
+    <Card className="flex flex-col p-6 sm:p-[28px_30px]">
+      <p className="kick">{en ? "Pages" : "Podstrony"}</p>
+      <Heading className="mt-2 text-[22px] font-medium leading-tight tracking-[-0.03em] text-foreground">
         {en ? "Top pages" : "Najczęściej oglądane strony"}
       </Heading>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 text-sm leading-relaxed text-ink-2">
         {en
           ? "Most viewed pages and how engaging they are."
           : "Ile razy je wyświetlono i jaka część wizyt była zainteresowana."}
       </p>
-      {periodNote ? <p className="mt-1 text-xs text-muted-foreground">{periodNote}</p> : null}
+      {periodNote ? <p className="mt-1 text-[13px] text-ink-3">{periodNote}</p> : null}
       {pages.length === 0 ? (
-        <p className="mt-5 text-sm text-muted-foreground">
+        <p className="mt-5 text-sm text-ink-2">
           {en
             ? "Page data appears after the next Google Analytics sync."
             : "Lista podstron pojawi się po najbliższej synchronizacji Google Analytics."}
         </p>
-      ) : null}
+      ) : (
+        // Column heads (sm+): on phones the engaged share rides under the
+        // views instead, so the row never scrolls sideways.
+        <div aria-hidden className={cn(cols, "mt-5 hidden pb-3 sm:grid [&>span]:kick [&>span]:text-[10.5px] [&>span]:tracking-[0.1em]")}>
+          <span>#</span>
+          <span>{en ? "Page" : "Podstrona"}</span>
+          <span className="text-right">{en ? "Views" : "Wyświetlenia"}</span>
+          <span className="text-right">{en ? "Engaged" : "Zainteresowani"}</span>
+        </div>
+      )}
       <ShowMoreList
         initial={limit}
-        className="mt-5 space-y-4 empty:hidden"
+        className="mt-2 empty:hidden sm:mt-0"
         moreLabel={en ? "Show all" : "Pokaż wszystkie"}
         lessLabel={en ? "Show less" : "Pokaż mniej"}
       >
         {pages.map((p, i) => {
+          const name = en ? p.path : prettyPath(p.path);
           const context = en ? null : pathContext(p.path);
+          const engaged = formatPercent(p.engagementRate, 0);
           return (
-          <li key={p.path} className="flex items-center gap-3">
-            {/* Rank chip: the leader in lime, the rest quiet (benchmark 4). */}
+          <li key={p.path} className={cn(cols, "border-t border-line py-3.5 first:border-t-0 sm:first:border-t")}>
+            {/* Rank chip: the leader in lime, the rest quiet chips. */}
             <span
               className={cn(
-                "flex h-6 w-6 shrink-0 self-start items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                i === 0 ? "bg-lime text-lime-foreground" : "bg-muted text-muted-foreground"
+                "flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+                i === 0 ? "bg-lime text-lime-foreground shadow-lime-glow" : "bg-chip text-ink-2"
               )}
             >
+              <span className="sr-only">{en ? "Rank " : "Miejsce "}</span>
               {i + 1}
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="truncate text-sm font-medium" title={p.path}>
-                  {en ? p.path : prettyPath(p.path)}
-                </p>
-                <p className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatNumberPL(p.views)}
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    {en ? "views" : "wyśw."}
-                  </span>
-                </p>
-              </div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
-                  <div
-                    className={`${cn(
-                      "h-full rounded-full",
-                      i === 0 ? "bg-lime" : "bg-chart-muted/55"
-                    )}${i === 0 ? " bg-stripes" : ""}`}
-                    style={{ width: `${(p.views / max) * 100}%` }}
-                  />
-                </div>
-                <span
-                  className="shrink-0 text-xs tabular-nums text-muted-foreground"
-                  title={en ? "Engagement rate" : "Odsetek zainteresowanych wizyt"}
-                >
-                  {formatPercent(p.engagementRate, 0)} {en ? "engaged" : "zainteres."}
-                </span>
-              </div>
-              {context ? (
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={p.path}>
-                  {context}
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-medium" title={p.path}>
+                {name}
+              </p>
+              {/* The raw address in mono, like the board; the parent
+                  section in words when the slug is deep. */}
+              {!en ? (
+                <p className="mt-1 truncate font-mono text-xs text-ink-3" title={p.path}>
+                  {p.path}
+                  {context ? <span className="font-sans"> · {context}</span> : null}
                 </p>
               ) : null}
             </div>
+            <p className="text-right text-[15px] font-medium tabular-nums">
+              {formatNumberPL(p.views)}
+              <span className="sr-only"> {en ? "views" : "wyświetleń"}</span>
+              <span className="block text-xs font-normal text-ink-3 sm:hidden">
+                {engaged} {en ? "engaged" : "zainteres."}
+              </span>
+            </p>
+            <p
+              className="hidden text-right text-[15px] tabular-nums text-ink-2 sm:block"
+              title={en ? "Engagement rate" : "Odsetek zainteresowanych wizyt"}
+            >
+              {engaged}
+              <span className="sr-only"> {en ? "engaged" : "zainteresowanych"}</span>
+            </p>
           </li>
           );
         })}

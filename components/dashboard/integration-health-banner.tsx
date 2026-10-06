@@ -1,12 +1,13 @@
 import { cache } from "react";
 import Link from "next/link";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, type LucideIcon } from "lucide-react";
 
 import {
   getExpiringTokens,
   getUnhealthyIntegrations,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
+import { cn } from "@/lib/utils";
 
 // Per-request memo: the layout starts the health read as soon as it knows the
 // client (preloadIntegrationHealth), and the banner - which only renders after
@@ -63,7 +64,7 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
         token wygasł -{" "}
         <a
           href={`${reconnect}?client=${clientSlug}`}
-          className="font-medium underline underline-offset-2"
+          className="font-medium text-foreground underline underline-offset-2"
         >
           połącz ponownie jednym kliknięciem
         </a>
@@ -73,7 +74,7 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
             albo{" "}
             <Link
               href={`/${clientSlug}/settings#polaczenia`}
-              className="font-medium underline underline-offset-2"
+              className="font-medium text-foreground underline underline-offset-2"
             >
               {permanent}
             </Link>
@@ -88,7 +89,7 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
       sprawdź połączenie w{" "}
       <Link
         href={`/${clientSlug}/settings`}
-        className="font-medium underline underline-offset-2"
+        className="font-medium text-foreground underline underline-offset-2"
       >
         Ustawieniach
       </Link>
@@ -98,7 +99,7 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
           lub{" "}
           <a
             href={`${reconnect}?client=${clientSlug}`}
-            className="font-medium underline underline-offset-2"
+            className="font-medium text-foreground underline underline-offset-2"
           >
             połącz ponownie
           </a>
@@ -106,6 +107,60 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
       ) : null}
       .
     </>
+  );
+}
+
+/**
+ * One health note (Stany board): a soft rounded strip inside the page
+ * gutters with an icon tile, an optional bold title + "Widzi tylko
+ * agencja" chip, and the details. Presentational; exported so states can be
+ * previewed without a database.
+ */
+export function HealthNote({
+  tone,
+  icon: Icon,
+  title,
+  chip,
+  role,
+  children,
+}: {
+  tone: "warning" | "neutral";
+  icon: LucideIcon;
+  title?: React.ReactNode;
+  chip?: string;
+  role?: "status";
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      role={role}
+      className={cn(
+        "mx-4 mt-4 flex items-start gap-3.5 rounded-[22px] py-3.5 pl-3.5 pr-4 sm:mx-6 sm:pl-[18px] print:hidden",
+        tone === "warning" ? "bg-warning-soft" : "bg-chip"
+      )}
+    >
+      <span
+        className={cn(
+          "grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-card shadow-card dark:bg-chip dark:shadow-none",
+          tone === "warning" ? "text-warning" : "text-ink-2"
+        )}
+      >
+        <Icon className="h-[18px] w-[18px]" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1 space-y-1 pt-0.5 text-sm leading-relaxed text-ink-2">
+        {title || chip ? (
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            {title ? <p className="text-[15px] font-semibold text-foreground">{title}</p> : null}
+            {chip ? (
+              <span className="inline-flex h-6 items-center rounded-full bg-card px-2.5 text-xs font-semibold text-ink-2 dark:bg-chip">
+                {chip}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -137,81 +192,77 @@ export async function IntegrationHealthBanner({
   );
 
   const catchingUpNote = catchingUp.length ? (
-    // v2: soft rounded notes inside the page gutters (same column as the
-    // page), not full-bleed strips.
-    <div className="mx-4 mt-4 rounded-[22px] bg-chip px-4 py-3 text-sm text-muted-foreground sm:mx-6 sm:px-5 print:hidden">
+    <HealthNote tone="neutral" icon={RefreshCw}>
       {catchingUp.map((h) => (
-        <p key={h.provider} className="flex items-start gap-2">
-          <RefreshCw className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <span>
-            <span className="font-medium text-foreground">{h.label}</span>: połączone
-            ponownie - brakujące dane dociągniemy przy najbliższej synchronizacji
-            (zwykle do 30 min).
-          </span>
+        <p key={h.provider}>
+          <span className="font-medium text-foreground">{h.label}</span>: połączone
+          ponownie - brakujące dane dociągniemy przy najbliższej synchronizacji
+          (zwykle do 30 min).
         </p>
       ))}
-    </div>
+    </HealthNote>
   ) : null;
 
   if (!unhealthy.length) {
     if (!upcoming.length) return catchingUpNote;
     return (
       <>
-      {catchingUpNote}
-      <div className="mx-4 mt-4 rounded-[22px] bg-warning-soft px-4 py-3 text-sm text-warning sm:mx-6 sm:px-5 print:hidden">
-        {upcoming.map((e) => (
-          <p key={e.provider} className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            <span>
-              <span className="font-medium">{e.label}</span>: token wygaśnie za{" "}
+        {catchingUpNote}
+        <HealthNote
+          tone="warning"
+          icon={AlertTriangle}
+          title={upcoming.length === 1 ? "Token wkrótce wygaśnie" : "Tokeny wkrótce wygasną"}
+          chip="Widzi tylko agencja"
+        >
+          {upcoming.map((e) => (
+            <p key={e.provider}>
+              <span className="font-medium text-foreground">{e.label}</span>: token wygaśnie za{" "}
               {e.daysLeft} {e.daysLeft === 1 ? "dzień" : "dni"} -{" "}
               <Link
                 href={`/${clientSlug}/settings#polaczenia`}
-                className="font-medium underline underline-offset-2"
+                className="font-medium text-foreground underline underline-offset-2"
               >
                 wklej token, który nie wygasa
               </Link>
               , żeby dane się nie urwały.
-            </span>
-          </p>
-        ))}
-      </div>
+            </p>
+          ))}
+        </HealthNote>
       </>
     );
   }
 
   return (
     <>
-    {catchingUpNote}
-    <div role="status" className="mx-4 mt-4 rounded-[22px] bg-warning-soft px-4 py-3.5 sm:mx-6 sm:px-5 print:hidden">
-      <div className="flex items-start gap-3">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card text-warning shadow-card">
-          <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-        </span>
-        <div className="pt-0.5 text-sm">
-          <p className="font-medium text-foreground">
+      {catchingUpNote}
+      <HealthNote
+        role="status"
+        tone="warning"
+        icon={AlertTriangle}
+        title={
+          <>
             {unhealthy.length === 1
               ? "Jedno źródło danych nie działa"
               : "Kilka źródeł danych nie działa"}{" "}
             - liczby poniżej są niepełne.
-          </p>
-          <ul className="mt-1 space-y-0.5 text-warning">
-            {unhealthy.map((h) => (
-              <li key={h.provider}>
-                <span className="font-medium">{h.label}</span>: {since(h)}
-                {attempt(h) ? ` (${attempt(h)})` : ""}, {isAgency ? (
-                  advice(h, clientSlug)
-                ) : (
-                  // Clients can't reconnect integrations (agency-only routes);
-                  // tell them it's handled instead of showing dead links.
-                  <>agencja widzi ten problem w swoim panelu.</>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
+          </>
+        }
+      >
+        <ul className="space-y-0.5">
+          {unhealthy.map((h) => (
+            <li key={h.provider}>
+              <span className="font-medium text-foreground">{h.label}</span>: {since(h)}
+              {attempt(h) ? ` (${attempt(h)})` : ""}, {isAgency ? (
+                advice(h, clientSlug)
+              ) : (
+                // Clients can't reconnect integrations (agency-only routes);
+                // tell them it's handled instead of showing dead links.
+                <>agencja widzi ten problem w swoim panelu.</>
+              )}
+            </li>
+          ))}
+        </ul>
+      </HealthNote>
     </>
   );
 }

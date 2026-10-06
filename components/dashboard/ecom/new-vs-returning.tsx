@@ -4,7 +4,7 @@ import { dayLabelPl } from "@/lib/ecom/insights";
 import type { NewVsReturning as NewVsReturningData, NvrSegment } from "@/lib/ecom/new-vs-returning";
 import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
-import { pctOf, Takeaway, type TakeawayTone } from "./plain";
+import { pctOf, SECTION_PAD, SECTION_TITLE, Takeaway, type TakeawayTone } from "./plain";
 
 const SEGMENTS = [
   {
@@ -21,9 +21,9 @@ const SEGMENTS = [
   {
     key: "returning",
     name: "Stali klienci",
-    bar: "bg-olive",
+    bar: "bg-mint",
     striped: false,
-    dot: "bg-olive",
+    dot: "bg-mint",
     explain:
       "Osoby, które już wcześniej odwiedzały sklep i wróciły, żeby kupić. Część z nich kupuje po raz pierwszy, ale znała już sklep - np. z reklamy albo newslettera.",
   },
@@ -89,9 +89,10 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
   const aovLine = aovComparison(data.newBuyers, data.returning);
 
   return (
-    <Card className="p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">Nowi czy stali klienci</h2>
-      <p className="mt-1 text-xs text-muted-foreground">
+    <Card className={SECTION_PAD}>
+      <p className="kick">Klienci</p>
+      <h2 className={cn(SECTION_TITLE, "mt-2")}>Nowi czy stali klienci</h2>
+      <p className="mt-1.5 text-[13px] text-ink-3">
         Okres:{" "}
         <span className="font-medium text-foreground">
           ostatnie 30 dni do {dayLabelPl(data.windowEnd)}
@@ -106,7 +107,7 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
       {/* Revenue share, not orders: the bar answers "where does the money
           come from", the takeaway above already covers order counts. */}
       <div className="mt-5">
-        <p className="mb-2 text-sm text-muted-foreground">Udział w sprzedaży</p>
+        <p className="kick mb-2.5 text-[11px]">Udział w sprzedaży</p>
         <div
           className="flex h-4 w-full gap-1"
           role="img"
@@ -119,10 +120,10 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
             return share > 0 ? (
               <div
                 key={s.key}
-                // bg-stripes outside cn(): tailwind-merge would drop the colour.
-                className={`${cn("h-full rounded-full transition-all duration-700", s.bar)}${
-                  s.striped ? " bg-stripes" : ""
-                }`}
+                className={cn(
+                  "h-full origin-left rounded-full animate-grow",
+                  s.striped ? "share-fill" : s.bar
+                )}
                 style={{ width: `max(${share * 100}%, 0.375rem)` }}
               />
             ) : null;
@@ -134,12 +135,12 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
         {SEGMENTS.map((s) => {
           const seg = data[s.key];
           return (
-            <div key={s.key} className="min-w-0 rounded-2xl bg-muted/50 px-4 py-3.5">
+            <div key={s.key} className="min-w-0 rounded-[22px] bg-chip px-[18px] py-4">
               <p className="flex items-center gap-1.5 text-sm font-medium">
                 <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", s.dot)} aria-hidden />
                 <span className="min-w-0">{s.name}</span>
                 <InfoTip label={s.name} text={s.explain} />
-                <span className="ml-auto shrink-0 text-xl font-medium leading-none tracking-[-0.02em] tabular-nums">
+                <span className="ml-auto shrink-0 text-[28px] font-light leading-none tracking-[-0.04em] tabular-nums">
                   {pctOf(seg.revenueShare)}
                 </span>
               </p>
@@ -169,7 +170,7 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
       {aovLine ? <p className="mt-3 text-sm text-muted-foreground">{aovLine}</p> : null}
 
       {data.costPerNewOrderMinorUnits !== null ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-2xl border border-dashed border-border px-4 py-3 text-sm">
+        <div className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-[22px] border border-dashed border-line px-[18px] py-3.5 text-sm">
           <span className="text-muted-foreground">
             Szacunkowy koszt pozyskania nowego klienta:
           </span>
@@ -184,7 +185,7 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
         </div>
       ) : null}
 
-      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-4 text-xs leading-relaxed text-ink-3">
         Podział według Google Analytics: „nowy” to ktoś, kto kupił podczas
         pierwszej wizyty w sklepie, „stały” - ktoś, kto był już wcześniej.
         {data.notSetRevenueShare >= 0.05

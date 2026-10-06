@@ -4,9 +4,9 @@ import { useState } from "react";
 import {
   ArrowRight,
   BellRing,
-  CheckCircle2,
   Loader2,
   MailCheck,
+  RotateCw,
   Sparkles,
   TrendingUp,
   Trophy,
@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Sky } from "@/components/ui/sky";
 import { createClient } from "@/lib/supabase/client";
 
 // Supabase returns English errors; a client stuck on "Email rate limit
@@ -41,12 +42,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // "Wyślij ponownie" on the sent card: its own state, so the card stays put
+  // while the second link goes out.
+  const [resend, setResend] = useState<{ state: "idle" | "sending" | "done"; error: string | null }>({
+    state: "idle",
+    error: null,
+  });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStatus("sending");
-    setErrorMessage(null);
-
+  // The one magic-link request; the form and "Wyślij ponownie" both use it.
+  async function requestLink(): Promise<string | null> {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email,
@@ -54,71 +58,110 @@ export default function LoginPage() {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
+    return error ? friendlyError(error.message) : null;
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus("sending");
+    setErrorMessage(null);
+
+    const error = await requestLink();
 
     if (error) {
-      setErrorMessage(friendlyError(error.message));
+      setErrorMessage(error);
       setStatus("error");
       return;
     }
 
+    setResend({ state: "idle", error: null });
     setStatus("sent");
   }
 
-  return (
-    // One calm column on the grey page: who we are, one field, one button.
-    // The benefits stay as a quiet list underneath for first-time visitors.
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 sm:px-6">
-      <div className="w-full max-w-[25rem]">
-        <div className="mb-8 flex flex-col items-center text-center">
-          {/* Brand mark in the v2 "selected" language: the anchor tile with
-              the small lime dot of the active sidebar pill. */}
-          <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-anchor text-anchor-foreground shadow-raised">
-            <Sparkles className="h-5 w-5" aria-hidden />
-            <span aria-hidden className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-anchor-dot" />
-          </span>
-          <p className="mt-4 text-sm font-medium text-muted-foreground">Panel klienta Pato</p>
-        </div>
+  async function handleResend() {
+    setResend({ state: "sending", error: null });
+    const error = await requestLink();
+    setResend({ state: "done", error });
+  }
 
-        <section className="rounded-card border border-hairline bg-card p-6 shadow-card sm:p-8">
+  return (
+    // Logowanie board in the 2026 pastel system: the drifting sky, one
+    // frosted card with the single field (or "check your inbox"), and a
+    // quieter card with what the client gets.
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center gap-7 overflow-hidden bg-background px-4 py-12 sm:px-6">
+      <Sky />
+
+      <div className="flex w-full max-w-[59rem] flex-wrap items-stretch justify-center gap-6">
+        <section className="glass glass-blur flex min-w-0 max-w-[27.5rem] flex-[1_1_21rem] flex-col gap-7 rounded-glass p-7 animate-rise sm:p-10">
+          <div className="flex items-center gap-3">
+            {/* Brand mark in the "selected" language: the ink tile with the
+                lime dot of the active nav pill. */}
+            <span className="relative flex h-10 w-10 items-center justify-center rounded-[14px] bg-anchor text-anchor-foreground">
+              <Sparkles className="h-[18px] w-[18px]" aria-hidden />
+              <span aria-hidden className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-anchor-dot" />
+            </span>
+            <p className="text-[15px] font-semibold tracking-[-0.02em]">Panel klienta Pato</p>
+          </div>
+
           {status === "sent" ? (
-            <div role="status" className="animate-in fade-in slide-in-from-bottom-2 motion-reduce:animate-none">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-lime text-lime-foreground">
+            <div role="status" className="flex flex-col items-start gap-5 animate-rise">
+              <span className="grid h-14 w-14 place-items-center rounded-[18px] bg-lime-soft text-positive">
                 <MailCheck className="h-6 w-6" aria-hidden />
               </span>
-              <h1 className="mt-5 text-2xl font-semibold tracking-tight">Sprawdź skrzynkę</h1>
-              <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-                Wysłaliśmy link do logowania na <strong className="font-medium text-foreground">{email}</strong>.
-                Kliknij go na tym urządzeniu - otworzy panel od razu, bez hasła.
+              <div>
+                <h1 className="text-[28px] font-medium leading-tight tracking-[-0.035em]">Sprawdź skrzynkę</h1>
+                <p className="mt-2 text-[15px] leading-relaxed text-ink-2 [text-wrap:pretty]">
+                  Wysłaliśmy link do logowania na{" "}
+                  <strong className="break-all font-medium text-foreground">{email}</strong>. Kliknij go na
+                  tym urządzeniu - otworzy panel od razu, bez hasła. Link działa przez godzinę i tylko raz.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="chip"
+                  size="pill"
+                  onClick={handleResend}
+                  disabled={resend.state === "sending"}
+                >
+                  {resend.state === "sending" ? (
+                    <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
+                  ) : (
+                    <RotateCw aria-hidden />
+                  )}
+                  Wyślij ponownie
+                </Button>
+                <Button type="button" variant="ghost" size="pill" onClick={() => setStatus("idle")}>
+                  Zmień adres
+                </Button>
+              </div>
+              <p aria-live="polite" className="text-sm empty:hidden">
+                {resend.state === "done" ? (
+                  resend.error ? (
+                    <span className="text-negative">{resend.error}</span>
+                  ) : (
+                    <span className="text-positive">Wysłaliśmy nowy link - poprzedni już nie zadziała.</span>
+                  )
+                ) : null}
               </p>
-              <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-positive" aria-hidden />
-                  Nie widzisz maila? Zajrzyj do folderu Spam lub Oferty.
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-positive" aria-hidden />
-                  Link działa przez godzinę i tylko raz.
-                </li>
-              </ul>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setStatus("idle")}
-                className="mt-8 w-full"
-              >
-                Użyj innego adresu
-              </Button>
+              <p className="text-[13px] leading-relaxed text-ink-3">
+                Nie widzisz wiadomości? Zajrzyj do folderu Oferty lub Spam.
+              </p>
             </div>
           ) : (
             <>
-              <h1 className="text-center text-2xl font-semibold tracking-tight">Zaloguj się</h1>
-              <p className="mt-2 text-center text-[15px] leading-relaxed text-muted-foreground">
-                Bez hasła. Podaj swój e-mail, a wyślemy link, który od razu otworzy panel.
-              </p>
+              <div>
+                <h1 className="text-[2rem] font-medium leading-[1.1] tracking-[-0.04em]">Zaloguj się do panelu</h1>
+                <p className="mt-2 text-[15px] leading-relaxed text-ink-2">
+                  Wpisz swój e-mail - wyślemy Ci link do logowania. Bez hasła.
+                </p>
+              </div>
 
-              <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Adres e-mail</Label>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="email" className="text-sm font-medium">
+                    Adres e-mail
+                  </Label>
                   <Input
                     id="email"
                     type="email"
@@ -129,13 +172,17 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={status === "sending"}
+                    aria-invalid={status === "error" || undefined}
+                    aria-describedby={errorMessage ? "login-error" : undefined}
+                    className="h-[52px] rounded-2xl border-line bg-chip px-4 text-base hover:bg-[var(--chip-hover)] focus-visible:border-foreground/50 focus-visible:bg-card focus-visible:ring-4 focus-visible:ring-lime/45 dark:focus-visible:bg-chip aria-[invalid=true]:border-negative"
                   />
                 </div>
 
                 {errorMessage ? (
                   <p
+                    id="login-error"
                     role="alert"
-                    className="rounded-xl bg-negative-soft px-3 py-2 text-sm text-negative"
+                    className="rounded-2xl bg-negative-soft px-4 py-3 text-sm leading-relaxed text-negative"
                   >
                     {errorMessage}
                   </p>
@@ -144,12 +191,12 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="w-full"
+                  className="h-[52px] w-full text-base active:scale-[.98] motion-reduce:active:scale-100"
                   disabled={status === "sending"}
                 >
                   {status === "sending" ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                       Wysyłam link…
                     </>
                   ) : (
@@ -160,31 +207,42 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
+
+              <p className="text-[13px] leading-relaxed text-ink-3">
+                Nie masz dostępu? Napisz do swojego opiekuna w Pato - doda Cię w kilka minut.
+              </p>
             </>
           )}
         </section>
 
-        <p className="mt-6 text-center text-sm leading-relaxed text-muted-foreground">
-          Nie masz dostępu? Napisz do swojego opiekuna w Pato - dodamy Cię w kilka minut.
-        </p>
-
-        {/* What the client gets, before they even log in. Complementary, so
-            the page's only h1 stays "Zaloguj się". */}
-        <aside aria-label="Co znajdziesz w panelu" className="mt-10 border-t border-border pt-8">
-          <ul className="space-y-3">
+        {/* What the client gets, before they even log in. */}
+        <section
+          aria-labelledby="login-benefits"
+          className="glass flex min-w-0 max-w-[27.5rem] flex-[1_1_21rem] flex-col gap-6 rounded-glass p-7 animate-rise [--d:.15s] sm:p-10"
+        >
+          <div>
+            <p className="kick">Co znajdziesz w panelu</p>
+            <h2 id="login-benefits" className="mt-2 text-[22px] font-medium leading-snug tracking-[-0.03em]">
+              Twoje reklamy i strona w jednym, spokojnym widoku
+            </h2>
+          </div>
+          <ul className="flex flex-col">
             {BENEFITS.map((b) => (
-              <li key={b.text} className="flex items-start gap-3 text-sm text-muted-foreground">
-                {/* Lime is a fill in v2; the icon on it uses the deep
-                    green that reads on the pale wash. */}
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-lime-soft text-accent-foreground">
-                  <b.icon className="h-3.5 w-3.5" aria-hidden />
+              <li
+                key={b.text}
+                className="flex items-center gap-3.5 border-t border-line py-3.5 text-[15px] leading-snug text-ink-2 first:border-t-0 first:pt-0"
+              >
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-lime-soft text-positive">
+                  <b.icon className="h-[18px] w-[18px]" aria-hidden />
                 </span>
-                <span className="leading-relaxed">{b.text}</span>
+                <span>{b.text}</span>
               </li>
             ))}
           </ul>
-        </aside>
+        </section>
       </div>
+
+      <p className="text-[13px] text-ink-3">Panel raportowy · Pato Agencja</p>
     </main>
   );
 }

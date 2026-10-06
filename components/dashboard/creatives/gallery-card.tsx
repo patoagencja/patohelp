@@ -1,5 +1,3 @@
-import { Info, Minus, TrendingDown, TrendingUp } from "lucide-react";
-
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { FatigueBadge, RankingChipList } from "@/components/dashboard/creatives/insight-bits";
 import {
@@ -16,21 +14,17 @@ import {
   type Lang,
   type Verdict,
 } from "@/lib/dashboard/creatives";
+import { Ping, type PingTone } from "@/components/ui/primitives";
 import { cn, formatMoneyPLN,
   formatPlnWhole, formatPercent } from "@/lib/utils";
 
-const VERDICT_TONE: Record<Verdict, string> = {
-  better: "bg-positive-soft text-positive",
-  average: "bg-muted text-muted-foreground",
-  worse: "bg-negative-soft text-negative",
-  unknown: "bg-muted text-muted-foreground",
-};
-
-const VERDICT_ICON: Record<Verdict, typeof Info> = {
-  better: TrendingUp,
-  average: Minus,
-  worse: TrendingDown,
-  unknown: Info,
+// Verdict = a ping dot + the words (board `.st`), like campaign statuses:
+// lime better, amber/coral worse, grey average or too early to tell.
+const VERDICT_PING: Record<Verdict, PingTone> = {
+  better: "lime",
+  average: "muted",
+  worse: "coral",
+  unknown: "muted",
 };
 
 // A stat only gets colour when it alone deviates >=15% from the average -
@@ -49,18 +43,17 @@ export function VerdictChip({
   score: CreativeScore;
   lang: Lang;
 }) {
-  const Icon = VERDICT_ICON[score.verdict];
   return (
     <span
-      className={cn(
-        // A 10px radius is a full pill on one line and a soft tag when a
-        // narrow card wraps it - the label is never cut to "Nieco lepsza n…".
-        "inline-flex max-w-full items-start gap-1 rounded-[10px] px-2 py-0.5 text-[11px] font-semibold leading-4",
-        VERDICT_TONE[score.verdict]
-      )}
+      // Wraps rather than truncates: the label is never cut to "Nieco lepsza n…".
+      className="inline-flex max-w-full items-start gap-2 text-[12.5px] font-medium leading-4 text-ink-2"
       title={verdictReason(score, lang)}
     >
-      <Icon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+      <Ping
+        tone={VERDICT_PING[score.verdict]}
+        still={score.verdict !== "worse"}
+        className="mt-1 shrink-0"
+      />
       <span className="min-w-0">{verdictLabel(score, lang)}</span>
     </span>
   );
@@ -97,7 +90,8 @@ export function GalleryCard({
       ? video.hook / bench.hookRate
       : null;
 
-  const stats: Array<{ label: string; value: string; cls: string; hint?: string }> = [
+  // `top`: shown at the card's top right from sm, so the list skips it there.
+  const stats: Array<{ label: string; value: string; cls: string; hint?: string; top?: boolean }> = [
     { label: en ? "Spend" : "Wydatki", value: formatPlnWhole(c.spend), cls: "" },
     {
       label: en ? "Click rate" : "Klikalność",
@@ -108,6 +102,7 @@ export function GalleryCard({
       label: en ? "Cost per click" : "Koszt kliknięcia",
       value: cpc != null ? formatMoneyPLN(Math.round(cpc)) : "-",
       cls: tone(score.cpcRatio),
+      top: true,
     },
     ...(video?.hook != null
       ? [
@@ -139,40 +134,51 @@ export function GalleryCard({
     <button
       type="button"
       onClick={() => onSelect(c)}
-      className="surface group flex min-w-0 flex-col overflow-hidden text-left transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:hover:translate-y-0"
+      // Board "Pozostałe reklamy": plain tiles on the section's glass card -
+      // a rounded thumbnail, the name and a quiet chip panel of numbers.
+      className="group flex min-w-0 flex-col gap-3 rounded-[24px] p-1.5 text-left transition-[transform,background-color] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] hover:bg-chip focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:hover:-translate-y-1 sm:p-2"
     >
       <CreativeThumb
         src={c.thumbnailUrl}
         name={c.name}
         lang={lang}
-        className={cn("w-full rounded-none", wide ? "aspect-square sm:aspect-[4/3]" : "aspect-square")}
+        className={cn("w-full rounded-[18px]", wide ? "aspect-square sm:aspect-[16/10]" : "aspect-square")}
       >
         {fatigue ? <FatigueBadge fatigue={fatigue} lang={lang} /> : null}
       </CreativeThumb>
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-3 sm:p-4">
-        <p
-          className="line-clamp-2 min-h-[2.5rem] break-words text-sm font-medium leading-5"
-          title={c.name}
-        >
-          {c.name}
-        </p>
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-1">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <p
+            className="line-clamp-2 min-h-[2.5rem] min-w-0 break-words text-[15px] font-medium leading-5"
+            title={c.name}
+          >
+            {c.name}
+          </p>
+          {/* Board: the price per click, right-aligned, is the card's number. */}
+          <p className="hidden shrink-0 text-right sm:block">
+            <b className={cn("block text-[15px] font-semibold tabular-nums", tone(score.cpcRatio))}>
+              {cpc != null ? formatMoneyPLN(Math.round(cpc)) : "-"}
+            </b>
+            <span className="block text-[11.5px] text-ink-3">{en ? "per click" : "za kliknięcie"}</span>
+          </p>
+        </div>
         <div className="min-w-0">
           <VerdictChip score={score} lang={lang} />
           {reason ? (
-            <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+            <p className="mt-1 line-clamp-2 text-xs leading-snug text-ink-3">
               {reason}
             </p>
           ) : null}
-          <RankingChipList c={c} lang={lang} compact className="mt-1.5" />
+          <RankingChipList c={c} lang={lang} compact className="mt-2" />
         </div>
-        <dl className="mt-auto space-y-1 border-t border-border pt-2">
+        <dl className="mt-auto space-y-1 rounded-[16px] bg-chip px-3 py-2.5">
           {stats.map((s) => (
             <div
               key={s.label}
-              className="flex items-baseline justify-between gap-2"
+              className={cn("flex items-baseline justify-between gap-2", s.top && "sm:hidden")}
               title={s.hint}
             >
-              <dt className="truncate text-[11px] text-muted-foreground sm:text-xs">
+              <dt className="truncate text-[11px] text-ink-3 sm:text-xs">
                 {s.label}
               </dt>
               <dd

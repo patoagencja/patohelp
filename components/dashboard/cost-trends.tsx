@@ -18,13 +18,18 @@ type Lang = "pl" | "en";
 
 interface Series {
   name: string;
-  /** text-chart-* class; strokes, fills and dots use currentColor. Same
-   *  colour as the platform's dot in the campaign list and budget bars. */
-  color: string;
+  /** Stroke colour (CSS value). Meta is the page's lime line with a glow,
+   *  Google a calm slate ink (Reklamy board `--c-google`). */
+  stroke: string;
+  /** Background class for dots and the legend glyph (same colour). */
+  dot: string;
+  /** The hero line gets the lime glow + area wash; the other stays bare. */
+  hero: boolean;
   points: Array<{ i: number; value: number }>;
 }
 
-const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1";
+const META_STROKE = "hsl(var(--lime-line))";
+const GOOGLE_STROKE = "var(--ink-2)";
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
@@ -120,14 +125,18 @@ export function CostTrends({
   const series: Series[] = [
     {
       name: "Meta",
-      color: "text-chart-1",
+      stroke: META_STROKE,
+      dot: "bg-[hsl(var(--lime-line))]",
+      hero: true,
       points: costTrend
         .map((p, i) => ({ i, value: p.metaCpcMinorUnits }))
         .filter((p): p is { i: number; value: number } => p.value != null),
     },
     {
       name: "Google",
-      color: "text-chart-2",
+      stroke: GOOGLE_STROKE,
+      dot: "bg-ink-2",
+      hero: false,
       points: costTrend
         .map((p, i) => ({ i, value: p.googleCpcMinorUnits }))
         .filter((p): p is { i: number; value: number } => p.value != null),
@@ -137,15 +146,18 @@ export function CostTrends({
   const allValues = series.flatMap((s) => s.points.map((p) => p.value));
   const max = allValues.length ? Math.max(...allValues) : 0;
   const min = 0; // CPC axis starts at zero for honest proportions
-  const span = max - min || 1;
+  // Round tick steps (0,40 zł, not 0,397 zł): the top line sits on the
+  // first round value above the priciest day, so it never touches the edge.
+  const step = niceStep((max * 1.04) / 4);
+  const top = step * 4;
 
-  // Plot coordinates in % of the plot box (top = 0). A little headroom
-  // keeps the highest day off the top edge.
+  // Plot coordinates in % of the plot box (top = 0).
   const x = (i: number) => (n > 1 ? (i / (n - 1)) * 100 : 50);
-  const y = (v: number) => 100 - ((v - min) / (span * 1.08)) * 100;
+  const y = (v: number) => 100 - ((v - min) / top) * 100;
 
-  // 3 gridlines with PLN labels: 0, half, top.
-  const ticks = [0, 0.5, 1].map((f) => min + f * span);
+  // 5 hairlines (board): 0, quarters, top; every other one is labelled on
+  // phones so the axis never crowds.
+  const ticks = [0, 1, 2, 3, 4].map((k) => min + k * step);
 
   // ~6 x-axis date labels (every other one hides on phones).
   const labelEvery = Math.max(1, Math.ceil(n / 6));
@@ -170,53 +182,72 @@ export function CostTrends({
   const valueAt = (s: Series, i: number) => s.points.find((p) => p.i === i)?.value ?? null;
   const ddmm = (date: string) => {
     const [, month, day] = date.split("-");
-    return `${Number(day)}.${month}`;
+    return `${day}.${month}`;
   };
+  const story = series.length ? takeaway(series, lang) : "";
 
   return (
-    <section className={cn("surface p-5 sm:p-6", className)}>
-      {/* ⓘ sits beside the heading, not inside it, so the heading's
-          accessible name stays just the title. */}
-      <div className="flex items-center gap-1.5">
-        <h2 className="text-section-title text-foreground">
-          {en ? "What one click costs" : "Ile kosztuje jedno kliknięcie"}
-        </h2>
-        <InfoTip
-          label={en ? cpc.en.name : cpc.name}
-          text={en ? cpc.en.explain : cpc.explain}
-          lang={lang}
-        />
+    <section
+      aria-labelledby="cost-trends-heading"
+      className={cn("glass min-w-0 rounded-glass p-6 sm:p-[28px_30px]", className)}
+    >
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="kick">
+            {en ? "Cost per click" : "Koszt kliknięcia"}
+            {series.length > 1 ? ` · ${series.map((s) => s.name).join(" vs ")}` : ""}
+          </p>
+          {/* ⓘ sits beside the heading, not inside it, so the heading's
+              accessible name stays just the title. */}
+          <div className="mt-2 flex items-center gap-1.5">
+            <h2 id="cost-trends-heading" className="text-[22px] font-medium tracking-[-0.03em]">
+              {en ? "What one click costs" : "Ile kosztuje jedno kliknięcie"}
+            </h2>
+            <InfoTip
+              label={en ? cpc.en.name : cpc.name}
+              text={en ? cpc.en.explain : cpc.explain}
+              lang={lang}
+            />
+          </div>
+        </div>
+        {/* Legend: line glyphs (the hero line glows), and every line is also
+            named at its end, so colour is never the only cue. */}
+        {!empty ? (
+          <ul
+            className="flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-ink-2"
+            aria-label={en ? "Legend" : "Legenda"}
+          >
+            {series.map((s) => (
+              <li key={s.name} className="inline-flex items-center gap-2">
+                <i
+                  aria-hidden
+                  className={cn(
+                    "h-[3px] w-[18px] rounded-sm",
+                    s.dot,
+                    s.hero && "shadow-[0_0_8px_var(--lime-glow)]"
+                  )}
+                />
+                {s.name}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
       {empty ? (
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-ink-2">
           {series.length === 0
             ? en
               ? "No click cost data in this period - it appears once the ads get their first clicks."
               : "Brak danych o koszcie kliknięcia w tym okresie - pojawią się, gdy reklamy zbiorą pierwsze kliknięcia."
             : en
-              ? `${takeaway(series, lang)} A trend needs a few more days of data.`
-              : `${takeaway(series, lang)} Na wykres trendu potrzeba jeszcze kilku dni danych.`}
+              ? `${story} A trend needs a few more days of data.`
+              : `${story} Na wykres trendu potrzeba jeszcze kilku dni danych.`}
         </p>
       ) : (
         <>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground tabular-nums">
-            {takeaway(series, lang)}
+          <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-ink-2 tabular-nums">
+            {story}
           </p>
-          {/* Legend as small chips (like the overview chart); every line is
-              also named at its right end, so colour is never the only cue. */}
-          <ul
-            className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
-            aria-label={en ? "Legend" : "Legenda"}
-          >
-            {series.map((s) => (
-              <li key={s.name} className={LEGEND_CHIP}>
-                <svg width="14" height="8" aria-hidden className={s.color}>
-                  <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
-                {s.name}
-              </li>
-            ))}
-          </ul>
           <CostPlot
             series={series}
             n={n}
@@ -230,7 +261,7 @@ export function CostTrends({
             valueAt={valueAt}
             ddmm={ddmm}
             xLabels={xLabels}
-            ariaLabel={`${en ? "Daily cost per click" : "Dzienny koszt kliknięcia"}. ${takeaway(series, lang)}`}
+            ariaLabel={`${en ? "Daily cost per click" : "Dzienny koszt kliknięcia"}. ${story}`}
             lang={lang}
           />
         </>
@@ -239,17 +270,43 @@ export function CostTrends({
   );
 }
 
+/** 1 / 2 / 2.5 / 5 x 10^k grosze, at least 1 grosz. */
+function niceStep(raw: number): number {
+  if (!(raw > 0)) return 1;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const f = raw / mag;
+  const nice = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return Math.max(1, nice * mag);
+}
+
 const WEEKDAY: Record<Lang, string[]> = {
   pl: ["nd.", "pon.", "wt.", "śr.", "czw.", "pt.", "sob."],
   en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
 };
+
+const EASE = "cubic-bezier(.2,.8,.2,1)";
+
+/**
+ * End labels never overlap: walk them top to bottom and push each one at
+ * least `gap` (% of the plot height) below the previous one.
+ */
+function spreadLabels(tops: number[], gap: number): number[] {
+  const order = tops.map((t, k) => ({ t, k })).sort((a, b) => a.t - b.t);
+  const out = [...tops];
+  let prev = -Infinity;
+  for (const { t, k } of order) {
+    const v = Math.max(t, prev + gap);
+    out[k] = v;
+    prev = v;
+  }
+  return out;
+}
 
 function CostPlot({
   series,
   n,
   dates,
   ticks,
-  min,
   x,
   y,
   path,
@@ -309,9 +366,16 @@ function CostPlot({
   // Flip the tooltip to the left of the crosshair past the middle.
   const tipLeft = active != null ? x(active) : 0;
   const flip = tipLeft > 55;
+  const ends = series.map((s) => s.points[s.points.length - 1]);
+  const endTops = spreadLabels(
+    ends.map((p) => y(p.value)),
+    14
+  );
+  const hero = series.find((s) => s.hero);
+  const move = { transition: `left .25s ${EASE}, top .25s ${EASE}` };
 
   return (
-    <div className="relative mt-4 h-52 pb-6 pl-14 pr-1 sm:h-64 sm:pr-20">
+    <div className="relative mt-8 h-56 pb-7 pl-14 pr-1 sm:mt-10 sm:h-[17rem] sm:pr-[5.5rem]">
       <div
         ref={boxRef}
         role="img"
@@ -324,13 +388,16 @@ function CostPlot({
         onPointerLeave={(e) => {
           if (e.pointerType === "mouse") setActive(null);
         }}
-        className="relative h-full w-full touch-pan-y select-none rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-card"
+        className="relative h-full w-full cursor-crosshair touch-pan-y select-none rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
       >
-        {ticks.map((t) => (
+        {ticks.map((t, k) => (
           <span
             key={t}
             aria-hidden
-            className="absolute -left-14 w-12 -translate-y-1/2 text-right text-[11px] tabular-nums text-muted-foreground"
+            className={cn(
+              "absolute -left-14 w-12 -translate-y-1/2 text-right font-mono text-[11px] tabular-nums text-ink-3",
+              k % 2 === 1 && "hidden sm:block"
+            )}
             style={{ top: `${y(t)}%` }}
           >
             {formatMoneyPLN(Math.round(t))}
@@ -343,25 +410,11 @@ function CostPlot({
           className="absolute inset-0 h-full w-full overflow-visible"
         >
           <defs>
-            {series.map((s, k) => (
-              // currentColor resolves where the gradient is defined: the
-              // first (green) series takes the vivid lime wash like the
-              // overview chart; the second only a whisper of its own colour
-              // so two areas never muddy each other.
-              <linearGradient
-                key={s.name}
-                id={`${uid}-g${k}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-                className={k === 0 ? "text-lime" : s.color}
-              >
-                <stop offset="0%" stopColor="currentColor" stopOpacity={k === 0 ? 0.38 : 0.12} />
-                <stop offset="75%" stopColor="currentColor" stopOpacity={k === 0 ? 0.06 : 0.02} />
-                <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
-              </linearGradient>
-            ))}
+            <linearGradient id={`${uid}-g`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="var(--lime-hex)" stopOpacity={0.32} />
+              <stop offset="0.6" stopColor="var(--lime-hex)" stopOpacity={0.06} />
+              <stop offset="1" stopColor="var(--lime-hex)" stopOpacity={0} />
+            </linearGradient>
           </defs>
           {ticks.map((t) => (
             <line
@@ -370,76 +423,94 @@ function CostPlot({
               x2={100}
               y1={y(t)}
               y2={y(t)}
-              className="stroke-border"
+              stroke="var(--line)"
               strokeWidth="1"
-              strokeDasharray={t === min ? undefined : "2 5"}
               vectorEffect="non-scaling-stroke"
             />
           ))}
-          {/* Areas behind every line; the second series' area first. */}
-          {[...series].reverse().map((s) => (
+          {/* Only the hero line (Meta) gets the lime wash: two washes
+              would muddy each other. */}
+          {hero ? (
             <path
-              key={`a-${s.name}`}
-              d={area(s)}
-              fill={`url(#${uid}-g${series.indexOf(s)})`}
+              d={area(hero)}
+              fill={`url(#${uid}-g)`}
+              className="animate-fade"
+              style={{ "--d": ".5s" } as React.CSSProperties}
             />
-          ))}
-          {series.map((s) => (
+          ) : null}
+          {[...series].reverse().map((s) => (
             <path
               key={s.name}
               d={path(s)}
               fill="none"
-              stroke="currentColor"
-              className={s.color}
-              strokeWidth={2.25}
+              stroke={s.stroke}
+              strokeWidth={s.hero ? 2.6 : 2.2}
               strokeLinejoin="round"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
+              className="animate-fade"
+              style={
+                {
+                  "--d": s.hero ? ".3s" : ".5s",
+                  filter: s.hero ? "drop-shadow(0 4px 10px var(--lime-glow))" : undefined,
+                } as React.CSSProperties
+              }
             />
           ))}
-          {active != null ? (
-            <line
-              x1={x(active)}
-              x2={x(active)}
-              y1={0}
-              y2={100}
-              className="stroke-foreground"
-              strokeOpacity={0.25}
-              strokeDasharray="2 3"
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
         </svg>
 
-        {/* Direct labels at each line's end. Desktop: in the right gutter;
-            phones have no room for a gutter, so they sit just above the
-            line's last point inside the plot. */}
-        {series.map((s) => {
-          const last = s.points[s.points.length - 1];
+        {/* End dots + direct labels. Desktop: name and last price in the
+            right gutter; phones have no gutter, so just the name sits above
+            the line's last point inside the plot. */}
+        {series.map((s, k) => {
+          const end = ends[k];
           return (
             <span
-              key={`end-${s.name}`}
+              key={`dot-end-${s.name}`}
               aria-hidden
-              className="absolute right-0 flex -translate-y-[calc(100%+5px)] items-center gap-1 whitespace-nowrap rounded-full bg-card/85 px-1 text-[11px] font-medium leading-none text-foreground sm:left-full sm:right-auto sm:ml-2 sm:-translate-y-1/2 sm:bg-transparent sm:px-0"
-              style={{ top: `${y(last.value)}%` }}
-            >
-              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full bg-current", s.color)} />
-              {s.name}
-            </span>
+              className={cn(
+                "pointer-events-none absolute -ml-[5px] -mt-[5px] h-2.5 w-2.5 rounded-full",
+                s.dot,
+                s.hero && "shadow-[0_0_0_4px_var(--lime-glow)]"
+              )}
+              style={{ left: `${x(end.i)}%`, top: `${y(end.value)}%` }}
+            />
           );
         })}
+        {series.map((s, k) => (
+          <span
+            key={`end-${s.name}`}
+            aria-hidden
+            className="absolute right-0 -translate-y-[calc(100%+8px)] whitespace-nowrap rounded-full bg-chip px-1.5 text-[11px] font-medium leading-4 text-foreground sm:left-full sm:right-auto sm:ml-3.5 sm:-translate-y-1/2 sm:bg-transparent sm:px-0 sm:text-[12.5px] sm:font-semibold sm:leading-tight"
+            style={{ top: `${endTops[k]}%` }}
+          >
+            {s.name}
+            <span className="hidden font-normal tabular-nums text-ink-3 sm:block">
+              {formatMoneyPLN(Math.round(ends[k].value))}
+            </span>
+          </span>
+        ))}
 
-        {/* Hover dots (HTML, so they stay round in the stretched plot). */}
+        {/* Crosshair + hover dots (HTML, so they stay round in the
+            stretched plot). */}
+        {active != null ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 w-px bg-[linear-gradient(180deg,transparent,var(--ink-3)_30%,var(--ink-3)_70%,transparent)] motion-reduce:!transition-none"
+            style={{ left: `${x(active)}%`, ...move }}
+          />
+        ) : null}
         {rows.map(({ s, v }) =>
           v != null && active != null ? (
             <span
               key={`dot-${s.name}`}
               aria-hidden
               className={cn(
-                "pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ring-[3px] ring-card",
-                s.color
+                "pointer-events-none absolute -ml-[7px] -mt-[7px] h-3.5 w-3.5 rounded-full border-2 border-[var(--g1)] motion-reduce:!transition-none",
+                s.dot,
+                s.hero && "shadow-[0_0_0_5px_var(--lime-glow)]"
               )}
-              style={{ left: `${x(active)}%`, top: `${y(v)}%` }}
+              style={{ left: `${x(active)}%`, top: `${y(v)}%`, ...move }}
             />
           ) : null
         )}
@@ -449,7 +520,7 @@ function CostPlot({
             key={date}
             aria-hidden
             className={cn(
-              "absolute top-full mt-1.5 -translate-x-1/2 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground",
+              "absolute top-full mt-2.5 -translate-x-1/2 whitespace-nowrap font-mono text-[11px] tabular-nums text-ink-3",
               k % 2 === 1 && "hidden sm:block",
               i === 0 && "translate-x-0"
             )}
@@ -460,38 +531,29 @@ function CostPlot({
         ))}
 
         {active != null ? (
-          // Dark rounded tooltip card, same as the overview chart.
+          // Glass tooltip, same as the overview chart.
           <div
             aria-hidden
             className={cn(
-              "pointer-events-none absolute top-0 z-10 w-40 rounded-2xl bg-tooltip p-3 text-xs text-tooltip-foreground shadow-raised",
-              flip ? "-translate-x-[calc(100%+0.75rem)]" : "translate-x-3"
+              "glass-tip pointer-events-none absolute top-0 z-10 flex w-44 flex-col gap-1.5 rounded-[18px] px-3.5 py-3 text-[12.5px] motion-reduce:!transition-none",
+              flip ? "-translate-x-[calc(100%+0.875rem)]" : "translate-x-3.5"
             )}
-            style={{ left: `${tipLeft}%` }}
+            style={{ left: `${tipLeft}%`, ...move }}
           >
-            <p className="font-medium tabular-nums text-tooltip-foreground/70">
-              {weekday(dates[active])} {ddmm(dates[active])}
-            </p>
-            <div className="mt-1.5 space-y-1 tabular-nums">
-              {rows.map(({ s, v }) => (
-                <div key={s.name} className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
-                    {/* Lime stands in for the deep chart-1 green, which is
-                        too dark to see on the dark card. */}
-                    <span
-                      className={cn(
-                        "h-2 w-2 rounded-full",
-                        s.color === "text-chart-1" ? "bg-lime" : "border border-current"
-                      )}
-                    />
-                    {s.name}
-                  </span>
-                  <span className="text-sm font-semibold">
-                    {v != null ? formatMoneyPLN(Math.round(v)) : "-"}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <span className="whitespace-nowrap font-mono text-[11px] tracking-[0.08em] text-ink-3">
+              {weekday(dates[active]).toUpperCase()} {ddmm(dates[active])}
+            </span>
+            {rows.map(({ s, v }) => (
+              <span key={s.name} className="flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-1.5 text-ink-2">
+                  <i className={cn("h-[3px] w-3 rounded-sm", s.dot)} />
+                  {s.name}
+                </span>
+                <b className="text-[15px] font-medium tracking-[-0.02em] tabular-nums">
+                  {v != null ? formatMoneyPLN(Math.round(v)) : "-"}
+                </b>
+              </span>
+            ))}
           </div>
         ) : null}
       </div>

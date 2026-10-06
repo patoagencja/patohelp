@@ -1,8 +1,10 @@
 // Presentational primitives for the client report "deck" - a premium 16:9 slide
-// layout for the monthly PDF. v2 skin: slides are theme surfaces (white card /
-// lifted charcoal in dark), cover and dividers use the near-black anchor, and
-// charts use the earthy --chart-* palette. The printed PDF is always the light
-// palette: globals.css re-points every token under @media print.
+// layout for the monthly PDF. 2026 pastel skin: content slides are glass
+// cards with mono kickers and light-weight numbers; the cover and dividers
+// are a small dark "stage" (the presentation look: dark canvas, pastel
+// glows, grain) in both themes - they carry `.dark`, so the tokens inside
+// re-point locally. The printed PDF is always the light palette:
+// globals.css re-points every token (also under .dark) in @media print.
 import { cn } from "@/lib/utils";
 
 // CSS colour strings (not classes) because the charts below paint SVG strokes
@@ -16,8 +18,8 @@ export const DECK_COLORS = [
   "hsl(var(--chart-6))",
 ];
 
-const GRID = "hsl(var(--border))";
-const TRACK = "hsl(var(--muted))";
+const GRID = "var(--line)";
+const TRACK = "var(--chip)";
 const AXIS = "hsl(var(--muted-foreground))";
 
 /** One 16:9 slide. On screen a card; in print a full landscape page. */
@@ -33,10 +35,10 @@ export function Slide({
   return (
     <div
       className={cn(
-        "deck-slide relative mx-auto flex aspect-[16/9] w-full max-w-5xl flex-col overflow-hidden rounded-card shadow-raised",
+        "deck-slide relative mx-auto flex aspect-[16/9] w-full max-w-5xl flex-col overflow-hidden rounded-glass",
         dark
-          ? "bg-anchor text-anchor-foreground"
-          : "border border-hairline bg-card text-card-foreground",
+          ? "dark bg-background text-foreground shadow-raised"
+          : "glass text-card-foreground",
         className
       )}
     >
@@ -45,7 +47,24 @@ export function Slide({
   );
 }
 
-/** Branded cover slide (dark gradient, big title, period, client logo/monogram). */
+/** The dark stage behind the cover and dividers: pastel glows + grain. */
+function Stage({ variant = "cover" }: { variant?: "cover" | "divider" }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 print:hidden">
+      <span
+        className={cn(
+          "absolute rounded-full bg-lime/30 blur-[90px]",
+          variant === "cover" ? "-left-[12%] -top-[40%] h-[90%] w-[60%]" : "-bottom-[45%] -left-[10%] h-[90%] w-[55%]"
+        )}
+      />
+      <span className="absolute -right-[12%] -top-[30%] h-[80%] w-[45%] rounded-full bg-coral/20 blur-[90px]" />
+      <span className="absolute -bottom-[50%] left-[38%] h-[85%] w-[50%] rounded-full bg-violet/25 blur-[90px]" />
+      <span className="absolute inset-0 bg-[radial-gradient(var(--dots)_1px,transparent_1.3px)] bg-[length:26px_26px] [mask-image:radial-gradient(80%_80%_at_50%_40%,black,transparent)]" />
+    </div>
+  );
+}
+
+/** Branded cover slide (dark stage, giant light title, period, client logo/monogram). */
 export function CoverSlide({
   title,
   eyebrow,
@@ -61,44 +80,34 @@ export function CoverSlide({
 }) {
   return (
     <Slide dark className="justify-between p-12">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(120% 120% at 100% 0%, hsl(var(--lime) / 0.38) 0%, transparent 55%), radial-gradient(80% 90% at 70% 0%, hsl(var(--olive) / 0.22) 0%, transparent 60%)",
-        }}
-      />
+      <Stage />
       <div className="relative flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-anchor-foreground/75">
-          <span className="inline-block h-2 w-2 rounded-full bg-anchor-dot" />
+        <div className="kick flex items-center gap-2.5 !text-[13px] !text-ink-2">
+          <span className="ping ping-lime ping-still" aria-hidden />
           patoagencja
         </div>
         {logo ? (
-          <span className="flex h-10 items-center text-anchor-foreground">{logo}</span>
+          <span className="flex h-10 items-center text-foreground">{logo}</span>
         ) : monogram ? (
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-anchor-foreground/15 bg-anchor-foreground/10 text-sm font-bold tracking-wide text-anchor-foreground">
+          <span className="glass flex h-12 w-12 items-center justify-center !rounded-2xl font-mono text-sm font-medium tracking-[0.08em] text-foreground">
             {monogram}
           </span>
         ) : null}
       </div>
       <div className="relative">
-        {eyebrow ? (
-          <p className="mb-2 text-sm font-medium uppercase tracking-wider text-anchor-foreground/75">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h1 className="text-6xl font-bold leading-none tracking-tight">{title}</h1>
-        <div className="mt-6 h-1.5 w-24 rounded-full bg-anchor-dot" />
-        <p className="mt-4 text-lg text-anchor-foreground/80">{period}</p>
+        {eyebrow ? <p className="kick mb-4 !text-[13px]">{eyebrow}</p> : null}
+        <h1 className="num-grad text-[88px] font-light leading-[0.92] tracking-[-0.055em]">{title}</h1>
+        <p className="mt-6 inline-flex items-center gap-3 font-mono text-[15px] tracking-[0.04em] text-ink-2">
+          <span aria-hidden className="h-[3px] w-12 rounded-full bg-lime shadow-lime-glow" />
+          {period}
+        </p>
       </div>
-      <div className="relative text-sm text-anchor-foreground/65">
-        Raport wyników kampanii online
-      </div>
+      <div className="relative text-sm text-ink-3">Raport wyników kampanii online</div>
     </Slide>
   );
 }
 
-/** Centered section-divider slide (dark, accent line). */
+/** Centered section-divider slide (dark stage, light title). */
 export function DividerSlide({
   title,
   subtitle,
@@ -108,17 +117,16 @@ export function DividerSlide({
 }) {
   return (
     <Slide dark className="items-center justify-center p-12 text-center">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(100% 100% at 0% 100%, hsl(var(--lime) / 0.28) 0%, transparent 55%)",
-        }}
-      />
+      <Stage variant="divider" />
       <div className="relative">
-        <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-anchor-dot" />
-        <h2 className="text-5xl font-bold tracking-tight">{title}</h2>
-        {subtitle ? <p className="mt-3 text-lg text-anchor-foreground/80">{subtitle}</p> : null}
+        <p className="kick mb-5 inline-flex items-center gap-2.5 !text-[13px]">
+          <span className="ping ping-lime ping-still" aria-hidden />
+          Sekcja
+        </p>
+        <h2 className="num-grad text-[64px] font-light leading-none tracking-[-0.05em]">{title}</h2>
+        {subtitle ? (
+          <p className="mt-5 font-mono text-[15px] tracking-[0.04em] text-ink-2">{subtitle}</p>
+        ) : null}
       </div>
     </Slide>
   );
@@ -142,17 +150,17 @@ export function ContentSlide({
     <Slide className="p-10">
       <div className="mb-5 shrink-0">
         {section ? (
-          <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            <span className="inline-block h-2 w-2 rounded-full bg-lime" />
+          <p className="kick mb-2 flex items-center gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-lime" aria-hidden />
             {section}
           </p>
         ) : null}
-        <h3 className="text-3xl font-bold tracking-tight">{title}</h3>
-        {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
+        <h3 className="text-[30px] font-medium leading-tight tracking-[-0.035em]">{title}</h3>
+        {subtitle ? <p className="mt-1 text-sm text-ink-3">{subtitle}</p> : null}
       </div>
       <div className="min-h-0 flex-1">{children}</div>
       {foot ? (
-        <div className="mt-4 flex shrink-0 items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
+        <div className="mt-4 flex shrink-0 items-center justify-between border-t border-line pt-3 font-mono text-[11px] tracking-[0.04em] text-ink-3">
           <span>{foot}</span>
           <span className="slide-pageno" />
         </div>
@@ -168,10 +176,10 @@ function DeltaPill({ text, tone }: { text: string; tone: "up" | "down" | "flat" 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
         tone === "up" && "bg-positive-soft text-positive",
         tone === "down" && "bg-negative-soft text-negative",
-        tone === "flat" && "bg-muted text-muted-foreground"
+        tone === "flat" && "bg-chip text-ink-2"
       )}
     >
       <span aria-hidden>{arrow}</span> {text}
@@ -195,15 +203,15 @@ export function Stat({
   accent?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col rounded-2xl bg-muted/60 p-5">
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex min-w-0 flex-col rounded-[22px] bg-chip p-5">
+      <p className="kick flex items-center gap-2 !text-[11px]">
         <span
           className="inline-block h-2 w-2 shrink-0 rounded-full"
           style={{ background: accent }}
         />
         <span className="truncate">{label}</span>
       </p>
-      <p className="mt-2 text-[32px] font-medium leading-none tabular-nums tracking-[-0.03em]">
+      <p className="mt-3 text-[36px] font-light leading-none tabular-nums tracking-[-0.045em]">
         {value}
       </p>
       {sub ? (
@@ -229,18 +237,18 @@ export function BarList({
         return (
           <div key={it.label} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-muted-foreground">
+              <span className="flex min-w-0 items-center gap-2 text-ink-2">
                 <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ background: color }}
                 />
                 <span className="truncate" title={it.label}>
                   {it.label}
                 </span>
               </span>
-              <span className="font-semibold tabular-nums">{it.display}</span>
+              <span className="font-medium tabular-nums">{it.display}</span>
             </div>
-            <span className="block h-3 w-full overflow-hidden rounded-full bg-muted">
+            <span className="block h-2.5 w-full overflow-hidden rounded-full bg-chip">
               <span
                 className="block h-full rounded-full"
                 style={{
@@ -301,12 +309,12 @@ export function Donut({
         {/* Centre label as HTML so it never overflows the ring hole. */}
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           {centerValue ? (
-            <span className="text-lg font-semibold leading-tight tracking-tight text-foreground">
+            <span className="text-xl font-light leading-tight tracking-[-0.03em] text-foreground">
               {centerValue}
             </span>
           ) : null}
           {centerLabel ? (
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-ink-3">
               {centerLabel}
             </span>
           ) : null}
@@ -315,14 +323,14 @@ export function Donut({
       <div className="min-w-0 flex-1 space-y-3">
         {items.map((it, idx) => (
           <div key={it.label} className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-muted-foreground">
+            <span className="flex items-center gap-2 text-ink-2">
               <span
                 className="inline-block h-3 w-3 rounded-full"
                 style={{ background: it.color ?? DECK_COLORS[idx % DECK_COLORS.length] }}
               />
               {it.label}
             </span>
-            <span className="font-semibold tabular-nums">{it.display}</span>
+            <span className="font-medium tabular-nums">{it.display}</span>
           </div>
         ))}
       </div>
@@ -346,9 +354,9 @@ export function CreativesGrid({
       {items.map((c, i) => (
         <div
           key={i}
-          className="flex flex-col overflow-hidden rounded-2xl bg-muted/60"
+          className="flex flex-col overflow-hidden rounded-[22px] bg-chip"
         >
-          <div className="aspect-square w-full bg-muted">
+          <div className="aspect-square w-full bg-chip">
             {c.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -357,7 +365,7 @@ export function CreativesGrid({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+              <div className="flex h-full items-center justify-center text-xs text-ink-3">
                 brak podglądu
               </div>
             )}
@@ -366,7 +374,7 @@ export function CreativesGrid({
             <span className="truncate text-xs font-medium" title={c.name}>
               {c.name}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-ink-3">
               {c.spendDisplay} · CTR {c.ctrDisplay}
             </span>
           </div>

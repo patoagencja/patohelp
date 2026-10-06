@@ -68,7 +68,7 @@ export function CreativeThumb({
   return (
     <div
       className={cn(
-        "relative shrink-0 overflow-hidden rounded-xl bg-muted",
+        "relative shrink-0 overflow-hidden rounded-[18px] bg-chip",
         className
       )}
     >
@@ -92,8 +92,8 @@ export function CreativeThumb({
         // No image (expired Meta URL, or none synced yet): a calm tinted
         // tile per format with a faint dot pattern, so a missing thumbnail
         // reads as a deliberate "Wideo / Grafika" card, not a broken image.
-        // Icon and label sit on bg-card chips, which keeps them legible
-        // inside the anchor (podium #1) surface too.
+        // Icon and label sit on glass chips (board `.play`), which keeps
+        // them legible inside the anchor (podium #1) surface too.
         <div
           // Plain string, not cn(): tailwind-merge would drop the tint as a
           // "conflict" with bg-dots.
@@ -105,10 +105,11 @@ export function CreativeThumb({
             <Icon className="h-4 w-4 text-foreground/70" aria-hidden />
           ) : (
             <>
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-card text-foreground shadow-card">
-                <Icon className="h-5 w-5" aria-hidden />
+              <span className="glass-tip flex h-11 w-11 items-center justify-center rounded-full">
+                <Icon className="h-[18px] w-[18px]" aria-hidden />
               </span>
-              <span className="rounded-full bg-card px-2.5 py-0.5 text-[11px] font-medium text-foreground shadow-card">
+              {/* thumb-label: callers with a small thumb can hide it. */}
+              <span className="thumb-label glass-tip rounded-full px-2.5 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.08em]">
                 {FORMAT_LABEL[lang][format]} · Meta
               </span>
             </>

@@ -38,6 +38,7 @@ export default function DemoFullWitryna({
   return (
     <>
       <PageHeader
+        eyebrow={<span className="kick">{en ? "Website" : "Strona www"} · {d.rangeLabel}</span>}
         title={en ? "Website" : "Strona internetowa"}
         description={
           en
@@ -54,10 +55,9 @@ export default function DemoFullWitryna({
         lang={lang}
       />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
-        <TrafficSources sources={w.sources} lang={lang} />
-        <TopPages pages={w.topPages} lang={lang} />
-      </div>
+      {/* Full-width, one after the other (Strona-www board). */}
+      <TrafficSources sources={w.sources} lang={lang} />
+      <TopPages pages={w.topPages} lang={lang} />
 
       <DetailsDisclosure
         storageKey="pato:details:witryna"

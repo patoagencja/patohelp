@@ -42,7 +42,8 @@ export function Devices({
 
   return (
     <ShareBars
-      title={en ? "Devices" : "Na czym oglądają"}
+      kicker={en ? "Devices" : "Urządzenia"}
+      title={en ? "What they browse on" : "Na czym oglądają"}
       headingLevel={headingLevel}
       periodNote={periodNote}
       insight={insight}

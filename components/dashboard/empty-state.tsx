@@ -4,11 +4,11 @@ import { Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Calm "nothing here yet" panel (v2): an icon in a soft round chip, one plain
- * title, one sentence of why/when, optionally an action. Used before the
- * first sync, when an integration isn't connected yet, and for empty
- * filters. `inset` = sits inside a card (muted panel); otherwise it is its
- * own top-level surface.
+ * Calm "nothing here yet" panel (Stany board, 2026 pastel): an icon in a
+ * soft rounded tile, one plain title, one sentence of why/when, optionally
+ * an action. Used before the first sync, when an integration isn't
+ * connected yet, and for empty filters/periods. `inset` = sits inside a
+ * card (chip panel); otherwise it is its own glass card.
  */
 export function EmptyState({
   title,
@@ -29,27 +29,25 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center px-6 py-10 text-center sm:py-12",
-        inset ? "rounded-2xl bg-muted/60" : "surface",
+        "flex flex-col items-center justify-center gap-3 px-6 text-center",
+        inset ? "rounded-[22px] bg-chip py-9 sm:py-10" : "glass rounded-card py-11 sm:px-7 sm:py-12",
         className
       )}
     >
       <span
         aria-hidden
         className={cn(
-          "mb-4 flex h-12 w-12 items-center justify-center rounded-full text-muted-foreground",
-          inset ? "bg-card shadow-card" : "bg-muted"
+          "mb-1 grid h-[52px] w-[52px] place-items-center rounded-[16px] text-ink-2",
+          inset ? "bg-card/80 shadow-card dark:bg-chip" : "bg-chip"
         )}
       >
-        <Icon className="h-5 w-5" />
+        <Icon className="h-[22px] w-[22px]" strokeWidth={1.9} />
       </span>
-      <p className="text-base font-semibold text-foreground">{title}</p>
+      <p className="text-lg font-medium tracking-[-0.02em] text-foreground">{title}</p>
       {description ? (
-        <p className="mt-1.5 max-w-sm text-balance text-sm leading-relaxed text-muted-foreground">
-          {description}
-        </p>
+        <p className="max-w-[24rem] text-balance text-sm leading-relaxed text-ink-3">{description}</p>
       ) : null}
-      {action ? <div className="mt-5">{action}</div> : null}
+      {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );
 }

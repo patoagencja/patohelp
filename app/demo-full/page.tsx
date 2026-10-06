@@ -20,6 +20,7 @@ import {
   StatusPill,
 } from "@/components/dashboard/overview-summary";
 import { buildPlanRows, PlanCard } from "@/components/dashboard/plan-card";
+import { PresentStory } from "@/components/dashboard/present-story";
 import { PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsCard } from "@/components/dashboard/records-card";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
@@ -32,6 +33,7 @@ import { buildQuickAnswers } from "@/lib/dashboard/quick-answers";
 import type { GlossaryKey } from "@/lib/dashboard/glossary";
 import { buildStory, overviewStatus } from "@/lib/dashboard/story";
 import { demoEngagementYoY } from "@/lib/dashboard/yoy";
+import { demoAgencyWork } from "@/lib/demo/agency-work";
 import { DEMO_BRANDING } from "@/lib/demo/branding";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { getDemoRecords } from "@/lib/demo/records";
@@ -77,6 +79,9 @@ export default function DemoFullOverview({
       <PrintHeader clientName={CLIENT} periodLabel={d.rangeLabel} logoUrl={DEMO_BRANDING.logoUrl} />
       {/* The top bar names the page; the heading stays for screen readers. */}
       <h1 className="sr-only">Przegląd - {CLIENT}</h1>
+
+      {/* "Prezentuj" opens on these story slides (hidden otherwise). */}
+      <PresentStory kpis={d.kpis} story={story} planRows={planRows} work={demoAgencyWork(today).work.entries} />
 
       <OverviewSummary
         story={story}

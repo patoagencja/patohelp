@@ -20,6 +20,7 @@ import {
   StatusPill,
 } from "@/components/dashboard/overview-summary";
 import { buildPlanRows, PlanCard } from "@/components/dashboard/plan-card";
+import { PresentStory } from "@/components/dashboard/present-story";
 import { PrintHeader } from "@/components/dashboard/print-button";
 import {
   preloadRecords,
@@ -197,6 +198,9 @@ export default async function OverviewPage({
       />
       {/* The top bar names the page; the heading stays for screen readers. */}
       <h1 className="sr-only">Przegląd - {client.name}</h1>
+
+      {/* "Prezentuj" opens on these story slides (hidden otherwise). */}
+      <PresentStory kpis={data.kpis} story={story} planRows={planRows} work={agencyWork?.entries} />
 
       <SectionBoundary name="overview/summary">
         <OverviewSummary

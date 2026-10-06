@@ -39,6 +39,7 @@ export default function DemoSprzedazPage({
   return (
     <div className="min-w-0 space-y-8">
       <PageHeader
+        eyebrow={<span className="kick">Sklep · {d.rangeLabel}</span>}
         title="Sprzedaż"
         description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
         actions={

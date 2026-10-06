@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils";
 
 export interface SectionTab {
@@ -31,7 +31,9 @@ export function SectionTabs({
 }) {
   return (
     <nav aria-label={label} className={cn("flex", className)} data-print-hide>
-      <ul className={segmentedTrack}>
+      {/* Sliding ink pill (2026): the indicator glides between the tabs;
+          SSR still paints the current tab itself. */}
+      <SegmentedTrack as="ul" className={segmentedTrack}>
         {tabs.map((t) => (
           <li key={t.href} className="flex">
             <Link
@@ -39,14 +41,14 @@ export function SectionTabs({
               aria-current={t.active ? "page" : undefined}
               className={segmentedItem(
                 Boolean(t.active),
-                cn("px-4 py-2 text-[15px]", t.active && "font-semibold")
+                cn("min-h-11 px-[18px] text-[15px]", t.active && "font-semibold")
               )}
             >
               {t.label}
             </Link>
           </li>
         ))}
-      </ul>
+      </SegmentedTrack>
     </nav>
   );
 }

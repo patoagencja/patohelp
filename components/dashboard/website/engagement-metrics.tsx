@@ -1,6 +1,6 @@
-import { MetricLabel } from "@/components/dashboard/info-tip";
-import { MetricTile } from "@/components/dashboard/metric-tile";
-import { Pill, type PillProps } from "@/components/ui/pill";
+import { StatTile } from "@/components/dashboard/stat-tile";
+import type { PillProps } from "@/components/ui/pill";
+import { Ping } from "@/components/ui/primitives";
 import { formatNumberPL, formatPercent } from "@/lib/utils";
 
 // GA4's "engagement rate" means nothing to a marketing manager; the tile says
@@ -56,76 +56,76 @@ export function WebsiteKpis({
   const verdict = noVisits ? null : engagedVerdict(engagement.engagementRate, en);
   const dash = (v: string) => (noVisits ? "-" : v);
 
+  const peak = !noVisits && sessionsSeries?.length ? Math.max(...sessionsSeries) : null;
+  // Phones: a swipeable row like the overview's tiles; a grid from sm.
+  const tile = "w-[15rem] shrink-0 snap-start sm:w-auto";
+
   return (
     <section
       aria-label={en ? "Website at a glance" : "Strona w liczbach"}
-      className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3"
+      className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:snap-none sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0"
     >
-      <MetricTile
-        label={
-          <MetricLabel
-            name={en ? "Visits" : "Wizyty"}
-            explain={
-              en
-                ? "How many times people opened the website, counted per visit (one person can visit several times)."
-                : "Ile razy ktoś wszedł na stronę. Jedna osoba może odwiedzić ją kilka razy - liczymy każdą wizytę."
-            }
-            lang={lang}
-          />
+      <StatTile
+        className={tile}
+        index={0}
+        highlight={!noVisits}
+        lang={lang}
+        label={en ? "Visits" : "Wizyty"}
+        explain={
+          en
+            ? "How many times people opened the website, counted per visit (one person can visit several times)."
+            : "Ile razy ktoś wszedł na stronę. Jedna osoba może odwiedzić ją kilka razy - liczymy każdą wizytę."
         }
         value={dash(formatNumberPL(totalSessions))}
-        // The period sits beside the sparkline, like the overview's deltas.
-        delta={
-          <p className="text-[13px] leading-snug text-muted-foreground">
-            {noVisits ? pending : periodLabel}
-          </p>
-        }
-        sparkline={noVisits ? undefined : sessionsSeries}
+        spark={noVisits ? undefined : sessionsSeries}
+        sub={noVisits ? pending : periodLabel}
       />
-      <MetricTile
-        label={
-          <MetricLabel
-            name={en ? "Engaged visits" : "Zainteresowani"}
-            explain={
-              en
-                ? "Visits that lasted 10s+, viewed 2+ pages or included an action."
-                : "Wizyty, w których ktoś był dłużej niż 10 s, obejrzał 2+ podstrony albo coś kliknął."
-            }
-            lang={lang}
-          />
+      <StatTile
+        className={tile}
+        index={1}
+        lang={lang}
+        label={en ? "Engaged visits" : "Zainteresowani"}
+        explain={
+          en
+            ? "Visits that lasted 10s+, viewed 2+ pages or included an action."
+            : "Wizyty, w których ktoś był dłużej niż 10 s, obejrzał 2+ podstrony albo coś kliknął."
         }
         value={dash(formatPercent(engagement.engagementRate, 0))}
-      >
-        {verdict ? (
-          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground">
-            <Pill tone={verdict.tone}>{verdict.pill}</Pill>
-            <span>{verdict.text}</span>
-          </p>
-        ) : (
-          <p className="text-muted-foreground">{pending}</p>
-        )}
-      </MetricTile>
-      <MetricTile
-        // Third tile spans both columns on phones so the row doesn't end
-        // with a lonely half-width card.
-        className="col-span-2 lg:col-span-1"
-        label={
-          <MetricLabel
-            name={en ? "Visits per day" : "Wizyt dziennie"}
-            explain={
-              en
-                ? "Average number of visits per day in the period."
-                : "Średnia liczba wizyt na dzień w tym okresie."
-            }
-            lang={lang}
-          />
+        meter={noVisits ? null : engagement.engagementRate / 100}
+        sub={
+          verdict ? (
+            <span className="flex items-start gap-2">
+              <Ping tone={verdict.tone === "warning" ? "amber" : "lime"} still className="mt-[5px]" />
+              <span>
+                <b className="font-medium text-foreground">{verdict.pill}</b> · {verdict.text}
+              </span>
+            </span>
+          ) : (
+            pending
+          )
+        }
+      />
+      <StatTile
+        className={tile}
+        index={2}
+        lang={lang}
+        label={en ? "Visits per day" : "Wizyt dziennie"}
+        explain={
+          en
+            ? "Average number of visits per day in the period."
+            : "Średnia liczba wizyt na dzień w tym okresie."
         }
         value={dash(formatNumberPL(engagement.avgDailySessions))}
-      >
-        <p className="text-muted-foreground">
-          {noVisits ? pending : en ? "on average" : "średnio każdego dnia"}
-        </p>
-      </MetricTile>
+        sub={noVisits ? pending : en ? "on average" : "średnio każdego dnia"}
+        foot={
+          peak !== null && peak > 0 ? (
+            <span className="tabular-nums">
+              {en ? "busiest day: " : "najwięcej jednego dnia: "}
+              <b className="font-medium text-foreground">{formatNumberPL(peak)}</b>
+            </span>
+          ) : undefined
+        }
+      />
     </section>
   );
 }

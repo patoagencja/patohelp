@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { AdsKpiTiles } from "@/components/dashboard/ads-page-intro";
+import { AdsKpiTiles, AdsPageHeader } from "@/components/dashboard/ads-page-intro";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { CostTrends } from "@/components/dashboard/cost-trends";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
@@ -10,7 +10,6 @@ import { PlatformSplit } from "@/components/dashboard/platform-split";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SearchTerms } from "@/components/dashboard/search-terms";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
-import { PageHeader } from "@/components/ui/page-header";
 import {
   getDashboardData,
   normalizeRange,
@@ -63,20 +62,20 @@ export default async function AdsPage({
   // each widget has its own boundary so one bad dataset can't blank the tab.
   return (
     <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
-      <div className="space-y-6">
-        <PageHeader
-          title="Reklamy"
-          description="Na co idą pieniądze i co z tego mamy."
-          actions={
-            <DateRangePicker
-              value={range}
-              customFrom={custom?.start}
-              customTo={custom?.end}
-            />
-          }
-        />
-        <AdsSectionTabs base={`/${params.clientSlug}`} active="kampanie" query={query} />
-      </div>
+      <AdsPageHeader
+        kicker={`Płatne kampanie · ${data.rangeLabel.toLowerCase()}`}
+        title="Reklamy"
+        lead="Na co idą pieniądze i co z tego mamy."
+        actions={
+          <DateRangePicker
+            value={range}
+            customFrom={custom?.start}
+            customTo={custom?.end}
+            size="lg"
+          />
+        }
+        tabs={<AdsSectionTabs base={`/${params.clientSlug}`} active="kampanie" query={query} />}
+      />
 
       <SectionBoundary name="ads/kpis">
         <AdsKpiTiles kpis={data.kpis} trend={data.trend} />

@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, X } from "lucide-react";
 
 import { MetricLabel } from "@/components/dashboard/info-tip";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import { plPlural } from "@/lib/dashboard/story";
 import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import {
+  SECTION_PAD,
+  SECTION_TITLE,
   aboutPln,
   ECOM_TERMS,
   pctOf,
@@ -131,22 +133,26 @@ export function ChannelEfficiency({
 
   const clears = (r: ChannelRow) =>
     breakEven !== null && r.roas !== null ? r.roas >= breakEven : null;
-  // The biggest seller gets the striped lime bar; the rest stay grey.
+  // Share bars in the "Gdzie idą pieniądze" gradient; the biggest seller at
+  // full strength, the rest softer.
   const topShare = Math.max(0, ...rows.map((r) => r.share));
-  // bg-stripes stays outside cn(): tailwind-merge would drop bg-lime.
   const shareBar = (r: ChannelRow, base: string) =>
-    r.share === topShare && topShare > 0
-      ? `${cn(base, "bg-lime")} bg-stripes`
-      : cn(base, "bg-chart-muted/55");
+    cn(base, "share-fill", !(r.share === topShare && topShare > 0) && "opacity-60");
+  // Green/red plus a tick or cross, so the verdict isn't colour alone.
   const roasBadge = (r: ChannelRow) =>
     r.roas !== null ? (
       <span
         className={cn(
-          "rounded-full px-2 py-0.5 font-semibold",
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold",
           clears(r) === true && "bg-positive-soft text-positive",
           clears(r) === false && "bg-negative-soft text-negative"
         )}
       >
+        {clears(r) === true ? <Check className="h-3 w-3" strokeWidth={3} aria-hidden /> : null}
+        {clears(r) === false ? <X className="h-3 w-3" strokeWidth={3} aria-hidden /> : null}
+        {clears(r) !== null ? (
+          <span className="sr-only">{clears(r) ? "zarabia: " : "traci: "}</span>
+        ) : null}
         {zlPerZl(r.roas)}
       </span>
     ) : (
@@ -154,14 +160,13 @@ export function ChannelEfficiency({
     );
 
   return (
-    <Card className="p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">
-        Które kanały sprzedają i ile to kosztuje
-      </h2>
+    <Card className={SECTION_PAD}>
+      <p className="kick">Kanały sprzedaży</p>
+      <h2 className={cn(SECTION_TITLE, "mt-2")}>Które kanały sprzedają i ile to kosztuje</h2>
       {/* This card always shows a fixed 30-day window (GA4's per-channel
           snapshot), not the range picked at the top - say so, or its order
           total looks like it contradicts the KPI tiles above. */}
-      <p className="mt-1 text-xs text-muted-foreground">
+      <p className="mt-1.5 text-[13px] text-ink-3">
         Okres:{" "}
         <span className="font-medium text-foreground">
           ostatnie 30 dni do {endsYesterday ? "wczoraj" : dayLabelPl(data.windowEnd)}
@@ -201,8 +206,8 @@ export function ChannelEfficiency({
               <li
                 key={r.channel}
                 className={cn(
-                  "rounded-2xl p-3.5",
-                  r.spend === null ? "bg-muted/30" : "bg-muted/60"
+                  "rounded-[22px] p-4",
+                  r.spend === null ? "border border-line" : "bg-chip"
                 )}
               >
                 <div className="flex items-baseline justify-between gap-3">
@@ -212,7 +217,7 @@ export function ChannelEfficiency({
                   </span>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-card" aria-hidden>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-chip" aria-hidden>
                     <div
                       className={shareBar(r, "h-full rounded-full")}
                       style={{ width: `${Math.max(r.share * 100, 1.5)}%` }}
@@ -255,14 +260,14 @@ export function ChannelEfficiency({
           <div className="mt-4 hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
-                  <th className="pb-2.5 pr-4 font-medium">Kanał</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Wydano na reklamy</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Sprzedaż</th>
-                  <th className="pb-2 pr-4 text-right font-medium">{ECOM_TERMS.roas.name}</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Koszt zamówienia</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Zakupy na 100 wizyt</th>
-                  <th className="pb-2 text-right font-medium">Część sprzedaży</th>
+                <tr className="border-b border-line text-left [&>th]:kick [&>th]:pb-3 [&>th]:text-[10.5px] [&>th]:font-normal [&>th]:tracking-[0.1em]">
+                  <th className="pr-4">Kanał</th>
+                  <th className="pr-4 text-right">Wydano na reklamy</th>
+                  <th className="pr-4 text-right">Sprzedaż</th>
+                  <th className="pr-4 text-right">{ECOM_TERMS.roas.name}</th>
+                  <th className="pr-4 text-right">Koszt zamówienia</th>
+                  <th className="pr-4 text-right">Zakupy na 100 wizyt</th>
+                  <th className="text-right">Część sprzedaży</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,36 +277,36 @@ export function ChannelEfficiency({
                     <tr
                       key={r.channel}
                       className={cn(
-                        "border-b border-border/50",
-                        !isPaid && "text-muted-foreground"
+                        "border-b border-line last:border-b-0",
+                        !isPaid && "text-ink-2"
                       )}
                     >
-                      <td className={cn("py-2.5 pr-4", isPaid && "font-medium")}>
+                      <td className={cn("py-3.5 pr-4", isPaid && "font-medium")}>
                         {NAME[r.channel]}
                       </td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums">
+                      <td className="py-3.5 pr-4 text-right tabular-nums">
                         {isPaid ? formatPlnWhole(r.spend ?? 0) : "—"}
                       </td>
                       <td
                         className={cn(
-                          "py-2.5 pr-4 text-right tabular-nums",
+                          "py-3.5 pr-4 text-right tabular-nums",
                           isPaid && "font-semibold"
                         )}
                       >
                         {formatPlnWhole(r.revenue)}
                       </td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums">
+                      <td className="py-3.5 pr-4 text-right tabular-nums">
                         {isPaid ? roasBadge(r) : "—"}
                       </td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums">
+                      <td className="py-3.5 pr-4 text-right tabular-nums">
                         {r.cpa !== null ? formatPlnWhole(r.cpa) : "—"}
                       </td>
-                      <td className="whitespace-nowrap py-2.5 pr-4 text-right tabular-nums">
+                      <td className="whitespace-nowrap py-3.5 pr-4 text-right tabular-nums">
                         {r.conversionRate !== null ? perHundred(r.conversionRate) : "—"}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums">
+                      <td className="py-3.5 text-right tabular-nums">
                         <span className="inline-flex items-center justify-end gap-2">
-                          <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-muted lg:inline-block" aria-hidden>
+                          <span className="hidden h-2 w-16 overflow-hidden rounded-full bg-chip lg:inline-block" aria-hidden>
                             <span
                               className={shareBar(r, "block h-full rounded-full")}
                               // Relative to the biggest channel: a ranking glance.
@@ -321,7 +326,7 @@ export function ChannelEfficiency({
       )}
 
       {data.untrackedPaid.length ? (
-        <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-warning-soft p-3.5 text-sm text-foreground">
+        <div className="mt-4 flex items-start gap-2.5 rounded-[22px] bg-warning-soft p-4 text-sm text-foreground">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
           <p>
             <b>{data.untrackedPaid.map((c) => NAME[c]).join(", ")}</b>: budżet jest wydawany,
@@ -332,7 +337,7 @@ export function ChannelEfficiency({
         </div>
       ) : null}
 
-      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-4 text-xs leading-relaxed text-ink-3">
         {breakEven !== null
           ? `Zielony zwrot z reklam = kanał zarabia (powyżej progu opłacalności ${zlPerZl(
               breakEven

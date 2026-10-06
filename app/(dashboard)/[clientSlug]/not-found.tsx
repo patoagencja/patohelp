@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 
 import { NotFoundCard } from "@/components/dashboard/not-found-card";
 
-// notFound() inside a client's dashboard: keep the shell (sidebar, header)
+// notFound() inside a client's dashboard: keep the shell (top bar, sky)
 // and offer the way back to that client's overview.
 export default function DashboardNotFound() {
   const params = useParams<{ clientSlug?: string }>();

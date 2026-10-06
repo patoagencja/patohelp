@@ -1,6 +1,8 @@
+import { CalendarDays } from "lucide-react";
+
+import { AdsPageHeader } from "@/components/dashboard/ads-page-intro";
 import { CreativesExplorer } from "@/components/dashboard/creatives/creatives-explorer";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
-import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
 import { getDemoDashboard } from "@/lib/demo/data";
@@ -100,23 +102,29 @@ export default function DemoFullKreacje({
   const creatives = d.creativesFull.map(withDiagnostics);
   return (
     <>
-      <div className="space-y-6">
-        <PageHeader
-          title={en ? "Ads" : "Reklamy"}
-          description={
-            en
-              ? "Which ads work best - and which are worth refreshing."
-              : "Które reklamy działają najlepiej - i co warto odświeżyć."
-          }
-          actions={<Pill className="px-3 py-1 text-sm">Meta · {d.rangeLabel}</Pill>}
-        />
-        <AdsSectionTabs
-          base="/demo-full"
-          active="kreacje"
-          query={en ? "?lang=en" : ""}
-          lang={lang}
-        />
-      </div>
+      <AdsPageHeader
+        kicker={`${en ? "Meta ads" : "Reklamy z Meta"} · ${d.rangeLabel.toLowerCase()}`}
+        title={en ? "Creatives" : "Kreacje"}
+        lead={
+          en
+            ? "Which ads work best - and which are worth refreshing."
+            : "Które reklamy działają najlepiej - i co warto odświeżyć."
+        }
+        actions={
+          <Pill tone="neutral" className="min-h-11 gap-2 bg-chip px-4 text-sm text-ink-2 [&_svg]:size-4">
+            <CalendarDays aria-hidden />
+            Meta · {d.rangeLabel}
+          </Pill>
+        }
+        tabs={
+          <AdsSectionTabs
+            base="/demo-full"
+            active="kreacje"
+            query={en ? "?lang=en" : ""}
+            lang={lang}
+          />
+        }
+      />
 
       <CreativesExplorer creatives={creatives} lang={lang} />
     </>

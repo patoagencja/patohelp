@@ -20,6 +20,7 @@ import { getGa4Status, getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 export const dynamic = "force-dynamic";
 
 const DESCRIPTION = "Kto odwiedza Twoją stronę, skąd przychodzi i co ogląda - ostatnie 30 dni.";
+const EYEBROW = <span className="kick">Strona www · ostatnie 30 dni</span>;
 
 export default async function WebsitePage({
   params,
@@ -87,15 +88,17 @@ export default async function WebsitePage({
 
     return (
       <div className="space-y-8 p-4 sm:p-6">
-        <PageHeader title="Strona internetowa" description={DESCRIPTION} />
-        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-border bg-card p-8 text-center sm:p-12">
-          <Globe className="mb-3 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">{g.title}</p>
-          <p className="mt-1 max-w-md text-sm text-muted-foreground">{g.body}</p>
+        <PageHeader eyebrow={EYEBROW} title="Strona internetowa" description={DESCRIPTION} />
+        <div className="glass flex flex-col items-center justify-center rounded-glass p-8 text-center sm:p-12">
+          <span className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-chip text-ink-2">
+            <Globe className="h-5 w-5" aria-hidden />
+          </span>
+          <p className="text-lg font-medium tracking-[-0.02em]">{g.title}</p>
+          <p className="mt-1.5 max-w-md text-sm leading-relaxed text-ink-2">{g.body}</p>
           {g.href ? (
             <a
               href={g.href}
-              className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="mt-5 inline-flex min-h-11 items-center rounded-full bg-anchor px-5 text-sm font-medium text-anchor-foreground transition-transform active:scale-[.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               {g.cta}
             </a>
@@ -111,7 +114,7 @@ export default async function WebsitePage({
   // where visitors come from + what they read, details.
   return (
     <div className="min-w-0 space-y-8 p-4 sm:p-6">
-      <PageHeader title="Strona internetowa" description={DESCRIPTION} />
+      <PageHeader eyebrow={EYEBROW} title="Strona internetowa" description={DESCRIPTION} />
 
       {/* Per-widget boundaries: one odd GA4 breakdown shouldn't blank the tab. */}
       <SectionBoundary name="website/kpis">
@@ -123,16 +126,14 @@ export default async function WebsitePage({
         />
       </SectionBoundary>
 
-      {/* grid-cols-1 (= minmax(0,1fr)) keeps long page names from widening
-          the track past a phone screen. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
-        <SectionBoundary name="website/sources">
-          <TrafficSources sources={data.sources} />
-        </SectionBoundary>
-        <SectionBoundary name="website/top-pages">
-          <TopPages pages={data.topPages} />
-        </SectionBoundary>
-      </div>
+      {/* Full-width, one after the other (Strona-www board): where visitors
+          come from, then what they read - each its own slide. */}
+      <SectionBoundary name="website/sources">
+        <TrafficSources sources={data.sources} />
+      </SectionBoundary>
+      <SectionBoundary name="website/top-pages">
+        <TopPages pages={data.topPages} />
+      </SectionBoundary>
 
       <DetailsDisclosure
         storageKey="pato:details:witryna"

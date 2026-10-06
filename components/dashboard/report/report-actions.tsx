@@ -44,11 +44,11 @@ export function ReportActions({
     <>
       {/* Controls - hidden in the printed PDF */}
       <div className="flex flex-wrap justify-center gap-2 print:hidden">
-        <Button onClick={generate} disabled={loading} className="gap-1.5">
+        <Button onClick={generate} disabled={loading} size="pill" className="gap-2">
           <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
           {loading ? "Generuję…" : summary ? "Wygeneruj ponownie" : "Generuj opis AI"}
         </Button>
-        <Button variant="outline" onClick={() => window.print()} className="gap-1.5">
+        <Button variant="chip" size="pill" onClick={() => window.print()} className="gap-2">
           <Download className="h-4 w-4" />
           Pobierz PDF
         </Button>
@@ -57,14 +57,14 @@ export function ReportActions({
       {/* Narrative - rendered as a deck slide so it's part of the PDF */}
       {summary ? (
         <ContentSlide title="Podsumowanie" subtitle={rangeLabel}>
-          <div className="space-y-4 text-[15px] leading-relaxed text-foreground/85">
+          <div className="space-y-4 text-[17px] leading-relaxed text-ink-2">
             {summary.split(/\n\s*\n/).map((para, i) => (
               <p key={i}>{para}</p>
             ))}
           </div>
         </ContentSlide>
       ) : (
-        <p className="text-center text-sm text-muted-foreground print:hidden">
+        <p className="text-center text-sm text-ink-3 print:hidden">
           Kliknij „Generuj opis AI”, aby dodać slajd z narracją o wynikach, a potem
           „Pobierz PDF”, aby zapisać prezentację i ją wysłać.
         </p>

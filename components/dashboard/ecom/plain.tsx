@@ -22,13 +22,13 @@ export function Takeaway({
   className?: string;
 }) {
   return (
-    <p className={cn("text-[15px] leading-snug text-foreground", className)}>{children}</p>
+    <p className={cn("text-base leading-relaxed text-foreground", className)}>{children}</p>
   );
 }
 
 /**
- * Card heading in the dashboard's one card-title style, with an optional
- * muted line under it (the card's period or source).
+ * Card heading in the 2026 section style: a mono kicker (the card's period
+ * or source) above a 22px title.
  */
 export function CardHeading({
   children,
@@ -36,16 +36,25 @@ export function CardHeading({
   as: Tag = "h2",
 }: {
   children: ReactNode;
+  /** Shown as the kicker above the title. */
   note?: ReactNode;
   as?: "h2" | "h3";
 }) {
   return (
     <div className="min-w-0">
-      <Tag className="text-section-title text-foreground">{children}</Tag>
-      {note ? <p className="mt-0.5 text-sm text-muted-foreground">{note}</p> : null}
+      {note ? <p className="kick">{note}</p> : null}
+      <Tag className={cn(SECTION_TITLE, note ? "mt-2" : undefined)}>{children}</Tag>
     </div>
   );
 }
+
+/** The 2026 section title (Przeglad-pastel): 22px, medium, tight. */
+export const SECTION_TITLE = "text-[22px] font-medium leading-tight tracking-[-0.03em] text-foreground";
+/** Section card padding and the inner chip panel. */
+export const SECTION_PAD = "p-6 sm:p-[28px_30px]";
+export const PANEL = "rounded-[22px] bg-chip";
+/** Big light figure inside a section. */
+export const BIG_NUM = "text-[2.25rem] font-light leading-none tracking-[-0.05em] tabular-nums sm:text-[2.75rem]";
 
 /** Friendly names + ⓘ copy for the e-commerce terms the glossary lacks. */
 export const ECOM_TERMS = {

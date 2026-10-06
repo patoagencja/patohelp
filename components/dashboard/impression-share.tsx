@@ -23,7 +23,7 @@ const SEGMENTS = {
   budget: "bg-warning-fill",
   rank: "bg-olive",
 } as const;
-const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1";
+const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-chip px-2.5 py-1";
 
 function labels(en: boolean) {
   return {
@@ -99,7 +99,7 @@ function StackedBar({
   return (
     // Values are repeated in the legend/row text, so the bar is visual only.
     <div
-      className={cn("flex w-full gap-0.5 overflow-hidden rounded-full bg-muted", className)}
+      className={cn("flex w-full gap-0.5 overflow-hidden rounded-full bg-chip", className)}
       aria-hidden
     >
       {keys.map((k, i) =>
@@ -132,20 +132,20 @@ function CampaignRow({ c, en }: { c: ImpressionShareCampaign; en: boolean }) {
   const parts = toOutOf100([c.shown, c.budgetLost, c.rankLost]);
   const clicks = roughCount(c.missedClicksBudget);
   return (
-    <li className="border-b border-border py-3 last:border-b-0">
+    <li className="border-b border-line py-3.5 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="min-w-0 truncate text-sm font-medium" title={c.name}>
+        <p className="min-w-0 truncate text-[15px] font-medium" title={c.name}>
           {c.name}
         </p>
-        <p className="shrink-0 text-sm font-semibold tabular-nums">
+        <p className="shrink-0 text-[15px] font-medium tabular-nums">
           {c.shownBelow10 && parts[0] <= 10 ? "<10" : parts[0]}
-          <span className="ml-1 text-xs font-normal text-muted-foreground">
+          <span className="ml-1 text-xs font-normal text-ink-3">
             {en ? "of 100" : "na 100"}
           </span>
         </p>
       </div>
       <StackedBar parts={parts} className="mt-2 h-2" />
-      <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
+      <p className="mt-1.5 text-xs tabular-nums text-ink-3">
         {en ? "budget" : "budżet"}: {c.budgetAbove90 ? ">90" : parts[1]}
         {" · "}
         {en ? "ad rank" : "pozycja"}: {c.rankAbove90 ? ">90" : parts[2]}
@@ -182,18 +182,19 @@ export function ImpressionShare({
   const top = data.campaigns.slice(0, TOP_CAMPAIGNS);
 
   return (
-    <section className="surface p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">
+    <section aria-labelledby="impression-share-heading" className="glass min-w-0 rounded-glass p-6 sm:p-7">
+      <p className="kick">{en ? "Visibility on Google · last 30 days" : "Widoczność w Google · ostatnie 30 dni"}</p>
+      <h2 id="impression-share-heading" className="mt-2 text-[22px] font-medium tracking-[-0.03em] text-foreground">
         {en ? "How visible you are on Google" : "Jak dobrze widać Twoje reklamy w Google"}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1.5 text-sm text-ink-3">
         {en
           ? "Out of 100 Google searches where your ad could have shown - Search campaigns, last 30 days"
           : "Na 100 wyszukiwań w Google, przy których Twoja reklama mogła się pojawić - kampanie w wyszukiwarce, ostatnie 30 dni"}
       </p>
 
       <StackedBar parts={parts} showValues className="mt-5 h-10 sm:h-11" />
-      <ul className="mt-3 flex flex-wrap items-start gap-1.5 text-xs text-muted-foreground">
+      <ul className="mt-3 flex flex-wrap items-start gap-1.5 text-xs text-ink-2">
         {(["shown", "budget", "rank"] as const).map((k, i) => (
           <li key={k} className={LEGEND_CHIP}>
             <span
@@ -210,14 +211,14 @@ export function ImpressionShare({
         ))}
       </ul>
 
-      <div className="mt-4 space-y-1 text-sm">
+      <div className="mt-4 max-w-3xl space-y-1 text-[15px] leading-relaxed text-ink-2">
         {sentences.map((s) => (
           <p key={s}>{s}</p>
         ))}
         {parts[1] >= MENTION_FROM &&
         extraClicks >= MIN_CLICKS_TO_MENTION &&
         extraCost > 0 ? (
-          <p className="text-muted-foreground">
+          <p className="text-ink-3">
             {en
               ? `At today's cost per click, that would mean roughly ${formatPlnWhole(extraCost)} more ad spend a month.`
               : `Przy obecnej cenie kliknięcia oznaczałoby to ok. ${formatPlnWhole(extraCost)} więcej wydatków na reklamy miesięcznie.`}
@@ -227,10 +228,10 @@ export function ImpressionShare({
 
       {top.length > 1 ? (
         <>
-          <h3 className="mt-6 text-sm font-medium text-muted-foreground">
+          <h3 className="kick mt-7 text-[11px]">
             {en ? "By campaign" : "Według kampanii"}
           </h3>
-          <ul className="mt-1">
+          <ul className="mt-2">
             {top.map((c) => (
               <CampaignRow key={c.key} c={c} en={en} />
             ))}
@@ -238,7 +239,7 @@ export function ImpressionShare({
         </>
       ) : null}
 
-      <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+      <div className="mt-5 space-y-1 border-t border-line pt-4 text-xs leading-relaxed text-ink-3">
         <p>
           {en
             ? `"Searches where you could have shown" is Google's own estimate, based on your keywords, locations and schedule. Based on ${formatNumberPL(data.impressions)} impressions.`

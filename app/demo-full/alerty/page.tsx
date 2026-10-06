@@ -1,13 +1,10 @@
-import {
-  AlertGroups,
-  AlertsAllClear,
-  alertsHeadline,
-} from "@/components/dashboard/alert-explained";
-import { PageHeader } from "@/components/ui/page-header";
+import { AlertsBoard } from "@/components/dashboard/alert-explained";
 import { getDemoDashboard } from "@/lib/demo/data";
 
 export const dynamic = "force-dynamic";
 
+// Alerty board (2026 pastel): header + severity filter, one glass card per
+// alert. Every top-level child is a presentation slide.
 export default function DemoFullAlerty({
   searchParams,
 }: {
@@ -19,25 +16,9 @@ export default function DemoFullAlerty({
 
   return (
     <>
-      <PageHeader
-        title={en ? "Alerts" : "Alerty"}
-        description={
-          en
-            ? "What's out of the ordinary in the campaigns, and what we're doing about it."
-            : "Co w kampaniach odbiega od normy i co z tym robimy."
-        }
-      />
+      <AlertsBoard alerts={d.alertsFull} lang={lang} />
 
-      {d.alertsFull.length === 0 ? (
-        <AlertsAllClear lang={lang} />
-      ) : (
-        <div className="space-y-6">
-          <p className="text-balance text-base font-medium">{alertsHeadline(d.alertsFull, lang)}</p>
-          <AlertGroups alerts={d.alertsFull} lang={lang} />
-        </div>
-      )}
-
-      <p className="text-xs leading-relaxed text-muted-foreground">
+      <p className="max-w-3xl text-[13px] leading-relaxed text-ink-3">
         {en
           ? "Every day we compare the last few days with the previous two weeks. Urgent issues, like a sudden spend spike, reach us right away."
           : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}

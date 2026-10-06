@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
 import { DeltaPill } from "@/components/ui/pill";
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { Ping, type PingTone } from "@/components/ui/primitives";
+import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import { Sparkline } from "@/components/ui/sparkline";
 
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
@@ -20,13 +20,13 @@ const FILTER_LABEL: Record<Lang, Record<PositionFilter, string>> = {
   en: { all: "All", active: "Active", attention: "Need attention" },
 };
 
-// Status = a small dot with a soft halo + the words (colour is never the
-// only cue). Same tokens as the overview's top campaigns.
-const STATUS_DOT: Record<CampaignStatus, string> = {
-  active: "bg-lime ring-lime-soft",
-  attention: "bg-warning-fill ring-warning-soft",
-  critical: "bg-negative ring-negative-soft",
-  off: "bg-chart-muted ring-muted",
+// Status = a ping dot + the words (colour is never the only cue). Same
+// tones as the overview's "Gdzie idą pieniądze".
+const STATUS_PING: Record<CampaignStatus, PingTone> = {
+  active: "lime",
+  attention: "amber",
+  critical: "coral",
+  off: "muted",
 };
 
 const STATUS_LABEL: Record<Lang, Record<CampaignStatus, string>> = {
@@ -44,13 +44,12 @@ const STATUS_LABEL: Record<Lang, Record<CampaignStatus, string>> = {
   },
 };
 
-// Platform chips are neutral (the name is the information); a tiny dot in
-// the platform's chart colour ties them to the CPC lines and budget bars.
-const PLATFORM_DOT: Record<AdProvider, string> = {
-  meta_ads: "bg-chart-1",
-  google_ads: "bg-chart-2",
-  tiktok_ads: "bg-chart-3",
-};
+// Card shell + section heading (2026 pastel): glass, mono kicker, 22px title.
+const CARD = "glass min-w-0 rounded-glass p-6 sm:p-7";
+const H2 = "mt-2 text-[22px] font-medium tracking-[-0.03em] text-foreground";
+// Quiet chip button ("Pokaż wszystkie"): 44px, chip fill, press-scale.
+const CHIP_BUTTON =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-chip px-[18px] text-sm font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-[var(--chip-hover)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:active:scale-100";
 
 const COPY = {
   pl: {
@@ -67,6 +66,10 @@ const COPY = {
     trendHint: "Dzienne wydatki z ostatnich 7 dni",
     ctrHint: "Klikalność (CTR): jaki odsetek osób, które zobaczyły reklamę, kliknął w nią",
     spent: "wydane",
+    kicker: "Kampanie w tym okresie",
+    status: "Status",
+    platform: "Platforma",
+    allPlatforms: "Wszystkie",
     empty: "Brak kampanii w tym widoku.",
     none: "Kampanie pojawią się tutaj po pierwszej synchronizacji kont reklamowych.",
     legend: "Status kampanii:",
@@ -84,6 +87,10 @@ const COPY = {
     trendHint: "Daily spend over the last 7 days",
     ctrHint: "Click rate (CTR): share of people who saw the ad and clicked it",
     spent: "spent",
+    kicker: "Campaigns in this period",
+    status: "Status",
+    platform: "Platform",
+    allPlatforms: "All",
     empty: "No campaigns in this view.",
     none: "Campaigns appear here after the first ad account sync.",
     legend: "Campaign status:",
@@ -139,22 +146,18 @@ function spendChange(spark: number[]): number | null {
   return ((recent - prior) / prior) * 100;
 }
 
+// Platform tag (board `.tag`): neutral, the name is the information.
 function PlatformPill({ provider }: { provider: AdProvider }) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
-      <span className={cn("h-1.5 w-1.5 rounded-full", PLATFORM_DOT[provider])} aria-hidden />
+    <span className="inline-flex h-[22px] shrink-0 items-center rounded-full bg-chip px-2 text-[11.5px] font-medium text-ink-2">
       {AD_PROVIDER_LABEL[provider]}
     </span>
   );
 }
 
 function Dot({ status }: { status: CampaignStatus }) {
-  return (
-    <span
-      className={cn("h-2 w-2 shrink-0 rounded-full ring-[3px]", STATUS_DOT[status])}
-      aria-hidden
-    />
-  );
+  // Long lists: only rows that need a look keep the ping ring moving.
+  return <Ping tone={STATUS_PING[status]} still={status === "active" || status === "off"} />;
 }
 
 /** Dot + the status in words; the reason rides in the tooltip. */
@@ -162,7 +165,7 @@ function StatusText({ c, lang }: { c: CampaignRow; lang: Lang }) {
   const label = STATUS_LABEL[lang][c.status];
   return (
     <span
-      className="inline-flex items-center gap-1.5 whitespace-nowrap"
+      className="inline-flex items-center gap-2 whitespace-nowrap"
       title={c.statusReason ? `${label} - ${c.statusReason}` : label}
     >
       <Dot status={c.status} />
@@ -205,32 +208,32 @@ function TableRow({ c, lang }: { c: CampaignRow; lang: Lang }) {
   const hasSpark = c.spark.some((v) => v > 0);
 
   return (
-    <tr className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
-      <td className="max-w-[22rem] py-3 pr-4">
-        <span className="block truncate text-sm font-medium" title={c.name}>
+    <tr className="border-t border-line transition-colors hover:bg-chip">
+      <td className="max-w-[22rem] py-3.5 pl-2 pr-4">
+        <span className="block truncate text-[15px] font-medium" title={c.name}>
           {c.name}
         </span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+        <span className="mt-[5px] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-ink-2">
           <PlatformPill provider={c.provider} />
           <StatusText c={c} lang={lang} />
         </span>
       </td>
-      <td className="py-3.5 pr-4 text-right text-sm font-medium tabular-nums">
+      <td className="py-3.5 pr-4 text-right text-[15px] font-medium tabular-nums">
         {wholePln(c.spendMinorUnits)}
       </td>
-      <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
+      <td className="py-3.5 pr-4 text-right text-[15px] tabular-nums text-ink-2">
         {formatNumberPL(c.clicks)}
       </td>
-      <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
+      <td className="py-3.5 pr-4 text-right text-[15px] tabular-nums text-ink-2">
         {formatPercent(c.ctr)}
       </td>
-      <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
+      <td className="py-3.5 pr-4 text-right text-[15px] tabular-nums text-ink-2">
         {cpcText(c)}
       </td>
       <td className="py-3.5 pr-4 text-right text-sm">
         <ChangeValue value={change} className="justify-end" />
       </td>
-      <td className="py-3.5">
+      <td className="py-3.5 pr-2">
         {hasSpark ? (
           <Sparkline
             data={c.spark}
@@ -255,19 +258,19 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
 
   return (
     <li className="py-4 first:pt-0 last:pb-0">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-[12.5px] text-ink-2">
         <PlatformPill provider={c.provider} />
         <span className="ml-auto">
           <StatusText c={c} lang={lang} />
         </span>
       </div>
-      <p className="mt-2 break-words text-sm font-medium leading-snug">{c.name}</p>
+      <p className="mt-2 break-words text-[15px] font-medium leading-snug">{c.name}</p>
 
       <div className="mt-3 flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{t.spend}</p>
-          <p className="flex items-baseline gap-2">
-            <span className="text-lg font-semibold tabular-nums">
+          <p className="kick text-[10.5px]">{t.spend}</p>
+          <p className="mt-1 flex items-baseline gap-2">
+            <span className="text-[1.375rem] font-light tracking-[-0.03em] tabular-nums">
               {wholePln(c.spendMinorUnits)}
             </span>
             <ChangeValue value={change} className="text-sm" />
@@ -283,17 +286,17 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
         ) : null}
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-2xl bg-muted/60 p-3 text-sm">
+      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-[18px] bg-chip p-3 text-sm">
         <div className="min-w-0">
-          <dt className="truncate text-xs text-muted-foreground">{t.clicks}</dt>
+          <dt className="truncate text-xs text-ink-3">{t.clicks}</dt>
           <dd className="font-medium tabular-nums">{formatNumberPL(c.clicks)}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="truncate text-xs text-muted-foreground">{t.ctr}</dt>
+          <dt className="truncate text-xs text-ink-3">{t.ctr}</dt>
           <dd className="font-medium tabular-nums">{formatPercent(c.ctr)}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="truncate text-xs text-muted-foreground">{t.cpc}</dt>
+          <dt className="truncate text-xs text-ink-3">{t.cpc}</dt>
           <dd className="font-medium tabular-nums">{cpcText(c)}</dd>
         </div>
       </dl>
@@ -303,12 +306,15 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
 
 const MOBILE_COLLAPSED = 4;
 
+type PlatformFilter = "all" | AdProvider;
+
 /**
- * Reklamy page version: five columns a first-time visitor can read (status,
- * campaign, spend, clicks, click rate), biggest spenders first, top N with
- * "Pokaż wszystkie". Cost per click, the spend change and the 7-day trend
- * live in the full table behind the page's "Pokaż szczegóły". Hidden rows
- * stay in the DOM and print, so the PDF always has every campaign.
+ * Reklamy page version (board "Kampanie"): five columns a first-time visitor
+ * can read (status, campaign, spend, clicks, click rate), biggest spenders
+ * first, top N with "Pokaż wszystkie", and a Wszystkie | Meta | Google
+ * filter when more than one platform runs. Cost per click, the spend change
+ * and the 7-day trend live in the full table behind "Pokaż szczegóły".
+ * Hidden rows stay in the DOM and print, so the PDF always has every campaign.
  */
 function SimpleCampaigns({
   campaigns,
@@ -324,52 +330,86 @@ function SimpleCampaigns({
   const t = COPY[lang];
   const en = lang === "en";
   const [showAll, setShowAll] = useState(false);
-  const base =
+  const [platform, setPlatform] = useState<PlatformFilter>("all");
+  const providers = (["meta_ads", "google_ads", "tiktok_ads"] as AdProvider[]).filter((p) =>
+    campaigns.some((c) => c.provider === p)
+  );
+  const byStatus =
     filter === "active"
       ? campaigns.filter((c) => c.status !== "off")
       : filter === "attention"
         ? campaigns.filter((c) => c.status === "attention" || c.status === "critical")
         : campaigns;
+  const base = platform === "all" ? byStatus : byStatus.filter((c) => c.provider === platform);
   const rows = [...base].sort((a, b) => b.spendMinorUnits - a.spendMinorUnits);
   const totalSpend = rows.reduce((s, c) => s + c.spendMinorUnits, 0);
   const collapsed = !showAll && rows.length > limit;
   const hiddenCount = rows.length - limit;
+  const headCls = "kick pb-3 text-[10.5px] font-normal";
 
   return (
-    <section className="surface p-5 sm:p-6">
-      <div className="min-w-0 space-y-1">
-        <h2 className="text-section-title text-foreground">{t.title}</h2>
-        <p className="text-sm text-muted-foreground">
-          {summaryText(lang, filter, rows.length)}
-          <span aria-hidden> · </span>
-          <span className="font-medium tabular-nums text-foreground">
-            {wholePln(totalSpend)}
-          </span>{" "}
-          {t.spent}
-        </p>
+    <section aria-labelledby="campaigns-simple-heading" className={CARD}>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="kick">{t.kicker}</p>
+          <h2 id="campaigns-simple-heading" className={H2}>
+            {t.title}
+          </h2>
+          <p className="mt-1.5 text-sm text-ink-3">
+            {summaryText(lang, filter, rows.length)}
+            <span aria-hidden> · </span>
+            <span className="font-medium tabular-nums text-foreground">
+              {wholePln(totalSpend)}
+            </span>{" "}
+            {t.spent}
+          </p>
+        </div>
+        {providers.length > 1 ? (
+          <SegmentedTrack
+            role="group"
+            aria-label={t.platform}
+            className={cn(segmentedTrack, "max-w-full")}
+            data-print-hide
+          >
+            {(["all", ...providers] as PlatformFilter[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={platform === p}
+                onClick={() => {
+                  setPlatform(p);
+                  setShowAll(false);
+                }}
+                className={segmentedItem(platform === p, "min-h-11 px-4")}
+              >
+                {p === "all" ? t.allPlatforms : AD_PROVIDER_LABEL[p]}
+              </button>
+            ))}
+          </SegmentedTrack>
+        ) : null}
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">
+        <p className="mt-6 text-sm text-ink-3">
           {campaigns.length === 0 ? t.none : t.empty}
         </p>
       ) : (
         <>
-          {/* Phones: name + spend on one line, clicks and click rate under. */}
-          <ul className="mt-4 divide-y divide-border md:hidden">
+          {/* Phones: name + spend on one line, the facts under it. */}
+          <ul className="mt-5 md:hidden">
             {rows.map((c, i) => (
               <li
                 key={`${c.provider}:${c.campaignId}`}
                 className={cn(
-                  "flex items-start gap-3 py-3",
+                  "flex items-start gap-3 border-t border-line py-3.5",
                   collapsed && i >= limit && "hidden print:flex"
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-sm font-medium leading-snug">{c.name}</p>
+                  <p className="break-words text-[15px] font-medium leading-snug">{c.name}</p>
                   {/* Each fact is unbreakable, so a narrow row wraps
                       between facts rather than inside one. */}
-                  <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+                  <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12.5px] tabular-nums text-ink-2">
                     <PlatformPill provider={c.provider} />
                     <StatusText c={c} lang={lang} />
                     <span className="whitespace-nowrap">
@@ -380,21 +420,25 @@ function SimpleCampaigns({
                     </span>
                   </p>
                 </div>
-                <span className="shrink-0 text-sm font-semibold tabular-nums">
+                <span className="shrink-0 text-[15px] font-medium tabular-nums">
                   {wholePln(c.spendMinorUnits)}
                 </span>
               </li>
             ))}
           </ul>
 
-          <div className="mt-4 hidden overflow-x-auto md:block">
-            <table className="w-full">
+          <div className="-mx-2 mt-6 hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[640px] text-left">
+              <caption className="sr-only">
+                {en ? "Campaigns by spend" : "Kampanie według wydatków"}
+              </caption>
               <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th scope="col" className="pb-2.5 pr-4 font-medium">{t.campaign}</th>
-                  <th scope="col" className="pb-2.5 pr-4 text-right font-medium">{t.spend}</th>
-                  <th scope="col" className="pb-2.5 pr-4 text-right font-medium">{t.clicks}</th>
-                  <th scope="col" className="pb-2.5 text-right font-medium" title={t.ctrHint}>
+                <tr>
+                  <th scope="col" className={cn(headCls, "w-[10.5rem] pl-2 pr-4")}>{t.status}</th>
+                  <th scope="col" className={cn(headCls, "pr-4")}>{t.campaign}</th>
+                  <th scope="col" className={cn(headCls, "pr-4 text-right")}>{t.spend}</th>
+                  <th scope="col" className={cn(headCls, "pr-4 text-right")}>{t.clicks}</th>
+                  <th scope="col" className={cn(headCls, "pr-2 text-right")} title={t.ctrHint}>
                     {t.ctr}
                   </th>
                 </tr>
@@ -404,26 +448,28 @@ function SimpleCampaigns({
                   <tr
                     key={`${c.provider}:${c.campaignId}`}
                     className={cn(
-                      "border-b border-border last:border-0",
+                      "border-t border-line transition-colors hover:bg-chip",
                       collapsed && i >= limit && "hidden print:table-row"
                     )}
                   >
-                    <td className="max-w-[28rem] py-3.5 pr-4">
-                      <span className="block truncate text-sm font-medium" title={c.name}>
+                    <td className="py-4 pl-2 pr-4 text-[13px] text-ink-2">
+                      <StatusText c={c} lang={lang} />
+                    </td>
+                    <td className="max-w-[28rem] py-4 pr-4">
+                      <span className="block truncate text-[15px] font-medium" title={c.name}>
                         {c.name}
                       </span>
-                      <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                      <span className="mt-1.5 flex">
                         <PlatformPill provider={c.provider} />
-                        <StatusText c={c} lang={lang} />
                       </span>
                     </td>
-                    <td className="py-3.5 pr-4 text-right text-[15px] font-medium tabular-nums">
+                    <td className="whitespace-nowrap py-4 pr-4 text-right text-[15px] font-semibold tabular-nums">
                       {wholePln(c.spendMinorUnits)}
                     </td>
-                    <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
+                    <td className="py-4 pr-4 text-right text-[15px] tabular-nums text-ink-2">
                       {formatNumberPL(c.clicks)}
                     </td>
-                    <td className="py-3.5 text-right text-sm tabular-nums text-muted-foreground">
+                    <td className="py-4 pr-2 text-right text-[15px] tabular-nums text-ink-2">
                       {formatPercent(c.ctr)}
                     </td>
                   </tr>
@@ -435,12 +481,12 @@ function SimpleCampaigns({
       )}
 
       {rows.length > limit ? (
-        <div className="mt-4 flex justify-center border-t border-border pt-4" data-print-hide>
+        <div className="mt-1 flex justify-center border-t border-line pt-5" data-print-hide>
           <button
             type="button"
             aria-expanded={showAll}
             onClick={() => setShowAll((v) => !v)}
-            className="rounded-full bg-muted px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={CHIP_BUTTON}
           >
             {showAll
               ? en
@@ -540,11 +586,14 @@ function FullCampaigns({
   ).filter((s) => campaigns.some((c) => c.status === s));
 
   return (
-    <Card className="p-5 sm:p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <section aria-labelledby="campaigns-full-heading" className={CARD}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <h2 className="text-section-title text-foreground">{title ?? t.title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="kick">{t.kicker}</p>
+          <h2 id="campaigns-full-heading" className={H2}>
+            {title ?? t.title}
+          </h2>
+          <p className="mt-1.5 text-sm text-ink-3">
             {summaryText(lang, filter, filtered.length)}
             <span aria-hidden> · </span>
             <span className="font-medium tabular-nums text-foreground">
@@ -554,7 +603,7 @@ function FullCampaigns({
           </p>
         </div>
 
-        <div
+        <SegmentedTrack
           className={cn(segmentedTrack, "flex w-full md:inline-flex md:w-auto")}
           role="group"
           aria-label={t.title}
@@ -567,22 +616,22 @@ function FullCampaigns({
               onClick={() => setFilter(key)}
               className={segmentedItem(
                 filter === key,
-                "flex-1 justify-center px-3 py-1.5 text-xs md:flex-none"
+                "min-h-11 flex-1 justify-center px-3.5 text-[13px] md:flex-none"
               )}
             >
               {FILTER_LABEL[lang][key]}
             </button>
           ))}
-        </div>
+        </SegmentedTrack>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="mt-6 text-sm text-muted-foreground">
+        <p className="mt-6 text-sm text-ink-3">
           {campaigns.length === 0 ? t.none : t.empty}
         </p>
       ) : (
         <>
-          <ul className="mt-5 divide-y divide-border md:hidden">
+          <ul className="mt-5 divide-y divide-line md:hidden">
             {(showAllMobile ? filtered : filtered.slice(0, MOBILE_COLLAPSED)).map((c) => (
               <MobileCard key={`${c.provider}:${c.campaignId}`} c={c} lang={lang} />
             ))}
@@ -592,7 +641,7 @@ function FullCampaigns({
               type="button"
               data-print-hide
               onClick={() => setShowAllMobile((v) => !v)}
-              className="mt-4 w-full rounded-full bg-muted px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+              className={cn(CHIP_BUTTON, "mt-4 w-full md:hidden")}
             >
               {showAllMobile
                 ? lang === "en"
@@ -605,21 +654,21 @@ function FullCampaigns({
           ) : null}
 
           {/* Inner scroll as a safety net for mid-size screens with long names. */}
-          <div className="mt-5 hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px]">
+          <div className="-mx-2 mt-6 hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[720px] text-left">
               <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2.5 pr-4 font-medium">{t.campaign}</th>
-                  <th className="pb-3 pr-4 text-right font-medium">{t.spend}</th>
-                  <th className="pb-3 pr-4 text-right font-medium">{t.clicks}</th>
-                  <th className="pb-3 pr-4 text-right font-medium" title={t.ctrHint}>
+                <tr className="[&>th]:kick [&>th]:pb-3 [&>th]:text-[10.5px] [&>th]:font-normal">
+                  <th scope="col" className="pl-2 pr-4">{t.campaign}</th>
+                  <th scope="col" className="pr-4 text-right">{t.spend}</th>
+                  <th scope="col" className="pr-4 text-right">{t.clicks}</th>
+                  <th scope="col" className="pr-4 text-right" title={t.ctrHint}>
                     {t.ctr}
                   </th>
-                  <th className="pb-3 pr-4 text-right font-medium">{t.cpc}</th>
-                  <th className="pb-3 pr-4 text-right font-medium" title={t.changeHint}>
+                  <th scope="col" className="pr-4 text-right">{t.cpc}</th>
+                  <th scope="col" className="pr-4 text-right" title={t.changeHint}>
                     {t.change}
                   </th>
-                  <th className="pb-3 text-right font-medium" title={t.trendHint}>
+                  <th scope="col" className="pr-2 text-right" title={t.trendHint}>
                     {t.trend}
                   </th>
                 </tr>
@@ -635,10 +684,10 @@ function FullCampaigns({
       )}
 
       {presentStatuses.length > 0 ? (
-        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4 text-xs text-ink-3">
           <span>{t.legend}</span>
           {presentStatuses.map((s) => (
-            <span key={s} className="inline-flex items-center gap-1.5">
+            <span key={s} className="inline-flex items-center gap-2">
               <Dot status={s} />
               {STATUS_LABEL[lang][s]}
             </span>
@@ -650,6 +699,6 @@ function FullCampaigns({
           </span>
         </div>
       ) : null}
-    </Card>
+    </section>
   );
 }

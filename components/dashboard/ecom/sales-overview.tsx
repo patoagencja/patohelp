@@ -1,5 +1,7 @@
 "use client";
 
+import type React from "react";
+
 import { Card } from "@/components/ui/card";
 import { TrendLineChart, type TrendLinePoint } from "@/components/dashboard/trend-line-chart";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
@@ -50,9 +52,11 @@ export function SalesOverview({
   );
 
   // Ad cost as a share of sales is the plainest "is this sane" number for a
-  // board: "z każdych 100 zł sprzedaży 18 zł poszło na reklamy".
+  // board: "z każdych 100 zł sprzedaży 18 zł poszło na reklamy". The best day
+  // is set bold, as the one fact to take away (the chart pins it too).
   const adShare = totalRev > 0 ? (totalSpend / totalRev) * 100 : null;
   let takeaway: string;
+  let lead: React.ReactNode;
   if (totalRev <= 0) {
     takeaway =
       totalSpend > 0
@@ -60,22 +64,31 @@ export function SalesOverview({
             totalSpend
           )}.`
         : "W tym okresie nie ma jeszcze danych o sprzedaży.";
+    lead = takeaway;
   } else {
-    const parts: string[] = [];
-    if (best) {
-      parts.push(
-        `Najlepszym dniem był ${dayMonthPL(best.date)} (${aboutPln(best.revenueMinorUnits)})`
+    const bestText = best
+      ? `${dayMonthPL(best.date)} (${aboutPln(best.revenueMinorUnits)})`
+      : null;
+    const shareText =
+      adShare !== null && totalSpend > 0
+        ? `z każdych 100 zł sprzedaży ok. ${adShare.toLocaleString("pl-PL", {
+            maximumFractionDigits: adShare < 10 ? 1 : 0,
+          })} zł poszło na reklamy`
+        : null;
+    if (bestText) {
+      takeaway = `Najlepszym dniem był ${bestText}${shareText ? `, a ${shareText}` : ""}.`;
+      lead = (
+        <>
+          Najlepszym dniem był <b className="font-medium text-foreground">{bestText}</b>
+          {shareText ? `, a ${shareText}` : ""}.
+        </>
       );
+    } else {
+      takeaway = shareText
+        ? `${shareText.charAt(0).toUpperCase()}${shareText.slice(1)}.`
+        : `Sklep sprzedał w tym okresie za ok. ${aboutPln(totalRev)}.`;
+      lead = takeaway;
     }
-    if (adShare !== null && totalSpend > 0) {
-      const share = adShare.toLocaleString("pl-PL", {
-        maximumFractionDigits: adShare < 10 ? 1 : 0,
-      });
-      parts.push(`z każdych 100 zł sprzedaży ok. ${share} zł poszło na reklamy`);
-    }
-    takeaway = parts.length
-      ? `${parts.join(", a ")}.`
-      : `Sklep sprzedał w tym okresie za ok. ${aboutPln(totalRev)}.`;
   }
 
   // Złoty, not grosze: the axis and tooltip speak whole money.
@@ -89,19 +102,20 @@ export function SalesOverview({
   });
 
   return (
-    <Card className="p-5 sm:p-6">
-      <h2 className="text-section-title text-foreground">Sprzedaż dzień po dniu</h2>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{takeaway}</p>
+    <Card className="rounded-glass p-6 sm:p-[28px_30px]">
+      <p className="kick">Przychód ze sklepu</p>
+      <h2 className="mt-2 text-[22px] font-medium tracking-[-0.03em]">Sprzedaż dzień po dniu</h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink-2">{lead}</p>
 
       {/* Fewer than two finished days draw no line at all - say why. */}
       {chart.length < 2 || totalRev <= 0 ? (
-        <div className="mt-5 flex h-64 items-center justify-center rounded-2xl bg-muted/60 px-4 text-center text-sm text-muted-foreground sm:h-72">
+        <div className="mt-6 flex h-64 items-center justify-center rounded-[22px] bg-chip px-4 text-center text-sm text-ink-2 sm:h-72">
           {chart.length < 2
             ? "Za mało dni, by narysować wykres - wróć za kilka dni."
             : "Wykres pojawi się, gdy Google Analytics zarejestruje pierwszą sprzedaż."}
         </div>
       ) : (
-        <div className="mt-4">
+        <div className="mt-5">
         <TrendLineChart
           // Last year is the comparison, not the news: grey and dashed.
           className="h-64 sm:h-72"
@@ -111,11 +125,13 @@ export function SalesOverview({
           formatValue={(zl) => formatPlnWhole(Math.round(zl * 100))}
           formatAxis={compactPln}
           ariaLabel={`Wykres sprzedaży dzień po dniu. ${takeaway}`}
+          highlightIndex={best ? fullDays.indexOf(best) : null}
+          highlightNote="najlepszy dzień"
         />
         </div>
       )}
       {todayPoint ? (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-3 text-[13px] text-ink-3">
           Bez dzisiejszego, niepełnego dnia (do tej pory{" "}
           <span className="tabular-nums">{formatPlnWhole(todayPoint.revenueMinorUnits)}</span>)
           - doliczymy go jutro.

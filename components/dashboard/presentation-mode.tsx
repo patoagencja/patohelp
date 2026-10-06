@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronUp, MonitorPlay, X } from "lucide-react";
+import { formatInTimeZone } from "date-fns-tz";
+import { pl } from "date-fns/locale";
+import { ChevronLeft, ChevronRight, MonitorPlay, Pause, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,9 +24,21 @@ import { cn } from "@/lib/utils";
  *   inside <main> that has more than one visible child.
  * - `data-present-slide` - set by this component on the detected slides (used
  *   for spacing/scroll margin); removed on exit.
+ * - `data-present-current` - set on the slide being shown (entrance motion,
+ *   dimming the others); removed on exit.
+ *
+ * 2026 look (Prezentacja-2030): the show always runs on the dark cinematic
+ * canvas - the page switches to the dark theme for its duration (restored
+ * on exit), a stage of drifting blobs + grain sits behind the sections, a
+ * header names the client and the month with a slide counter and
+ * "Zakończ", and a footer carries a segmented progress bar (one segment per
+ * slide, click to jump), "Autoodtwarzanie" and round prev/next buttons.
  */
 
 const SLIDE_ATTR = "data-present-slide";
+const CURRENT_ATTR = "data-present-current";
+// One slide every 9 s while autoplay runs (the board's timing).
+const AUTOPLAY_MS = 9000;
 
 type FullscreenDocument = Document & {
   webkitFullscreenElement?: Element | null;
@@ -71,11 +85,11 @@ function exitFullscreen() {
 }
 
 function isVisible(el: Element): boolean {
-  return (
-    el instanceof HTMLElement &&
-    !el.hasAttribute("data-present-hide") &&
-    el.getClientRects().length > 0
-  );
+  if (!(el instanceof HTMLElement) || el.hasAttribute("data-present-hide")) return false;
+  if (el.getClientRects().length === 0) return false;
+  // An sr-only page heading (1px) is not a slide.
+  const rect = el.getBoundingClientRect();
+  return rect.height > 2 && rect.width > 2;
 }
 
 /**
@@ -104,11 +118,25 @@ function markSlides(slides: HTMLElement[]) {
   slides.forEach((el) => el.setAttribute(SLIDE_ATTR, ""));
 }
 
+function markCurrent(slides: HTMLElement[], index: number) {
+  const current = slides[index];
+  document.querySelectorAll(`[${CURRENT_ATTR}]`).forEach((el) => {
+    if (el !== current) el.removeAttribute(CURRENT_ATTR);
+  });
+  // Only (re)set when it changes: re-adding restarts the entrance motion.
+  if (current && !current.hasAttribute(CURRENT_ATTR)) current.setAttribute(CURRENT_ATTR, "");
+}
+
 function clearSlides() {
   document
-    .querySelectorAll(`[${SLIDE_ATTR}]`)
-    .forEach((el) => el.removeAttribute(SLIDE_ATTR));
+    .querySelectorAll(`[${SLIDE_ATTR}], [${CURRENT_ATTR}]`)
+    .forEach((el) => {
+      el.removeAttribute(SLIDE_ATTR);
+      el.removeAttribute(CURRENT_ATTR);
+    });
 }
+
+const pad = (n: number) => String(n).padStart(2, "0");
 
 function atPageBottom(): boolean {
   const root = document.documentElement;
@@ -168,9 +196,16 @@ export function PresentationMode({
   // Lets the floating bar reuse the keyboard stepping logic, which lives in
   // the effect because it closes over the per-session listeners.
   const stepRef = useRef<((dir: 1 | -1) => void) | null>(null);
+  const goToRef = useRef<((index: number) => void) | null>(null);
+  const [autoplay, setAutoplay] = useState(false);
+  // Bumped on every move so the autoplay timer (and the running segment)
+  // restarts from zero after a manual step too.
+  const [moves, setMoves] = useState(0);
+  const [stageHost, setStageHost] = useState<Element | null>(null);
 
   const exit = useCallback(() => {
     setActive(false);
+    setAutoplay(false);
   }, []);
 
   const enter = useCallback(async () => {
@@ -194,27 +229,27 @@ export function PresentationMode({
     if (!active) return;
     const root = document.documentElement;
     root.setAttribute("data-present", "true");
+    // The show always runs on the dark canvas; the viewer's own theme comes
+    // back on exit (the theme toggle is hidden meanwhile).
+    const addedDark = !root.classList.contains("dark");
+    if (addedDark) root.classList.add("dark");
+    // The stage goes inside the shell's stacking context (it is `isolate`
+    // with its own background), right behind the sections.
+    setStageHost(document.querySelector("main")?.parentElement ?? document.body);
     // The trigger is about to be hidden; a lingering focus there would make
     // Space press an invisible button instead of advancing.
     (document.activeElement as HTMLElement | null)?.blur?.();
 
     return () => {
       root.removeAttribute("data-present");
+      if (addedDark) root.classList.remove("dark");
+      setStageHost(null);
       clearSlides();
       exitFullscreen();
       enteredFullscreenRef.current = false;
       triggerRef.current?.focus();
     };
   }, [active]);
-
-  // Lets globals.css keep sections clear of the top-left brand watermark.
-  const hasBrand = Boolean(brand);
-  useEffect(() => {
-    if (!active || !hasBrand) return;
-    const root = document.documentElement;
-    root.setAttribute("data-present-brand", "true");
-    return () => root.removeAttribute("data-present-brand");
-  }, [active, hasBrand]);
 
   useEffect(() => {
     if (!active) return;
@@ -227,7 +262,8 @@ export function PresentationMode({
         Date.now() < nav.until
           ? Math.min(nav.index, Math.max(0, slides.length - 1))
           : currentIndex(slides);
-      setPosition({ index, total: slides.length });
+      markCurrent(slides, index);
+      setPosition((p) => (p.index === index && p.total === slides.length ? p : { index, total: slides.length }));
       return slides;
     }
 
@@ -235,7 +271,9 @@ export function PresentationMode({
       const target = slides[index];
       if (!target) return;
       navRef.current = { index, until: Date.now() + 900 };
+      markCurrent(slides, index);
       setPosition({ index, total: slides.length });
+      setMoves((m) => m + 1);
       target.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     }
 
@@ -254,6 +292,7 @@ export function PresentationMode({
           const nextTop = next ? next.getBoundingClientRect().top : Infinity;
           if (nextTop > window.innerHeight) {
             navRef.current = { index: base, until: Date.now() + 900 };
+            setMoves((m) => m + 1);
             window.scrollBy({
               top: Math.min(window.innerHeight * 0.8, nextTop - 32),
               behavior: scrollBehavior(),
@@ -290,11 +329,13 @@ export function PresentationMode({
           step(e.shiftKey ? -1 : 1);
           break;
         case "ArrowDown":
+        case "ArrowRight":
         case "PageDown":
           e.preventDefault();
           step(1);
           break;
         case "ArrowUp":
+        case "ArrowLeft":
         case "PageUp":
           e.preventDefault();
           step(-1);
@@ -339,6 +380,7 @@ export function PresentationMode({
     document.addEventListener("webkitfullscreenchange", onFullscreenChange);
 
     stepRef.current = step;
+    goToRef.current = (index: number) => goTo(refresh(), index);
 
     return () => {
       cancelAnimationFrame(frame);
@@ -349,69 +391,158 @@ export function PresentationMode({
       document.removeEventListener("fullscreenchange", onFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
       stepRef.current = null;
+      goToRef.current = null;
     };
   }, [active, exit]);
+
+  // Autoplay: one step per AUTOPLAY_MS; from the last slide it starts over.
+  useEffect(() => {
+    if (!active || !autoplay) return;
+    const id = window.setTimeout(() => {
+      if (position.total > 0 && position.index >= position.total - 1 && atPageBottom()) {
+        goToRef.current?.(0);
+      } else {
+        stepRef.current?.(1);
+      }
+    }, AUTOPLAY_MS);
+    return () => window.clearTimeout(id);
+  }, [active, autoplay, moves, position.index, position.total]);
+
+  const month = active
+    ? formatInTimeZone(new Date(), "Europe/Warsaw", "LLLL yyyy", { locale: pl })
+    : "";
+  const segments = Array.from({ length: position.total }, (_, i) => i);
+  const roundGlass =
+    "glass glass-blur grid size-11 shrink-0 place-items-center !rounded-full transition-[transform,background-color] hover:bg-[var(--chip-hover)] active:scale-95 motion-reduce:active:scale-100 sm:size-[clamp(2.75rem,3.75vw,4.5rem)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background";
 
   const bar =
     active && typeof document !== "undefined"
       ? createPortal(
           <>
-          {brand ? (
+            {/* Header: whose report, which month, where we are, the way out. */}
             <div
-              aria-hidden
-              className="pointer-events-none fixed left-5 top-4 z-[60] flex max-w-[14rem] items-center rounded-2xl bg-card/80 px-3 py-2 text-foreground opacity-80 shadow-card backdrop-blur print:hidden"
+              className="fixed inset-x-0 top-0 z-[60] bg-gradient-to-b from-black/70 via-black/35 to-transparent pb-8 text-foreground print:hidden"
             >
-              {brand}
+              <div className="mx-auto flex max-w-[120rem] items-center gap-3 px-4 pt-3 sm:gap-[18px] sm:px-[clamp(1.5rem,5vw,6rem)] sm:pt-[clamp(1rem,4vh,4rem)]">
+                {brand ? (
+                  <div className="flex min-w-0 max-w-[45%] shrink items-center [&_img]:max-h-8 sm:max-w-[16rem]">
+                    {brand}
+                  </div>
+                ) : null}
+                <span className="hidden truncate font-mono text-[clamp(.75rem,.85vw,1rem)] uppercase tracking-[.1em] text-ink-3 md:inline">
+                  · Raport · {month}
+                </span>
+                <span className="flex-1" />
+                <span className="font-mono text-[clamp(.8rem,.95vw,1.1rem)] tabular-nums text-ink-3" aria-live="polite">
+                  <span className="sr-only">Slajd </span>
+                  <b className="font-medium text-foreground">{position.total > 0 ? pad(position.index + 1) : "–"}</b>
+                  {" / "}
+                  {position.total > 0 ? pad(position.total) : "–"}
+                </span>
+                <button
+                  type="button"
+                  onClick={exit}
+                  title="Zakończ prezentację (Esc)"
+                  className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-chip px-[22px] text-[15px] transition-colors hover:bg-[var(--chip-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[52px] sm:text-[17px]"
+                >
+                  Zakończ
+                </button>
+              </div>
             </div>
-          ) : null}
-          <div
-            role="toolbar"
-            aria-label="Sterowanie prezentacją"
-            className="fixed bottom-5 right-5 z-[60] flex items-center gap-1 rounded-full border border-hairline bg-card/90 p-1 text-sm text-foreground opacity-40 shadow-raised backdrop-blur transition-opacity duration-300 focus-within:opacity-100 hover:opacity-100 print:hidden"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 rounded-full p-0"
-              onClick={() => stepRef.current?.(-1)}
-              aria-label="Poprzednia sekcja"
-              title="Poprzednia sekcja (↑)"
+
+            {/* Footer: progress per slide, autoplay, prev / next. */}
+            <div
+              role="toolbar"
+              aria-label="Sterowanie prezentacją"
+              className="fixed inset-x-0 bottom-0 z-[60] bg-gradient-to-t from-black/70 via-black/35 to-transparent pt-10 text-foreground print:hidden"
             >
-              <ChevronUp className="h-4 w-4" aria-hidden />
-            </Button>
-            <span
-              className="min-w-[3.5rem] text-center tabular-nums text-muted-foreground"
-              aria-live="polite"
-            >
-              {position.total > 0
-                ? `${position.index + 1} / ${position.total}`
-                : "–"}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 rounded-full p-0"
-              onClick={() => stepRef.current?.(1)}
-              aria-label="Następna sekcja"
-              title="Następna sekcja (↓ / spacja)"
-            >
-              <ChevronDown className="h-4 w-4" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="ml-1 h-8 gap-1.5 rounded-full px-3"
-              onClick={exit}
-              title="Zakończ prezentację (Esc)"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden />
-              Zakończ
-            </Button>
-          </div>
+              <div className="mx-auto flex max-w-[120rem] items-center gap-2 px-4 pb-4 sm:gap-[clamp(1rem,2vw,2.5rem)] sm:px-[clamp(1.5rem,5vw,6rem)] sm:pb-[clamp(1rem,5vh,3.5rem)]">
+                <div className="flex min-w-0 flex-1 gap-1.5 sm:gap-3">
+                  {segments.map((i) => {
+                    const state = i < position.index ? "done" : i === position.index ? "current" : "next";
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => goToRef.current?.(i)}
+                        aria-label={`Slajd ${i + 1}`}
+                        aria-current={state === "current" ? "step" : undefined}
+                        className="group flex h-11 min-w-0 flex-1 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="block h-1 w-full overflow-hidden rounded-full bg-foreground/15 transition-colors group-hover:bg-foreground/25">
+                          <i
+                            // Remount restarts the 9 s fill on every move.
+                            key={state === "current" && autoplay ? `run-${moves}` : state}
+                            className={cn(
+                              "block h-full rounded-full bg-lime shadow-[0_0_12px_var(--lime-glow)]",
+                              state === "done" && "w-full",
+                              state === "next" && "w-0",
+                              state === "current" &&
+                                (autoplay
+                                  ? "w-full origin-left motion-safe:animate-[grow_9s_linear_both]"
+                                  : "w-full")
+                            )}
+                          />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAutoplay((a) => !a);
+                    setMoves((m) => m + 1);
+                  }}
+                  aria-pressed={autoplay}
+                  aria-label={autoplay ? "Zatrzymaj autoodtwarzanie" : "Włącz autoodtwarzanie"}
+                  className="glass glass-blur inline-flex h-11 shrink-0 items-center justify-center gap-2.5 !rounded-full px-3.5 text-[15px] transition-[transform,background-color] hover:bg-[var(--chip-hover)] active:scale-95 motion-reduce:active:scale-100 sm:h-[clamp(2.75rem,3.75vw,4.5rem)] sm:px-[26px] sm:text-[17px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+                >
+                  {autoplay ? (
+                    <Pause className="size-[18px]" aria-hidden />
+                  ) : (
+                    <Play className="size-[18px]" aria-hidden />
+                  )}
+                  <span className="hidden sm:inline">{autoplay ? "Pauza" : "Autoodtwarzanie"}</span>
+                </button>
+                <button
+                  type="button"
+                  className={roundGlass}
+                  onClick={() => stepRef.current?.(-1)}
+                  aria-label="Poprzedni slajd"
+                  title="Poprzedni slajd (↑ / ←)"
+                >
+                  <ChevronLeft className="size-[22px] sm:size-[26px]" aria-hidden strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  className="grid size-11 shrink-0 place-items-center rounded-full bg-lime text-lime-foreground shadow-[0_16px_50px_-12px_var(--lime-glow)] transition-transform active:scale-95 motion-reduce:active:scale-100 sm:size-[clamp(2.75rem,3.75vw,4.5rem)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+                  onClick={() => stepRef.current?.(1)}
+                  aria-label="Następny slajd"
+                  title="Następny slajd (↓ / → / spacja)"
+                >
+                  <ChevronRight className="size-[22px] sm:size-[26px]" aria-hidden strokeWidth={2.2} />
+                </button>
+              </div>
+            </div>
           </>,
           document.body
+        )
+      : null;
+
+  // The cinematic canvas: dark, three drifting blobs and a grain of dots.
+  // Behind the sections, above the shell's own background; decorative.
+  const stage =
+    active && stageHost
+      ? createPortal(
+          <div aria-hidden className="pointer-events-none fixed inset-0 -z-[9] overflow-hidden bg-background print:hidden">
+            <span className="absolute inset-0 bg-black/55" />
+            <span className="sky-blob left-[-16%] top-[-33%] h-[74vh] w-[57vw] bg-lime/40 [animation-duration:24s]" />
+            <span className="sky-blob right-[-14%] top-[-24%] h-[65vh] w-[47vw] bg-coral/25 [animation-duration:30s]" />
+            <span className="sky-blob bottom-[-39%] left-[40%] h-[65vh] w-[52vw] bg-violet/30 [animation-duration:36s]" />
+            <span className="absolute inset-0 bg-[radial-gradient(var(--dots)_1px,transparent_1.3px)] bg-[length:30px_30px] [mask-image:radial-gradient(80%_80%_at_50%_40%,black,transparent)]" />
+          </div>,
+          stageHost
         )
       : null;
 
@@ -432,6 +563,7 @@ export function PresentationMode({
         <MonitorPlay className="!h-[17px] !w-[17px]" aria-hidden strokeWidth={1.8} />
         <span className={labelClassName}>Prezentuj</span>
       </Button>
+      {stage}
       {bar}
     </>
   );

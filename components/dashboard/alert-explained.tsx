@@ -1,7 +1,16 @@
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronDown } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  Clock,
+  Info,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 
-import { Card } from "@/components/ui/card";
-import { Pill } from "@/components/ui/pill";
+import { AlertsFilter } from "@/components/dashboard/alerts-filter";
+import { Ping, StatusChip, type PingTone } from "@/components/ui/primitives";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { plPlural } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
@@ -331,58 +340,116 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
   return { headline, happened, why, action };
 }
 
+// 2026 pastel: severity = an icon tile (coral triangle / amber clock / grey
+// info) + the group's ping dot + words. Good news trades the severity icon
+// for a lime arrow so a "more clicks" note never reads like a problem.
+const SEVERITY_TILE: Record<Severity, { icon: LucideIcon; tile: string }> = {
+  critical: { icon: TriangleAlert, tile: "bg-negative-soft text-negative" },
+  high: { icon: Clock, tile: "bg-warning-soft text-warning" },
+  medium: { icon: Info, tile: "bg-chip text-ink-2" },
+};
+
+const SEVERITY_PING: Record<Severity, PingTone> = {
+  critical: "coral",
+  high: "amber",
+  medium: "muted",
+};
+
+// Demo (and some live) scope labels end in the platform: "PMAX | Ruch ·
+// Google". Lift it into a tag, like the board's "Google" / "Meta" chips.
+const PLATFORM_SUFFIX = /\s·\s(Google|Meta|TikTok|GA4)$/;
+
+function whereOf(a: Anomaly, lang: Lang): { tag: string | null; where: string } {
+  const m = PLATFORM_SUFFIX.exec(a.scopeLabel);
+  const label = m ? a.scopeLabel.slice(0, m.index) : a.scopeLabel;
+  if (a.scope === "campaign") {
+    return { tag: m ? m[1] : lang === "en" ? "Campaign" : "Kampania", where: label };
+  }
+  return { tag: m ? m[1] : null, where: label };
+}
+
 /**
- * One alert as a calm list row: where, what (headline), and the one
- * sentence of what happened. "Why it matters" and "what we're doing" sit
- * behind a native <details> "Więcej", so the list scans in seconds and
- * works without client JS. The severity lives on the group heading.
+ * One alert as its own glass card (Alerty board `.alc`): severity tile,
+ * where (platform tag + campaign), the plain-language headline and the one
+ * sentence of what happened. "Why it matters" / "what we're doing" sit
+ * behind a native <details> - the chip button top right on sm+ - so the
+ * list scans in seconds, works without client JS and prints open.
  */
-export function AlertCard({ a, lang = "pl" }: { a: Anomaly; lang?: Lang }) {
+export function AlertCard({
+  a,
+  lang = "pl",
+  defaultOpen = false,
+  index = 0,
+}: {
+  a: Anomaly;
+  lang?: Lang;
+  /** The board opens the first (most urgent) alert. */
+  defaultOpen?: boolean;
+  /** Entrance stagger. */
+  index?: number;
+}) {
   const en = lang === "en";
   const x = explainAlert(a, lang);
   const good = GOOD_NEWS.has(kindOf(a));
-  const Arrow = a.direction === "up" ? ArrowUpRight : ArrowDownRight;
+  const { tag, where } = whereOf(a, lang);
+  const sev = SEVERITY_TILE[a.severity];
+  const Icon = good ? (a.direction === "up" ? ArrowUpRight : ArrowDownRight) : sev.icon;
 
   return (
-    <article className="px-5 py-4 sm:px-6">
-      <p className="truncate text-xs text-muted-foreground" title={a.scopeLabel}>
-        {scopeText(a, lang)}
-      </p>
-      <h3 className="mt-1 flex items-start gap-2 text-[15px] font-semibold leading-snug">
-        <Arrow
-          className={cn(
-            "mt-0.5 h-4 w-4 shrink-0",
-            good ? "text-positive" : "text-negative"
-          )}
+    <article
+      className="glass relative rounded-[26px] p-5 animate-rise sm:p-6"
+      style={{ "--d": `${0.15 + Math.min(index, 6) * 0.06}s` } as React.CSSProperties}
+    >
+      <div className="flex items-start gap-4">
+        <span
           aria-hidden
-        />
-        <span className="min-w-0 break-words">{x.headline}</span>
-      </h3>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground tabular-nums">
-        {x.happened}
-      </p>
+          className={cn(
+            "grid h-10 w-10 shrink-0 place-items-center rounded-[14px] [&_svg]:h-[18px] [&_svg]:w-[18px]",
+            good ? "bg-lime-soft text-positive" : sev.tile
+          )}
+        >
+          <Icon strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1 sm:pr-36">
+          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-3">
+            {tag ? (
+              <span className="inline-flex h-[22px] shrink-0 items-center rounded-full bg-chip px-2 text-xs font-semibold text-ink-2">
+                {tag}
+              </span>
+            ) : null}
+            <span className="min-w-0 truncate" title={a.scopeLabel}>
+              {where}
+            </span>
+            {good ? (
+              <span className="text-positive">· {en ? "good news" : "dobra wiadomość"}</span>
+            ) : null}
+          </p>
+          <h3 className="mt-1.5 break-words text-[17px] font-semibold leading-snug tracking-[-0.01em]">
+            {x.headline}
+          </h3>
+          <p className="mt-1 text-[15px] leading-relaxed text-ink-2 tabular-nums [text-wrap:pretty]">
+            {x.happened}
+          </p>
+        </div>
+      </div>
 
-      <details className="group mt-2" data-print-open>
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+      <details className="group" data-print-open open={defaultOpen || undefined}>
+        <summary className="ml-14 mt-3 inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-full bg-chip px-4 text-sm font-medium text-foreground outline-none transition-colors hover:bg-[var(--chip-hover)] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:absolute sm:right-6 sm:top-6 sm:m-0 [&::-webkit-details-marker]:hidden">
           <span className="group-open:hidden">{en ? "More" : "Więcej"}</span>
-          <span className="hidden group-open:inline">{en ? "Less" : "Mniej"}</span>
+          <span className="hidden group-open:inline">{en ? "Less" : "Zwiń"}</span>
           <ChevronDown
-            className="h-3.5 w-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+            className="h-4 w-4 transition-transform duration-300 group-open:rotate-180 motion-reduce:transition-none"
             aria-hidden
           />
         </summary>
-        <dl className="mt-3 space-y-3 text-sm leading-relaxed">
-          <div>
-            <dt className="text-xs font-medium text-muted-foreground">
-              {en ? "Why it matters" : "Dlaczego to ważne"}
-            </dt>
-            <dd className="mt-0.5">{x.why}</dd>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2 sm:pl-14">
+          <div className="rounded-[18px] bg-chip px-4 py-3.5">
+            <dt className="kick text-[11px]">{en ? "Why it matters" : "Dlaczego to ważne"}</dt>
+            <dd className="mt-1.5 text-sm leading-relaxed">{x.why}</dd>
           </div>
-          <div>
-            <dt className="text-xs font-medium text-muted-foreground">
-              {en ? "What we're doing" : "Co z tym robimy"}
-            </dt>
-            <dd className="mt-0.5">{x.action}</dd>
+          <div className="rounded-[18px] bg-chip px-4 py-3.5">
+            <dt className="kick text-[11px]">{en ? "What we're doing" : "Co z tym robimy"}</dt>
+            <dd className="mt-1.5 text-sm leading-relaxed">{x.action}</dd>
           </div>
         </dl>
       </details>
@@ -412,32 +479,64 @@ export function alertsHeadline(alerts: Anomaly[], lang: Lang = "pl"): string {
   return `${alerts.length} ${plPlural(alerts.length, "sprawa", "sprawy", "spraw")}: ${parts.join(", ")}.`;
 }
 
-/** All alerts grouped Pilne -> Ważne -> Informacja, most urgent first:
- *  one quiet card per group, alerts as divided rows inside it. */
+const ORDER: Severity[] = ["critical", "high", "medium"];
+
+/** One severity group: mono kicker with its ping dot + count, then cards. */
+function AlertGroup({
+  severity,
+  alerts,
+  lang,
+  openFirst,
+  offset,
+}: {
+  severity: Severity;
+  alerts: Anomaly[];
+  lang: Lang;
+  openFirst: boolean;
+  offset: number;
+}) {
+  return (
+    <section aria-labelledby={`alerts-${severity}`}>
+      <h2
+        id={`alerts-${severity}`}
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 animate-rise"
+        style={{ "--d": `${0.1 + offset * 0.06}s` } as React.CSSProperties}
+      >
+        <span className="kick flex items-center gap-2.5 text-ink-2">
+          <Ping tone={SEVERITY_PING[severity]} still={severity !== "critical"} />
+          {SEVERITY_LABEL[lang][severity]}
+          <span className="tabular-nums text-ink-3">· {alerts.length}</span>
+        </span>
+        <span className="text-sm text-ink-3">{SECTION_HINT[lang][severity]}</span>
+      </h2>
+      <div className="mt-3.5 space-y-3">
+        {alerts.map((a, i) => (
+          <AlertCard
+            key={a.id}
+            a={a}
+            lang={lang}
+            defaultOpen={openFirst && i === 0}
+            index={offset + i}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** All alerts grouped Pilne -> Ważne -> Informacja, most urgent first. */
 export function AlertGroups({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?: Lang }) {
-  const order: Severity[] = ["critical", "high", "medium"];
+  let offset = 0;
   return (
     <div className="space-y-8">
-      {order.map((s) => {
+      {ORDER.map((s) => {
         const items = alerts.filter((a) => a.severity === s);
         if (items.length === 0) return null;
-        return (
-          <section key={s} aria-labelledby={`alerts-${s}`}>
-            <h2 id={`alerts-${s}`} className="mb-3 flex flex-wrap items-baseline gap-x-2">
-              <span className="flex items-center gap-2 text-[15px] font-semibold">
-                <span className={cn("h-2 w-2 rounded-full ring-[3px]", SEVERITY_DOT[s])} aria-hidden />
-                {SEVERITY_LABEL[lang][s]}
-                <Pill className="tabular-nums">{items.length}</Pill>
-              </span>
-              <span className="text-sm text-muted-foreground">{SECTION_HINT[lang][s]}</span>
-            </h2>
-            <Card className="divide-y divide-border overflow-hidden">
-              {items.map((a) => (
-                <AlertCard key={a.id} a={a} lang={lang} />
-              ))}
-            </Card>
-          </section>
+        const node = (
+          <AlertGroup key={s} severity={s} alerts={items} lang={lang} openFirst={offset === 0} offset={offset} />
         );
+        offset += items.length;
+        return node;
       })}
     </div>
   );
@@ -447,18 +546,86 @@ export function AlertGroups({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?:
 export function AlertsAllClear({ lang = "pl" }: { lang?: Lang }) {
   const en = lang === "en";
   return (
-    <Card className="flex flex-col items-center px-6 py-14 text-center">
-      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-positive-soft">
-        <CheckCircle2 className="h-6 w-6 text-positive" aria-hidden />
+    <section className="glass flex flex-col items-center gap-3.5 rounded-glass px-7 py-16 text-center animate-rise [--d:.2s] sm:py-[72px]">
+      <span
+        aria-hidden
+        className="grid h-[72px] w-[72px] place-items-center rounded-full bg-lime-soft text-positive"
+      >
+        <Check className="h-8 w-8" strokeWidth={2.2} />
       </span>
-      <p className="text-section-title">
-        {en ? "All good - nothing needs your attention" : "Wszystko w porządku - nic nie wymaga Twojej uwagi"}
-      </p>
-      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+      <h2 className="mt-1 text-[26px] font-medium tracking-[-0.03em]">
+        {en ? "All good" : "Wszystko w porządku"}
+      </h2>
+      <p className="max-w-[26rem] text-[15px] leading-relaxed text-ink-2 [text-wrap:pretty]">
         {en
-          ? "We check the campaigns every day. If anything moves out of the ordinary, you'll see it here - and we'll already be on it."
-          : "Codziennie sprawdzamy kampanie. Jeśli coś odbiegnie od normy, zobaczysz to tutaj - a my już będziemy się tym zajmować."}
+          ? "Nothing needs your attention. We check the campaigns every day - if anything changes, you'll see it here and on the bell."
+          : "Nie ma nic, co wymagałoby Twojej uwagi. Pilnujemy kampanii codziennie - jeśli coś się zmieni, zobaczysz to tutaj i przy dzwonku."}
       </p>
-    </Card>
+    </section>
+  );
+}
+
+/**
+ * The whole Alerty board for the real and the demo page: header (kicker +
+ * summary chip, title, lead, severity filter) and the groups - or the calm
+ * all-clear card. Rendered as a fragment of top-level page children (one
+ * presentation slide each).
+ */
+export function AlertsBoard({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?: Lang }) {
+  const en = lang === "en";
+  const urgent = alerts.some((a) => a.severity === "critical");
+  const attention = alerts.some((a) => a.severity === "high");
+  const tone: PingTone = urgent ? "coral" : attention ? "amber" : "live";
+
+  const header = (
+    <header className="min-w-0 max-w-2xl pt-2 md:pt-6">
+      <div className="flex flex-wrap items-center gap-3 animate-rise [--d:.05s]">
+        <span className="kick">{en ? "Checked every day" : "Sprawdzamy codziennie"}</span>
+        <StatusChip tone={tone}>
+          {alerts.length === 0
+            ? en
+              ? "All clear"
+              : "Wszystko w normie"
+            : alertsHeadline(alerts, lang).replace(/\.$/, "")}
+        </StatusChip>
+      </div>
+      <h1 className="mt-5 text-[2.75rem] font-light leading-[0.95] tracking-[-0.05em] animate-rise [--d:.12s] sm:text-[3.75rem]">
+        {en ? "Alerts" : "Alerty"}
+      </h1>
+      <p className="mt-3 text-balance text-[1.125rem] leading-snug tracking-[-0.02em] text-ink-3 animate-rise [--d:.2s] sm:text-[1.375rem]">
+        {en
+          ? "What needs attention - and what we're already doing about it."
+          : "Co wymaga uwagi - i co już z tym robimy."}
+      </p>
+    </header>
+  );
+
+  if (alerts.length === 0) {
+    return (
+      <>
+        {header}
+        <AlertsAllClear lang={lang} />
+      </>
+    );
+  }
+
+  let offset = 0;
+  const groups = ORDER.flatMap((s) => {
+    const items = alerts.filter((a) => a.severity === s);
+    if (items.length === 0) return [];
+    const node = (
+      <AlertGroup severity={s} alerts={items} lang={lang} openFirst={offset === 0} offset={offset} />
+    );
+    offset += items.length;
+    return [{ key: s, label: SEVERITY_LABEL[lang][s], count: items.length, node }];
+  });
+
+  return (
+    <AlertsFilter
+      header={header}
+      groups={groups}
+      allLabel={en ? "All" : "Wszystkie"}
+      ariaLabel={en ? "Filter by urgency" : "Filtruj według ważności"}
+    />
   );
 }

@@ -90,10 +90,13 @@ export function Audience({ data }: { data: DemographicsData }) {
   const unit = (n: number) => formatCompactPL(n);
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <div>
-        <h2 className="text-section-title text-foreground">Kim są Twoi odbiorcy</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <p className="kick">Odbiorcy</p>
+        <h2 className="mt-2 text-[22px] font-medium leading-tight tracking-[-0.03em]">
+          Kim są Twoi odbiorcy
+        </h2>
+        <p className="mt-1.5 text-sm text-ink-2">
           Wiek, płeć i region - żeby wiedzieć, do kogo naprawdę mówią reklamy.
         </p>
       </div>

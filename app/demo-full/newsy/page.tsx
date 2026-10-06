@@ -36,6 +36,7 @@ export default function DemoFullNewsy({
   return (
     <>
       <PageHeader
+        eyebrow={<span className="kick">{en ? "Industry · updated every morning" : "Branża · co rano nowe"}</span>}
         title={en ? "News" : "Newsy"}
         description={
           en
@@ -50,17 +51,17 @@ export default function DemoFullNewsy({
 
       {items.length === 0 ? (
         // Same empty state as the live Newsy page.
-        <Card className="flex flex-col items-center px-6 py-14 text-center">
-          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Newspaper className="h-6 w-6 text-muted-foreground" aria-hidden />
+        <Card className="flex flex-col items-center rounded-glass px-6 py-14 text-center">
+          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-chip">
+            <Newspaper className="h-6 w-6 text-ink-3" aria-hidden />
           </span>
-          <p className="text-section-title">
+          <p className="text-[22px] font-medium tracking-[-0.03em]">
             {en ? "Nothing new in this category" : "Nic nowego w tej kategorii"}
           </p>
           <Link
             href={hrefFor("all")}
             scroll={false}
-            className="mt-4 inline-flex h-9 items-center rounded-full bg-muted px-4 text-sm font-medium transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-5 inline-flex min-h-11 items-center rounded-full bg-anchor px-5 text-[15px] font-medium text-anchor-foreground transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:active:scale-100"
           >
             {en ? "Show all news" : "Pokaż wszystkie newsy"}
           </Link>

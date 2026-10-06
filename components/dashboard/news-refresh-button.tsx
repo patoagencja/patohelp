@@ -65,9 +65,9 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
       title="Pobierz świeże newsy teraz"
       aria-label={loading ? "Pobieram newsy…" : "Pobierz świeże newsy teraz"}
       aria-busy={loading || undefined}
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-secondary"
+      className="flex h-11 w-11 items-center justify-center rounded-full bg-chip text-ink-2 transition-[background-color,color,transform] hover:bg-[var(--chip-hover)] hover:text-foreground active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-reduce:active:scale-100"
     >
-      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+      <RefreshCw className={cn("h-[18px] w-[18px]", loading && "animate-spin motion-reduce:animate-none")} aria-hidden />
     </button>
   );
 }

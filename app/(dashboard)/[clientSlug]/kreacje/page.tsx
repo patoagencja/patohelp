@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { ImageOff } from "lucide-react";
+import { CalendarDays, ImageOff } from "lucide-react";
 
+import { AdsPageHeader } from "@/components/dashboard/ads-page-intro";
 import { CreativesExplorer } from "@/components/dashboard/creatives/creatives-explorer";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
-import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
@@ -99,18 +99,22 @@ export default async function KreacjePage({
   // separate place. Top-level children are the presentation slides.
   return (
     <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
-      <div className="space-y-6">
-        <PageHeader
-          title="Reklamy"
-          description="Które reklamy działają najlepiej - i co warto odświeżyć."
-          actions={
-            <Pill className="px-3 py-1 text-sm" title="Reklamy odświeżane automatycznie co 6 godzin">
-              Meta · {period}
-            </Pill>
-          }
-        />
-        <AdsSectionTabs base={`/${params.clientSlug}`} active="kreacje" query={query} />
-      </div>
+      <AdsPageHeader
+        kicker={`Reklamy z Meta · ${period}`}
+        title="Kreacje"
+        lead="Które reklamy działają najlepiej - i co warto odświeżyć."
+        actions={
+          <Pill
+            tone="neutral"
+            className="min-h-11 gap-2 bg-chip px-4 text-sm text-ink-2 [&_svg]:size-4"
+            title="Reklamy odświeżane automatycznie co 6 godzin"
+          >
+            <CalendarDays aria-hidden />
+            Meta · {period}
+          </Pill>
+        }
+        tabs={<AdsSectionTabs base={`/${params.clientSlug}`} active="kreacje" query={query} />}
+      />
 
       {creatives.length === 0 ? (
         <EmptyState

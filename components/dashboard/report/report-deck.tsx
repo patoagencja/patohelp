@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { ContentSlide } from "@/components/dashboard/report/deck";
 import { Button } from "@/components/ui/button";
+import { iconButton } from "@/components/ui/primitives";
 import type { RangeKey } from "@/lib/dashboard/ranges";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +68,7 @@ export function ReportDeck({
         section="Analiza AI"
         foot={foot}
       >
-        <div className="space-y-4 text-[15px] leading-relaxed text-foreground/85">
+        <div className="space-y-4 text-[17px] leading-relaxed text-ink-2">
           {summary
             .replace(/[–—]/g, "-")
             .split(/\n\s*\n/)
@@ -118,40 +119,41 @@ export function ReportDeck({
   return (
     <div>
       {/* Toolbar (not printed) */}
-      <div className="mx-auto mb-4 flex max-w-5xl flex-wrap items-center gap-2 print:hidden">
+      <div className="mx-auto mb-5 flex max-w-5xl flex-wrap items-center gap-2 print:hidden">
         {!shareMode ? (
-          <Button onClick={generate} disabled={loading} className="gap-1.5">
-            <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
+          <Button onClick={generate} disabled={loading} size="pill" className="gap-2">
+            <Sparkles className={cn("h-4 w-4", loading && "animate-pulse motion-reduce:animate-none")} aria-hidden />
             {loading ? "Generuję…" : summary ? "Wygeneruj ponownie" : "Generuj opis AI"}
           </Button>
         ) : null}
-        <Button variant="outline" onClick={() => window.print()} className="gap-1.5">
-          <Download className="h-4 w-4" />
+        <Button variant="chip" size="pill" onClick={() => window.print()} className="gap-2">
+          <Download className="h-4 w-4" aria-hidden />
           Pobierz PDF
         </Button>
         <span className="flex-1" />
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className={cn(iconButton, "disabled:pointer-events-none disabled:opacity-40")}
             onClick={() => setIndex((i) => Math.max(i - 1, 0))}
             disabled={active === 0}
             aria-label="Poprzedni slajd"
           >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="w-14 text-center text-sm tabular-nums text-muted-foreground">
-            {active + 1} / {total}
+            <ChevronLeft aria-hidden />
+          </button>
+          <span className="min-w-[4.5rem] text-center font-mono text-[13px] tabular-nums text-ink-3" aria-live="polite">
+            <b className="font-medium text-foreground">{String(active + 1).padStart(2, "0")}</b> /{" "}
+            {String(total).padStart(2, "0")}
           </span>
-          <Button
-            variant="outline"
-            size="icon"
+          <button
+            type="button"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-lime text-lime-foreground shadow-lime-glow transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 motion-reduce:active:scale-100"
             onClick={() => setIndex((i) => Math.min(i + 1, total - 1))}
             disabled={active === total - 1}
             aria-label="Następny slajd"
           >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            <ChevronRight className="h-[18px] w-[18px]" aria-hidden />
+          </button>
         </div>
       </div>
 
@@ -191,13 +193,14 @@ export function ReportDeck({
       </div>
 
       {/* Portrait phones get the slide in miniature; landscape doubles it. */}
-      <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground sm:hidden landscape:hidden print:hidden">
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-ink-3 sm:hidden landscape:hidden print:hidden">
         <RotateCw className="h-3.5 w-3.5" aria-hidden />
         Obróć telefon poziomo, żeby powiększyć slajd.
       </p>
 
-      {/* Dots */}
-      <div className="mt-5 flex flex-wrap justify-center gap-1.5 print:hidden">
+      {/* Segmented progress (one segment per slide, click to jump) - the
+          same control as the presentation mode. */}
+      <div className="mx-auto mt-3 flex max-w-5xl gap-1.5 print:hidden">
         {slides.map((_, i) => (
           <button
             key={i}
@@ -205,13 +208,16 @@ export function ReportDeck({
             onClick={() => setIndex(i)}
             aria-label={`Slajd ${i + 1}`}
             aria-current={i === active ? "step" : undefined}
-            className={cn(
-              "h-2 w-2 rounded-full transition-[width,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              i === active
-                ? "w-5 bg-anchor"
-                : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
-            )}
-          />
+            className="group flex h-11 min-w-0 flex-1 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span
+              className={cn(
+                "block h-1 w-full rounded-full transition-colors",
+                i <= active ? "bg-lime-line" : "bg-chip group-hover:bg-[var(--chip-hover)]",
+                i === active && "shadow-lime-glow"
+              )}
+            />
+          </button>
         ))}
       </div>
     </div>

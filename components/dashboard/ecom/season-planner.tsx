@@ -3,11 +3,12 @@ import { CalendarClock, Lightbulb } from "lucide-react";
 
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { Card } from "@/components/ui/card";
+import { Ping } from "@/components/ui/primitives";
 import { plPlural } from "@/lib/dashboard/story";
 import { dayLabelPl, type SeasonPlan } from "@/lib/ecom/insights";
 import { cn, formatMultiple, formatPlnWhole } from "@/lib/utils";
 
-import { aboutPln, ECOM_TERMS, pctOf, Takeaway, zlPerZl } from "./plain";
+import { aboutPln, ECOM_TERMS, pctOf, SECTION_TITLE, Takeaway, zlPerZl } from "./plain";
 
 /** "zostało 52 dni" / "został 1 dzień" / "zostały 3 dni". */
 function daysLeft(n: number): string {
@@ -82,12 +83,10 @@ export function SeasonPlanner({
 
   return (
     <Card>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-6 sm:px-[30px] sm:pt-7">
         <div className="min-w-0">
-          <h2 className="text-section-title text-foreground">Plan na Black Friday i Święta</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Na podstawie Twoich własnych wyników z {ly?.year ?? "zeszłego roku"}
-          </p>
+          <p className="kick">Sezon · wyniki z {ly?.year ?? "zeszłego roku"}</p>
+          <h2 className={cn(SECTION_TITLE, "mt-2")}>Plan na Black Friday i Święta</h2>
         </div>
         {/* Phones: the countdown wraps under the title, so it reads as one
             left-aligned line ("52 dni do Black Friday") instead of a lone
@@ -96,8 +95,8 @@ export function SeasonPlanner({
             in dark mode); .surface-anchor re-points the tokens and prints
             as a plain white card. */}
         {next ? (
-          <div className="surface-anchor flex items-baseline gap-2 rounded-2xl bg-card px-4 py-3 text-foreground sm:block sm:text-right">
-            <p className="text-3xl font-medium leading-none tabular-nums tracking-[-0.03em]">
+          <div className="surface-anchor flex items-baseline gap-2 rounded-[22px] bg-card px-[18px] py-3.5 text-foreground sm:block sm:text-right">
+            <p className="text-[34px] font-light leading-none tabular-nums tracking-[-0.05em]">
               {next.daysTo}
             </p>
             <p className="text-xs text-muted-foreground sm:mt-1.5">
@@ -112,12 +111,12 @@ export function SeasonPlanner({
       </div>
 
       {takeaway ? (
-        <div className="px-5 pt-5 sm:px-6">
+        <div className="px-6 pt-6 sm:px-[30px]">
           <Takeaway>{takeaway}</Takeaway>
         </div>
       ) : null}
 
-      <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1.1fr_1fr]">
+      <div className="grid gap-5 p-6 sm:p-[24px_30px_30px] lg:grid-cols-[1.1fr_1fr]">
         {/* Last year's season, in numbers. */}
         <div className="min-w-0">
           {ly ? (
@@ -175,7 +174,7 @@ export function SeasonPlanner({
         <div className="min-w-0 space-y-4">
           {plan.events.length ? (
             <div>
-              <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <p className="kick mb-3 flex items-center gap-1.5 text-[11px]">
                 <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Nadchodzące szczyty
               </p>
               <ul className="space-y-2">
@@ -184,15 +183,13 @@ export function SeasonPlanner({
                   // flex-wrap broke only the longest names, so rows differed.
                   <li
                     key={e.key}
-                    className="flex flex-col gap-0.5 border-t border-border/70 pt-2 text-sm first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
+                    className="flex flex-col gap-0.5 border-t border-line pt-2 text-sm first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
                   >
                     <span className="min-w-0">
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "mr-2 inline-block h-2 w-2 rounded-full align-middle",
-                          e.key === next?.key ? "bg-lime" : "bg-chart-muted/60"
-                        )}
+                      <Ping
+                        tone={e.key === next?.key ? "lime" : "muted"}
+                        still={e.key !== next?.key}
+                        className="mr-2 align-middle"
                       />
                       <span className="font-medium">{e.label}</span>{" "}
                       <span className="whitespace-nowrap text-muted-foreground">
@@ -210,7 +207,7 @@ export function SeasonPlanner({
             </div>
           ) : null}
 
-          <div className="rounded-2xl bg-lime-soft/70 p-4 sm:p-5">
+          <div className="rounded-[22px] bg-lime-soft/70 p-5">
             <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
               <Lightbulb className="h-4 w-4 text-positive" aria-hidden /> Co z tego wynika
             </p>
@@ -283,13 +280,13 @@ function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("min-w-0 rounded-2xl bg-muted/50 px-4 py-3", className)}>
-      <dt className="flex items-center gap-1 text-xs text-muted-foreground">
+    <div className={cn("min-w-0 rounded-[22px] bg-chip px-[18px] py-4", className)}>
+      <dt className="flex items-center gap-1 text-[13px] text-ink-3">
         {label}
         {explain ? <InfoTip label={label} text={explain} /> : null}
       </dt>
-      <dd className="mt-1 text-xl font-medium leading-tight tabular-nums tracking-[-0.02em]">{value}</dd>
-      {note ? <p className="text-[11px] text-muted-foreground">{note}</p> : null}
+      <dd className="mt-1.5 text-[22px] font-light leading-tight tabular-nums tracking-[-0.03em]">{value}</dd>
+      {note ? <p className="mt-1 text-xs text-ink-3">{note}</p> : null}
     </div>
   );
 }

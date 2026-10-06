@@ -61,6 +61,7 @@ export default async function NewsyPage({
   return (
     <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
       <PageHeader
+        eyebrow={<span className="kick">Branża · co rano nowe</span>}
         title="Newsy"
         description="Co nowego w reklamie Meta, Google, TikTok i w AI - zbierane automatycznie każdego ranka."
         actions={<NewsRefreshButton clientSlug={params.clientSlug} />}
@@ -74,13 +75,13 @@ export default async function NewsyPage({
       </div>
 
       {items.length === 0 ? (
-        <Card className="flex flex-col items-center px-6 py-14 text-center">
-          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Newspaper className="h-6 w-6 text-muted-foreground" aria-hidden />
+        <Card className="flex flex-col items-center rounded-glass px-6 py-14 text-center">
+          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-chip">
+            <Newspaper className="h-6 w-6 text-ink-3" aria-hidden />
           </span>
           {filter === "all" ? (
             <>
-              <p className="text-section-title">Brak newsów</p>
+              <p className="text-[22px] font-medium tracking-[-0.03em]">Brak newsów</p>
               <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 Lista wypełnia się automatycznie każdego ranka. Kliknij ikonę
                 odświeżania, aby pobrać pierwszą porcję (potrwa ok. 1 min).
@@ -88,14 +89,14 @@ export default async function NewsyPage({
             </>
           ) : (
             <>
-              <p className="text-section-title">Nic nowego w tej kategorii</p>
+              <p className="text-[22px] font-medium tracking-[-0.03em]">Nic nowego w tej kategorii</p>
               <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
                 W ostatnim czasie nie pojawiło się tu nic ważnego.
               </p>
               <Link
                 href={base}
                 scroll={false}
-                className="mt-4 inline-flex h-9 items-center rounded-full bg-muted px-4 text-sm font-medium transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mt-5 inline-flex min-h-11 items-center rounded-full bg-anchor px-5 text-[15px] font-medium text-anchor-foreground transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:active:scale-100"
               >
                 Pokaż wszystkie newsy
               </Link>

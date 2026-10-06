@@ -7,8 +7,10 @@ import { cn, formatPlnWhole } from "@/lib/utils";
 
 import {
   aboutPln,
+  BIG_NUM,
   CardHeading,
   ECOM_TERMS,
+  SECTION_PAD,
   Takeaway,
   zlPerZl,
   type TakeawayTone,
@@ -42,8 +44,8 @@ export function ProfitCard({
 
   if (!p) {
     return (
-      <Card className="p-5 sm:p-6">
-        <CardHeading>Zysk po reklamach</CardHeading>
+      <Card className={SECTION_PAD}>
+        <CardHeading note="Zysk">Zysk po reklamach</CardHeading>
         <Takeaway className="mt-3">
           Wiemy, ile sprzedaży przyniosły reklamy - ale żeby powiedzieć, czy na
           nich zarabiasz, potrzebujemy Twojej marży.
@@ -55,7 +57,7 @@ export function ProfitCard({
         {isAgency ? (
           <Link
             href={`/${clientSlug}/settings#ecommerce`}
-            className="mt-4 inline-flex h-9 items-center rounded-full bg-anchor px-4 text-sm font-medium text-anchor-foreground hover:bg-anchor/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="mt-4 inline-flex min-h-11 items-center rounded-full bg-anchor px-5 text-sm font-medium text-anchor-foreground hover:bg-anchor/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Podaj marżę w Ustawieniach
           </Link>
@@ -107,8 +109,8 @@ export function ProfitCard({
   const netPerZl = p.poas !== null ? p.poas - 1 : null;
 
   return (
-    <Card className="p-5 sm:p-6">
-      <CardHeading note={rangeLabel}>Zysk po reklamach</CardHeading>
+    <Card className={SECTION_PAD}>
+      <CardHeading note={`Zysk · ${rangeLabel}`}>Zysk po reklamach</CardHeading>
       <Takeaway tone={takeaway.tone} className="mt-3">
         {takeaway.text}
       </Takeaway>
@@ -118,7 +120,8 @@ export function ProfitCard({
           <MetricLabel name="Zysk po reklamach" explain={PROFIT_EXPLAIN} />
           <p
             className={cn(
-              "mt-1.5 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums sm:text-metric",
+              "mt-2.5",
+              BIG_NUM,
               profitable ? "text-positive" : "text-negative"
             )}
           >
@@ -148,21 +151,23 @@ export function ProfitCard({
                 </span>
               </div>
               <div
-                className="relative mt-2.5 h-3 rounded-full bg-gradient-to-r from-negative/25 via-warning-fill/30 to-lime/50"
+                className="relative mt-3 h-3 rounded-full bg-gradient-to-r from-coral/40 via-amber/35 to-lime/60"
                 role="img"
                 aria-label={`Zwrot z reklam ${zlPerZl(p.roas)} przy progu opłacalności ${zlPerZl(
                   p.breakEvenRoas
                 )}`}
               >
                 <div
-                  className="absolute h-[22px] w-[3px] -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
+                  className="absolute h-[22px] w-[3px] -translate-x-1/2 rounded-full bg-foreground"
                   style={{ left: "50%", top: "-5px" }}
                   title="Próg opłacalności"
                 />
                 <div
                   className={cn(
-                    "absolute h-5 w-5 -translate-x-1/2 rounded-full border-[3px] border-card shadow-raised",
-                    roas >= p.breakEvenRoas ? "bg-positive" : "bg-negative"
+                    "absolute h-5 w-5 -translate-x-1/2 rounded-full border-[3px] border-card",
+                    roas >= p.breakEvenRoas
+                      ? "bg-[hsl(var(--lime-line))] shadow-[0_0_0_5px_var(--lime-glow)]"
+                      : "bg-negative shadow-[0_0_0_5px_hsl(var(--coral)/0.3)]"
                   )}
                   style={{ left: pos(roas), top: "-4px" }}
                 />
@@ -177,7 +182,7 @@ export function ProfitCard({
         </div>
 
         <dl className="grid grid-cols-2 content-start gap-3 text-sm">
-          <div className="col-span-2 min-w-0 rounded-2xl bg-muted/50 px-4 py-3 sm:col-span-1">
+          <div className="col-span-2 min-w-0 rounded-[22px] bg-chip px-[18px] py-4 sm:col-span-1">
             <dt>
               <MetricLabel
                 name={ECOM_TERMS.poas.name}
@@ -185,15 +190,15 @@ export function ProfitCard({
                 explain={ECOM_TERMS.poas.explain}
               />
             </dt>
-            <dd className="mt-1 text-lg font-semibold tabular-nums tracking-[-0.01em]">
+            <dd className="mt-2 text-[22px] font-light tabular-nums tracking-[-0.03em]">
               {p.poas !== null ? `${zlPerZl(p.poas)} marży` : "—"}
             </dd>
           </div>
-          <div className="col-span-2 min-w-0 rounded-2xl bg-muted/50 px-4 py-3 sm:col-span-1">
-            <dt className="text-sm font-medium">Na czysto z każdej 1 zł reklam</dt>
+          <div className="col-span-2 min-w-0 rounded-[22px] bg-chip px-[18px] py-4 sm:col-span-1">
+            <dt className="text-sm text-ink-2">Na czysto z każdej 1 zł reklam</dt>
             <dd
               className={cn(
-                "mt-1 text-lg font-semibold tabular-nums tracking-[-0.01em]",
+                "mt-2 text-[22px] font-light tabular-nums tracking-[-0.03em]",
                 netPerZl !== null && netPerZl < 0 && "text-negative"
               )}
             >
