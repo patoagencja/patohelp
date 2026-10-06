@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 
 /** Fired by AutoSync when a manual/auto sync finishes, to check right away. */
 export const SYNC_CHECK_EVENT = "pato:sync-check";
+/** AutoRefresh -> <LiveStamp/>: a fresher sync stamp arrived. */
+export const LIVE_STAMP_EVENT = "pato:live-stamp";
+type LiveDetail = { stamp: string | null; pulse: boolean };
 
 function relativeLabel(iso: string, now: number): string {
   const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
@@ -29,10 +32,16 @@ export function AutoRefresh({
   initialStamp,
   checkStamp,
   pollSeconds = 60,
+  headless = false,
 }: {
   initialStamp: string | null;
   checkStamp: () => Promise<string | null>;
   pollSeconds?: number;
+  /**
+   * Poll only; the label is drawn by <LiveStamp/> wherever the chrome puts
+   * it (desktop bar, phone header) - one poller, several labels.
+   */
+  headless?: boolean;
 }) {
   const router = useRouter();
   const [stamp, setStamp] = useState(initialStamp);
@@ -47,6 +56,7 @@ export function AutoRefresh({
     if (initialStamp && initialStamp !== stampRef.current) {
       stampRef.current = initialStamp;
       setStamp(initialStamp);
+      broadcast({ stamp: initialStamp, pulse: false });
     }
   }, [initialStamp]);
 
@@ -59,7 +69,11 @@ export function AutoRefresh({
         stampRef.current = latest;
         setStamp(latest);
         setPulse(true);
-        setTimeout(() => setPulse(false), 1200);
+        broadcast({ stamp: latest, pulse: true });
+        setTimeout(() => {
+          setPulse(false);
+          broadcast({ stamp: latest, pulse: false });
+        }, 1200);
         // Transition keeps the current screen interactive while fresh server
         // components stream in - no skeleton flash.
         startTransition(() => router.refresh());
@@ -90,6 +104,8 @@ export function AutoRefresh({
     };
   }, [check, pollSeconds]);
 
+  if (headless) return null;
+
   return (
     // Quiet freshness cue: a green dot and "X min temu". The dot alone on
     // phones; the full sentence is in the title and for screen readers.
@@ -113,6 +129,72 @@ export function AutoRefresh({
       ) : (
         <span className="sr-only">Dane na żywo</span>
       )}
+    </span>
+  );
+}
+
+function broadcast(detail: LiveDetail) {
+  window.dispatchEvent(new CustomEvent<LiveDetail>(LIVE_STAMP_EVENT, { detail }));
+}
+
+function liveLabel(iso: string | null, now: number): { text: string; fresh: boolean } {
+  if (!iso) return { text: "Na żywo", fresh: true };
+  const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  if (minutes < 1) return { text: "Na żywo · przed chwilą", fresh: true };
+  if (minutes < 60) return { text: `Na żywo · ${minutes} min temu`, fresh: true };
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return { text: `Na żywo · ${hours} godz. temu`, fresh: hours <= 2 };
+  return {
+    text: `Dane z ${formatInTimeZone(new Date(iso), "Europe/Warsaw", "d.MM, HH:mm")}`,
+    fresh: false,
+  };
+}
+
+/**
+ * 2026 chrome freshness cue: ping dot + "Na żywo · 5 min temu". Reads the
+ * stamp <AutoRefresh headless/> broadcasts (SSR: `initialStamp`). `demo`
+ * replaces the time with a fixed note (synthetic data has no sync).
+ */
+export function LiveStamp({
+  initialStamp,
+  demo,
+  className,
+  textClassName,
+}: {
+  initialStamp: string | null;
+  demo?: string;
+  className?: string;
+  /** e.g. "hidden xl:inline" - the dot stays, the words fold away. */
+  textClassName?: string;
+}) {
+  const [live, setLive] = useState<LiveDetail>({ stamp: initialStamp, pulse: false });
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const onStamp = (e: Event) => setLive((e as CustomEvent<LiveDetail>).detail);
+    window.addEventListener(LIVE_STAMP_EVENT, onStamp);
+    const tick = setInterval(() => setNow(Date.now()), 30_000);
+    return () => {
+      window.removeEventListener(LIVE_STAMP_EVENT, onStamp);
+      clearInterval(tick);
+    };
+  }, []);
+
+  const { text, fresh } = demo
+    ? { text: demo, fresh: true }
+    : liveLabel(live.stamp, now);
+  return (
+    <span
+      className={cn("flex items-center gap-2 whitespace-nowrap text-[13px] text-ink-3", className)}
+      title="Dane odświeżają się same, gdy przyjdzie nowa synchronizacja"
+    >
+      <span
+        aria-hidden
+        className={cn("ping", !fresh && "ping-amber ping-still", live.pulse && "scale-125")}
+      />
+      <span className={textClassName} suppressHydrationWarning>
+        {text}
+      </span>
     </span>
   );
 }

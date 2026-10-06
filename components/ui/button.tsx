@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // page/header) or text-only (ghost). `accent` = the green brand fill for the
 // rare call to action that should read as "go".
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium ring-offset-background transition-[background-color,color,box-shadow,opacity] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium ring-offset-background transition-[background-color,color,box-shadow,opacity,transform] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -25,12 +25,19 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/70",
         ghost: "text-foreground hover:bg-foreground/[0.06] dark:hover:bg-foreground/10",
         link: "text-primary underline-offset-4 hover:underline",
+        // 2026 pastel: the lime "go" pill (#1D2A12 on lime, 9.6:1) and the
+        // translucent ink chip (secondary actions on glass / the sky).
+        lime: "bg-lime text-lime-foreground shadow-lime-glow hover:shadow-[0_14px_40px_-8px_var(--lime-glow)]",
+        chip: "bg-chip text-foreground hover:bg-[var(--chip-hover)]",
       },
       size: {
         default: "h-10 px-5",
         sm: "h-9 px-3.5",
         lg: "h-12 px-7 text-[15px]",
         icon: "h-9 w-9",
+        // 2026: 44px touch targets (header pills, icon buttons).
+        pill: "h-11 px-[18px] text-[15px] active:scale-95 motion-reduce:active:scale-100",
+        "icon-lg": "h-11 w-11 active:scale-95 motion-reduce:active:scale-100 [&_svg]:size-[18px]",
       },
     },
     defaultVariants: {

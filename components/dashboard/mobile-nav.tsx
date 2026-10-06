@@ -16,9 +16,10 @@ import { useModalFocus } from "@/components/dashboard/use-modal-focus";
 import { cn } from "@/lib/utils";
 
 /**
- * Phone navigation as an iOS-style bottom tab bar: the main places (at most
- * four) plus "Więcej" opening a sheet with everything else. Same model as the
- * desktop sidebar (nav-items.ts), so both always list the same pages.
+ * Phone navigation (Telefon-2030): a floating glass tab bar with a sliding
+ * ink indicator - the main places (at most four) plus "Więcej" opening a
+ * sheet with everything else. Same model as the desktop top bar
+ * (nav-items.ts), so both always list the same pages. Below `md` only.
  */
 export function MobileNav({
   clientSlug,
@@ -63,11 +64,13 @@ export function MobileNav({
       .map((g) => ({ label: g.id === "more" ? undefined : g.label, items: g.items })),
   ].filter((s) => s.items.length > 0);
   const moreActive = !!section && !primary.some((i) => i.href === section.href);
+  const slots = primary.length + 1;
+  const activeSlot = moreActive ? primary.length : primary.findIndex((i) => i.href === section?.href);
 
   return (
     <>
       {open ? (
-        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Więcej">
+        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Więcej">
           {/* Tap-outside target only; keyboard users have the X and Esc. */}
           <button
             type="button"
@@ -78,7 +81,7 @@ export function MobileNav({
           />
           <div
             ref={sheetRef}
-            className="absolute inset-x-0 bottom-0 mx-auto max-h-[85vh] max-w-xl overflow-y-auto rounded-t-[1.75rem] bg-background p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-raised animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
+            className="absolute inset-x-0 bottom-0 mx-auto max-h-[85vh] max-w-xl overflow-y-auto rounded-t-[2rem] bg-background p-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] shadow-raised animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
           >
             <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-foreground/15" aria-hidden />
             <div className="flex items-center justify-between px-1 pb-3">
@@ -87,7 +90,7 @@ export function MobileNav({
                 ref={closeRef}
                 type="button"
                 onClick={close}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-chip text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Zamknij"
               >
                 <X className="h-4 w-4" aria-hidden />
@@ -100,7 +103,7 @@ export function MobileNav({
                     <p className="px-4 pb-1.5 text-xs font-medium text-muted-foreground">{section.label}</p>
                   ) : null}
                   {/* Inset grouped list: one white surface, hairline rows. */}
-                  <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-card shadow-card">
+                  <ul className="glass divide-y divide-border overflow-hidden rounded-[22px]">
                     {section.items.map((item) => {
                       const Icon = item.icon;
                       const isActive = active?.href === item.href;
@@ -152,7 +155,7 @@ export function MobileNav({
                   close();
                   window.dispatchEvent(new Event(HELP_EVENT));
                 }}
-                className="flex w-full items-center gap-3 rounded-2xl bg-card px-4 py-3 text-left text-[15px] font-medium shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted"
+                className="glass flex w-full items-center gap-3 rounded-[22px] px-4 py-3 text-left text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted"
               >
                 <HelpCircle className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 Jak czytać panel
@@ -164,14 +167,22 @@ export function MobileNav({
 
       <nav
         aria-label="Nawigacja"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-chrome/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150 lg:hidden print:hidden"
+        className="glass glass-blur fixed inset-x-3.5 bottom-[calc(14px+env(safe-area-inset-bottom))] z-50 h-[70px] rounded-full p-[7px] md:hidden print:hidden"
       >
-        <div
-          className={cn(
-            "grid",
-            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4", "grid-cols-5"][primary.length]
-          )}
-        >
+        <div className="relative grid h-full" style={{ gridTemplateColumns: `repeat(${slots}, minmax(0, 1fr))` }}>
+          {/* The sliding "sel" pill: equal columns, so it moves by its own
+              width. Hidden when no tab is current (e.g. Ustawienia). */}
+          <span
+            aria-hidden
+            className={cn(
+              "absolute inset-y-0 left-0 rounded-full bg-anchor shadow-[0_4px_14px_-6px_rgb(40_36_28/0.35)] transition-transform duration-[550ms] [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] motion-reduce:transition-none",
+              activeSlot < 0 && "opacity-0"
+            )}
+            style={{
+              width: `${100 / slots}%`,
+              transform: `translateX(${Math.max(0, activeSlot) * 100}%)`,
+            }}
+          />
           {primary.map(({ href, label, short, icon: Icon }) => {
             const isActive = section?.href === href;
             return (
@@ -180,21 +191,12 @@ export function MobileNav({
                 href={`${href}${suffix}`}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 pb-1.5 pt-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  isActive ? "text-foreground" : "text-muted-foreground"
+                  "relative flex flex-col items-center justify-center gap-[3px] rounded-full text-[11px] font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  isActive ? "text-anchor-foreground focus-visible:ring-anchor-dot" : "text-ink-2"
                 )}
               >
-                {/* Active tab: the anchor pill behind the icon (same language
-                    as the desktop sidebar) + bolder label. */}
-                <span
-                  className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                    isActive && "bg-anchor text-anchor-foreground"
-                  )}
-                >
-                  <Icon className="h-[20px] w-[20px]" strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
-                </span>
-                <span className={cn(isActive && "font-semibold")}>{short ?? label}</span>
+                <Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+                <span className="max-w-full truncate px-1">{short ?? label}</span>
               </Link>
             );
           })}
@@ -204,19 +206,12 @@ export function MobileNav({
             aria-expanded={open}
             aria-haspopup="dialog"
             className={cn(
-              "flex flex-col items-center gap-0.5 pb-1.5 pt-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              open || moreActive ? "text-foreground" : "text-muted-foreground"
+              "relative flex flex-col items-center justify-center gap-[3px] rounded-full text-[11px] font-medium transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              moreActive && !open ? "text-anchor-foreground" : open ? "text-foreground" : "text-ink-2"
             )}
           >
-            <span
-              className={cn(
-                "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                (open || moreActive) && "bg-anchor text-anchor-foreground"
-              )}
-            >
-              <MoreHorizontal className="h-[20px] w-[20px]" strokeWidth={open || moreActive ? 2.25 : 1.75} aria-hidden />
-            </span>
-            <span className={cn((open || moreActive) && "font-semibold")}>Więcej</span>
+            <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+            <span>Więcej</span>
           </button>
         </div>
       </nav>

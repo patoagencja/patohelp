@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, ChevronUp, MonitorPlay, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * "Tryb prezentacji" - managers put the dashboard on a TV/projector for the
@@ -146,10 +147,16 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
 
 export function PresentationMode({
   brand,
+  className,
+  labelClassName = "hidden sm:inline",
 }: {
   /** The client's mark, shown top-left while presenting so the TV shows
    *  whose report this is once the sidebar and header are gone. */
   brand?: React.ReactNode;
+  /** Trigger styling (the 2026 chrome sizes it per breakpoint). */
+  className?: string;
+  /** Where the "Prezentuj" word shows; the icon always does. */
+  labelClassName?: string;
 } = {}) {
   const [active, setActive] = useState(false);
   const [position, setPosition] = useState({ index: 0, total: 0 });
@@ -415,15 +422,15 @@ export function PresentationMode({
         type="button"
         // The header's one dark "anchor" pill (v2 skin).
         variant="default"
-        size="sm"
-        className="gap-1.5 max-sm:w-9 max-sm:px-0"
+        size="pill"
+        className={cn("gap-2", className)}
         onClick={() => (active ? exit() : void enter())}
         aria-pressed={active}
         aria-label="Prezentuj"
         title="Tryb prezentacji - pełny ekran na TV/rzutnik"
       >
-        <MonitorPlay className="h-4 w-4" aria-hidden />
-        <span className="hidden sm:inline">Prezentuj</span>
+        <MonitorPlay className="!h-[17px] !w-[17px]" aria-hidden strokeWidth={1.8} />
+        <span className={labelClassName}>Prezentuj</span>
       </Button>
       {bar}
     </>

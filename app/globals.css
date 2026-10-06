@@ -3,178 +3,235 @@
 @tailwind utilities;
 
 @layer base {
-  /* ===== Design tokens (v2 skin) ============================================
-     Calm, premium, colourful with purpose (owner's Dribbble benchmarks, see
-     bench/visual-v2.md): white borderless cards with a big radius and a soft
-     diffuse shadow on a warm-neutral page; ONE near-black "anchor" for
-     whatever is selected (nav item, segmented choice, primary button); ONE
-     signature lime/leaf-green accent family for good news, progress and the
-     highlighted series, olive/khaki as its quiet sibling; greys for
-     everything that is not the point. Multi-series charts use the earthy
-     --chart-* palette (never rainbow).
+  /* ===== Design tokens (2026 pastel skin) ==================================
+     Source of truth: docs/design/2026/project/Przeglad-pastel.dc.html (the
+     board the owner marked "wersja do wdrożenia"). A warm paper canvas with
+     drifting pastel blobs, frosted-glass cards, ONE near-black "sel" pill for
+     whatever is selected, lime as the signature accent, mint / violet /
+     coral / amber as the pastel companions.
 
-     Every value below is consumed through Tailwind (tailwind.config.ts) -
-     components never use raw colours. Contrast notes are measured against
-     the surface they sit on (scratchpad v2contrast.js). */
+     The design's names are kept as raw CSS variables (--ink, --lime-glow,
+     --g1, --chip...) for the new primitives (.glass, .kick, .ping...). The
+     shadcn / v2 token names (--background, --muted-foreground, --anchor,
+     --chart-1...) are re-pointed at the same palette as HSL triplets, so
+     every existing page shifts to the new look without code changes.
+     Hex/rgba literals live ONLY in this block. Contrast notes are measured
+     on the lightest and darkest point of a glass card (white 86% -> 62% over
+     the canvas and blobs). */
   :root {
-    /* Page: warm light grey (not blue-grey) so white cards read as layers. */
-    --background: 45 9% 95%;
-    --foreground: 60 4% 9%;
-    --card: 0 0% 100%;
-    --card-foreground: 60 4% 9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 60 4% 9%;
-    /* Deep leaf green: the readable member of the lime family. White text on
-       it 5.6:1, as link text 5.6:1 on cards / 5.0:1 on the page. Use it for
-       links, focus and filled bars; the vivid lime (--lime) is decoration. */
-    --primary: 90 55% 29%;
-    --primary-foreground: 0 0% 100%;
-    /* Soft warm fill: secondary buttons, inputs, segmented-control tracks. */
-    --secondary: 45 7% 92%;
-    --secondary-foreground: 60 4% 9%;
-    --muted: 45 7% 92.5%;
-    /* 6.1:1 on white, 5.5:1 on the page, 5.2:1 on bg-muted tracks (AA). */
-    --muted-foreground: 40 4% 38%;
-    /* Pale lime wash for chips/highlights; deep green text on it 7.2:1. */
-    --accent: 80 55% 92%;
-    --accent-foreground: 92 60% 22%;
-    --destructive: 4 68% 44%;
-    --destructive-foreground: 0 0% 100%;
-    /* Dividers inside cards (table rows, separators). */
-    --border: 45 8% 90%;
-    --input: 45 6% 87%;
-    --ring: 90 55% 32%;
-    /* Inner elements (buttons, inputs, chips, tiles). */
-    --radius: 0.875rem;
-    /* Top-level surfaces (cards, sections): ~24px like the benchmarks. */
-    --radius-card: 1.5rem;
-    /* Cards are borderless; a near-invisible edge only keeps white-on-grey
-       crisp on washed-out screens. The diffuse shadow does the work. */
-    --hairline: 40 10% 10% / 0.035;
-    --shadow-card: 0 1px 2px 0 rgb(40 34 20 / 0.03), 0 10px 30px -12px rgb(40 34 20 / 0.10);
-    --shadow-raised: 0 2px 4px 0 rgb(40 34 20 / 0.04), 0 18px 44px -14px rgb(40 34 20 / 0.20);
-    /* Selected segment of a light segmented control (sits on bg-muted). */
-    --segment: 0 0% 100%;
-    /* Translucent chrome (sticky header, tab bar). */
-    --chrome: 45 9% 95%;
+    /* --- Pastel palette (light) ------------------------------------------ */
+    --bg: #F5F3EE;
+    --ink: #1D1E21;
+    /* Secondary text 7.6:1 on glass. */
+    --ink-2: rgba(29, 30, 33, 0.74);
+    /* Meta / kickers. The design's .6 measured 4.3:1 on the canvas; .66
+       gives 5.1:1 on glass and 4.7:1 on the bare canvas (AA). */
+    --ink-3: rgba(29, 30, 33, 0.66);
+    --line: rgba(29, 30, 33, 0.07);
+    --g1: rgba(255, 255, 255, 0.86);
+    --g2: rgba(255, 255, 255, 0.62);
+    --edge-a: rgba(255, 255, 255, 1);
+    --edge-b: rgba(255, 255, 255, 0.5);
+    --edge-c: rgba(169, 217, 122, 0.35);
+    --lime-hex: #A9D97A;
+    --lime-glow: rgba(169, 217, 122, 0.35);
+    --violet-hex: #B7A8F0;
+    --prev: rgba(29, 30, 33, 0.3);
+    --chip: rgba(29, 30, 33, 0.045);
+    --chip-hover: rgba(29, 30, 33, 0.08);
+    --spot: rgba(255, 255, 255, 0.75);
+    --shadow-glass: 0 1px 2px rgba(40, 36, 28, 0.04), 0 22px 50px -30px rgba(40, 36, 28, 0.22);
+    --num-grad: linear-gradient(180deg, #1D1E21 35%, rgba(29, 30, 33, 0.62));
+    --blob1: rgba(200, 232, 160, 0.75);
+    --blob2: rgba(251, 213, 197, 0.7);
+    --blob3: rgba(217, 208, 250, 0.7);
+    --dots: transparent;
+    --tip: rgba(255, 255, 255, 0.88);
+    /* Orb (AI card): conic pastel ring + white pearl core. */
+    --orb-ring: conic-gradient(from 0deg, #CDEAA8, #BFE8D6, #D9D0FA, #FBD5C5, #CDEAA8);
+    --orb-core: radial-gradient(circle at 34% 28%, #FFFFFF, rgba(255, 255, 255, 0.4) 40%, transparent 62%),
+      radial-gradient(circle at 60% 80%, rgba(169, 217, 122, 0.35), transparent 55%), #FFFFFF;
 
-    /* --- v2 additions ---------------------------------------------------- */
-    /* The anchor: near-black pill for the selected/primary thing. 17:1. */
-    --anchor: 60 5% 10%;
+    /* --- shadcn / v2 names, re-pointed ---------------------------------- */
+    --background: 43 26% 95%;
+    --foreground: 225 6% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 225 6% 12%;
+    --popover: 40 33% 99%;
+    --popover-foreground: 225 6% 12%;
+    /* lime-ink (#3F7A28): links, focus, "good". White on it 5.2:1, as text
+       on glass 5.0:1. */
+    --primary: 103 51% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 12% 92%;
+    --secondary-foreground: 225 6% 12%;
+    /* Solid stand-in for --chip on the canvas (tracks, chips, hovers). */
+    --muted: 40 12% 92%;
+    /* ink-3 as a solid: 5.3:1 on white glass, 4.8:1 on the canvas, 4.6:1
+       on bg-muted. */
+    --muted-foreground: 225 3% 40%;
+    --accent: 90 50% 92%;
+    --accent-foreground: 103 55% 24%;
+    --destructive: 10 66% 44%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 5% 90%;
+    --input: 225 5% 86%;
+    --ring: 103 51% 32%;
+    --radius: 0.875rem;
+    /* Cards: the design's 30-32px. */
+    --radius-card: 1.875rem;
+    --hairline: 225 6% 12% / 0.04;
+    --shadow-card: var(--shadow-glass);
+    --shadow-raised: 0 2px 4px rgba(40, 36, 28, 0.05), 0 26px 56px -24px rgba(40, 36, 28, 0.3);
+    --segment: 0 0% 100%;
+    --chrome: 43 26% 95%;
+
+    /* The "sel" pill: near-black ink, white text 16:1. */
+    --anchor: 225 6% 12%;
     --anchor-foreground: 0 0% 100%;
-    /* The small dot on the active nav item. */
-    --anchor-dot: 82 72% 55%;
-    /* Secondary text / hairlines inside an anchor surface (9:1 / subtle). */
-    --anchor-muted: 45 6% 72%;
-    --anchor-border: 60 4% 20%;
-    /* Signature accent family. Fills only (bars, gauges, washes) - never
-       text on white (1.8:1). Text on lime uses --lime-foreground (8:1). */
-    --lime: 82 65% 52%;
-    --lime-soft: 80 60% 90%;
-    --lime-foreground: 90 50% 12%;
+    --anchor-dot: 90 56% 66%;
+    --anchor-muted: 225 4% 72%;
+    --anchor-border: 225 5% 22%;
+    /* Lime (#A9D97A): fills and decoration only (1.7:1 on white) - text on
+       it uses --lime-foreground (#1D2A12, 9.6:1). */
+    --lime: 90 56% 66%;
+    --lime-soft: 90 55% 91%;
+    --lime-foreground: 92 40% 12%;
+    /* The lime chart line: one step deeper than the fill so a 2.6px line
+       still reads on white glass. */
+    --lime-line: 92 50% 54%;
     --olive: 56 35% 58%;
     --olive-soft: 56 40% 91%;
-    /* Earthy categorical palette (3.webp). chart-1 is the "this period"
-       series: deep enough for a 2px line on white (4.2:1); fill it with a
-       lime gradient. Order = assignment order for multi-series charts. */
-    --chart-1: 92 48% 36%;
-    --chart-2: 170 18% 24%;
-    --chart-3: 20 60% 50%;
-    --chart-4: 232 40% 64%;
-    --chart-5: 52 40% 46%;
-    --chart-6: 105 16% 64%;
-    /* Comparison / previous period / "not the point" series. */
-    --chart-muted: 40 5% 62%;
-    /* Chart tooltip: dark rounded card in both themes. */
-    --tooltip: 60 5% 10%;
-    --tooltip-foreground: 45 10% 96%;
-    /* Meaning. Text tones are AA on their soft fill and on white. */
-    --positive: 142 64% 28%;
-    --positive-soft: 100 55% 92%;
-    --negative: 4 68% 44%;
-    --negative-soft: 6 80% 95%;
-    --warning: 30 85% 34%;
-    --warning-soft: 40 90% 92%;
-    /* Fill (bars, gauges) for "behind plan" - text uses --warning. */
-    --warning-fill: 36 88% 56%;
-    /* AI insight banner (2.webp): lavender -> pink wash, violet text 6.3:1. */
-    --ai: 262 50% 48%;
-    --ai-soft: 262 85% 94%;
-    --ai-wash-from: 258 90% 97%;
-    --ai-wash-to: 320 85% 96.5%;
-    /* Diagonal stripes over a filled bar (.bg-stripes). */
+    --mint: 158 44% 74%;
+    --violet: 252 71% 80%;
+    --coral: 12 73% 67%;
+    --coral-foreground: 8 60% 5%;
+    --amber: 36 82% 71%;
+    /* Categorical: lime-line, mint, violet, coral, amber, olive (deepened
+       so 2px lines clear 2:1+ on white; the legend always names them). */
+    --chart-1: 92 50% 46%;
+    --chart-2: 158 38% 46%;
+    --chart-3: 12 70% 60%;
+    --chart-4: 252 55% 66%;
+    --chart-5: 36 80% 52%;
+    --chart-6: 56 30% 52%;
+    /* Previous period / "not the point" series. */
+    --chart-muted: 225 3% 66%;
+    /* Toasts / legacy dark tooltips stay the ink card in both themes. */
+    --tooltip: 225 6% 12%;
+    --tooltip-foreground: 45 20% 96%;
+    /* Meaning. Text tones are AA on their soft fill and on glass. */
+    --positive: 103 52% 30%;
+    --positive-soft: 90 55% 91%;
+    --negative: 10 66% 44%;
+    --negative-soft: 12 80% 94%;
+    --warning: 30 85% 32%;
+    --warning-soft: 38 90% 91%;
+    --warning-fill: 36 82% 64%;
+    --ai: 252 45% 48%;
+    --ai-soft: 252 80% 94%;
+    --ai-wash-from: 252 85% 96%;
+    --ai-wash-to: 12 85% 96%;
     --stripe: 0 0% 100% / 0.32;
-    /* Status icons on the dark tooltip/toast card (same in both themes,
-       since that card is dark in both): >= 3:1 against --tooltip. */
-    --tooltip-positive: 82 72% 58%;
-    --tooltip-negative: 4 85% 72%;
-    --tooltip-warning: 38 90% 64%;
-    /* Loading skeletons: the soft glint that sweeps across bg-muted. */
+    --tooltip-positive: 90 60% 66%;
+    --tooltip-negative: 12 85% 72%;
+    --tooltip-warning: 36 90% 70%;
     --skeleton-glint: 0 0% 100% / 0.7;
-    /* Native widgets (date inputs' calendar, scrollbars) follow the theme. */
     color-scheme: light;
   }
 
   .dark {
-    /* Deep warm charcoal page; cards a clear step lifted; lime stays vivid. */
-    --background: 40 6% 6.5%;
-    --foreground: 45 10% 95%;
-    --card: 40 5% 10.5%;
-    --card-foreground: 45 10% 95%;
-    --popover: 40 5% 13%;
-    --popover-foreground: 45 10% 95%;
-    /* Vivid lime with near-black text (10.8:1); as text on cards 10.9:1. */
-    --primary: 82 70% 58%;
-    --primary-foreground: 90 50% 8%;
-    --secondary: 40 4% 16%;
-    --secondary-foreground: 45 10% 95%;
-    --muted: 40 4% 15.5%;
-    /* 7.9:1 on cards, 6.7:1 on bg-muted tracks. */
-    --muted-foreground: 40 6% 68%;
-    --accent: 85 30% 16%;
-    --accent-foreground: 82 70% 72%;
-    --destructive: 4 70% 52%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 40 4% 17%;
-    --input: 40 4% 21%;
-    --ring: 82 70% 58%;
-    --hairline: 45 20% 90% / 0.06;
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.45), 0 12px 32px -14px rgb(0 0 0 / 0.6);
-    --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 18px 44px -12px rgb(0 0 0 / 0.75);
-    --segment: 40 4% 26%;
-    --chrome: 40 6% 6.5%;
+    /* --- Pastel palette (dark): Przeglad-pastel data-theme="dark" -------- */
+    --bg: #18191C;
+    --ink: #F4F3EE;
+    --ink-2: rgba(244, 243, 238, 0.74);
+    /* 5.9:1 on the canvas, 5.2:1 on glass. */
+    --ink-3: rgba(244, 243, 238, 0.58);
+    --line: rgba(255, 255, 255, 0.08);
+    --g1: rgba(255, 255, 255, 0.075);
+    --g2: rgba(255, 255, 255, 0.022);
+    --edge-a: rgba(255, 255, 255, 0.32);
+    --edge-b: rgba(255, 255, 255, 0.04);
+    --edge-c: rgba(185, 224, 143, 0.28);
+    --lime-hex: #B9E08F;
+    --lime-glow: rgba(185, 224, 143, 0.25);
+    --violet-hex: #C4B8F2;
+    --prev: rgba(244, 243, 238, 0.34);
+    --chip: rgba(255, 255, 255, 0.07);
+    --chip-hover: rgba(255, 255, 255, 0.12);
+    --spot: rgba(255, 255, 255, 0.08);
+    --shadow-glass: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
+    --num-grad: linear-gradient(180deg, #FFFFFF 25%, rgba(255, 255, 255, 0.45));
+    --blob1: rgba(185, 224, 143, 0.28);
+    --blob2: rgba(240, 170, 150, 0.22);
+    --blob3: rgba(183, 168, 240, 0.24);
+    --dots: rgba(255, 255, 255, 0.07);
+    --tip: rgba(20, 21, 24, 0.78);
+    --orb-core: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.12) 38%, transparent 60%), #0D0E10;
 
-    /* Inverted anchor: warm off-white pill, near-black text (15:1). */
-    --anchor: 45 12% 93%;
-    --anchor-foreground: 60 6% 9%;
-    --anchor-dot: 92 60% 34%;
-    --anchor-muted: 40 4% 34%;
+    --background: 225 8% 10%;
+    --foreground: 50 21% 95%;
+    --card: 225 5% 15%;
+    --card-foreground: 50 21% 95%;
+    --popover: 225 6% 14%;
+    --popover-foreground: 50 21% 95%;
+    /* Lime with near-black text 11:1; as text on glass 10:1. */
+    --primary: 89 57% 72%;
+    --primary-foreground: 92 45% 8%;
+    --secondary: 225 5% 18%;
+    --secondary-foreground: 50 21% 95%;
+    --muted: 225 5% 18%;
+    /* 7.4:1 on glass, 6.3:1 on bg-muted. */
+    --muted-foreground: 45 4% 67%;
+    --accent: 89 25% 18%;
+    --accent-foreground: 88 62% 79%;
+    --destructive: 10 70% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 225 5% 19%;
+    --input: 225 5% 23%;
+    --ring: 89 57% 72%;
+    --hairline: 45 20% 90% / 0.07;
+    --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.5), 0 24px 56px -18px rgba(0, 0, 0, 0.75);
+    --segment: 225 5% 26%;
+    --chrome: 225 8% 10%;
+
+    /* Inverted sel: off-white pill (#F4F3EE), near-black text 17:1. */
+    --anchor: 50 21% 95%;
+    --anchor-foreground: 225 12% 5%;
+    --anchor-dot: 92 50% 40%;
+    --anchor-muted: 225 4% 36%;
     --anchor-border: 45 8% 84%;
-    --lime: 82 72% 58%;
-    --lime-soft: 85 30% 16%;
-    --lime-foreground: 90 50% 8%;
+    --lime: 89 57% 72%;
+    --lime-soft: 89 25% 18%;
+    --lime-foreground: 92 45% 8%;
+    --lime-line: 89 57% 72%;
     --olive: 56 38% 60%;
     --olive-soft: 56 18% 16%;
-    --chart-1: 82 65% 58%;
-    --chart-2: 190 15% 62%;
-    --chart-3: 20 65% 60%;
-    --chart-4: 232 55% 74%;
-    --chart-5: 54 40% 62%;
-    --chart-6: 105 18% 60%;
-    --chart-muted: 40 4% 45%;
-    --tooltip: 40 5% 18%;
-    --tooltip-foreground: 45 10% 96%;
-    --positive: 95 60% 62%;
-    --positive-soft: 95 40% 14%;
-    --negative: 4 85% 72%;
-    --negative-soft: 4 40% 16%;
-    --warning: 38 90% 64%;
-    --warning-soft: 38 50% 14%;
-    --warning-fill: 38 85% 55%;
-    --ai: 262 80% 82%;
-    --ai-soft: 262 30% 22%;
-    --ai-wash-from: 258 30% 15%;
-    --ai-wash-to: 320 25% 14%;
+    --mint: 157 42% 76%;
+    --violet: 252 70% 84%;
+    --coral: 13 78% 74%;
+    --coral-foreground: 8 60% 5%;
+    --amber: 37 79% 75%;
+    --chart-1: 89 57% 72%;
+    --chart-2: 157 42% 70%;
+    --chart-3: 13 78% 70%;
+    --chart-4: 252 70% 80%;
+    --chart-5: 37 79% 70%;
+    --chart-6: 56 38% 60%;
+    --chart-muted: 45 4% 48%;
+    --tooltip: 225 6% 18%;
+    --tooltip-foreground: 45 20% 96%;
+    --positive: 88 62% 76%;
+    --positive-soft: 89 25% 16%;
+    --negative: 13 85% 74%;
+    --negative-soft: 12 35% 17%;
+    --warning: 37 90% 70%;
+    --warning-soft: 37 40% 15%;
+    --warning-fill: 37 79% 66%;
+    --ai: 252 80% 84%;
+    --ai-soft: 252 30% 22%;
+    --ai-wash-from: 252 30% 15%;
+    --ai-wash-to: 12 25% 14%;
     --stripe: 0 0% 100% / 0.22;
     --skeleton-glint: 45 10% 95% / 0.045;
     color-scheme: dark;
@@ -187,8 +244,8 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
   }
   /* Headings: tighter tracking reads calmer and more "designed" at size. */
   h1,
@@ -569,14 +626,6 @@ html[data-present="true"] {
     --muted: var(--anchor-border);
     --hairline: var(--anchor-border);
   }
-  .surface {
-    border-radius: var(--radius-card);
-    border: 1px solid hsl(var(--hairline));
-    background-color: hsl(var(--card));
-    color: hsl(var(--card-foreground));
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000),
-      var(--tw-ring-shadow, 0 0 #0000), var(--shadow-card);
-  }
 }
 
 :is(.rounded-xl, .rounded-2xl, .rounded-3xl).bg-card:is(
@@ -732,5 +781,344 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
 @media print {
   [data-sonner-toaster] {
     display: none !important;
+  }
+}
+
+/* ===== 2026 pastel primitives ==============================================
+   Reusable pieces of Przeglad-pastel.dc.html. Documented for the other
+   pages in bench/d26-system.md. Colours come from the tokens above only. */
+@layer components {
+  /* Frosted glass card: white 86% -> 62% (light) / 7.5% -> 2% (dark), a
+     1px gradient edge drawn with a mask (no layout border), soft shadow.
+     No backdrop-filter by default: a page has dozens of cards and every
+     blurred layer is re-composited while scrolling over the fixed sky. Add
+     .glass-blur on the few floating/hero surfaces (chrome, AI card, KPI
+     tiles, tooltips). Children are positioned above the ::before/::after
+     layers by `isolation` + their own stacking order. */
+  .glass,
+  .surface {
+    position: relative;
+    isolation: isolate;
+    border-radius: 2rem;
+    background-color: transparent;
+    background-image: linear-gradient(180deg, var(--g1), var(--g2));
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+      var(--shadow-glass);
+    color: hsl(var(--card-foreground));
+  }
+  .glass::before,
+  .surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(150deg, var(--edge-a), var(--edge-b) 35%, var(--edge-b) 65%, var(--edge-c));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  /* Cursor spotlight: --mx/--my are set on the hovered card only by
+     <Spotlight/> (one document listener, fine pointers, motion allowed). */
+  .glass::after,
+  .surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(480px circle at var(--mx, -999px) var(--my, -999px), var(--spot), transparent 45%);
+    pointer-events: none;
+  }
+  /* A glass card flipped to the ink "sel" surface (podium winner etc.). */
+  .glass.surface-anchor,
+  .surface.surface-anchor {
+    background-image: none;
+    background-color: hsl(var(--anchor));
+    color: hsl(var(--anchor-foreground));
+  }
+  .glass.surface-anchor::before,
+  .surface.surface-anchor::before {
+    opacity: 0.2;
+  }
+  .glass-blur {
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    backdrop-filter: blur(28px) saturate(1.5);
+  }
+  /* Floating tooltip / popover glass (chart tooltip). */
+  .glass-tip {
+    background: var(--tip);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    backdrop-filter: blur(18px) saturate(1.6);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-glass);
+    color: hsl(var(--foreground));
+  }
+
+  /* Mono uppercase eyebrow ("PLAN MIESIĄCA"). Opt-in class, so the legacy
+     rule that de-capitalises .uppercase.tracking-* labels doesn't touch it. */
+  .kick {
+    font-family: theme("fontFamily.mono");
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* Live status dot with a soft ping ring. Colour: --c (default lime-ink
+     green); set style={{"--c": "hsl(var(--coral))"}} or .ping-* helpers. */
+  .ping {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 9999px;
+    background: var(--c, #6CC489);
+  }
+  .ping::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .ping-still::after {
+    content: none;
+  }
+  .ping-coral { --c: hsl(var(--coral)); }
+  .ping-amber { --c: hsl(var(--amber)); }
+  .ping-lime { --c: hsl(var(--lime)); }
+  .ping-muted { --c: hsl(var(--chart-muted)); }
+
+  /* Big light-weight number with the ink gradient (hero, presentation). */
+  .num-grad {
+    background-image: var(--num-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    padding-bottom: 0.06em;
+  }
+
+  /* Sparkline / line draw: give the <path> pathLength="1". */
+  .draw-path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+
+  /* Hatched future zone (forecast) and the share-of-spend bar. */
+  .hatch {
+    background: repeating-linear-gradient(135deg, transparent 0 8px, var(--chip) 8px 9px);
+  }
+  .share-fill {
+    background: linear-gradient(90deg, hsl(var(--lime) / 0.35), hsl(var(--lime)));
+  }
+  .share-fill-warn {
+    background: linear-gradient(90deg, hsl(var(--amber) / 0.35), hsl(var(--amber)));
+  }
+  .share-fill-bad {
+    background: linear-gradient(90deg, hsl(var(--coral) / 0.35), hsl(var(--coral)));
+  }
+
+  /* AI orb: conic pastel ring + pearl core + blurred halo. */
+  .orb {
+    position: relative;
+    flex: none;
+    border-radius: 9999px;
+  }
+  .orb > .orb-halo {
+    position: absolute;
+    inset: -27%;
+    border-radius: inherit;
+    background: var(--orb-ring);
+    filter: blur(22px);
+    opacity: 0.45;
+    animation: spin 9s linear infinite reverse;
+  }
+  .orb > .orb-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--orb-ring);
+    animation: spin 5s linear infinite;
+  }
+  .orb > .orb-core {
+    position: absolute;
+    inset: 4px;
+    border-radius: inherit;
+    background: var(--orb-core);
+    box-shadow: inset 0 0 16px var(--lime-glow);
+  }
+  .orb[data-busy="true"] > .orb-halo,
+  .orb[data-busy="true"] > .orb-ring {
+    animation-duration: 1.4s;
+  }
+  .orb[data-busy="true"] {
+    animation: orb-breath 1.2s ease-in-out infinite;
+  }
+
+  /* Word-by-word reveal of the AI comment (CSS only: SSR paints the full
+     text, the animation starts with first paint, no hydration flash). */
+  .reveal-word {
+    animation: reveal-word 0.5s ease backwards;
+    animation-delay: calc(var(--i, 0) * 45ms + var(--d, 0.6s));
+  }
+  [data-revealed] .reveal-word {
+    animation: none;
+  }
+}
+
+@keyframes orb-breath {
+  50% {
+    transform: scale(1.09);
+  }
+}
+@keyframes reveal-word {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+/* Page sky: drifting pastel blobs (+ a dot grid in dark), fixed behind the
+   content. Rendered by <Sky/> (components/ui/sky.tsx). */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sky-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(110px);
+  will-change: transform;
+  animation: drift 40s ease-in-out infinite alternate;
+}
+.sky-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--dots) 1px, transparent 1.3px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, transparent 1000px);
+  mask-image: linear-gradient(180deg, #000 0, transparent 1000px);
+}
+@media (max-width: 767px) {
+  .sky-blob {
+    filter: blur(70px);
+  }
+}
+
+/* Skip link: hidden until focused. */
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 0.75rem;
+  z-index: 100;
+  transform: translateY(-200%);
+  border-radius: 9999px;
+  background: hsl(var(--anchor));
+  color: hsl(var(--anchor-foreground));
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+}
+.skip-link:focus {
+  transform: none;
+}
+
+/* Sliding segmented indicator (components/ui/segmented-track.tsx): once
+   the indicator is measured, the active item's own fill steps aside so the
+   pill can glide. Before hydration the item paints itself (no flash). */
+.seg-track[data-sliding="on"] .seg-active {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+.seg-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 9999px;
+  background: hsl(var(--anchor));
+  box-shadow: 0 4px 14px -6px rgba(40, 36, 28, 0.35);
+  pointer-events: none;
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.45s cubic-bezier(0.34, 1.3, 0.64, 1),
+    height 0.3s ease;
+}
+
+/* All 2026 motion is decorative: reduced motion turns it off entirely and
+   the resting styles (final values) remain. */
+@media (prefers-reduced-motion: reduce) {
+  .sky-blob,
+  .ping::after,
+  .orb,
+  .orb > *,
+  .reveal-word,
+  .animate-rise,
+  .animate-draw,
+  .animate-ring-fill,
+  .animate-grow,
+  .animate-fade,
+  .animate-blink,
+  .animate-bob {
+    animation: none !important;
+  }
+  .seg-indicator {
+    transition: none;
+  }
+}
+
+/* Legacy surfaces become glass: <Card>-less hand-built cards ("rounded-xl
+   border bg-card") and Tremor cards. Unlayered, so it beats bg-card. Nested
+   ones stay plain inner panels (rule further up). */
+:is(.rounded-xl, .rounded-2xl, .rounded-3xl).bg-card:is(
+    .border-border,
+    .border-border\/70,
+    .border-border\/60,
+    .border-border\/50
+  ):not(.border-dashed, .border-l-4),
+.tremor-Card-root {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, var(--g1), var(--g2));
+  border-color: var(--line);
+}
+:is(.bg-card, .tremor-Card-root, .surface, .glass)
+  :is(.rounded-xl, .rounded-2xl, .rounded-3xl).bg-card:is(
+    .border-border,
+    .border-border\/70,
+    .border-border\/60,
+    .border-border\/50
+  ):not(.border-dashed, .border-l-4),
+:is(.bg-card, .surface, .glass) .tremor-Card-root {
+  background-image: none;
+  background-color: var(--chip);
+}
+
+@media print {
+  .sky {
+    display: none !important;
+  }
+  .glass,
+  .surface,
+  .tremor-Card-root {
+    background: #FFFFFF !important;
+    box-shadow: none !important;
+    border: 1px solid #DDDDDD;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .glass::before,
+  .glass::after,
+  .surface::before,
+  .surface::after {
+    content: none;
+  }
+  .num-grad {
+    background: none;
+    color: #111111;
   }
 }

@@ -9,9 +9,11 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      // White surface on the grey page: hairline edge + soft shadow, large
-      // radius. Separation comes from space, not borders.
-      "rounded-card border border-hairline bg-card text-card-foreground shadow-card",
+      // 2026: frosted glass on the pastel sky (.glass in globals.css):
+      // white 86% -> 62%, 1px gradient edge, soft shadow, 30px radius. No
+      // backdrop blur here (cost on long pages); add `glass-blur` for the
+      // few hero surfaces. A bg-* utility (e.g. bg-ai-wash) still wins.
+      "glass rounded-card text-card-foreground",
       className
     )}
     {...props}

@@ -5,10 +5,33 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, HelpCircle, LogOut, Moon, MoreHorizontal, Printer, Search, Sun } from "lucide-react";
 
-import { HELP_EVENT } from "@/components/dashboard/nav-items";
+import { buildNav, findActive, HELP_EVENT, topNavItems } from "@/components/dashboard/nav-items";
 import { useThemeToggle } from "@/components/dashboard/theme-toggle";
-import { Button } from "@/components/ui/button";
+import { CountBadge, iconButton } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+
+/** Opens the ⌘K command palette (it listens for the shortcut on window). */
+export function openCommandPalette() {
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "k", metaKey: mac, ctrlKey: !mac, bubbles: true })
+  );
+}
+
+/** The chrome's search / ask button (44px chip): opens the command palette. */
+export function SearchButton({ className }: { className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={openCommandPalette}
+      aria-label="Szukaj i pytaj (⌘K)"
+      title="Szukaj w panelu (⌘K)"
+      className={cn(iconButton, className)}
+    >
+      <Search aria-hidden strokeWidth={1.8} />
+    </button>
+  );
+}
 
 /**
  * The header's one overflow menu. A first-time visitor sees at most
@@ -22,22 +45,21 @@ import { cn } from "@/lib/utils";
 /** Alerts one tap away from every page (the Alerty page itself sits under
  *  "Więcej"). `count` = alerts that need a look (Pilne + Ważne); the badge
  *  shows only when there are any, so a calm account has a plain bell. */
-export function AlertsBell({ href, count = 0 }: { href: string; count?: number }) {
+export function AlertsBell({
+  href,
+  count = 0,
+  className,
+}: {
+  href: string;
+  count?: number;
+  className?: string;
+}) {
   const label = count > 0 ? `Alerty - do sprawdzenia: ${count}` : "Alerty";
   return (
-    <Button asChild variant="outline" size="icon" className="relative">
-      <Link href={href} aria-label={label} title={label}>
-        <Bell className="h-[18px] w-[18px]" aria-hidden />
-        {count > 0 ? (
-          <span
-            aria-hidden
-            className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums ring-[2.5px] ring-background"
-          >
-            {count > 9 ? "9+" : count}
-          </span>
-        ) : null}
-      </Link>
-    </Button>
+    <Link href={href} aria-label={label} title={label} className={cn(iconButton, className)}>
+      <Bell aria-hidden strokeWidth={1.8} />
+      <CountBadge count={count} />
+    </Link>
   );
 }
 
@@ -45,12 +67,19 @@ export function HeaderMenu({
   overviewPath,
   email,
   signOut,
+  isEcommerce = false,
+  isAgency = false,
+  omit = [],
 }: {
   /** The guided tour's targets live on the overview. */
   overviewPath: string;
   email?: string | null;
   /** Server Action; renders "Wyloguj" when given. */
   signOut?: () => Promise<void>;
+  /** Nav model inputs: pages that aren't in the top bar are listed here. */
+  isEcommerce?: boolean;
+  isAgency?: boolean;
+  omit?: string[];
 }) {
   const { dark, toggle } = useThemeToggle();
   const pathname = usePathname();
@@ -118,10 +147,18 @@ export function HeaderMenu({
     fn();
   };
 
-  const openSearch = () =>
-    window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "k", metaKey: isMac, ctrlKey: !isMac, bubbles: true })
-    );
+  const openSearch = openCommandPalette;
+
+  // Everything the top bar doesn't show (Raporty, Newsy, Słowniczek, agency
+  // tools): same model as the bar, the phone sheet and the palette.
+  const groups = buildNav({ base: overviewPath, isEcommerce, isAgency, omit });
+  const inBar = new Set(topNavItems(groups).map((i) => i.href));
+  const active = findActive(groups, pathname, overviewPath);
+  const pages = groups
+    .filter((g) => g.id !== "agency")
+    .flatMap((g) => g.items)
+    .filter((i) => !inBar.has(i.href));
+  const agency = groups.find((g) => g.id === "agency")?.items ?? [];
 
   const startTour = useCallback(() => {
     if (pathname === overviewPath) {
@@ -140,25 +177,23 @@ export function HeaderMenu({
   }, [startTour]);
 
   const itemClass =
-    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
+    "flex min-h-10 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-foreground outline-none transition-colors hover:bg-chip focus-visible:bg-chip focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
   return (
     <div className="relative">
-      <Button
+      <button
         ref={triggerRef}
         type="button"
-        variant="ghost"
-        size="icon"
         aria-label="Więcej opcji"
         title="Więcej opcji"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
-        className={cn(open && "bg-foreground/[0.06]")}
+        className={cn(iconButton, "bg-transparent", open && "bg-chip")}
       >
-        <MoreHorizontal className="h-5 w-5" aria-hidden />
-      </Button>
+        <MoreHorizontal aria-hidden strokeWidth={1.8} />
+      </button>
 
       {open ? (
         <div
@@ -167,13 +202,31 @@ export function HeaderMenu({
           role="menu"
           aria-label="Więcej opcji"
           onKeyDown={onMenuKey}
-          className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right rounded-2xl border border-hairline bg-popover p-1.5 text-popover-foreground shadow-raised animate-in fade-in-0 zoom-in-95 duration-100 motion-reduce:animate-none"
+          className="glass-tip absolute right-0 top-full z-50 mt-3 max-h-[calc(100vh-6rem)] w-64 origin-top-right overflow-y-auto rounded-[22px] p-1.5 animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none"
         >
           {email ? (
             <p className="truncate px-3 pb-2 pt-1.5 text-xs text-muted-foreground" title={email}>
               Zalogowano jako <span className="font-medium text-foreground">{email}</span>
             </p>
           ) : null}
+          {pages.map((p) => {
+            const Icon = p.icon;
+            return (
+              <Link
+                key={p.href}
+                href={p.href}
+                role="menuitem"
+                tabIndex={-1}
+                aria-current={active?.href === p.href ? "page" : undefined}
+                className={cn(itemClass, active?.href === p.href && "font-semibold")}
+                onClick={() => close(false)}
+              >
+                <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
+                {p.label}
+              </Link>
+            );
+          })}
+          {pages.length > 0 ? <div role="separator" className="mx-3 my-1.5 h-px bg-border" /> : null}
           <button type="button" role="menuitem" tabIndex={-1} className={itemClass} onClick={run(openSearch)}>
             <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
             <span className="flex-1">Szukaj</span>
@@ -204,6 +257,28 @@ export function HeaderMenu({
             )}
             {dark ? "Tryb jasny" : "Tryb ciemny"}
           </button>
+          {agency.length > 0 ? (
+            <>
+              <div role="separator" className="mx-3 my-1.5 h-px bg-border" />
+              <p className="px-3 pb-1 pt-1 text-xs font-medium text-muted-foreground">Agencja</p>
+              {agency.map((p) => {
+                const Icon = p.icon;
+                return (
+                  <Link
+                    key={p.href}
+                    href={p.href}
+                    role="menuitem"
+                    tabIndex={-1}
+                    className={itemClass}
+                    onClick={() => close(false)}
+                  >
+                    <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
+                    {p.label}
+                  </Link>
+                );
+              })}
+            </>
+          ) : null}
           {signOut ? (
             <>
               <div role="separator" className="mx-3 my-1.5 h-px bg-border" />

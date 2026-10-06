@@ -107,6 +107,23 @@ const config: Config = {
           DEFAULT: "hsl(var(--ai) / <alpha-value>)",
           soft: "hsl(var(--ai-soft) / <alpha-value>)",
         },
+        // 2026 pastel system (Przeglad-pastel). Fills/decoration; text on
+        // them uses the *-ink / foreground tokens. `chip` is a translucent
+        // ink wash (rgba), so it takes no alpha modifier.
+        mint: "hsl(var(--mint) / <alpha-value>)",
+        violet: "hsl(var(--violet) / <alpha-value>)",
+        coral: {
+          DEFAULT: "hsl(var(--coral) / <alpha-value>)",
+          foreground: "hsl(var(--coral-foreground) / <alpha-value>)",
+        },
+        amber: "hsl(var(--amber) / <alpha-value>)",
+        chip: "var(--chip)",
+        line: "var(--line)",
+        prev: "var(--prev)",
+        // Text tones of the pastel system: ink-2 (secondary), ink-3 (meta,
+        // kickers). AA on glass in both themes (see globals.css).
+        "ink-2": "var(--ink-2)",
+        "ink-3": "var(--ink-3)",
         // Tremor tokens. Pointed at the same CSS variables as shadcn, so a
         // Tremor <Card> and a hand-built card are the same surface in both
         // themes (the variables switch under .dark; `dark-tremor` repeats
@@ -163,23 +180,32 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // System UI first (SF Pro on Apple devices, Segoe on Windows), Inter
-        // (next/font, --font-inter) where the system face is unavailable.
+        // Geist (self-hosted, app/layout.tsx): latin subset first, latin-ext
+        // second (Polish diacritics), then the system UI font.
         sans: [
-          "-apple-system",
-          "BlinkMacSystemFont",
-          '"SF Pro Text"',
-          '"SF Pro Display"',
-          "var(--font-inter)",
-          "Inter",
+          "var(--font-geist)",
+          "var(--font-geist-ext)",
+          "ui-sans-serif",
           "system-ui",
+          "-apple-system",
           '"Segoe UI"',
           "sans-serif",
+        ],
+        mono: [
+          "var(--font-geist-mono)",
+          "var(--font-geist-mono-ext)",
+          "ui-monospace",
+          '"SF Mono"',
+          "Menlo",
+          "monospace",
         ],
       },
       borderRadius: {
         // Top-level surfaces (cards, sections).
         card: "var(--radius-card)",
+        // KPI tiles / inner glass (30px) and the big glass sections (32px).
+        tile: "1.875rem",
+        glass: "2rem",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
@@ -209,6 +235,10 @@ const config: Config = {
         md: "0 2px 4px -1px rgb(0 0 0 / 0.06), 0 6px 16px -4px rgb(0 0 0 / 0.08)",
         card: "var(--shadow-card)",
         raised: "var(--shadow-raised)",
+        glass: "var(--shadow-glass)",
+        // Selected KPI tile: lime hairline ring + soft lime glow.
+        "lime-ring": "0 0 0 1.5px hsl(var(--lime)), 0 22px 50px -24px var(--lime-glow)",
+        "lime-glow": "0 10px 30px -10px var(--lime-glow)",
         "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.04)",
         "tremor-card": "var(--shadow-card)",
         "tremor-dropdown": "var(--shadow-raised)",
@@ -217,6 +247,25 @@ const config: Config = {
         "dark-tremor-dropdown": "var(--shadow-raised)",
       },
       keyframes: {
+        // 2026 motion set. All are entrance-only (fill-mode backwards), so
+        // the resting state is the element's own style: SSR, print and
+        // reduced motion (animations off) show final values.
+        rise: {
+          from: { opacity: "0", transform: "translateY(18px)", filter: "blur(6px)" },
+        },
+        draw: { from: { strokeDashoffset: "1" } },
+        "ring-fill": { from: { strokeDashoffset: "100" } },
+        grow: { from: { transform: "scaleX(0)" } },
+        fade: { from: { opacity: "0" } },
+        ping: { "75%, 100%": { transform: "scale(3.2)", opacity: "0" } },
+        drift: {
+          "0%": { transform: "translate3d(0,0,0) scale(1)" },
+          "50%": { transform: "translate3d(90px,40px,0) scale(1.12)" },
+          "100%": { transform: "translate3d(-40px,100px,0) scale(.94)" },
+        },
+        spin: { to: { transform: "rotate(360deg)" } },
+        blink: { "50%": { opacity: "0" } },
+        bob: { "50%": { transform: "translateY(-5px)", opacity: ".4" } },
         "accordion-down": {
           from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
@@ -227,6 +276,14 @@ const config: Config = {
         },
       },
       animation: {
+        rise: "rise 1.1s cubic-bezier(.16,1,.3,1) var(--d,0s) backwards",
+        draw: "draw 2.2s cubic-bezier(.65,0,.35,1) var(--d,.4s) backwards",
+        "ring-fill": "ring-fill 2.4s cubic-bezier(.65,0,.35,1) var(--d,.6s) backwards",
+        grow: "grow 1.6s cubic-bezier(.16,1,.3,1) var(--d,.8s) backwards",
+        fade: "fade 1.4s ease var(--d,1s) backwards",
+        "ping-soft": "ping 1.8s cubic-bezier(0,0,.2,1) infinite",
+        blink: "blink 1s steps(1) infinite",
+        bob: "bob 1s ease-in-out infinite",
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },

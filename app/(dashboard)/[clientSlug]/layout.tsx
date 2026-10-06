@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
 
-import { AutoRefresh } from "@/components/dashboard/auto-refresh";
+import { AppShell } from "@/components/dashboard/app-shell";
+import { AutoRefresh, LiveStamp } from "@/components/dashboard/auto-refresh";
 import { AutoSync } from "@/components/dashboard/auto-sync";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import {
@@ -13,11 +14,8 @@ import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { AlertsBellLive } from "@/components/dashboard/alerts-bell-live";
-import { AlertsBell, HeaderMenu } from "@/components/dashboard/header-menu";
-import { HeaderTitle } from "@/components/dashboard/header-title";
-import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { AlertsBell, HeaderMenu, SearchButton } from "@/components/dashboard/header-menu";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
-import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { Toaster } from "@/components/ui/toaster";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
@@ -60,7 +58,7 @@ export default async function ClientDashboardLayout({
       if (c) preloadIntegrationHealth(c.id);
       return c ? getLastSyncAt(c.id) : null;
     }),
-    // Agency users get a client switcher in the sidebar. Read through RLS,
+    // Agency users get a client switcher in the top bar. Read through RLS,
     // which gives agency users every client (the same rows the service-role
     // read used to return), so it can start right away instead of waiting
     // for the role. Other viewers only see their own row; dropped below.
@@ -77,157 +75,131 @@ export default async function ClientDashboardLayout({
   const checkStamp = getSyncStamp.bind(null, params.clientSlug);
 
   const clientName = client?.name ?? "Pato";
+  const base = `/${params.clientSlug}`;
   const fallbackMark = (
-    <>
-      <span className="flex h-8 w-8 items-center justify-center rounded-[0.6rem] bg-primary text-primary-foreground">
+    <span className="flex items-center gap-2.5">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-anchor text-anchor-foreground">
         <LayoutDashboard className="h-4 w-4" />
       </span>
-      <span className="font-semibold">{clientName}</span>
-    </>
+      <span className="text-[15px] font-semibold tracking-[-0.02em]">{clientName}</span>
+    </span>
   );
 
   return (
     // --client-accent scopes the client's brand colour to their dashboard.
-    // relative + isolate: the overview's <HeroBackdrop/> spans this shell
-    // (behind sidebar and header) and stays under the content.
-    // Shell: grey page, borderless sticky sidebar, translucent sticky header.
-    <div
-      className="relative isolate flex min-h-screen bg-background"
+    <AppShell
       style={clientAccentStyle(client?.brandColor)}
-    >
-      <aside
-        data-present-hide
-        className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col overflow-y-auto lg:flex xl:w-64 print:hidden"
-      >
-        <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
-          <ClientBrandMark
-            name={clientName}
-            slug={params.clientSlug}
-            logoUrl={client?.logoUrl}
-            // Built-in SVG wordmarks keep their h-6; uploaded logos get a bit more
-            // room since they often carry padding or a symbol.
-            className="h-6 max-w-[11rem] text-foreground [&:is(img)]:h-8"
-            fallback={fallbackMark}
-          />
-        </div>
-        {isAgency && allClients && allClients.length > 1 ? (
-          <div className="px-3 pb-2">
-            <ClientSwitcher clients={allClients} current={params.clientSlug} />
-          </div>
-        ) : null}
-        <DashboardSidebar
+      base={base}
+      isEcommerce={isEcommerce}
+      isAgency={isAgency}
+      brand={
+        <ClientBrandMark
+          name={clientName}
+          slug={params.clientSlug}
+          logoUrl={client?.logoUrl}
+          // Built-in SVG wordmarks keep their h-6; uploaded logos get a bit
+          // more room since they often carry padding or a symbol.
+          className="h-6 max-w-[10rem] text-foreground [&:is(img)]:h-8"
+          fallback={fallbackMark}
+        />
+      }
+      phoneBrand={
+        <ClientBrandMark
+          name={clientName}
+          slug={params.clientSlug}
+          logoUrl={client?.logoUrl}
+          className="h-5 max-w-[5.5rem] text-foreground [&:is(img)]:h-6"
+          fallback={
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-anchor text-anchor-foreground">
+              <LayoutDashboard className="h-3.5 w-3.5" />
+            </span>
+          }
+        />
+      }
+      live={<LiveStamp initialStamp={lastSyncAt} textClassName="sr-only xl:not-sr-only" />}
+      phoneLive={<LiveStamp initialStamp={lastSyncAt} className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
+      extras={
+        <>
+          {isAgency && allClients && allClients.length > 1 ? (
+            <div className="hidden w-40 xl:block">
+              <ClientSwitcher clients={allClients} current={params.clientSlug} />
+            </div>
+          ) : null}
+          {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
+        </>
+      }
+      search={<SearchButton />}
+      bell={
+        // Count streams in after the shell; plain bell until then.
+        <Suspense fallback={<AlertsBell href={`${base}/alerty`} />}>
+          {client ? (
+            <AlertsBellLive clientId={client.id} href={`${base}/alerty`} />
+          ) : (
+            <AlertsBell href={`${base}/alerty`} />
+          )}
+        </Suspense>
+      }
+      presentation={
+        <PresentationMode
+          className="max-md:w-11 max-md:px-0 lg:max-xl:w-11 lg:max-xl:px-0"
+          labelClassName="hidden md:max-lg:inline xl:inline"
+          brand={
+            client ? (
+              <ClientBrandMark
+                name={client.name}
+                slug={params.clientSlug}
+                logoUrl={client.logoUrl}
+                className="h-8"
+                fallback={<span className="text-sm font-semibold">{client.name}</span>}
+              />
+            ) : null
+          }
+        />
+      }
+      menu={
+        <HeaderMenu
+          overviewPath={base}
+          email={user?.email}
+          signOut={signOut}
           isEcommerce={isEcommerce}
-          clientSlug={params.clientSlug}
           isAgency={isAgency}
         />
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        {isAgency ? <AutoSync clientSlug={params.clientSlug} /> : null}
-        {/* Presentation mode hides the whole header; its own floating bar
-            (portaled to <body>) takes over the controls. At most three
-            visible controls: (agency: Odśwież) Prezentuj and one "…" menu
-            holding search, the guide, PDF, theme and sign-out. */}
-        <header
-          data-present-hide
-          data-chrome-header
-          className="sticky top-0 z-30 border-b border-transparent bg-chrome/75 backdrop-blur-xl backdrop-saturate-150 print:hidden"
-        >
-          {/* Same column and gutters as <main>, so the title sits exactly
-              above the page content. */}
-          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 lg:h-16 lg:px-8">
-            <HeaderTitle
-              clientName={clientName}
-              base={`/${params.clientSlug}`}
-              isEcommerce={isEcommerce}
-              isAgency={isAgency}
-              brand={
-                <ClientBrandMark
-                  name={clientName}
-                  slug={params.clientSlug}
-                  logoUrl={client?.logoUrl}
-                  className="h-5 max-w-[8rem] text-foreground [&:is(img)]:h-7"
-                  fallback={
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                      <LayoutDashboard className="h-3.5 w-3.5" />
-                    </span>
-                  }
-                />
-              }
-            />
-            <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
-            <span className="flex-1" />
-            {/* Overlays and shortcuts stay live (⌘K, "/", first-visit tour);
-                their header triggers moved into the "…" menu. */}
-            <div className="hidden">
-              <CommandPalette
-                clientSlug={params.clientSlug}
-                isAgency={isAgency}
-                isEcommerce={isEcommerce}
-                clients={allClients}
-              />
-              <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
-            </div>
-            {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
-            {/* Count streams in after the shell; plain bell until then. */}
-            <Suspense fallback={<AlertsBell href={`/${params.clientSlug}/alerty`} />}>
-              {client ? (
-                <AlertsBellLive clientId={client.id} href={`/${params.clientSlug}/alerty`} />
-              ) : (
-                <AlertsBell href={`/${params.clientSlug}/alerty`} />
-              )}
-            </Suspense>
-            <PresentationMode
-              brand={
-                client ? (
-                  <ClientBrandMark
-                    name={client.name}
-                    slug={params.clientSlug}
-                    logoUrl={client.logoUrl}
-                    className="h-8"
-                    fallback={<span className="text-sm font-semibold">{client.name}</span>}
-                  />
-                ) : null
-              }
-            />
-            <HeaderMenu
-              overviewPath={`/${params.clientSlug}`}
-              email={user?.email}
-              signOut={signOut}
-            />
-          </div>
-        </header>
-
-        <div data-present-hide>
-          <MobileNav
+      }
+      overlays={
+        <>
+          {isAgency ? <AutoSync clientSlug={params.clientSlug} /> : null}
+          <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} headless />
+          {/* Overlays and shortcuts stay live (⌘K, "/", first-visit tour). */}
+          <CommandPalette
             clientSlug={params.clientSlug}
             isAgency={isAgency}
             isEcommerce={isEcommerce}
+            clients={allClients}
           />
-        </div>
-
-        {/* Pages pad themselves (p-6); the shell caps the reading width so
-            cards don't stretch edge to edge on wide screens. */}
-        <main className="mx-auto w-full max-w-6xl flex-1 pb-24 lg:px-2 lg:pb-8">
-          {client ? (
-            // Health checks take a few queries per provider; never hold the
-            // page back for them. Hidden on the TV: it's connection
-            // housekeeping, not board material.
-            <div data-present-hide>
-              <Suspense fallback={null}>
-                <IntegrationHealthBanner
-                  clientId={client.id}
-                  clientSlug={params.clientSlug}
-                  isAgency={isAgency}
-                />
-              </Suspense>
-            </div>
-          ) : null}
-          {children}
-        </main>
-      </div>
-
-      <Toaster />
-    </div>
+          <GuidedTour isAgency={isAgency} overviewPath={base} />
+        </>
+      }
+      banner={
+        client ? (
+          // Health checks take a few queries per provider; never hold the
+          // page back for them. Hidden on the TV: it's connection
+          // housekeeping, not board material.
+          <div data-present-hide>
+            <Suspense fallback={null}>
+              <IntegrationHealthBanner
+                clientId={client.id}
+                clientSlug={params.clientSlug}
+                isAgency={isAgency}
+              />
+            </Suspense>
+          </div>
+        ) : null
+      }
+      // Pages pad themselves (px-4 sm:px-6); phones clear the floating tab bar.
+      mainClassName="pb-32 md:pb-12"
+      after={<Toaster />}
+    >
+      {children}
+    </AppShell>
   );
 }

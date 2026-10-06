@@ -17,3 +17,8 @@ export const DEMO_BRANDING: ClientBranding = {
   logoUrl: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(DEMO_LOGO_SVG)}`,
   brandColor: "#e8442e",
 };
+
+/** Just the tomato (same artwork, cropped viewBox) for the phone header. */
+export const DEMO_MARK_URL = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  DEMO_LOGO_SVG.replace('viewBox="0 0 236 48"', 'viewBox="3 6 38 38"')
+)}`;
