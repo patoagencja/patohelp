@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
-import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { AutoSync } from "@/components/dashboard/auto-sync";
@@ -20,6 +19,7 @@ import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
+import { Toaster } from "@/components/ui/toaster";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
 import {
   getClientBySlug,
@@ -97,7 +97,7 @@ export default async function ClientDashboardLayout({
     >
       <aside
         data-present-hide
-        className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto md:flex print:hidden"
+        className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col overflow-y-auto lg:flex xl:w-64 print:hidden"
       >
         <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
           <ClientBrandMark
@@ -135,7 +135,7 @@ export default async function ClientDashboardLayout({
         >
           {/* Same column and gutters as <main>, so the title sits exactly
               above the page content. */}
-          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 md:h-16 lg:px-8">
+          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 lg:h-16 lg:px-8">
             <HeaderTitle
               clientName={clientName}
               base={`/${params.clientSlug}`}
@@ -208,7 +208,7 @@ export default async function ClientDashboardLayout({
 
         {/* Pages pad themselves (p-6); the shell caps the reading width so
             cards don't stretch edge to edge on wide screens. */}
-        <main className="mx-auto w-full max-w-6xl flex-1 pb-24 md:pb-8 lg:px-2">
+        <main className="mx-auto w-full max-w-6xl flex-1 pb-24 lg:px-2 lg:pb-8">
           {client ? (
             // Health checks take a few queries per provider; never hold the
             // page back for them. Hidden on the TV: it's connection
@@ -227,7 +227,7 @@ export default async function ClientDashboardLayout({
         </main>
       </div>
 
-      <Toaster richColors position="top-right" />
+      <Toaster />
     </div>
   );
 }

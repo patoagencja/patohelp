@@ -322,7 +322,15 @@ export function PlanCard({
       </h2>
       {rows.length > 0 ? (
         <>
-          <ul className="mt-4 space-y-6">
+          {/* md..xl the card spans the full column under the chart: gauge
+              left, goal bars right, instead of one tall sparse stack. */}
+          <ul
+            className={cn(
+              "mt-4 space-y-6",
+              rows.length > 1 &&
+                "md:grid md:grid-cols-2 md:items-start md:gap-x-10 md:gap-y-6 md:space-y-0 md:[&>li:first-child]:row-span-3 xl:block xl:space-y-6"
+            )}
+          >
             {rows.map((r, i) =>
               // The first row is the month's main question (usually the
               // budget): a gauge. The rest: Sales-Goals style bars.

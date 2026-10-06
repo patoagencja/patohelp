@@ -42,7 +42,7 @@ export default function DemoFullLayout({
     >
       <aside
         data-present-hide
-        className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto md:flex print:hidden"
+        className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col overflow-y-auto lg:flex xl:w-64 print:hidden"
       >
         <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">{brand}</div>
         <DemoSidebar />
@@ -56,7 +56,7 @@ export default function DemoFullLayout({
         >
           {/* Same column and gutters as <main>, so the title sits exactly
               above the page content. */}
-          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 md:h-16 lg:px-8">
+          <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-1.5 px-4 sm:gap-2 sm:px-6 lg:h-16 lg:px-8">
             <HeaderTitle
               clientName="lokalnepomidorki"
               base="/demo-full"
@@ -105,7 +105,7 @@ export default function DemoFullLayout({
           />
         </div>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 pb-28 pt-6 sm:px-6 md:pb-12 md:pt-8 lg:px-8">
+        <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 pb-28 pt-6 sm:px-6 md:pt-8 lg:px-8 lg:pb-12">
           {children}
         </main>
       </div>

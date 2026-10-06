@@ -83,11 +83,13 @@ function dailySeries(trend: TrendPoint[], key: string): number[] {
 }
 
 // Full class strings so Tailwind keeps them; no empty column with 3 tiles.
+// Four tiles stay 2x2 until xl: beside the sidebar at 1024 a quarter of the
+// column is too narrow for "43 885 zł" at metric size (it truncated).
 const COLS: Record<number, string> = {
   1: "lg:grid-cols-1",
   2: "lg:grid-cols-2",
-  3: "lg:grid-cols-3",
-  4: "lg:grid-cols-4",
+  3: "md:grid-cols-3",
+  4: "xl:grid-cols-4",
 };
 
 function Tile({
@@ -121,7 +123,8 @@ function Tile({
   return (
     <MetricTile
       selected={selected}
-      className={cn(!selected && "hover:shadow-raised")}
+      // Hover: a small lift + deeper shadow says "this is clickable".
+      className={cn(!selected && "hover:shadow-raised motion-safe:hover:-translate-y-0.5")}
       // The whole tile is the button; the ⓘ sits above it (no nested
       // interactive elements).
       overlay={
@@ -223,8 +226,10 @@ export function OverviewMetrics({
         </>
       ) : null}
 
-      <div className={cn(aside ? "grid items-start gap-4 lg:grid-cols-3" : undefined)}>
-        <div className="min-w-0 lg:col-span-2">
+      {/* Chart + plan side by side only from xl: at 1024 the plan column was
+          ~240px and clipped its goal names. */}
+      <div className={cn(aside ? "grid items-start gap-4 xl:grid-cols-3" : undefined)}>
+        <div className="min-w-0 xl:col-span-2">
           <MainChart
             trend={trend}
             prevTrend={prevTrend}

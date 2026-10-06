@@ -144,8 +144,8 @@ function EnglishOverview({
       <HeroBackdrop />
       <AiSummaryCard summary={d.summary} lang="en" />
       <KpiCards kpis={d.kpis} trend={d.trend} lang="en" />
-      <div className="grid items-start gap-4 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
+      <div className="grid items-start gap-4 xl:grid-cols-3">
+        <div className="min-w-0 xl:col-span-2">
           <MainChart trend={d.trend} events={[]} yoy={yoy} label={d.rangeLabel} lang="en" demo />
         </div>
         <BudgetProgress

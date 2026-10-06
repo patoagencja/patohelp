@@ -104,6 +104,15 @@
     --ai-wash-to: 320 85% 96.5%;
     /* Diagonal stripes over a filled bar (.bg-stripes). */
     --stripe: 0 0% 100% / 0.32;
+    /* Status icons on the dark tooltip/toast card (same in both themes,
+       since that card is dark in both): >= 3:1 against --tooltip. */
+    --tooltip-positive: 82 72% 58%;
+    --tooltip-negative: 4 85% 72%;
+    --tooltip-warning: 38 90% 64%;
+    /* Loading skeletons: the soft glint that sweeps across bg-muted. */
+    --skeleton-glint: 0 0% 100% / 0.7;
+    /* Native widgets (date inputs' calendar, scrollbars) follow the theme. */
+    color-scheme: light;
   }
 
   .dark {
@@ -167,6 +176,8 @@
     --ai-wash-from: 258 30% 15%;
     --ai-wash-to: 320 25% 14%;
     --stripe: 0 0% 100% / 0.22;
+    --skeleton-glint: 45 10% 95% / 0.045;
+    color-scheme: dark;
   }
 }
 
@@ -303,6 +314,7 @@
     --warning-soft: 40 90% 92%;
     --ai: 262 50% 48%;
     --ai-soft: 262 85% 94%;
+    color-scheme: light;
   }
   /* Paper: white page, no shadows, no washes; a thin edge keeps cards
      readable. The selected KPI tile prints as a normal card (no ink slab). */
@@ -635,3 +647,87 @@ html[data-present="true"] {
   }
 }
 /* ===== End surfaces ======================================================= */
+
+/* ===== Loading skeletons ===================================================
+   Calm placeholder blocks (components/dashboard/skeletons.tsx): the muted
+   fill with one soft glint sweeping across every ~2 s - reads as "coming"
+   without the blinking of animate-pulse. Still under reduced motion. */
+@keyframes skeleton-glint {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+.skeleton {
+  background-color: hsl(var(--muted));
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    hsl(var(--skeleton-glint)) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-glint 1.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background-image: none;
+  }
+}
+
+/* ===== Toasts (sonner) =====================================================
+   v2: the same dark rounded card as the chart tooltip, in both themes, with
+   a coloured status icon (words carry the meaning; colour only supports it).
+   Sonner defines its palette on [data-sonner-toaster][data-sonner-theme];
+   the extra `html` wins over it regardless of stylesheet order. */
+html [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: hsl(var(--tooltip));
+  --normal-bg-hover: hsl(var(--tooltip));
+  --normal-border: hsl(var(--tooltip));
+  --normal-border-hover: hsl(var(--tooltip));
+  --normal-text: hsl(var(--tooltip-foreground));
+  --border-radius: 1rem;
+  font-family: inherit;
+}
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  padding: 0.875rem 1rem;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  box-shadow: var(--shadow-raised);
+}
+html [data-sonner-toaster] [data-sonner-toast] [data-description] {
+  color: hsl(var(--tooltip-foreground) / 0.72);
+}
+html [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
+  color: hsl(var(--tooltip-positive));
+}
+html [data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
+  color: hsl(var(--tooltip-negative));
+}
+html [data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
+  color: hsl(var(--tooltip-warning));
+}
+html [data-sonner-toaster] [data-sonner-toast] [data-button] {
+  border-radius: 9999px;
+  padding-inline: 0.75rem;
+  font-weight: 500;
+}
+html [data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+  background: hsl(var(--tooltip));
+  border-color: hsl(var(--tooltip-foreground) / 0.15);
+  color: hsl(var(--tooltip-foreground));
+}
+html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
+  outline: 2px solid hsl(var(--tooltip-positive));
+  outline-offset: 2px;
+  box-shadow: none;
+}
+@media print {
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+}

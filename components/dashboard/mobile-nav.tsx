@@ -67,7 +67,7 @@ export function MobileNav({
   return (
     <>
       {open ? (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Więcej">
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Więcej">
           {/* Tap-outside target only; keyboard users have the X and Esc. */}
           <button
             type="button"
@@ -78,7 +78,7 @@ export function MobileNav({
           />
           <div
             ref={sheetRef}
-            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[1.75rem] bg-background p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-raised animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
+            className="absolute inset-x-0 bottom-0 mx-auto max-h-[85vh] max-w-xl overflow-y-auto rounded-t-[1.75rem] bg-background p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-raised animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
           >
             <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-foreground/15" aria-hidden />
             <div className="flex items-center justify-between px-1 pb-3">
@@ -164,7 +164,7 @@ export function MobileNav({
 
       <nav
         aria-label="Nawigacja"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-chrome/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150 md:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-chrome/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150 lg:hidden print:hidden"
       >
         <div
           className={cn(

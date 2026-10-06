@@ -46,7 +46,7 @@ export function MetricTile({
     // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
     <Card
       className={cn(
-        "relative flex min-w-0 flex-col p-4 transition-[box-shadow,background-color] duration-200 focus-within:z-10 hover:z-10 sm:p-5",
+        "relative flex min-w-0 flex-col p-4 transition-[box-shadow,background-color,transform] duration-200 ease-out focus-within:z-10 hover:z-10 sm:p-5",
         selected && "surface-anchor shadow-raised",
         className
       )}
