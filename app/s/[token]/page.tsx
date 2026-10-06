@@ -27,6 +27,7 @@ import {
 } from "@/lib/dashboard/metrics";
 import type { AiSummary, ClientEvent } from "@/lib/dashboard/overview";
 import { buildStory } from "@/lib/dashboard/story";
+import { getEngagementYoY } from "@/lib/dashboard/yoy";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cn } from "@/lib/utils";
@@ -216,7 +217,11 @@ export default async function SharedOverviewPage({
         () => undefined
       ),
   ]);
-  const events = await getEventsFor(admin, client.id, data.rangeStart, data.rangeEnd);
+  const [events, yoy] = await Promise.all([
+    getEventsFor(admin, client.id, data.rangeStart, data.rangeEnd),
+    // No session here: read through the admin client pinned to the link's client.
+    getEngagementYoY(client.id, data.rangeStart, data.rangeEnd, admin),
+  ]);
   const trend = client.ecommerce ? data.trend : withoutRevenue(data.trend);
   const prevTrend =
     client.ecommerce || !data.prevTrend ? data.prevTrend : withoutRevenue(data.prevTrend);
@@ -274,6 +279,7 @@ export default async function SharedOverviewPage({
               trend: data.trend,
               // Engagement clients never see revenue.
               ecommerce: client.ecommerce ? data.ecommerce : null,
+              yoy,
             })}
             periodLabel={data.rangeLabel}
           />
@@ -288,6 +294,7 @@ export default async function SharedOverviewPage({
             prevTrend={prevTrend}
             events={events}
             autoEvents={data.autoEvents}
+            yoy={yoy}
             label={data.rangeLabel}
           />
 

@@ -21,16 +21,19 @@ import {
 } from "@/lib/dashboard/chart-events";
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 import type { ClientEvent } from "@/lib/dashboard/overview";
+import type { EngagementYoY, YoYPoint } from "@/lib/dashboard/yoy";
 import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 type MetricKey = "spend" | "sessions" | "clicks" | "conversions";
 type Lang = "pl" | "en";
+type CompareMode = "prev" | "yoy" | "none";
 
 const METRIC_KEYS: MetricKey[] = ["spend", "sessions", "clicks", "conversions"];
 const LIST_VISIBLE = 5;
 // Stable fallbacks so memoised marker building doesn't rerun every render.
 const NO_POINTS: TrendPoint[] = [];
 const NO_EVENTS: ChartEvent[] = [];
+const NO_YOY: YoYPoint[] = [];
 
 const COPY = {
   pl: {
@@ -38,7 +41,12 @@ const COPY = {
     long: { spend: "Wydatki", sessions: "Wizyty na stronie", clicks: "Kliknięcia", conversions: "Działania na stronie" },
     current: "Ten okres",
     previous: "Poprzedni okres",
-    compare: "Porównaj z poprzednim okresem",
+    yearAgo: "Rok wcześniej",
+    compareWith: "Porównaj z:",
+    compareOpts: { prev: "poprzednim okresem", yoy: "rokiem wcześniej", none: "bez porównania" },
+    yoyPhrase: "rok temu",
+    thinYoy: "rok temu było za mało danych, by porównać",
+    noData: "brak danych",
     partial: "dzisiaj - dane niepełne",
     partialShort: "dzisiaj, dane niepełne",
     whatHappened: "Co się działo",
@@ -68,7 +76,12 @@ const COPY = {
     long: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions" },
     current: "This period",
     previous: "Previous period",
-    compare: "Compare with previous period",
+    yearAgo: "A year earlier",
+    compareWith: "Compare with:",
+    compareOpts: { prev: "previous period", yoy: "a year earlier", none: "no comparison" },
+    yoyPhrase: "a year ago",
+    thinYoy: "too little data a year ago to compare",
+    noData: "no data",
     partial: "today - incomplete data",
     partialShort: "today, incomplete",
     whatHappened: "What happened",
@@ -109,6 +122,14 @@ const hasAnyData = (p: TrendPoint) =>
 
 function valueOf(p: TrendPoint, metric: MetricKey): number {
   if (metric === "spend") return p.spendMinorUnits / 100;
+  if (metric === "sessions") return p.sessions;
+  if (metric === "clicks") return p.clicks;
+  return p.conversions;
+}
+
+/** Same as valueOf for last year's points; null = nothing synced that day. */
+function yoyValueOf(p: YoYPoint, metric: MetricKey): number | null {
+  if (metric === "spend") return p.spendMinorUnits === null ? null : p.spendMinorUnits / 100;
   if (metric === "sessions") return p.sessions;
   if (metric === "clicks") return p.clicks;
   return p.conversions;
@@ -162,6 +183,7 @@ export function MainChart({
   prevTrend,
   events,
   autoEvents,
+  yoy,
   label,
   lang = "pl",
   demo = false,
@@ -173,6 +195,8 @@ export function MainChart({
   events: ClientEvent[];
   /** Auto-detected campaign starts/pauses/budget changes. */
   autoEvents?: ChartEvent[];
+  /** Same window 364 days earlier (getEngagementYoY); null hides that option. */
+  yoy?: EngagementYoY | null;
   label?: string;
   lang?: Lang;
   /** Public demo pages: synthesize comparison + annotations from `trend`. */
@@ -187,7 +211,7 @@ export function MainChart({
       ? "spend"
       : "sessions"
   );
-  const [compare, setCompare] = useState(true);
+  const [compare, setCompare] = useState<CompareMode>("prev");
   const [active, setActive] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -259,7 +283,26 @@ export function MainChart({
   // A zero-filled comparison period is no comparison: no dashed line at 0,
   // no toggle for it.
   const hasPrev = prev.length > 0 && prevTotal > 0;
-  const showPrev = compare && hasPrev;
+  // Last year: kept aligned with the (possibly trimmed) axis. Ads metrics and
+  // sessions pass the 80% coverage rule separately, so availability is per tab.
+  const yoyPts = useMemo(
+    () => (trimFrom > 0 ? (yoy?.series ?? NO_YOY).slice(trimFrom) : (yoy?.series ?? NO_YOY)),
+    [yoy, trimFrom]
+  );
+  const yoyCovered =
+    yoy != null && (metric === "sessions" ? yoy.sessions !== null : yoy.spendMinorUnits !== null);
+  const yoyVals = yoyPts.slice(0, n).map((p) => yoyValueOf(p, metric));
+  const yoyTotal = yoyVals.reduce<number>((a, v) => a + (v ?? 0), 0);
+  const hasYoy = yoyCovered && yoyTotal > 0;
+  // A "year earlier" choice made on another tab falls back to the default
+  // here rather than silently showing nothing.
+  const mode: CompareMode = compare === "yoy" && !hasYoy ? "prev" : compare;
+  const showPrev = mode === "prev" && hasPrev;
+  const showYoy = mode === "yoy";
+  const cmp: (number | null)[] = showPrev ? prv : showYoy ? yoyVals : [];
+  const cmpLabel = showYoy ? t.yearAgo : t.previous;
+  const cmpDate = (i: number) => (showYoy ? yoyPts[i]?.date : prev[i]?.date);
+  const compareModes: CompareMode[] = hasYoy ? ["prev", "yoy", "none"] : ["prev", "none"];
   const partialIdx = today && trend[n - 1]?.date === today ? n - 1 : -1;
   const isEmpty = n === 0 || total <= 0;
   const prevPhrase = (() => {
@@ -277,6 +320,16 @@ export function MainChart({
   let takeawayTail: string;
   if (isEmpty) {
     takeawayTail = t.emptyTail;
+  } else if (mode === "none") {
+    takeawayTail = "";
+  } else if (mode === "yoy") {
+    if (yoyTotal < MIN_PREV_TOTAL[metric]) {
+      takeawayTail = t.thinYoy;
+    } else {
+      const pct = ((total - yoyTotal) / yoyTotal) * 100;
+      const abs = Math.round(Math.abs(pct));
+      takeawayTail = abs < 1 ? t.same(t.yoyPhrase) : t.delta(abs, pct > 0, t.yoyPhrase);
+    }
   } else if (!hasPrev) {
     takeawayTail = t.noPrev;
   } else if (prevTotal < MIN_PREV_TOTAL[metric]) {
@@ -286,13 +339,15 @@ export function MainChart({
     const abs = Math.round(Math.abs(pct));
     takeawayTail = abs < 1 ? t.same(prevPhrase) : t.delta(abs, pct > 0, prevPhrase);
   }
-  const takeaway = `${t.long[metric]}: ${full(total, isMoney, lang)} - ${takeawayTail}`;
+  const takeaway = `${t.long[metric]}: ${full(total, isMoney, lang)}${
+    takeawayTail ? ` - ${takeawayTail}` : ""
+  }`;
 
   // --- Geometry ---
   const compactW = width > 0 && width < 480;
   // Height comes from CSS (h-60 / sm:h-72) so the SSR placeholder doesn't jump.
   const H = size.h || 288;
-  const yMaxRaw = Math.max(0, ...cur, ...(showPrev ? prv : []));
+  const yMaxRaw = Math.max(0, ...cur, ...cmp.map((v) => v ?? 0));
   const { max: yMax, step: yStep } = niceScale(yMaxRaw);
   const yTicks: number[] = [];
   for (let v = 0; v <= yMax + yStep / 2; v += yStep) yTicks.push(v);
@@ -312,6 +367,21 @@ export function MainChart({
       .slice(from, to + 1)
       .map((v, k) => `${k === 0 ? "M" : "L"}${x(from + k).toFixed(1)},${y(v).toFixed(1)}`)
       .join("");
+  // Comparison line: last year can have unsynced days - leave a gap there
+  // instead of diving to zero, which would read as a real collapse.
+  const gapPath = (vals: (number | null)[]) => {
+    let d = "";
+    let pen = false;
+    vals.forEach((v, i) => {
+      if (v === null) {
+        pen = false;
+        return;
+      }
+      d += `${pen ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
+      pen = true;
+    });
+    return d;
+  };
   // Today's incomplete point gets a dashed connector instead of the solid line,
   // so a "drop" on the last day reads as unfinished, not as a collapse.
   const solidTo = partialIdx > 0 ? n - 2 : n - 1;
@@ -396,7 +466,9 @@ export function MainChart({
           {/* "0,00 zł" next to "no data" contradicts itself - a dash says it. */}
           {t.long[metric]}: {isEmpty ? "-" : full(total, isMoney, lang)}
         </span>
-        <span className="text-muted-foreground"> - {takeawayTail}</span>
+        {takeawayTail ? (
+          <span className="text-muted-foreground"> - {takeawayTail}</span>
+        ) : null}
       </p>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -407,12 +479,12 @@ export function MainChart({
             </svg>
             {t.current}
           </span>
-          {showPrev ? (
+          {showPrev || showYoy ? (
             <span className="inline-flex items-center gap-1.5">
               <svg width="16" height="8" aria-hidden className="text-slate-400 dark:text-slate-500">
                 <line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="4 3" />
               </svg>
-              {t.previous}
+              {cmpLabel}
             </span>
           ) : null}
           {partialIdx >= 0 ? (
@@ -424,30 +496,41 @@ export function MainChart({
             </span>
           ) : null}
         </div>
-        {hasPrev ? (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={compare}
-            onClick={() => setCompare((c) => !c)}
-            className="inline-flex items-center gap-2 rounded-md py-1 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        {hasPrev || hasYoy ? (
+          // Toggle buttons (one shared chart, no panels), like the metric picker.
+          <div
+            role="group"
+            aria-label={t.compareWith}
+            className="flex w-full flex-col gap-1.5 text-xs sm:w-auto sm:flex-row sm:items-center"
           >
-            <span
-              aria-hidden
+            <span aria-hidden className="text-muted-foreground">
+              {t.compareWith}
+            </span>
+            {/* Even columns on phones: long labels wrapped unevenly in a flex row. */}
+            <div
               className={cn(
-                "relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors",
-                compare ? "bg-primary" : "bg-muted ring-1 ring-inset ring-border"
+                "grid gap-0.5 rounded-md bg-muted p-0.5 sm:inline-flex",
+                compareModes.length === 3 ? "grid-cols-3" : "grid-cols-2"
               )}
             >
-              <span
-                className={cn(
-                  "absolute top-0.5 h-3 w-3 rounded-full bg-card shadow-sm transition-transform motion-reduce:transition-none",
-                  compare ? "translate-x-3.5" : "translate-x-0.5"
-                )}
-              />
-            </span>
-            {t.compare}
-          </button>
+              {compareModes.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={mode === k}
+                  onClick={() => setCompare(k)}
+                  className={cn(
+                    "rounded px-2 py-1 text-center font-medium leading-tight transition-colors sm:whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    mode === k
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {t.compareOpts[k]}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : null}
       </div>
 
@@ -553,10 +636,11 @@ export function MainChart({
               </g>
             ))}
 
-            {/* Previous period: dashed, muted, behind the current line */}
-            {showPrev && prv.length > 0 ? (
+            {/* Comparison (previous period or a year earlier): dashed, muted,
+                behind the current line */}
+            {cmp.length > 0 ? (
               <path
-                d={linePath(prv)}
+                d={gapPath(cmp)}
                 fill="none"
                 strokeWidth={1.75}
                 strokeDasharray="5 4"
@@ -617,10 +701,10 @@ export function MainChart({
                   className="stroke-muted-foreground"
                   strokeOpacity={0.5}
                 />
-                {showPrev && active < prv.length ? (
+                {cmp[active] != null ? (
                   <circle
                     cx={activeX}
-                    cy={y(prv[active])}
+                    cy={y(cmp[active] as number)}
                     r={4}
                     className="fill-slate-400 stroke-card dark:fill-slate-500"
                     strokeWidth={2}
@@ -683,13 +767,15 @@ export function MainChart({
                 </span>
                 <span className="font-semibold">{full(cur[active], isMoney, lang)}</span>
               </div>
-              {showPrev && active < prv.length ? (
+              {active < cmp.length && cmpDate(active) ? (
                 <div className="flex items-center justify-between gap-3">
                   <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                     <span className="h-0.5 w-3 rounded-full bg-slate-400 dark:bg-slate-500" />
-                    {t.previous} ({ddmm(prev[active].date)})
+                    {cmpLabel} ({ddmm(cmpDate(active)!)})
                   </span>
-                  <span>{full(prv[active], isMoney, lang)}</span>
+                  <span>
+                    {cmp[active] != null ? full(cmp[active] as number, isMoney, lang) : t.noData}
+                  </span>
                 </div>
               ) : null}
             </div>

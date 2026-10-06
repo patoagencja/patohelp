@@ -12,6 +12,7 @@ import { RecordsCard } from "@/components/dashboard/records-card";
 import { StoryHero } from "@/components/dashboard/story-hero";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
 import { buildStory } from "@/lib/dashboard/story";
+import { demoEngagementYoY } from "@/lib/dashboard/yoy";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { getDemoRecords } from "@/lib/demo/records";
 import { demoEngagementGoals } from "@/lib/dashboard/goals";
@@ -33,6 +34,7 @@ export default function DemoFullOverview({
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
   const d = getDemoDashboard(lang);
+  const yoy = demoEngagementYoY(d.trend);
   return (
     <>
       <PrintHeader clientName="lokalnepomidorki" periodLabel={d.rangeLabel} />
@@ -55,7 +57,7 @@ export default function DemoFullOverview({
         <AiSummaryCard summary={d.summary} lang={lang} />
       ) : (
         <StoryHero
-          story={buildStory({ kpis: d.kpis, trend: d.trend, includeSpend: true })}
+          story={buildStory({ kpis: d.kpis, trend: d.trend, includeSpend: true, yoy })}
           periodLabel={d.rangeLabel}
           aiSummary={d.summary}
         />
@@ -75,7 +77,7 @@ export default function DemoFullOverview({
       />
 
       {/* 3. The trend, then anything that needs attention and what we did. */}
-      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} demo />
+      <MainChart trend={d.trend} events={[]} yoy={yoy} label={d.rangeLabel} lang={lang} demo />
       <AlertsDigest alerts={d.alerts} clientSlug="demo-full" lang={lang} linkless />
       {en ? null : <AgencyActivity demo isAgency={false} clientSlug="demo-full" />}
 

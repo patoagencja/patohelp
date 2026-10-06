@@ -37,6 +37,7 @@ import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDailyScore } from "@/lib/dashboard/score";
 import { getEngagementGoals } from "@/lib/dashboard/goals";
 import { buildStory } from "@/lib/dashboard/story";
+import { getEngagementYoY } from "@/lib/dashboard/yoy";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -113,12 +114,14 @@ export default async function OverviewPage({
       : getEngagementGoals(client.id).catch(() => []);
 
   const data = await getDashboardData(client.id, range, custom);
-  const [[budget, summary, pacing, score, monthPacing], events, agencyWork] =
+  const [[budget, summary, pacing, score, monthPacing], events, agencyWork, yoy] =
     await Promise.all([
       sidePromise,
       getEvents(client.id, data.rangeStart, data.rangeEnd),
       // A failed read just hides the "Co dla Ciebie zrobiliśmy" card.
       getRecentAgencyWork(client.id).catch(() => undefined),
+      // Same window a year earlier; null (no lines, no option) on any error.
+      getEngagementYoY(client.id, data.rangeStart, data.rangeEnd),
     ]);
   const engagementGoals = await goalsPromise;
 
@@ -162,6 +165,7 @@ export default async function OverviewPage({
             trend: data.trend,
             ecommerce: clientType === "ecommerce" ? data.ecommerce : null,
             includeSpend: true,
+            yoy,
           })}
           periodLabel={data.rangeLabel}
           aiSummary={summary}
@@ -219,6 +223,7 @@ export default async function OverviewPage({
           prevTrend={data.prevTrend}
           events={events}
           autoEvents={data.autoEvents}
+          yoy={yoy}
           label={data.rangeLabel}
         />
       </SectionBoundary>

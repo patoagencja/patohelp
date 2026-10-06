@@ -31,6 +31,11 @@ const VERDICT_ICON = { good: CircleCheck, bad: TriangleAlert, flat: CircleMinus 
 
 /** "2026-09-29" -> "29.09" (period dates are already Warsaw days). */
 const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+/** "07.10–05.11.2025"; both years spelled out when the span crosses one. */
+const spanWithYear = (start: string, end: string) =>
+  start.slice(0, 4) === end.slice(0, 4)
+    ? `${ddmm(start)}–${ddmm(end)}.${end.slice(0, 4)}`
+    : `${ddmm(start)}.${start.slice(0, 4)}–${ddmm(end)}.${end.slice(0, 4)}`;
 
 /**
  * First thing on the overview: the period in one sentence, a verdict ("czy to
@@ -81,6 +86,11 @@ export function StoryHero({
           </span>
           <span className="text-xs text-muted-foreground">
             „Wcześniej” = w porównaniu {comparisonPhrase(periodLabel)}.
+            {/* 364 days back, not the calendar date - say which days, or
+                "rok temu" looks off by one against last year's calendar. */}
+            {story.yearAgo
+              ? ` „Rok temu” = ${spanWithYear(story.yearAgo.start, story.yearAgo.end)}, te same dni tygodnia.`
+              : null}
           </span>
         </div>
       ) : null}
@@ -118,8 +128,13 @@ export function StoryHero({
                 {f.change.text}
               </dd>
             ) : null}
+            {f.yoy ? (
+              <dd className="order-4 mt-0.5 text-xs tabular-nums text-muted-foreground">
+                {f.yoy}
+              </dd>
+            ) : null}
             {f.hint ? (
-              <dd className="order-4 mt-0.5 text-xs text-muted-foreground">{f.hint}</dd>
+              <dd className="order-5 mt-0.5 text-xs text-muted-foreground">{f.hint}</dd>
             ) : null}
           </div>
         ))}

@@ -4,7 +4,13 @@ import type {
   Kpi,
   TrendPoint,
 } from "@/lib/dashboard/metrics";
-import { formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
+import type { EngagementYoY } from "@/lib/dashboard/yoy";
+import {
+  formatMoneyPLN,
+  formatNumberPL,
+  formatPlnWhole,
+  formatSignedPct,
+} from "@/lib/utils";
 
 // Plain-language "what happened" for people who don't speak CTR/CPC: marketing
 // managers skimming before a board meeting. Deterministic (no LLM cost) and
@@ -25,6 +31,8 @@ export interface StoryFact {
    * board understands ("ok. 105 kliknięć za każde 100 zł"). Dashboard only.
    */
   hint?: string;
+  /** Same days a year earlier, already phrased ("rok temu: 31 200 (+16%)"). */
+  yoy?: string;
 }
 
 /** The answer to "czy to dobrze czy źle?" in one short phrase. */
@@ -45,6 +53,8 @@ export interface Story {
    * new client before the first sync): what is going on and when to look.
    */
   note?: string | null;
+  /** Last year's window when at least one fact carries a "rok temu" line. */
+  yearAgo?: { start: string; end: string } | null;
 }
 
 /** Polish plural: 1 kliknięcie, 2-4 kliknięcia, 5+ kliknięć (12-14 -> many). */
@@ -151,11 +161,40 @@ export function comparisonPhrase(periodLabel: string): string {
 // same cut-off as the KPI tile (MIN_PREV_SPEND in kpi-cards.tsx).
 const MIN_PREV_SPEND = 10_000;
 
+// Same thin-base idea for last year: below these a % is noise, so only the
+// raw number is shown. Impressions swing hard on tiny bases, hence 1000.
+const MIN_YOY = {
+  spend: MIN_PREV_SPEND,
+  clicks: MIN_BASE.clicks,
+  sessions: MIN_BASE.sessions,
+  impressions: 1_000,
+};
+
+/** % change vs last year, or null when either side can't carry one. */
+function yoyPct(current: number, lastYear: number | null | undefined, min: number): number | null {
+  if (lastYear == null || lastYear < min || current <= 0) return null;
+  return ((current - lastYear) / lastYear) * 100;
+}
+
+/** "rok temu: 31 200 (+16%)"; the % is dropped on a thin base. */
+function yoyLine(
+  current: number,
+  lastYear: number | null | undefined,
+  min: number,
+  format: (v: number) => string
+): string | undefined {
+  // No last-year number, or nothing this period to compare it with.
+  if (lastYear == null || lastYear <= 0 || current <= 0) return undefined;
+  const p = yoyPct(current, lastYear, min);
+  return `rok temu: ${format(lastYear)}${p === null ? "" : ` (${formatSignedPct(p / 100)})`}`;
+}
+
 export function buildStory({
   kpis,
   trend,
   ecommerce,
   includeSpend = false,
+  yoy = null,
 }: {
   kpis: DashboardKpis;
   trend: TrendPoint[];
@@ -166,6 +205,11 @@ export function buildStory({
    * weekly e-mail shows spend in its own block, so it leaves this off.
    */
   includeSpend?: boolean;
+  /**
+   * Same window a year earlier (getEngagementYoY). Adds a "rok temu" line per
+   * fact and a good-news item; the weekly e-mail leaves it out.
+   */
+  yoy?: EngagementYoY | null;
 }): Story {
   const impressions = trend.reduce((a, t) => a + t.impressions, 0);
   const clicks = kpis.clicks.value;
@@ -231,6 +275,7 @@ export function buildStory({
         value: formatCompactPL(sessions),
         caption: `${nounFor(sessions, "wizyta", "wizyty", "wizyt")} na stronie`,
         change: phraseChange(sessionsDelta, "more_is_good"),
+        yoy: yoyLine(sessions, yoy?.sessions, MIN_YOY.sessions, formatCompactPL),
       });
     }
 
@@ -304,6 +349,7 @@ export function buildStory({
         caption: "wydane na reklamy",
         // More spend is neither good nor bad on its own - it's a decision.
         change: phraseChange(spendDelta, "neutral"),
+        yoy: yoyLine(spend, yoy?.spendMinorUnits, MIN_YOY.spend, formatPlnWhole),
       });
     } else if (impressions > 0) {
       facts.push({
@@ -311,6 +357,7 @@ export function buildStory({
         value: formatCompactPL(impressions),
         caption: `${nounFor(impressions, "wyświetlenie", "wyświetlenia", "wyświetleń")} reklam`,
         change: null,
+        yoy: yoyLine(impressions, yoy?.impressions, MIN_YOY.impressions, formatCompactPL),
       });
     }
     if (clicks > 0 || impressions > 0) {
@@ -320,6 +367,7 @@ export function buildStory({
         caption: `${nounFor(clicks, "kliknięcie", "kliknięcia", "kliknięć")} w reklamy`,
         change: phraseChange(clicksDelta, "more_is_good"),
         hint: leadSpend && impressions > 0 ? `z ${impressionsText} reklam` : undefined,
+        yoy: yoyLine(clicks, yoy?.clicks, MIN_YOY.clicks, formatCompactPL),
       });
     }
     if (hasSessions) {
@@ -329,11 +377,17 @@ export function buildStory({
         caption: `${nounFor(sessions, "wizyta", "wizyty", "wizyt")} na stronie`,
         change: phraseChange(sessionsDelta, "more_is_good"),
         hint: leadSpend ? "ze wszystkich źródeł, nie tylko z reklam" : undefined,
+        yoy: yoyLine(sessions, yoy?.sessions, MIN_YOY.sessions, formatCompactPL),
       });
     }
     if (kpis.cpcMinorUnits.value > 0) {
       // "Ile nas kosztuje jedna osoba?" - the board thinks in "za 100 zł mamy X".
       const per100 = Math.round(10_000 / kpis.cpcMinorUnits.value);
+      // Last year's CPC only from a solid click base - 3 clicks give any CPC.
+      const lyCpc =
+        yoy?.spendMinorUnits != null && yoy.clicks != null && yoy.clicks >= MIN_YOY.clicks
+          ? yoy.spendMinorUnits / yoy.clicks
+          : null;
       facts.push({
         key: "cpc",
         value: formatMoneyPLN(kpis.cpcMinorUnits.value),
@@ -348,9 +402,19 @@ export function buildStory({
                 "kliknięć"
               )} za każde 100 zł`
             : undefined,
+        yoy: yoyLine(kpis.cpcMinorUnits.value, lyCpc, 0, formatMoneyPLN),
       });
     }
   }
+
+  // A year-on-year jump is the strongest good news (seasonality can't explain
+  // it away), so it leads. Visits first: they matter more than clicks.
+  const sessionsYoY = hasSessions ? yoyPct(sessions, yoy?.sessions, MIN_YOY.sessions) : null;
+  const clicksYoY = clicks > 0 ? yoyPct(clicks, yoy?.clicks, MIN_YOY.clicks) : null;
+  if (sessionsYoY !== null && sessionsYoY >= 10)
+    wins.push(`Wizyt na stronie o ${Math.round(sessionsYoY)}% więcej niż rok temu.`);
+  else if (clicksYoY !== null && clicksYoY >= 10)
+    wins.push(`Kliknięć w reklamy o ${Math.round(clicksYoY)}% więcej niż rok temu.`);
 
   // Wins that apply to every client. Changes already shown under the big
   // numbers aren't repeated here - this list is for what the numbers hide.
@@ -401,6 +465,8 @@ export function buildStory({
     watch,
     verdict: buildVerdict(shown, watch),
     note,
+    yearAgo:
+      yoy && shown.some((f) => f.yoy) ? { start: yoy.lyStart, end: yoy.lyEnd } : null,
   };
 }
 
