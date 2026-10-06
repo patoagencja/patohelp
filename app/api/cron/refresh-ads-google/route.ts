@@ -20,6 +20,10 @@ export const maxDuration = 60;
 
 const WARSAW_TZ = "Europe/Warsaw";
 
+// Don't START a snapshot step after this much of maxDuration (60s) is used -
+// leaves ~25s for the step itself so the function isn't killed mid-run.
+const SNAPSHOT_START_BUDGET_MS = 35_000;
+
 interface GoogleAccount {
   id: string;
   selected?: boolean;
@@ -29,11 +33,13 @@ interface GoogleAccount {
 
 export async function GET(request: Request) {
   if (
+    !process.env.CRON_SECRET ||
     request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const admin = createAdminClient();
   await admin.rpc("cleanup_expired_oauth_states");
 
@@ -52,6 +58,11 @@ export async function GET(request: Request) {
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
   let accountsFailed = 0;
+  const snapshotJobs: Array<{
+    clientId: string;
+    refreshToken: string;
+    accounts: GoogleAccount[];
+  }> = [];
 
   for (const integration of integrations ?? []) {
     const { data: run } = await admin
@@ -175,39 +186,15 @@ export async function GET(request: Request) {
         .eq("id", run?.id);
       integrationsProcessed += 1;
 
-      // Extra once-a-day snapshot after the run is closed: it must never
-      // change the sync's outcome or its health status.
-      try {
-        await syncSearchTermsSnapshot(
-          admin,
-          integration.client_id,
-          refresh_token,
-          accounts,
-          until
-        );
-      } catch (stErr) {
-        console.error(
-          "[cron/refresh-ads-google] search terms failed",
-          describeError(stErr)
-        );
-      }
-
-      // Same once-a-day pattern; isolated so it can't affect search terms or
-      // the sync outcome above.
-      try {
-        await syncImpressionShareSnapshot(
-          admin,
-          integration.client_id,
-          refresh_token,
-          accounts,
-          until
-        );
-      } catch (isErr) {
-        console.error(
-          "[cron/refresh-ads-google] impression share failed",
-          describeError(isErr)
-        );
-      }
+      // Once-a-day snapshots are deferred until EVERY client's main sync is
+      // done: run inline, a slow first-of-day snapshot for one client could
+      // push the next client's main sync past maxDuration and leave its
+      // sync_runs row stuck on "running".
+      snapshotJobs.push({
+        clientId: integration.client_id as string,
+        refreshToken: refresh_token,
+        accounts,
+      });
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ads-google] integration failed", message);
@@ -219,6 +206,44 @@ export async function GET(request: Request) {
           error_message: message,
         })
         .eq("id", run?.id);
+    }
+  }
+
+  // Extra once-a-day snapshots, after all sync_runs rows are closed: they
+  // must never change a sync's outcome or its health status. Each step is
+  // isolated, and none starts once the budget is spent - a skipped snapshot
+  // is simply retried on the next tick, a killed function is not harmless.
+  for (const job of snapshotJobs) {
+    if (Date.now() - startedAt > SNAPSHOT_START_BUDGET_MS) break;
+    try {
+      await syncSearchTermsSnapshot(
+        admin,
+        job.clientId,
+        job.refreshToken,
+        job.accounts,
+        until
+      );
+    } catch (stErr) {
+      console.error(
+        "[cron/refresh-ads-google] search terms failed",
+        describeError(stErr)
+      );
+    }
+
+    if (Date.now() - startedAt > SNAPSHOT_START_BUDGET_MS) break;
+    try {
+      await syncImpressionShareSnapshot(
+        admin,
+        job.clientId,
+        job.refreshToken,
+        job.accounts,
+        until
+      );
+    } catch (isErr) {
+      console.error(
+        "[cron/refresh-ads-google] impression share failed",
+        describeError(isErr)
+      );
     }
   }
 

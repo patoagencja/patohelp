@@ -27,17 +27,23 @@ export const maxDuration = 60;
 
 const WARSAW_TZ = "Europe/Warsaw";
 
+// Don't START a snapshot after this much of maxDuration (60s) is used - each
+// is one small GA4 report, so ~20s of headroom keeps the function alive.
+const SNAPSHOT_START_BUDGET_MS = 40_000;
+
 interface Ga4AccountIds {
   propertyId?: string | null;
 }
 
 export async function GET(request: Request) {
   if (
+    !process.env.CRON_SECRET ||
     request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now();
   const admin = createAdminClient();
   const now = new Date();
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
@@ -88,6 +94,11 @@ export async function GET(request: Request) {
 
   let processed = 0;
   let rowsUpserted = 0;
+  const snapshotJobs: Array<{
+    clientId: string;
+    refreshToken: string;
+    propertyId: string;
+  }> = [];
 
   for (const integration of integrations ?? []) {
     const propertyId = (integration.account_ids as Ga4AccountIds)?.propertyId;
@@ -306,48 +317,21 @@ export async function GET(request: Request) {
         }
       }
 
-      // Isolated like the items sync: a heatmap failure must never flip the
-      // run to failed or skip the success update below.
-      if (hasHeatmapTable) {
-        try {
-          await syncActivityHeatmap(
-            admin,
-            integration.client_id as string,
-            refresh_token,
-            propertyId,
-            until
-          );
-        } catch (err) {
-          console.error("[refresh-ga4] activity heatmap sync failed", {
-            client: integration.client_id,
-            error: (err as Error).message,
-          });
-        }
-      }
-
-      // Isolated for the same reason as the heatmap.
-      if (ecommerceClientIds.has(integration.client_id as string)) {
-        try {
-          await syncNewVsReturning(
-            admin,
-            integration.client_id as string,
-            refresh_token,
-            propertyId,
-            until
-          );
-        } catch (err) {
-          console.error("[refresh-ga4] new vs returning sync failed", {
-            client: integration.client_id,
-            error: (err as Error).message,
-          });
-        }
-      }
-
       await admin
         .from("sync_runs")
         .update({ status: "success", finished_at: new Date().toISOString() })
         .eq("id", run?.id);
       processed += 1;
+
+      // Once-a-day snapshots are deferred until every client's main sync is
+      // finalized: run here, a slow GA4 report would delay this run's success
+      // update (and the next clients' syncs) and a timeout would leave
+      // sync_runs stuck on "running".
+      snapshotJobs.push({
+        clientId: integration.client_id as string,
+        refreshToken: refresh_token,
+        propertyId,
+      });
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ga4] integration failed", message);
@@ -359,6 +343,48 @@ export async function GET(request: Request) {
           error_message: message,
         })
         .eq("id", run?.id);
+    }
+  }
+
+  // Isolated like the items sync: a snapshot failure must never touch a
+  // run's outcome. None starts once the budget is spent - a skipped snapshot
+  // is retried on the next tick, while a killed function helps nobody.
+  for (const job of snapshotJobs) {
+    if (hasHeatmapTable && Date.now() - startedAt <= SNAPSHOT_START_BUDGET_MS) {
+      try {
+        await syncActivityHeatmap(
+          admin,
+          job.clientId,
+          job.refreshToken,
+          job.propertyId,
+          until
+        );
+      } catch (err) {
+        console.error("[refresh-ga4] activity heatmap sync failed", {
+          client: job.clientId,
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    if (
+      ecommerceClientIds.has(job.clientId) &&
+      Date.now() - startedAt <= SNAPSHOT_START_BUDGET_MS
+    ) {
+      try {
+        await syncNewVsReturning(
+          admin,
+          job.clientId,
+          job.refreshToken,
+          job.propertyId,
+          until
+        );
+      } catch (err) {
+        console.error("[refresh-ga4] new vs returning sync failed", {
+          client: job.clientId,
+          error: (err as Error).message,
+        });
+      }
     }
   }
 

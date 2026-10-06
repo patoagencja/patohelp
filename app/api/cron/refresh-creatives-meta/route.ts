@@ -27,6 +27,7 @@ function roundOrNull(v: number | null): number | null {
 
 export async function GET(request: Request) {
   if (
+    !process.env.CRON_SECRET ||
     request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -79,6 +80,15 @@ export async function GET(request: Request) {
             getAdThumbnails(access_token, account.id),
           ]);
 
+          // getAdInsights falls back to the base fields on ANY error (rate
+          // limits included) and then reports every diagnostic as null.
+          // Writing those nulls would wipe the last good values for 6h, so
+          // only send the diagnostic columns when the extended call worked
+          // (reach comes back for every ad that had impressions). Decided per
+          // account, so each upsert batch still has one shape.
+          const withMetrics =
+            hasMetricColumns && insights.some((ad) => ad.reach != null);
+
           const rows = insights.map((ad) => ({
             client_id: integration.client_id,
             provider: "meta_ads",
@@ -95,7 +105,7 @@ export async function GET(request: Request) {
             period_start: since,
             period_end: until,
             updated_at: new Date().toISOString(),
-            ...(hasMetricColumns
+            ...(withMetrics
               ? {
                   reach: roundOrNull(ad.reach),
                   frequency: ad.frequency,
