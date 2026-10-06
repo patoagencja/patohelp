@@ -27,7 +27,7 @@ export default function DemoFullLayout({
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4" aria-hidden />
           </span>
           <span className="font-semibold">lokalnepomidorki</span>
         </div>
@@ -39,7 +39,7 @@ export default function DemoFullLayout({
           data-present-hide
           className="flex h-14 items-center gap-2 border-b border-border bg-card px-4 sm:gap-3 sm:px-6"
         >
-          <span className="whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+          <span className="whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-400">
             DEMO<span className="hidden sm:inline"> · dane przykładowe</span>
           </span>
           <span className="flex-1" />

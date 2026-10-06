@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
 
 import { AnimatedNumber } from "@/components/dashboard/animated-number";
@@ -33,12 +33,19 @@ function deltaBadge(kpi: Kpi, goodWhen: GoodWhen) {
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
   const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
   const muted = goodWhen === "neutral" || Math.abs(rounded) < FLAT_THRESHOLD;
+  const good = goodWhen === "lower" ? rounded < 0 : rounded > 0;
   return {
     deltaType,
     isIncreasePositive: goodWhen !== "lower",
+    // Tremor's own badge text is emerald/red-600 on a 10% tint (~3.4:1);
+    // one shade darker keeps the colour meaning and clears WCAG AA.
     className: muted
       ? "bg-slate-50 text-slate-600 ring-slate-500 dark:text-slate-300"
-      : undefined,
+      : deltaType === "unchanged"
+        ? undefined
+        : good
+          ? "text-emerald-700 dark:text-emerald-400"
+          : "text-red-700 dark:text-red-400",
     label: `${rounded > 0 ? "+" : ""}${formatPercent(rounded, 1)}`,
   };
 }
@@ -100,7 +107,7 @@ function KpiCard({
     <Card
       className={cn(
         // z-index lift keeps an open ⓘ bubble above the neighbouring cards.
-        "group transition-all duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20",
+        "group transition-all duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         cardFlash === "up" && "ring-2 ring-emerald-500/60",
         cardFlash === "down" && "ring-2 ring-red-500/60"
       )}
@@ -130,14 +137,19 @@ function KpiCard({
           format={format}
           className="min-w-0 flex-1 truncate text-2xl font-bold tabular-nums tracking-tight text-foreground"
         />
+        {/* Static on purpose: a sparkline that breathes forever pulls the
+            eye from the numbers, which is the wrong signal on a boardroom
+            TV. The sentence below carries the same trend for screen readers. */}
         {hasSpark ? (
-          <SparkAreaChart
-            data={data}
-            index="i"
-            categories={["v"]}
-            colors={[sparkColor(kpi, g.goodWhen)]}
-            className="h-8 w-16 shrink-0 animate-[soft-pulse_2.8s_ease-in-out_infinite] sm:w-20"
-          />
+          <div aria-hidden className="shrink-0">
+            <SparkAreaChart
+              data={data}
+              index="i"
+              categories={["v"]}
+              colors={[sparkColor(kpi, g.goodWhen)]}
+              className="h-8 w-16 sm:w-20"
+            />
+          </div>
         ) : null}
       </Flex>
 
@@ -168,6 +180,7 @@ export function KpiCards({
   lang?: "pl" | "en";
 }) {
   const en = lang === "en";
+  const headingId = useId();
   const L = {
     afterGa4: en
       ? "Google Analytics data appears after the first sync"
@@ -226,6 +239,10 @@ export function KpiCards({
   );
 
   return (
+    <section aria-labelledby={headingId}>
+    <h2 id={headingId} className="sr-only">
+      {en ? "Key metrics" : "Najważniejsze wskaźniki"}
+    </h2>
     <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
       <KpiCard
         metric="spend"
@@ -296,5 +313,6 @@ export function KpiCards({
         lang={lang}
       />
     </Grid>
+    </section>
   );
 }

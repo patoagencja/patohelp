@@ -43,7 +43,7 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
     <section className="overflow-hidden rounded-xl border border-amber-500/25 bg-card">
       <div className="flex items-center gap-3 border-b border-amber-500/15 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent px-5 py-4">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30">
-          <Trophy className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+          <Trophy className="h-5 w-5 text-amber-700 dark:text-amber-400" aria-hidden />
         </span>
         <div>
           <h2 className="text-base font-semibold">Rekordy i kamienie milowe</h2>
@@ -66,8 +66,8 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
                 aria-hidden
                 className="pointer-events-none absolute -right-3 -top-3 h-20 w-20 text-amber-500/[0.07] transition-transform group-hover:scale-105"
               />
-              <span className="relative flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                <Icon className="h-4 w-4" />
+              <span className="relative flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                <Icon className="h-4 w-4" aria-hidden />
               </span>
               <p className="relative mt-3 text-sm font-semibold leading-snug text-foreground">
                 {r.title}
@@ -76,7 +76,7 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
                 {r.detail}
               </p>
               {r.achievedOn ? (
-                <p className="relative mt-auto pt-3 text-[11px] font-medium uppercase tracking-wide text-amber-700/80 dark:text-amber-400/80">
+                <p className="relative mt-auto pt-3 text-[11px] font-medium uppercase tracking-wide text-amber-800 dark:text-amber-400">
                   {dayLabel(r.achievedOn)}
                 </p>
               ) : null}

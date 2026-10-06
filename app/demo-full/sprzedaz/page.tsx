@@ -95,7 +95,7 @@ export default function DemoSprzedazPage({
         {/* Stacked, not side by side: ten products next to five pages left
             a tall half-empty card. TopProducts splits into two columns itself. */}
         <TopProducts products={d.products} />
-        <TopPages pages={d.topPages} />
+        <TopPages pages={d.topPages} headingLevel={3} />
       </StorySection>
 
       <StorySection
@@ -113,7 +113,7 @@ export default function DemoSprzedazPage({
             engagementRate={d.engagementRate}
             transactions={d.ecommerce.transactions.value}
           />
-          <Devices devices={d.devices} />
+          <Devices devices={d.devices} headingLevel={3} />
         </div>
       </StorySection>
 

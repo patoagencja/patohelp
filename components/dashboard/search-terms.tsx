@@ -133,9 +133,9 @@ export function SearchTerms({
 
   return (
     <Card>
-      <h3 className="text-base font-semibold">
+      <h2 className="text-base font-semibold">
         {en ? "What your customers search for" : "Czego szukają Twoi klienci"}
-      </h3>
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {en
           ? "Phrases typed into Google that showed your ads - last 30 days"
@@ -145,9 +145,9 @@ export function SearchTerms({
 
       {topics.length > 0 ? (
         <div className="mt-5">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? "Most popular topics" : "Najpopularniejsze tematy"}
-          </h4>
+          </h3>
           <ul className="mt-2 flex flex-wrap items-center gap-2">
             {topics.map((t) => {
               // Three size steps read as "big / medium / small" at a glance;
@@ -171,7 +171,7 @@ export function SearchTerms({
                   }
                 >
                   {t.word}
-                  <span className="ml-1.5 text-[0.8em] font-normal tabular-nums text-muted-foreground">
+                  <span className="ml-1.5 text-[0.8em] font-normal tabular-nums text-foreground/70">
                     {formatNumberPL(t.weight)}
                   </span>
                 </li>
@@ -181,9 +181,9 @@ export function SearchTerms({
         </div>
       ) : null}
 
-      <h4 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {en ? `Top ${ranked.length} searches` : `${ranked.length} najczęstszych fraz`}
-      </h4>
+      </h3>
       {/* CSS columns (not grid) so the ranking reads down the first column
           and continues in the second, like a printed list. */}
       <ol className="mt-1 lg:columns-2 lg:gap-10">
@@ -203,7 +203,7 @@ export function SearchTerms({
                 <p className="break-words text-sm font-medium">
                   {en ? `"${t.term}"` : `„${t.term}”`}
                 </p>
-                <div className="mt-1 h-1 rounded-full bg-muted">
+                <div className="mt-1 h-1 rounded-full bg-muted" aria-hidden>
                   <div
                     className="h-1 rounded-full bg-primary/60"
                     style={{ width: `${width}%` }}

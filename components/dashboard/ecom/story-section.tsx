@@ -20,12 +20,12 @@ export function StorySection({
       <div className="flex items-start gap-3">
         <span
           aria-hidden
-          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary"
+          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary dark:text-indigo-300"
         >
           {step}
         </span>
         <div className="min-w-0">
-          <h2 id={id} className="text-lg font-semibold leading-tight">
+          <h2 id={id} className="text-balance text-lg font-semibold leading-tight">
             {title}
           </h2>
           {description ? (

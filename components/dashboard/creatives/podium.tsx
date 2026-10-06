@@ -36,9 +36,10 @@ const AWARD_TONE: Record<AwardKind, string> = {
   clicks: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
 };
 
+// Dark digits on gold/silver: white on amber-500/slate-400 is ~2.2:1.
 const MEDAL = [
-  "bg-amber-500 text-white",
-  "bg-slate-400 text-white",
+  "bg-amber-400 text-amber-950",
+  "bg-slate-300 text-slate-900",
   "bg-orange-700 text-white",
 ];
 

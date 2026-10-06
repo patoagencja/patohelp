@@ -303,7 +303,7 @@ export default async function AlertyPage({
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-xl font-semibold">Alerty</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Alerty</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Co w kampaniach odbiega od normy - i co z tym robimy. Codziennie
           porównujemy ostatnie dni z poprzednimi dwoma tygodniami.
@@ -314,7 +314,7 @@ export default async function AlertyPage({
         <AlertsAllClear />
       ) : (
         <>
-          <p className="text-base font-medium">{alertsHeadline(alerts)}</p>
+          <p className="text-balance text-base font-medium">{alertsHeadline(alerts)}</p>
           <AlertGroups alerts={alerts} />
         </>
       )}

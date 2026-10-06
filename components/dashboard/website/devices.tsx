@@ -11,9 +11,11 @@ const DEVICE: Record<string, { pl: string; en: string; bar: string }> = {
 export function Devices({
   devices,
   lang = "pl",
+  headingLevel = 2,
 }: {
   devices: Array<{ device: string; sessions: number }>;
   lang?: "pl" | "en";
+  headingLevel?: 2 | 3;
 }) {
   const en = lang === "en";
   const rows: ShareRow[] = devices.map((d) => ({
@@ -35,6 +37,7 @@ export function Devices({
   return (
     <ShareBars
       title={en ? "Devices" : "Na czym oglądają"}
+      headingLevel={headingLevel}
       insight={insight}
       rows={rows}
       unit={en ? (n) => `${formatNumberPL(n)} sessions` : visitsUnit}

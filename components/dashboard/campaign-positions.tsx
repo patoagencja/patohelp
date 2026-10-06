@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { Card, Title } from "@tremor/react";
+import { Card } from "@tremor/react";
 
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
@@ -42,7 +42,7 @@ const STATUS_LABEL: Record<Lang, Record<CampaignStatus, string>> = {
 
 const PLATFORM_PILL: Record<AdProvider, string> = {
   meta_ads: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  google_ads: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  google_ads: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
   tiktok_ads: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
 };
 
@@ -192,7 +192,7 @@ function StatusDot({ c, lang }: { c: CampaignRow; lang: Lang }) {
   const hint = c.statusReason ? `${label} - ${c.statusReason}` : label;
   return (
     <span className="inline-flex shrink-0 items-center" title={hint}>
-      <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[c.status])} />
+      <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[c.status])} aria-hidden />
       <span className="sr-only">{hint}</span>
     </span>
   );
@@ -214,8 +214,8 @@ function ChangeValue({
       className={cn(
         "inline-flex items-center gap-0.5 font-medium tabular-nums",
         up
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-red-600 dark:text-red-400",
+          ? "text-emerald-700 dark:text-emerald-400"
+          : "text-red-700 dark:text-red-400",
         className
       )}
     >
@@ -365,7 +365,7 @@ export function CampaignPositions({
     <Card className="p-5 sm:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <Title>{t.title}</Title>
+          <h2 className="text-base font-semibold">{t.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {summaryText(lang, filter, filtered.length)}
             <span aria-hidden> · </span>
@@ -388,7 +388,7 @@ export function CampaignPositions({
               aria-pressed={filter === key}
               onClick={() => setFilter(key)}
               className={cn(
-                "flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors md:flex-none",
+                "flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors md:flex-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 filter === key
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -447,7 +447,7 @@ export function CampaignPositions({
           <span>{t.legend}</span>
           {presentStatuses.map((s) => (
             <span key={s} className="inline-flex items-center gap-1.5">
-              <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} />
+              <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} aria-hidden />
               {STATUS_LABEL[lang][s]}
             </span>
           ))}

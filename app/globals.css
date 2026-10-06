@@ -15,7 +15,9 @@
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* A touch darker than shadcn's slate-500 so muted text still clears
+       WCAG AA (4.5:1) on bg-muted chips and segmented controls. */
+    --muted-foreground: 215.4 16.3% 44%;
     --accent: 226 100% 97%;
     --accent-foreground: 245 58% 51%;
     --destructive: 0 84.2% 60.2%;
@@ -36,7 +38,7 @@
     --card-foreground: 210 40% 98%;
     --popover: 224 32% 10%;
     --popover-foreground: 210 40% 98%;
-    --primary: 239 84% 67%;
+    --primary: 239 84% 64%;
     --primary-foreground: 0 0% 100%;
     --secondary: 222 26% 15%;
     --secondary-foreground: 210 40% 98%;
@@ -48,7 +50,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 222 22% 17%;
     --input: 222 22% 19%;
-    --ring: 239 84% 67%;
+    --ring: 239 84% 70%;
   }
 }
 
@@ -58,6 +60,14 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Baseline keyboard focus in the brand ring colour for anything that has
+     no custom focus-visible:ring (those set outline-none and win). Keeps
+     plain links and one-off buttons from falling back to the browser's
+     inconsistent default outline. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -82,18 +92,6 @@
   }
 }
 
-/* Gentle breathing used by KPI sparklines - keeps the colour alive without
-   being distracting. */
-@keyframes soft-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
-}
-
 /* Staggered entrance for alert rows. */
 @keyframes rise-in {
   from {
@@ -112,7 +110,8 @@
   animation: ticker-scroll 90s linear infinite;
 }
 
-.ticker-mask:hover .ticker-track {
+.ticker-mask:hover .ticker-track,
+.ticker-mask:focus-within .ticker-track {
   animation-play-state: paused;
 }
 
@@ -152,7 +151,7 @@
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 215.4 16.3% 44%;
     --border: 214.3 31.8% 91.4%;
     --primary: 243 75% 59%;
     --accent: 226 100% 97%;
@@ -289,3 +288,12 @@ html[data-present="true"] {
   }
 }
 /* ===== End print ========================================================== */
+
+/* Dark mode: one indigo can't serve both as a button fill under white text
+   (needs to be darker) and as small text on dark cards (needs to be
+   lighter), so text-primary gets its own lighter shade. */
+@media screen {
+  .dark .text-primary {
+    color: hsl(230 90% 80%);
+  }
+}

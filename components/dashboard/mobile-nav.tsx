@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 
+import { useModalFocus } from "@/components/dashboard/use-modal-focus";
 import { cn } from "@/lib/utils";
 
 type Item = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -42,6 +43,10 @@ export function MobileNav({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const base = `/${clientSlug}`;
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useModalFocus(sheetRef, open, close, closeRef);
 
   // Close the sheet whenever navigation happens.
   useEffect(() => setOpen(false), [pathname]);
@@ -73,23 +78,29 @@ export function MobileNav({
     <>
       {open ? (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="Więcej">
+          {/* Tap-outside target only; keyboard users have the X and Esc. */}
           <button
             type="button"
-            aria-label="Zamknij"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-background/60 backdrop-blur-sm animate-in fade-in"
+            aria-hidden
+            tabIndex={-1}
+            onClick={close}
+            className="absolute inset-0 bg-background/60 backdrop-blur-sm animate-in fade-in motion-reduce:animate-none"
           />
-          <div className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-card p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom-8">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted" />
+          <div
+            ref={sheetRef}
+            className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-card p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
+          >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted" aria-hidden />
             <div className="flex items-center justify-between px-1 pb-2">
-              <p className="text-sm font-semibold">Więcej</p>
+              <h2 className="text-sm font-semibold">Więcej</h2>
               <button
+                ref={closeRef}
                 type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted"
+                onClick={close}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Zamknij"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
@@ -97,14 +108,15 @@ export function MobileNav({
                 <Link
                   key={href}
                   href={href}
+                  aria-current={pathname === href ? "page" : undefined}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-xs font-medium transition-colors",
+                    "flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     pathname === href
                       ? "bg-accent text-accent-foreground"
                       : "bg-muted/50 text-foreground hover:bg-muted"
                   )}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" aria-hidden />
                   {label}
                 </Link>
               ))}
@@ -126,8 +138,8 @@ export function MobileNav({
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2 text-[11px] font-medium transition-colors",
-                  active ? "text-primary" : "text-muted-foreground"
+                  "flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  active ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
                 )}
               >
                 <span
@@ -136,7 +148,7 @@ export function MobileNav({
                     active && "bg-primary/10"
                   )}
                 >
-                  <Icon className="h-[19px] w-[19px]" />
+                  <Icon className="h-[19px] w-[19px]" aria-hidden />
                 </span>
                 {label}
               </Link>
@@ -146,9 +158,10 @@ export function MobileNav({
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
+            aria-haspopup="dialog"
             className={cn(
-              "flex flex-col items-center gap-1 py-2 text-[11px] font-medium transition-colors",
-              open || moreActive ? "text-primary" : "text-muted-foreground"
+              "flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              open || moreActive ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
             )}
           >
             <span
@@ -157,7 +170,7 @@ export function MobileNav({
                 (open || moreActive) && "bg-primary/10"
               )}
             >
-              <MoreHorizontal className="h-[19px] w-[19px]" />
+              <MoreHorizontal className="h-[19px] w-[19px]" aria-hidden />
             </span>
             Więcej
           </button>

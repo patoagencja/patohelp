@@ -203,7 +203,7 @@ export function SeasonPlanner({
           ) : null}
 
           <div className="rounded-lg bg-primary/5 p-4">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary dark:text-indigo-300">
               <Lightbulb className="h-3.5 w-3.5" /> Co z tego wynika
             </p>
             <ul className="space-y-2 text-sm leading-relaxed">
@@ -249,7 +249,7 @@ export function SeasonPlanner({
             {isAgency && !plan.novemberGoal ? (
               <Link
                 href={`/${clientSlug}/settings#ecommerce`}
-                className="mt-3 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+                className="mt-3 inline-block text-xs font-medium text-primary dark:text-indigo-300 underline-offset-2 hover:underline"
               >
                 Ustaw cel na listopad, żeby policzyć budżet pod cel
               </Link>

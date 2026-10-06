@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 type Lang = "pl" | "en";
 
 const TIER: Record<ScoreTier, { stroke: string; text: string }> = {
-  high: { stroke: "stroke-emerald-500", text: "text-emerald-600 dark:text-emerald-400" },
-  mid: { stroke: "stroke-amber-500", text: "text-amber-600 dark:text-amber-400" },
+  high: { stroke: "stroke-emerald-500", text: "text-emerald-700 dark:text-emerald-400" },
+  mid: { stroke: "stroke-amber-500", text: "text-amber-700 dark:text-amber-400" },
   low: { stroke: "stroke-rose-500", text: "text-rose-600 dark:text-rose-400" },
 };
 
@@ -88,6 +88,10 @@ function useCountUp(target: number, ms = 950, delay = 0): number {
   const [n, setN] = useState(0);
   const raf = useRef<number>();
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setN(target);
+      return;
+    }
     let start = 0;
     const tick = (now: number) => {
       if (!start) start = now + delay;
@@ -141,7 +145,7 @@ function Ring({
         role="img"
         aria-label={`${copy.label}: ${ring.value}/100`}
       >
-        <svg viewBox={`0 0 ${VB} ${VB}`} className="h-full w-full -rotate-90">
+        <svg viewBox={`0 0 ${VB} ${VB}`} className="h-full w-full -rotate-90" aria-hidden>
           <circle
             cx={VB / 2}
             cy={VB / 2}
@@ -157,12 +161,13 @@ function Ring({
             fill="none"
             strokeWidth={STROKE}
             strokeLinecap="round"
-            className={tier.stroke}
             strokeDasharray={C}
             strokeDashoffset={offset}
             style={{
               transition: `stroke-dashoffset 1.1s cubic-bezier(0.22,1,0.36,1) ${delay}ms`,
             }}
+            // Reduced motion: the ring is simply drawn at its value.
+            className={cn(tier.stroke, "motion-reduce:!transition-none")}
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
@@ -196,10 +201,10 @@ export function DailyScoreCard({
   const factors = data.factors.filter((f) => f.deltaPct !== null);
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-sm font-medium text-muted-foreground">{t.title}</span>
+        <h2 className="text-sm font-medium text-muted-foreground">{t.title}</h2>
         {data.delta !== null && data.delta !== 0 ? (
           <span
             className={cn(
@@ -218,7 +223,7 @@ export function DailyScoreCard({
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
+      <p className="mt-2 text-balance text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
         {plainHeadline(data.headline, lang)}
       </p>
 
@@ -266,7 +271,7 @@ export function DailyScoreCard({
             })}
             {data.streak > 0 ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground">
-                <CalendarCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <CalendarCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-hidden />
                 {t.streak(data.streak)}
               </span>
             ) : null}

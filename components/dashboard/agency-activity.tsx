@@ -66,22 +66,22 @@ const CATEGORY: Record<
   kreacja: {
     label: "Kreacja",
     icon: Palette,
-    tone: "bg-pink-500/10 text-pink-600 ring-pink-500/20 dark:text-pink-400",
+    tone: "bg-pink-500/10 text-pink-700 ring-pink-500/20 dark:text-pink-400",
   },
   optymalizacja: {
     label: "Optymalizacja",
     icon: SlidersHorizontal,
-    tone: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/20 dark:text-emerald-400",
+    tone: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:text-emerald-400",
   },
   raport: {
     label: "Raport",
     icon: FileText,
-    tone: "bg-amber-500/10 text-amber-600 ring-amber-500/20 dark:text-amber-400",
+    tone: "bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-400",
   },
   strona: {
     label: "Strona www",
     icon: Globe,
-    tone: "bg-sky-500/10 text-sky-600 ring-sky-500/20 dark:text-sky-400",
+    tone: "bg-sky-500/10 text-sky-700 ring-sky-500/20 dark:text-sky-400",
   },
   inne: {
     label: "Inne",
@@ -456,7 +456,7 @@ export function AgencyActivity({
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="text-sm font-medium text-primary hover:underline"
+              className="rounded-sm text-sm font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {showAll
                 ? "Pokaż mniej"
@@ -666,7 +666,7 @@ export function AddActivityButton({ clientSlug }: { clientSlug: string }) {
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Zamknij"
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-4 w-4" aria-hidden />
             </button>

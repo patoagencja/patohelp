@@ -96,7 +96,9 @@ const config: Config = {
           ring: { DEFAULT: "#1f2937" },
           content: {
             subtle: "#4b5563",
-            DEFAULT: "#6b7280",
+            // gray-400, not gray-500: Tremor's default body text (KPI
+            // subtitles, chart legends) only reached ~3.7:1 on dark cards.
+            DEFAULT: "#9ca3af",
             emphasis: "#e5e7eb",
             strong: "#f9fafb",
             inverted: "#000000",
@@ -109,7 +111,9 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
         // Tremor radii
         "tremor-small": "0.375rem",
-        "tremor-default": "0.5rem",
+        // Matches the custom cards (rounded-xl) so Tremor and hand-built
+        // sections share one corner radius.
+        "tremor-default": "0.75rem",
         "tremor-full": "9999px",
       },
       fontSize: {

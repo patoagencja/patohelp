@@ -86,7 +86,7 @@ export default async function KreacjePage({
   return (
     <div className="min-w-0 space-y-6 p-4 sm:p-6">
       <div>
-        <h1 className="text-xl font-semibold">Kreacje - {client.name}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Kreacje - {client.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Które reklamy działają najlepiej i dlaczego · Meta · {period} ·
           odświeżane automatycznie co 6h

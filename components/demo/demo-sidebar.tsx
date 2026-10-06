@@ -30,8 +30,8 @@ export function DemoSidebar() {
   const sp = useSearchParams();
   const suffix = sp.get("lang") === "en" ? "?lang=en" : "";
   return (
-    <nav className="flex flex-col gap-1 p-3">
-      <p className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+    <nav aria-label="Menu główne" className="flex flex-col gap-1 p-3">
+      <p aria-hidden className="px-3 pb-1 pt-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         Menu
       </p>
       {ITEMS.map(({ href, label, icon: Icon }) => {
@@ -40,14 +40,15 @@ export function DemoSidebar() {
           <Link
             key={href}
             href={`${href}${suffix}`}
+            aria-current={active ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               active
                 ? "bg-accent font-medium text-accent-foreground"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            <Icon className="h-[18px] w-[18px] shrink-0" />
+            <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
             {label}
           </Link>
         );

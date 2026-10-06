@@ -21,7 +21,7 @@ const SEVERITY_LABEL: Record<Lang, Record<Anomaly["severity"], string>> = {
 
 const SEVERITY_PILL: Record<Anomaly["severity"], string> = {
   critical: "bg-red-500/10 text-red-700 dark:text-red-400",
-  high: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  high: "bg-amber-500/15 text-amber-800 dark:text-amber-400",
   medium: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
 };
 
@@ -63,7 +63,7 @@ export function AlertsDigest({
     <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-base font-semibold">
+          <h2 className="flex items-center gap-2 text-base font-semibold">
             <AlertTriangle
               className={cn(
                 "h-4 w-4 shrink-0",
@@ -72,13 +72,13 @@ export function AlertsDigest({
               aria-hidden
             />
             {t.title}
-          </p>
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">{t.intro}</p>
         </div>
         {!linkless ? (
           <Link
             href={`/${clientSlug}/alerty`}
-            className="flex shrink-0 items-center gap-1 pt-0.5 text-sm font-medium text-primary hover:underline"
+            className="flex shrink-0 items-center gap-1 rounded-sm pt-0.5 text-sm font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t.all}
             <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -102,7 +102,7 @@ export function AlertsDigest({
                   {a.severity === "critical" ? (
                     <span
                       className={cn(
-                        "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+                        "absolute inline-flex h-full w-full rounded-full opacity-75 motion-safe:animate-ping",
                         SEVERITY_DOT[a.severity]
                       )}
                     />
@@ -132,11 +132,11 @@ export function AlertsDigest({
                 </span>
               </>
             );
-            const cls = "group flex items-center gap-3 py-3";
+            const cls = "group flex items-center gap-3 rounded-md py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
             return (
               <li
                 key={a.id}
-                className="animate-[rise-in_0.4s_ease-out_both]"
+                className="motion-safe:animate-[rise-in_0.4s_ease-out_both]"
                 style={{ animationDelay: `${i * 70}ms` }}
               >
                 {linkless ? (

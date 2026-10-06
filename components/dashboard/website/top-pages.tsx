@@ -59,17 +59,21 @@ function pathContext(path: string): string | null {
 export function TopPages({
   pages,
   lang = "pl",
+  headingLevel = 2,
 }: {
   pages: Array<{ path: string; views: number; engagementRate: number }>;
   lang?: "pl" | "en";
+  /** 3 when nested under a section heading (Sprzedaż). */
+  headingLevel?: 2 | 3;
 }) {
   const en = lang === "en";
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   const max = Math.max(1, ...pages.map((p) => p.views));
   return (
     <Card className="flex flex-col">
-      <h3 className="text-base font-semibold">
+      <Heading className="text-base font-semibold">
         {en ? "Top pages" : "Co oglądają najchętniej"}
-      </h3>
+      </Heading>
       <p className="mt-1 text-sm text-muted-foreground">
         {en
           ? "Most viewed pages and how engaging they are."
@@ -103,7 +107,7 @@ export function TopPages({
                 </p>
               </div>
               <div className="mt-1 flex items-center gap-2">
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
                   <div
                     className="h-full rounded-full bg-primary/70"
                     style={{ width: `${(p.views / max) * 100}%` }}

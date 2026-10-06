@@ -69,13 +69,13 @@ export function AdsPageIntro({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold">{en ? "Ads" : "Reklamy"}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{en ? "Ads" : "Reklamy"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {en
             ? `Where the money goes and what we get for it · ${rangeLabel}`
             : `Na co idą pieniądze i co z tego mamy · ${rangeLabel}`}
         </p>
-        <p className="mt-3 max-w-2xl text-base font-medium leading-snug tabular-nums">
+        <p className="mt-3 max-w-2xl text-balance text-base font-medium leading-snug tabular-nums">
           {answer}
         </p>
       </div>

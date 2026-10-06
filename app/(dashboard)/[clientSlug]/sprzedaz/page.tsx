@@ -232,7 +232,7 @@ export default async function SprzedazPage({
         </SectionBoundary>
         {website.hasData ? (
           <SectionBoundary name="sales/top-pages">
-            <TopPages pages={website.topPages.slice(0, 5)} />
+            <TopPages pages={website.topPages.slice(0, 5)} headingLevel={3} />
           </SectionBoundary>
         ) : null}
       </StorySection>
@@ -262,7 +262,7 @@ export default async function SprzedazPage({
           </SectionBoundary>
           {website.hasData ? (
             <SectionBoundary name="sales/devices">
-              <Devices devices={website.devices} />
+              <Devices devices={website.devices} headingLevel={3} />
             </SectionBoundary>
           ) : null}
         </div>

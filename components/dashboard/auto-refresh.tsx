@@ -97,7 +97,7 @@ export function AutoRefresh({
           <span
             className={cn(
               "absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75",
-              pulse ? "animate-ping" : "animate-pulse"
+              pulse ? "motion-safe:animate-ping" : "motion-safe:animate-pulse"
             )}
           />
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />

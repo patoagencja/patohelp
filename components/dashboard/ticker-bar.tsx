@@ -6,7 +6,7 @@ import { cn, formatPlnWhole } from "@/lib/utils";
 
 const PLATFORM_PILL: Record<AdProvider, string> = {
   meta_ads: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  google_ads: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  google_ads: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
   tiktok_ads: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
 };
 
@@ -43,8 +43,8 @@ function TickerItem({ c }: { c: CampaignRow }) {
           className={cn(
             "inline-flex items-center tabular-nums",
             up
-              ? "text-emerald-600/80 dark:text-emerald-400/80"
-              : "text-red-600/80 dark:text-red-400/80"
+              ? "text-emerald-700 dark:text-emerald-400"
+              : "text-red-700 dark:text-red-400"
           )}
         >
           {up ? (
@@ -77,10 +77,13 @@ export function TickerBar({ campaigns }: { campaigns: CampaignRow[] }) {
   if (items.length === 0) return null;
 
   return (
+    // Focusable so keyboard users can pause the marquee too (it pauses on
+    // hover and focus) - WCAG 2.2.2 wants moving content to be stoppable.
     <div
-      className="ticker-mask overflow-hidden rounded-xl print:hidden border border-border/60 bg-card/60 py-2"
+      className="ticker-mask overflow-hidden rounded-xl print:hidden border border-border/60 bg-card/60 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       aria-label="Aktywne kampanie: wydatki i zmiana w ostatnich dniach"
       role="region"
+      tabIndex={0}
     >
       <div className="ticker-track">
         {items.map((c) => (

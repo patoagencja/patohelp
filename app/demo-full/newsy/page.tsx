@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const CAT = {
-  meta: { label: "Meta", cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
-  google: { label: "Google / YT", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  tiktok: { label: "TikTok", cls: "bg-pink-500/10 text-pink-600 dark:text-pink-400" },
-  ai: { label: "AI", cls: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
+  meta: { label: "Meta", cls: "bg-blue-500/10 text-blue-700 dark:text-blue-400" },
+  google: { label: "Google / YT", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
+  tiktok: { label: "TikTok", cls: "bg-pink-500/10 text-pink-700 dark:text-pink-400" },
+  ai: { label: "AI", cls: "bg-violet-500/10 text-violet-700 dark:text-violet-400" },
 } as const;
 
 export default function DemoFullNewsy({
@@ -23,7 +23,7 @@ export default function DemoFullNewsy({
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">
+        <h1 className="text-2xl font-semibold tracking-tight">
           {en ? "News — ads & AI" : "Newsy — reklama & AI"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -42,11 +42,12 @@ export default function DemoFullNewsy({
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", c.cls)}>{c.label}</span>
                 <span className="text-xs text-muted-foreground">{n.publishedOn}</span>
               </div>
-              <h2 className="mt-2 text-sm font-semibold">{n.title}</h2>
+              <h2 className="mt-2 text-balance text-base font-semibold">{n.title}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{n.summary}</p>
-              <a href={n.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              <a href={n.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-accent-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {n.sourceName}
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-3 w-3" aria-hidden />
+                <span className="sr-only">{en ? "(opens in a new tab)" : "(otwiera się w nowej karcie)"}</span>
               </a>
             </article>
           );

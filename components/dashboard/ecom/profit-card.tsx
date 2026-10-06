@@ -124,7 +124,7 @@ export function ProfitCard({
             className={cn(
               "mt-1 text-3xl font-bold tabular-nums tracking-tight",
               profitable
-                ? "text-emerald-600 dark:text-emerald-400"
+                ? "text-emerald-700 dark:text-emerald-400"
                 : "text-rose-600 dark:text-rose-400"
             )}
           >

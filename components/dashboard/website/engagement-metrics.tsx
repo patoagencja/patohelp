@@ -9,10 +9,10 @@ import { cn, formatNumberPL, formatPercent } from "@/lib/utils";
 
 function engagedVerdict(rate: number): { text: string; tone: string } {
   if (rate >= 60)
-    return { text: "Świetnie - większość gości naprawdę się interesuje.", tone: "text-emerald-600 dark:text-emerald-400" };
+    return { text: "Świetnie - większość gości naprawdę się interesuje.", tone: "text-emerald-700 dark:text-emerald-400" };
   if (rate >= 45)
-    return { text: "Dobrze - około połowy gości zostaje na dłużej.", tone: "text-emerald-600 dark:text-emerald-400" };
-  return { text: "Sporo osób szybko wychodzi - pracujemy nad dopasowaniem ruchu.", tone: "text-amber-600 dark:text-amber-400" };
+    return { text: "Dobrze - około połowy gości zostaje na dłużej.", tone: "text-emerald-700 dark:text-emerald-400" };
+  return { text: "Sporo osób szybko wychodzi - pracujemy nad dopasowaniem ruchu.", tone: "text-amber-700 dark:text-amber-400" };
 }
 
 export function EngagementMetrics({
@@ -73,7 +73,7 @@ export function EngagementMetrics({
       {tiles.map((t) => (
         <Card key={t.label} className="flex flex-col">
           <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <t.icon className="h-4 w-4" />
+            <t.icon className="h-4 w-4" aria-hidden />
             {t.label}
           </p>
           <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{t.value}</p>

@@ -108,11 +108,11 @@ function Ring({ flight, index }: { flight: PacingFlight; index: number }) {
         className={cn(
           "mt-1.5 text-xs font-semibold",
           won
-            ? "text-amber-600 dark:text-amber-400"
+            ? "text-amber-700 dark:text-amber-400"
             : flight.status === "behind"
               ? "text-red-500"
               : flight.status === "ahead"
-                ? "text-emerald-600 dark:text-emerald-400"
+                ? "text-emerald-700 dark:text-emerald-400"
                 : "text-muted-foreground"
         )}
       >

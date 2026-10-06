@@ -102,8 +102,8 @@ export default async function NewsyPage({
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Newspaper className="h-5 w-5 text-primary" />
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+            <Newspaper className="h-5 w-5 text-primary" aria-hidden />
             Newsy - reklama & AI
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -189,10 +189,11 @@ export default async function NewsyPage({
                               href={item.source_url as string}
                               target="_blank"
                               rel="noreferrer"
-                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary dark:text-indigo-300 hover:underline"
                             >
                               {(item.source_name as string) || "Źródło"}
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="h-3 w-3" aria-hidden />
+                              <span className="sr-only">(otwiera się w nowej karcie)</span>
                             </a>
                           ) : item.source_name ? (
                             <p className="mt-2 text-xs text-muted-foreground">

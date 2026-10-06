@@ -155,14 +155,18 @@ export function CostTrends({
 
   return (
     <Card>
-      <h3 className="flex items-center gap-1.5 text-base font-semibold">
-        {en ? "What one click costs - Meta vs Google" : "Ile kosztuje jedno kliknięcie - Meta vs Google"}
+      {/* ⓘ sits beside the heading, not inside it, so the heading's
+          accessible name stays just the title. */}
+      <div className="flex items-center gap-1.5">
+        <h2 className="text-base font-semibold">
+          {en ? "What one click costs - Meta vs Google" : "Ile kosztuje jedno kliknięcie - Meta vs Google"}
+        </h2>
         <InfoTip
           label={en ? cpc.en.name : cpc.name}
           text={en ? cpc.en.explain : cpc.explain}
           lang={lang}
         />
-      </h3>
+      </div>
       {series.length === 0 || n < 2 ? (
         <>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -185,7 +189,7 @@ export function CostTrends({
             className="mt-4 h-64 w-full"
             preserveAspectRatio="none"
             role="img"
-            aria-label={en ? "Daily cost per click" : "Dzienny koszt kliknięcia"}
+            aria-label={`${en ? "Daily cost per click" : "Dzienny koszt kliknięcia"}. ${takeaway(series, lang)}`}
           >
             {ticks.map((t) => (
               <g key={t}>
@@ -243,7 +247,7 @@ export function CostTrends({
                 key={s.name}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground"
               >
-                <span className={cn("h-2 w-2 rounded-full", s.dot)} />
+                <span className={cn("h-2 w-2 rounded-full", s.dot)} aria-hidden />
                 {s.name}
               </span>
             ))}

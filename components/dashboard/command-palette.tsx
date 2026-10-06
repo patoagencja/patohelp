@@ -773,9 +773,9 @@ export function CommandPalette({
         title={`Szukaj (${shortcut})`}
         className="gap-2 text-muted-foreground sm:w-44 sm:justify-start"
       >
-        <Search className="h-4 w-4" />
+        <Search className="h-4 w-4" aria-hidden />
         <span className="hidden flex-1 text-left font-normal sm:inline">Szukaj…</span>
-        <kbd className="hidden rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium sm:inline">
+        <kbd className="hidden rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-foreground/70 sm:inline">
           {shortcut}
         </kbd>
       </Button>

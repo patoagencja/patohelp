@@ -85,14 +85,14 @@ export function DateRangePicker({
               title={RANGE_LABELS[key]}
               onClick={() => onPreset(key)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               {pending && target === key ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
               ) : null}
               {SHORT_LABELS[key]}
             </button>
@@ -104,13 +104,13 @@ export function DateRangePicker({
           aria-checked={active === "custom" && !target}
           onClick={() => setCustomOpen((o) => !o)}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
             active === "custom" && !target
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
         >
-          <CalendarDays className="h-3.5 w-3.5" />
+          <CalendarDays className="h-3.5 w-3.5" aria-hidden />
           Własny
         </button>
       </div>

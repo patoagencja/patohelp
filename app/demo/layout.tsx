@@ -17,7 +17,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
           <Sparkles className="h-4 w-4" />
         </span>
         <span className="font-semibold">lokalnepomidorki</span>
-        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-400">
           DEMO · dane przykładowe
         </span>
         <span className="flex-1" />

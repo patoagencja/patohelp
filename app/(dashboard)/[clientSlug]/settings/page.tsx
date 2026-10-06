@@ -316,7 +316,7 @@ export default async function SettingsPage({
                 <CardTitle className="flex items-center gap-2">
                   {provider.label}
                   {connected ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
                   ) : null}
                 </CardTitle>
                 <CardDescription>{provider.description}</CardDescription>
@@ -444,7 +444,7 @@ export default async function SettingsPage({
                 <CardTitle className="flex items-center gap-2">
                   Google Analytics 4
                   {connected ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <CheckCircle2 className="h-4 w-4 text-emerald-700" />
                   ) : null}
                 </CardTitle>
                 <CardDescription>

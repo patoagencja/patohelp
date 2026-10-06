@@ -65,7 +65,7 @@ export function RankingChipList({
 export function FatigueBadge({ fatigue, lang }: { fatigue: Fatigue; lang: Lang }) {
   return (
     <span
-      className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow sm:text-[11px]"
+      className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950 shadow sm:text-[11px]"
       title={`${fatigueHeadline(lang)}. ${fatigueReason(fatigue, lang)}`}
     >
       <RefreshCw className="h-3 w-3" aria-hidden />
@@ -97,7 +97,7 @@ export function RefreshList({
     <section className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
       <div>
         <h2 className="flex items-center gap-2 text-base font-semibold">
-          <RefreshCw className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden />
+          <RefreshCw className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-hidden />
           {en ? "Worth refreshing" : "Do odświeżenia"}{" "}
           <span className="font-normal tabular-nums text-muted-foreground">({items.length})</span>
         </h2>

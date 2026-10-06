@@ -108,7 +108,7 @@ export default function DemoFullReklamy({
 
       {/* Example ads gallery */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+        <h2 className="mb-3 text-base font-semibold">
           {en ? "Active ads" : "Aktywne reklamy"}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -123,7 +123,7 @@ export default function DemoFullReklamy({
                 lang={lang}
                 className="aspect-square w-full"
               >
-                <span className="absolute left-2 top-2 rounded-md bg-black/55 px-1.5 py-0.5 tabular-nums text-[10px] font-semibold text-white">
+                <span className="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 tabular-nums text-[10px] font-semibold text-white">
                   {AD_PROVIDER_SHORT[c.provider]}
                 </span>
               </CreativeThumb>

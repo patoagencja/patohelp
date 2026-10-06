@@ -1,4 +1,4 @@
-import { Card, Grid, Text, Title } from "@tremor/react";
+import { Card, Grid, Text } from "@tremor/react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { formatMoneyPLN, formatPlnWhole, formatPercent } from "@/lib/utils";
@@ -23,9 +23,9 @@ export function TopCreatives({
   const en = lang === "en";
   return (
     <Card>
-      <Title>
+      <h2 className="text-base font-semibold">
         {en ? "Top 5 creatives (Meta, last 30 days)" : "Top 5 kreacji (Meta, ostatnie 30 dni)"}
-      </Title>
+      </h2>
       {creatives.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
           {en
@@ -52,10 +52,10 @@ export function TopCreatives({
                 >
                   {c.adName}
                 </p>
-                <Text className="text-xs">
+                <Text className="text-xs tabular-nums">
                   {en ? "Spend" : "Wydatki"}: {formatPlnWhole(c.spendMinorUnits)}
                 </Text>
-                <Text className="text-xs">
+                <Text className="text-xs tabular-nums">
                   {en ? "Click rate" : "Klikalność"}:{" "}
                   {c.ctr != null ? formatPercent(c.ctr) : "-"} ·{" "}
                   {en ? "Per click" : "Za klik"}:{" "}

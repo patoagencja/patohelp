@@ -23,10 +23,11 @@ const SEGMENTS = {
   budget: "bg-amber-500",
   rank: "bg-slate-400 dark:bg-slate-500",
 } as const;
+// Dark digits on the light amber/slate fills: white on them fails WCAG AA.
 const SEGMENT_TEXT = {
   shown: "text-primary-foreground",
-  budget: "text-white",
-  rank: "text-white",
+  budget: "text-amber-950",
+  rank: "text-slate-900 dark:text-white",
 } as const;
 
 function labels(en: boolean) {
@@ -101,7 +102,8 @@ function StackedBar({
 }) {
   const keys = ["shown", "budget", "rank"] as const;
   return (
-    <div className={cn("flex w-full overflow-hidden rounded-md bg-muted", className)}>
+    // Values are repeated in the legend/row text, so the bar is visual only.
+    <div className={cn("flex w-full overflow-hidden rounded-md bg-muted", className)} aria-hidden>
       {keys.map((k, i) =>
         parts[i] > 0 ? (
           <div
@@ -177,9 +179,9 @@ export function ImpressionShare({
 
   return (
     <Card>
-      <h3 className="text-base font-semibold">
+      <h2 className="text-base font-semibold">
         {en ? "How visible you are on Google" : "Jak bardzo jesteś widoczny w Google"}
-      </h3>
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {en
           ? "Out of 100 Google searches where your ad could have shown - Search campaigns, last 30 days"
@@ -217,9 +219,9 @@ export function ImpressionShare({
 
       {top.length > 1 ? (
         <>
-          <h4 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="mt-6 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {en ? "By campaign" : "Według kampanii"}
-          </h4>
+          </h3>
           <ul className="mt-1">
             {top.map((c) => (
               <CampaignRow key={c.key} c={c} en={en} />

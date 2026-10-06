@@ -98,7 +98,7 @@ export default function DemoFullKreacje({
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">{en ? "Creatives" : "Kreacje"}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{en ? "Creatives" : "Kreacje"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {en
             ? `Which ads work best, and why · Meta · ${d.rangeLabel}`

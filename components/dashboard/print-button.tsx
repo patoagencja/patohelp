@@ -15,8 +15,10 @@ export function PrintButton() {
       onClick={() => window.print()}
       className="gap-1.5"
       title="Zapisz przegląd jako PDF (np. dla zarządu)"
+      // The text label is hidden on phones, leaving an icon-only button.
+      aria-label="Pobierz PDF"
     >
-      <FileDown className="h-4 w-4" />
+      <FileDown className="h-4 w-4" aria-hidden />
       <span className="hidden sm:inline">Pobierz PDF</span>
     </Button>
   );

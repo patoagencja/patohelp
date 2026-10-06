@@ -1,6 +1,6 @@
 "use client";
 
-import { AreaChart, Card, Title } from "@tremor/react";
+import { AreaChart, Card } from "@tremor/react";
 
 import { formatNumberPL } from "@/lib/utils";
 
@@ -34,9 +34,25 @@ export function SessionsTrend({
           : "Za mało dni, by narysować trend - wróć za kilka dni."
         : null;
 
+  // Screen readers can't read the area shape; give them the takeaway instead.
+  const peak = trend.reduce<{ date: string; sessions: number } | null>(
+    (best, p) => (!best || p.sessions > best.sessions ? p : best),
+    null
+  );
+  const peakLabel = peak ? data[trend.indexOf(peak)]?.date : null;
+  const summary =
+    !empty && peak
+      ? en
+        ? `${formatNumberPL(total)} sessions over ${trend.length} days, about ${formatNumberPL(Math.round(total / trend.length))} a day. Busiest day: ${peakLabel} (${formatNumberPL(peak.sessions)}).`
+        : `Łącznie ${formatNumberPL(total)} wizyt w ${trend.length} dni, średnio ${formatNumberPL(Math.round(total / trend.length))} dziennie. Najwięcej: ${peakLabel} (${formatNumberPL(peak.sessions)}).`
+      : null;
+
   return (
     <Card>
-      <Title>{en ? "Sessions - last 30 days" : "Wizyty na stronie dzień po dniu"}</Title>
+      <h2 className="text-base font-semibold">
+        {en ? "Sessions - last 30 days" : "Wizyty na stronie dzień po dniu"}
+      </h2>
+      {summary ? <p className="sr-only">{summary}</p> : null}
       {empty ? (
         <div className="mt-4 flex h-64 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
           {empty}

@@ -138,7 +138,7 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
 
   return (
     <Card>
-      <h3 className="text-base font-semibold">Kiedy Twoi klienci są aktywni</h3>
+      <h2 className="text-base font-semibold">Kiedy Twoi klienci są aktywni</h2>
       <p className="mt-1 text-sm text-muted-foreground">{data.takeaway}</p>
 
       <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-start">

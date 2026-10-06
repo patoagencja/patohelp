@@ -67,7 +67,7 @@ export async function ConnectionStability({
             <div className="flex items-start justify-between gap-2">
               <p className="font-semibold">Meta Ads</p>
               {metaPermanent ? (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                   <CheckCircle2 className="h-3.5 w-3.5" /> nie wygasa
                 </span>
               ) : metaDaysLeft !== null ? (

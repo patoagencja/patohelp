@@ -21,7 +21,7 @@ export default function DemoFullAlerty({
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold">{en ? "Alerts" : "Alerty"}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{en ? "Alerts" : "Alerty"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {en
             ? "What's out of the ordinary in the campaigns - and what we're doing about it. Every day we compare the last few days with the previous two weeks."
@@ -33,7 +33,7 @@ export default function DemoFullAlerty({
         <AlertsAllClear lang={lang} />
       ) : (
         <>
-          <p className="text-base font-medium">{alertsHeadline(d.alertsFull, lang)}</p>
+          <p className="text-balance text-base font-medium">{alertsHeadline(d.alertsFull, lang)}</p>
           <AlertGroups alerts={d.alertsFull} lang={lang} />
         </>
       )}

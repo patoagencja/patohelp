@@ -33,6 +33,7 @@ export function ShareBars({
   keepOrder = false,
   emptyText,
   className,
+  headingLevel = 2,
 }: {
   title: string;
   /** One-sentence takeaway shown above the bars. */
@@ -44,14 +45,17 @@ export function ShareBars({
   /** Why the card is empty and what happens next (defaults to a GA4 note). */
   emptyText?: string;
   className?: string;
+  /** 3 when the card sits under a section heading (Sprzedaż, Odbiorcy). */
+  headingLevel?: 2 | 3;
 }) {
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   const total = rows.reduce((a, r) => a + r.value, 0);
   const visible = rows.filter((r) => r.value > 0);
   const sorted = keepOrder ? visible : [...visible].sort((a, b) => b.value - a.value);
 
   return (
     <Card className={cn("flex flex-col", className)}>
-      <h3 className="text-base font-semibold">{title}</h3>
+      <Heading className="text-base font-semibold">{title}</Heading>
       {insight ? <p className="mt-1 text-sm text-muted-foreground">{insight}</p> : null}
       <ul className="mt-5 space-y-4">
         {sorted.map((r) => {
@@ -76,9 +80,10 @@ export function ShareBars({
                   </span>
                 </div>
               </div>
-              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+              {/* The % is printed above; the bar only repeats it visually. */}
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
                 <div
-                  className={cn("h-full rounded-full transition-[width] duration-700", r.barClass)}
+                  className={cn("h-full rounded-full transition-[width] duration-700 motion-reduce:transition-none", r.barClass)}
                   style={{ width: `${Math.max(share * 100, 1.5)}%` }}
                 />
               </div>

@@ -41,7 +41,7 @@ export function ThemeToggle() {
       aria-label={dark ? "Tryb jasny" : "Tryb ciemny"}
       title={dark ? "Tryb jasny" : "Tryb ciemny"}
     >
-      {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {dark ? <Sun className="h-4 w-4" aria-hidden /> : <Moon className="h-4 w-4" aria-hidden />}
     </Button>
   );
 }

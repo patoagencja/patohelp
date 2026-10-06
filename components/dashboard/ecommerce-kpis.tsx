@@ -34,10 +34,13 @@ function delta(kpi: Kpi) {
   const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
   return {
     deltaType,
+    // Tremor's emerald/red-600 badge text is ~3.4:1 on its tint; -700 is AA.
     className:
       Math.abs(rounded) < FLAT_THRESHOLD
         ? "bg-slate-50 text-slate-600 ring-slate-500 dark:text-slate-300"
-        : undefined,
+        : rounded > 0
+          ? "text-emerald-700 dark:text-emerald-400"
+          : "text-red-700 dark:text-red-400",
     label: `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("pl-PL", {
       maximumFractionDigits: 1,
     })}%`,
@@ -74,7 +77,7 @@ function KpiTile({
   const sparkData = (spark ?? []).map((v, i) => ({ i, v }));
   return (
     // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
-    <Card className="transition-all focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md">
+    <Card className="transition-all focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0">
       {/* Fixed header height: a label that wraps to two lines in one tile
           would otherwise push its value below the neighbours' values. */}
       <Flex justifyContent="between" alignItems="start" className="gap-2 sm:min-h-[2.75rem]">
@@ -97,6 +100,7 @@ function KpiTile({
       </p>
       {sparkData.length > 1 ? (
         <SparkAreaChart
+          aria-hidden
           data={sparkData}
           categories={["v"]}
           index="i"
@@ -112,7 +116,7 @@ function KpiTile({
           <span
             className={
               yoyRatio >= 0
-                ? "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-emerald-600 dark:text-emerald-400"
+                ? "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-emerald-700 dark:text-emerald-400"
                 : "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-rose-600 dark:text-rose-400"
             }
             title="Ten sam okres rok temu (wyrównany do dni tygodnia)"

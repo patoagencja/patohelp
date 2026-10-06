@@ -503,7 +503,7 @@ export function GuidedTour({
               )}
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent-foreground">
                   <HelpCircle className="h-3.5 w-3.5" aria-hidden />
                   Jak czytać panel
                 </p>
@@ -572,7 +572,7 @@ export function GuidedTour({
         aria-label="Jak czytać panel"
         title="Jak czytać panel"
       >
-        <HelpCircle className="h-4 w-4" />
+        <HelpCircle className="h-4 w-4" aria-hidden />
       </Button>
       {overlay}
     </>

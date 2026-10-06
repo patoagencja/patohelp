@@ -20,13 +20,15 @@ export function LangToggle() {
   };
 
   return (
-    <div className="flex rounded-lg bg-muted p-0.5 text-xs font-medium">
+    <div className="flex rounded-lg bg-muted p-0.5 text-xs font-medium" role="group" aria-label="Język / Language">
       {(["pl", "en"] as const).map((l) => (
         <Link
           key={l}
           href={href(l)}
+          aria-current={current === l ? "true" : undefined}
+          lang={l}
           className={cn(
-            "rounded-md px-2 py-1 uppercase transition-colors",
+            "rounded-md px-2 py-1 uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             current === l
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"

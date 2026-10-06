@@ -116,8 +116,12 @@ function GoalRow({ goal: g }: { goal: EngagementGoal }) {
       {/* Actual (solid) vs forecast (ghost) against the goal marker. */}
       <div
         className="relative mt-2 h-2.5 overflow-hidden rounded-full bg-muted"
-        role="img"
-        aria-label={`${formatNumberPL(g.actual)} z ${formatNumberPL(g.target)}`}
+        role="progressbar"
+        aria-label={`${METRIC[g.metric].name} - realizacja celu`}
+        aria-valuemin={0}
+        aria-valuemax={g.target}
+        aria-valuenow={Math.min(g.actual, g.target)}
+        aria-valuetext={`${formatNumberPL(g.actual)} z ${formatNumberPL(g.target)}`}
       >
         {g.forecast !== null && !done ? (
           <div
@@ -127,7 +131,7 @@ function GoalRow({ goal: g }: { goal: EngagementGoal }) {
         ) : null}
         <div
           className={cn(
-            "absolute inset-y-0 left-0 rounded-full transition-all duration-700",
+            "absolute inset-y-0 left-0 rounded-full transition-all duration-700 motion-reduce:transition-none",
             done ? "bg-emerald-500" : "bg-primary"
           )}
           style={{ width: pct(g.actual) }}
@@ -181,7 +185,7 @@ export function GoalsCard({
         </p>
         <Link
           href={`/${clientSlug}/settings#cele`}
-          className="font-medium text-primary underline-offset-2 hover:underline"
+          className="rounded-sm font-medium text-primary dark:text-indigo-300 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Ustaw cele
         </Link>
@@ -202,7 +206,7 @@ export function GoalsCard({
         {isAgency ? (
           <Link
             href={`/${clientSlug}/settings#cele`}
-            className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+            className="rounded-sm text-xs font-medium text-primary dark:text-indigo-300 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Zmień cele
           </Link>

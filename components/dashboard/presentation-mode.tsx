@@ -347,7 +347,7 @@ export function PresentationMode() {
               aria-label="Poprzednia sekcja"
               title="Poprzednia sekcja (↑)"
             >
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="h-4 w-4" aria-hidden />
             </Button>
             <span
               className="min-w-[3.5rem] text-center tabular-nums text-muted-foreground"
@@ -366,7 +366,7 @@ export function PresentationMode() {
               aria-label="Następna sekcja"
               title="Następna sekcja (↓ / spacja)"
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4" aria-hidden />
             </Button>
             <Button
               type="button"
@@ -376,7 +376,7 @@ export function PresentationMode() {
               onClick={exit}
               title="Zakończ prezentację (Esc)"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" aria-hidden />
               Zakończ
             </Button>
           </div>,
@@ -397,7 +397,7 @@ export function PresentationMode() {
         aria-label="Prezentuj"
         title="Tryb prezentacji - pełny ekran na TV/rzutnik"
       >
-        <MonitorPlay className="h-4 w-4" />
+        <MonitorPlay className="h-4 w-4" aria-hidden />
         <span className="hidden sm:inline">Prezentuj</span>
       </Button>
       {bar}

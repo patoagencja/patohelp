@@ -32,7 +32,10 @@ export function AnimatedNumber({
   useEffect(() => {
     const from = fromRef.current;
     const to = value;
-    if (from === to) {
+    // Reduced motion: no count-up and no colour flash, just the number.
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (from === to || still) {
+      fromRef.current = to;
       setDisplay(to);
       return;
     }

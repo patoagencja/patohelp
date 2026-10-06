@@ -270,7 +270,7 @@ export function MonthPacingCard({
                       className={cn(
                         "flex items-center gap-0.5 text-xs font-medium",
                         vsLastYear >= 0
-                          ? "text-emerald-600 dark:text-emerald-400"
+                          ? "text-emerald-700 dark:text-emerald-400"
                           : "text-rose-600 dark:text-rose-400"
                       )}
                     >
@@ -325,7 +325,7 @@ export function MonthPacingCard({
         <p className="mt-3 text-xs">
           <Link
             href={`/${clientSlug}/settings#ecommerce`}
-            className="font-medium text-primary underline-offset-2 hover:underline"
+            className="font-medium text-primary dark:text-indigo-300 underline-offset-2 hover:underline"
           >
             Ustaw cel miesięczny
           </Link>{" "}

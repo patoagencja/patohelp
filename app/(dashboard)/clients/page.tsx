@@ -298,7 +298,7 @@ export default async function ClientsPage({
             <p
               className={cn(
                 "mt-1 text-2xl font-bold tabular-nums",
-                totalBroken > 0 && "text-amber-600 dark:text-amber-400"
+                totalBroken > 0 && "text-amber-700 dark:text-amber-400"
               )}
             >
               {totalBroken > 0 ? `${totalBroken} do naprawy` : "Wszystkie działają"}
@@ -348,7 +348,7 @@ export default async function ClientsPage({
                 {alerts > 0 ? (
                   <span className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white shadow">
                     <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
+                      <span className="absolute inline-flex h-full w-full rounded-full motion-safe:animate-ping bg-white/80" />
                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
                     </span>
                     {alerts} {alerts === 1 ? "krytyczny" : "krytycznych"}
@@ -388,7 +388,7 @@ export default async function ClientsPage({
 
                 <div className="relative z-10 mt-4 border-t border-border/60 pt-3 text-xs">
                   {health.down.length === 0 && health.expiring.length === 0 ? (
-                    <p className="pointer-events-none flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <p className="pointer-events-none flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Wszystkie połączenia działają
                     </p>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Film, RefreshCw, X } from "lucide-react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { RankingChipList } from "@/components/dashboard/creatives/insight-bits";
+import { useModalFocus } from "@/components/dashboard/use-modal-focus";
 import {
   completionSentence,
   computeBenchmarks,
@@ -47,19 +48,17 @@ export function CreativeModal({
   /** Needed for the fatigue check (compares against the client's videos). */
   bench?: Benchmarks;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalFocus(panelRef, true, onClose);
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
     // Lock scroll while open.
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, []);
 
   const lang = en ? "en" : "pl";
   const reason = score ? verdictReason(score, lang) : "";
@@ -88,6 +87,7 @@ export function CreativeModal({
       aria-label={c.name}
     >
       <div
+        ref={panelRef}
         className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -95,9 +95,9 @@ export function CreativeModal({
           type="button"
           onClick={onClose}
           aria-label={en ? "Close" : "Zamknij"}
-          className="absolute right-3 top-3 z-10 rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60"
+          className="absolute right-3 top-3 z-10 rounded-full bg-black/40 p-1.5 text-white transition-colors hover:bg-black/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/60"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden />
         </button>
 
         <CreativeThumb
@@ -184,9 +184,9 @@ export function CreativeModal({
               href={c.thumbnailUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              className="inline-flex items-center gap-1.5 rounded-sm text-xs font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               {en ? "Open full-size image" : "Otwórz grafikę w pełnym rozmiarze"}
             </a>
           ) : null}
@@ -249,7 +249,7 @@ export function CreativesTable({
               onClick={() => setSort(key)}
               aria-pressed={sort === key}
               className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                "rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 sort === key
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -295,9 +295,15 @@ export function CreativesTable({
                       compact
                       className="h-9 w-9 rounded-md"
                     />
-                    <span className="truncate text-sm" title={c.name}>
+                    {/* The row is clickable for mouse users; this button is
+                        the keyboard/screen-reader way in (it bubbles to the row). */}
+                    <button
+                      type="button"
+                      className="min-w-0 truncate rounded-sm text-left text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      title={c.name}
+                    >
                       {c.name}
-                    </span>
+                    </button>
                   </div>
                 </td>
                 <td className="py-2 pr-3 text-right text-sm tabular-nums">

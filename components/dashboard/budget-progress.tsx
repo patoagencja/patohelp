@@ -1,4 +1,4 @@
-import { Card, Title } from "@tremor/react";
+import { Card } from "@tremor/react";
 import { format } from "date-fns";
 import { enUS, pl } from "date-fns/locale";
 
@@ -101,7 +101,7 @@ export function BudgetProgress({
   if (!budget.hasBudget) {
     return (
       <Card className="p-5 sm:p-6">
-        <Title>{title}</Title>
+        <h2 className="text-base font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {en ? "No budget has been set for this month." : "Nie ustawiono budżetu na ten miesiąc."}
         </p>
@@ -136,7 +136,7 @@ export function BudgetProgress({
   return (
     <Card className="p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <Title>{title}</Title>
+        <h2 className="text-base font-semibold">{title}</h2>
         {isAgency ? (
           <form action={setBudgetAction} className="flex items-center gap-2">
             <input type="hidden" name="client" value={clientSlug} />
@@ -175,9 +175,21 @@ export function BudgetProgress({
 
       {/* Progress bar + "today" marker for the planned pace */}
       <div className="relative mt-5 pb-6">
-        <div className="relative h-3 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="relative h-3 w-full overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-label={en ? "Budget used" : "Wykorzystanie budżetu"}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(barPercent)}
+          aria-valuetext={
+            en
+              ? `${Math.round(budget.spentPercent)}% used, ${Math.round(budget.monthPercent)}% of the month gone`
+              : `Wykorzystano ${Math.round(budget.spentPercent)}%, minęło ${Math.round(budget.monthPercent)}% miesiąca`
+          }
+        >
           <div
-            className={cn("h-full rounded-full transition-all", PACE_BAR[budget.pace])}
+            className={cn("h-full rounded-full transition-all motion-reduce:transition-none", PACE_BAR[budget.pace])}
             style={{ width: `${barPercent}%` }}
           />
         </div>
@@ -187,6 +199,7 @@ export function BudgetProgress({
           aria-hidden
         />
         <span
+          aria-hidden
           className={cn(
             "absolute top-5 whitespace-nowrap text-xs font-medium text-muted-foreground",
             labelAlign

@@ -116,6 +116,7 @@ export function Audience({ data }: { data: DemographicsData }) {
       <div className="grid gap-6 lg:grid-cols-3">
         {ageRows.length ? (
           <ShareBars
+            headingLevel={3}
             title="Wiek"
             insight={
               topAge && ageTotal
@@ -131,6 +132,7 @@ export function Audience({ data }: { data: DemographicsData }) {
         ) : null}
         {genderRows.length ? (
           <ShareBars
+            headingLevel={3}
             title="Płeć"
             insight={
               topGender && genderTotal
@@ -145,6 +147,7 @@ export function Audience({ data }: { data: DemographicsData }) {
         ) : null}
         {geoRows.length ? (
           <ShareBars
+            headingLevel={3}
             title="Skąd są goście · najczęstsze regiony"
             insight={`Najwięcej wizyt z: ${geoRows
               .slice(0, 3)

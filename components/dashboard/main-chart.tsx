@@ -9,7 +9,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { Card, Title } from "@tremor/react";
+import { Card } from "@tremor/react";
 import { differenceInCalendarDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -354,23 +354,25 @@ export function MainChart({
   return (
     <Card>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Title>
+        <h2 className="text-base font-semibold">
           {t.long[metric]}
           {label ? ` - ${label}` : ""}
-        </Title>
+        </h2>
+        {/* Toggle buttons, not ARIA tabs: there is one shared chart, no
+            separate tab panels, and tabs would promise arrow-key roving. */}
         <div
-          role="tablist"
+          role="group"
+          aria-label={t.long[metric]}
           className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:flex"
         >
           {METRIC_KEYS.map((k) => (
             <button
               key={k}
               type="button"
-              role="tab"
-              aria-selected={metric === k}
+              aria-pressed={metric === k}
               onClick={() => setMetric(k)}
               className={cn(
-                "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:py-1",
+                "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 metric === k
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -421,7 +423,7 @@ export function MainChart({
             role="switch"
             aria-checked={compare}
             onClick={() => setCompare((c) => !c)}
-            className="inline-flex items-center gap-2 rounded-md py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-2 rounded-md py-1 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span
               aria-hidden
@@ -432,7 +434,7 @@ export function MainChart({
             >
               <span
                 className={cn(
-                  "absolute top-0.5 h-3 w-3 rounded-full bg-card shadow-sm transition-transform",
+                  "absolute top-0.5 h-3 w-3 rounded-full bg-card shadow-sm transition-transform motion-reduce:transition-none",
                   compare ? "translate-x-3.5" : "translate-x-0.5"
                 )}
               />
@@ -648,6 +650,13 @@ export function MainChart({
           </svg>
         ) : null}
 
+        {/* Keyboard users step days with the arrow keys; announce the
+            point the visual tooltip shows. */}
+        <p className="sr-only" aria-live="polite">
+          {active != null && !isEmpty && trend[active]
+            ? `${weekday(trend[active].date)} ${ddmm(trend[active].date)}: ${full(cur[active], isMoney, lang)}`
+            : ""}
+        </p>
         {active != null && width > 0 && !isEmpty && trend[active] ? (
           <div
             className="pointer-events-none absolute z-10 rounded-lg border border-border bg-popover p-2.5 text-xs text-popover-foreground shadow-md"
@@ -707,7 +716,7 @@ export function MainChart({
                     type="button"
                     onClick={() => setActive(i >= 0 ? i : null)}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors hover:bg-muted",
+                      "flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       active === i && "bg-muted"
                     )}
                   >
@@ -734,7 +743,7 @@ export function MainChart({
             <button
               type="button"
               onClick={() => setShowAll((s) => !s)}
-              className="mt-2 px-1.5 text-xs font-medium text-primary hover:underline"
+              className="mt-2 rounded-sm px-1.5 text-xs font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {showAll ? t.showLess : t.showMore(flatEvents.length - LIST_VISIBLE)}
             </button>

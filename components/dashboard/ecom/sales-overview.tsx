@@ -3,6 +3,7 @@
 import { AreaChart, BadgeDelta, Card } from "@tremor/react";
 
 import { InfoTip } from "@/components/dashboard/info-tip";
+import { usePrefersReducedMotion } from "@/components/dashboard/use-reduced-motion";
 import { describeChange } from "@/lib/dashboard/glossary";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
 import { dayMonthPL } from "@/lib/dashboard/story";
@@ -65,6 +66,7 @@ export function SalesOverview({
   /** Last year's revenue per current date (52-week aligned), when reliable. */
   lastYear?: Array<{ date: string; revenue: number | null }> | null;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const lyByDate = new Map((lastYear ?? []).map((p) => [p.date, p.revenue]));
   const showLy = lyByDate.size > 0;
   const totalRev = trend.reduce((a, p) => a + p.revenueMinorUnits, 0);
@@ -147,7 +149,16 @@ export function SalesOverview({
               a "-100%" headline. */}
           {deltaPct !== null && Number.isFinite(deltaPct) && totalRev > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <BadgeDelta deltaType={deltaType} size="xs" className="tabular-nums">
+              <BadgeDelta
+                deltaType={deltaType}
+                size="xs"
+                className={cn(
+                  "tabular-nums",
+                  // One shade darker than Tremor's default to clear WCAG AA.
+                  deltaType === "increase" && "text-emerald-700 dark:text-emerald-400",
+                  deltaType === "decrease" && "text-red-700 dark:text-red-400"
+                )}
+              >
                 {`${deltaPct > 0 ? "+" : ""}${(Math.round(deltaPct * 10) / 10).toLocaleString(
                   "pl-PL"
                 )}%`}
@@ -217,7 +228,7 @@ export function SalesOverview({
             valueFormatter={compactPln}
             yAxisWidth={76}
             showLegend
-            showAnimation
+            showAnimation={!reducedMotion}
             curveType="monotone"
           />
           )}
