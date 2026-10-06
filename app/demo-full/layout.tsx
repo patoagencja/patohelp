@@ -34,9 +34,10 @@ export default function DemoFullLayout({
 
   return (
     // Same branding path as a real client (logo + --client-accent), demo data.
+    // relative + isolate: the overview's <HeroBackdrop/> spans this shell.
     // Shell mirrors app/(dashboard)/[clientSlug]/layout.tsx.
     <div
-      className="flex min-h-screen bg-background"
+      className="relative isolate flex min-h-screen bg-background"
       style={clientAccentStyle(DEMO_BRANDING.brandColor)}
     >
       <aside

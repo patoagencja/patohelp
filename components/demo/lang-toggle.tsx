@@ -23,14 +23,14 @@ export function LangToggle() {
   };
 
   return (
-    <div className={cn(segmentedTrack, "rounded-lg p-0.5")} role="group" aria-label="Język / Language">
+    <div className={cn(segmentedTrack, "p-0.5")} role="group" aria-label="Język / Language">
       {(["pl", "en"] as const).map((l) => (
         <Link
           key={l}
           href={href(l)}
           aria-current={current === l ? "true" : undefined}
           lang={l}
-          className={segmentedItem(current === l, "rounded-md px-2 py-1 text-xs uppercase")}
+          className={segmentedItem(current === l, "px-2.5 py-1 text-xs uppercase")}
         >
           {l}
         </Link>

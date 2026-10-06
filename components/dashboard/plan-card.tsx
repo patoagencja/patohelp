@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { HalfGauge } from "@/components/ui/gauge";
 import { Input } from "@/components/ui/input";
 import type { PacingFlight } from "@/lib/alerts/pacing";
 import type { EngagementGoal, GoalMetric } from "@/lib/dashboard/goals";
@@ -166,58 +167,123 @@ export function buildPlanRows({
   return rows.slice(0, MAX_ROWS);
 }
 
+// Striped fills (benchmark 4 "Sales Goals"): lime when on plan, amber when
+// behind, red when overspending. The percent and the note say it in words.
 const FILL: Record<RowTone, string> = {
-  good: "bg-primary",
-  neutral: "bg-primary",
-  warn: "bg-amber-500",
-  bad: "bg-red-500",
+  good: "bg-lime",
+  neutral: "bg-olive",
+  warn: "bg-warning-fill",
+  bad: "bg-negative",
+};
+
+const PCT_TEXT: Record<RowTone, string> = {
+  good: "text-positive",
+  neutral: "text-foreground",
+  warn: "text-warning",
+  bad: "text-negative",
 };
 
 const DOT: Record<RowTone, string> = {
-  good: "bg-emerald-500",
+  good: "bg-lime",
   neutral: "bg-muted-foreground",
-  warn: "bg-amber-500",
-  bad: "bg-red-500",
+  warn: "bg-warning-fill",
+  bad: "bg-negative",
 };
 
+function valueText(row: PlanRow) {
+  return `${row.value}${
+    row.marker !== null ? `, według planu dziś ok. ${Math.round(row.marker)}%` : ""
+  }`;
+}
+
+function Note({ row }: { row: PlanRow }) {
+  return (
+    <p className="mt-2 flex items-start gap-2 text-[13px] leading-snug text-muted-foreground">
+      <span aria-hidden className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", DOT[row.tone])} />
+      {row.note}
+    </p>
+  );
+}
+
+/** The main goal as a half-donut gauge with the big percent inside. */
+function GaugeRow({ row }: { row: PlanRow }) {
+  return (
+    <li className="min-w-0">
+      <p className="truncate text-sm font-medium text-muted-foreground" title={row.label}>
+        {row.label}
+      </p>
+      <div
+        role="progressbar"
+        aria-label={row.label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(row.pct)}
+        aria-valuetext={valueText(row)}
+        className="mt-3"
+      >
+        <HalfGauge pct={row.pct} marker={row.marker} tone={row.tone}>
+          <span
+            className={cn(
+              "text-[2.25rem] font-medium leading-none tracking-[-0.035em] tabular-nums",
+              PCT_TEXT[row.tone]
+            )}
+          >
+            {Math.round(row.pct)}
+            <span className="ml-0.5 text-xl">%</span>
+          </span>
+          <span className="mt-1.5 text-[13px] tabular-nums text-muted-foreground">{row.value}</span>
+        </HalfGauge>
+      </div>
+      <Note row={row} />
+    </li>
+  );
+}
+
+/** Secondary goals: label + big percent, a thick striped bar, the note. */
 function Row({ row }: { row: PlanRow }) {
   return (
     <li className="min-w-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <p className="min-w-0 truncate text-sm font-medium" title={row.label}>
-          {row.label}
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium" title={row.label}>
+            {row.label}
+          </p>
+          <p className="mt-0.5 text-[13px] tabular-nums text-muted-foreground">{row.value}</p>
+        </div>
+        <p
+          className={cn(
+            "shrink-0 text-2xl font-medium leading-none tracking-[-0.03em] tabular-nums",
+            PCT_TEXT[row.tone]
+          )}
+        >
+          {Math.round(row.pct)}
+          <span className="ml-0.5 text-base">%</span>
         </p>
-        <p className="text-sm tabular-nums text-muted-foreground">{row.value}</p>
       </div>
-      <div className="relative mt-2">
+      <div className="relative mt-2.5">
         <div
-          className="h-2 overflow-hidden rounded-full bg-muted"
+          className="h-3.5 overflow-hidden rounded-full bg-muted"
           role="progressbar"
           aria-label={row.label}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(row.pct)}
-          aria-valuetext={`${row.value}${
-            row.marker !== null ? `, według planu dziś ok. ${Math.round(row.marker)}%` : ""
-          }`}
+          aria-valuetext={valueText(row)}
         >
           <div
-            className={cn("h-full rounded-full", FILL[row.tone])}
-            style={{ width: `${row.pct}%` }}
+            className={cn("bg-stripes h-full rounded-full", FILL[row.tone])}
+            style={{ width: `${Math.max(row.pct, row.pct > 0 ? 4 : 0)}%` }}
           />
         </div>
         {row.marker !== null ? (
           <span
             aria-hidden
-            className="absolute -top-1 h-4 w-0.5 -translate-x-1/2 rounded-full bg-foreground"
+            className="absolute -top-1 h-[1.375rem] w-[3px] -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
             style={{ left: `${row.marker}%` }}
           />
         ) : null}
       </div>
-      <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground">
-        <span aria-hidden className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", DOT[row.tone])} />
-        {row.note}
-      </p>
+      <Note row={row} />
     </li>
   );
 }
@@ -251,19 +317,21 @@ export function PlanCard({
       aria-labelledby="plan-heading"
       className={cn("surface scroll-mt-24 p-5 sm:p-6", className)}
     >
-      <h2 id="plan-heading" className="text-base font-semibold">
+      <h2 id="plan-heading" className="text-section-title">
         Plan miesiąca
       </h2>
       {rows.length > 0 ? (
         <>
-          <ul className="mt-4 space-y-5">
-            {rows.map((r) => (
-              <Row key={r.key} row={r} />
-            ))}
+          <ul className="mt-4 space-y-6">
+            {rows.map((r, i) =>
+              // The first row is the month's main question (usually the
+              // budget): a gauge. The rest: Sales-Goals style bars.
+              i === 0 ? <GaugeRow key={r.key} row={r} /> : <Row key={r.key} row={r} />
+            )}
           </ul>
           {hasMarker ? (
-            <p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-              <span aria-hidden className="h-3 w-0.5 rounded-full bg-foreground" />
+            <p className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+              <span aria-hidden className="h-3.5 w-[3px] rounded-full bg-foreground" />
               tu powinniśmy być dzisiaj według planu
             </p>
           ) : null}

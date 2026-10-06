@@ -88,9 +88,11 @@ export default async function ClientDashboardLayout({
 
   return (
     // --client-accent scopes the client's brand colour to their dashboard.
+    // relative + isolate: the overview's <HeroBackdrop/> spans this shell
+    // (behind sidebar and header) and stays under the content.
     // Shell: grey page, borderless sticky sidebar, translucent sticky header.
     <div
-      className="flex min-h-screen bg-background"
+      className="relative isolate flex min-h-screen bg-background"
       style={clientAccentStyle(client?.brandColor)}
     >
       <aside

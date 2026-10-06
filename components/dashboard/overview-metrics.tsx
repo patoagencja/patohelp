@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { MainChart, type ChartMetric } from "@/components/dashboard/main-chart";
+import { MetricDelta, MetricTile } from "@/components/dashboard/metric-tile";
+import type { SparklineTone } from "@/components/ui/sparkline";
 import type { ChartEvent } from "@/lib/dashboard/chart-events";
 import { GLOSSARY, type GlossaryKey } from "@/lib/dashboard/glossary";
 import type { TrendPoint } from "@/lib/dashboard/metrics";
@@ -47,11 +48,39 @@ const SHORT_NAME: Record<string, string> = {
   roas: "Zwrot z reklam",
 };
 
-const TONE_CLASS: Record<Tone, string> = {
-  good: "text-emerald-700 dark:text-emerald-400",
-  bad: "text-red-700 dark:text-red-400",
-  flat: "text-muted-foreground",
+// Sparkline colour = the delta's judgement (spend is a decision, not news).
+const SPARK_TONE: Record<Tone, SparklineTone> = {
+  good: "positive",
+  bad: "negative",
+  flat: "neutral",
 };
+
+/** Daily series behind a tile, from the chart's own trend (no new query). */
+function dailySeries(trend: TrendPoint[], key: string): number[] {
+  switch (key) {
+    case "spend":
+      return trend.map((p) => p.spendMinorUnits);
+    case "clicks":
+      return trend.map((p) => p.clicks);
+    case "sessions":
+      return trend.map((p) => p.sessions);
+    case "impressions":
+      return trend.map((p) => p.impressions);
+    case "revenue":
+      return trend.map((p) => p.revenueMinorUnits);
+    case "orders":
+      return trend.map((p) => p.transactions);
+    case "cpc":
+      // Days without clicks have no price; skip them rather than plot a 0.
+      return trend.filter((p) => p.clicks > 0).map((p) => p.spendMinorUnits / p.clicks);
+    case "roas":
+      return trend
+        .filter((p) => p.spendMinorUnits > 0)
+        .map((p) => p.revenueMinorUnits / p.spendMinorUnits);
+    default:
+      return [];
+  }
+}
 
 // Full class strings so Tailwind keeps them; no empty column with 3 tiles.
 const COLS: Record<number, string> = {
@@ -63,10 +92,12 @@ const COLS: Record<number, string> = {
 
 function Tile({
   fact,
+  series,
   selected,
   onSelect,
 }: {
   fact: StoryFact;
+  series: number[];
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -81,48 +112,48 @@ function Tile({
   const up =
     change && change.tone !== "flat"
       ? (fact.key === "cpc") !== (change.tone === "good")
-      : null;
+      : change && /więcej|drożej/.test(change.text)
+        ? true
+        : change && /mniej|taniej/.test(change.text)
+          ? false
+          : null;
 
   return (
-    <div
-      className={cn(
-        // focus-within lift keeps an open ⓘ bubble above the neighbours.
-        "surface relative min-w-0 p-4 transition-shadow focus-within:z-10 hover:z-10 sm:p-5",
-        selected ? "ring-2 ring-primary" : "hover:shadow-raised"
-      )}
-    >
-      {/* The whole tile is the button; the ⓘ sits above it (no nested
-          interactive elements). */}
-      <button
-        type="button"
-        aria-pressed={selected}
-        aria-label={`${name}: ${fact.value}. Pokaż na wykresie`}
-        onClick={onSelect}
-        className="absolute inset-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      />
-      <div className="pointer-events-none relative">
+    <MetricTile
+      selected={selected}
+      className={cn(!selected && "hover:shadow-raised")}
+      // The whole tile is the button; the ⓘ sits above it (no nested
+      // interactive elements).
+      overlay={
+        <button
+          type="button"
+          aria-pressed={selected}
+          aria-label={`${name}: ${fact.value}. Pokaż na wykresie`}
+          onClick={onSelect}
+          className="absolute inset-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        />
+      }
+      label={
         <div className="flex items-start gap-1">
           <span className="min-w-0 text-sm font-medium leading-5 text-muted-foreground">{label}</span>
-          <InfoTip label={name} text={explain} className="pointer-events-auto shrink-0" />
+          <InfoTip label={name} text={explain} className="shrink-0" />
         </div>
-        <p className="mt-1.5 truncate text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-metric">
-          {fact.value}
-        </p>
-        {change ? (
-          <p className={cn("mt-1.5 flex items-start gap-1 text-sm font-medium", TONE_CLASS[change.tone])}>
-            {up === null ? null : up ? (
-              <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            ) : (
-              <ArrowDownRight className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            )}
-            <span>{change.text}</span>
-          </p>
-        ) : null}
-        {fact.yoy ? (
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{fact.yoy}</p>
-        ) : null}
-      </div>
-    </div>
+      }
+      value={fact.value}
+      delta={
+        change ? (
+          <MetricDelta
+            text={change.text}
+            tone={change.tone}
+            direction={up === null ? null : up ? "up" : "down"}
+          />
+        ) : undefined
+      }
+      sparkline={series}
+      sparkTone={change ? SPARK_TONE[change.tone] : "neutral"}
+    >
+      {fact.yoy ? <p className="text-xs tabular-nums text-muted-foreground">{fact.yoy}</p> : null}
+    </MetricTile>
   );
 }
 
@@ -157,6 +188,12 @@ export function OverviewMetrics({
   aside?: React.ReactNode;
 }) {
   const tiles = facts.filter((f) => CHART_METRIC[f.key]);
+  const series = useMemo(
+    () => Object.fromEntries(tiles.map((f) => [f.key, dailySeries(trend, f.key)])),
+    // tiles is derived from facts; keyed on the inputs, not the array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [facts, trend]
+  );
   const [selected, setSelected] = useState<string | null>(tiles[0]?.key ?? null);
   const metric = selected ? CHART_METRIC[selected] : undefined;
 
@@ -177,6 +214,7 @@ export function OverviewMetrics({
               <Tile
                 key={f.key}
                 fact={f}
+                series={series[f.key] ?? []}
                 selected={selected === f.key}
                 onSelect={() => setSelected(f.key)}
               />

@@ -59,6 +59,29 @@ export function PageHeader({
   );
 }
 
+/**
+ * The overview's hero band (benchmark 1, without a photo): a calm aurora
+ * of the signature lime, the client's own accent (--client-accent) and
+ * olive, fading into the canvas behind the page title and the summary.
+ * Purely decorative. Render it anywhere in the page: it is absolutely
+ * positioned against the dashboard shell (`relative isolate` wrapper in the
+ * layouts) and sits under the content. Hidden in print and while
+ * presenting, and never a presentation slide (data-present-hide).
+ */
+export function HeroBackdrop({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      data-present-hide
+      data-print-hide
+      className={cn(
+        "hero-aurora pointer-events-none absolute inset-x-0 top-0 -z-10 !mt-0 h-[30rem] sm:h-[36rem] print:hidden",
+        className
+      )}
+    />
+  );
+}
+
 /** Section heading inside a page: title + optional one-line explanation. */
 export function SectionHeader({
   title,

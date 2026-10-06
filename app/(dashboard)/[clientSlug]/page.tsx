@@ -25,7 +25,7 @@ import {
 } from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
-import { PageHeader } from "@/components/ui/page-header";
+import { HeroBackdrop, PageHeader } from "@/components/ui/page-header";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing, type PacingFlight } from "@/lib/alerts/pacing";
@@ -193,6 +193,7 @@ export default async function OverviewPage({
           <DateRangePicker value={range} customFrom={custom?.start} customTo={custom?.end} />
         }
       />
+      <HeroBackdrop />
 
       <SectionBoundary name="overview/summary">
         <OverviewSummary

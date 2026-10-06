@@ -85,7 +85,7 @@ export function OverviewDetails({
             return !v;
           });
         }}
-        className="flex w-full items-center justify-between gap-3 rounded-card border border-hairline bg-card px-5 py-4 text-left shadow-card transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="group flex w-full items-center justify-between gap-3 rounded-card bg-card px-5 py-4 text-left shadow-card transition-shadow hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-6"
       >
         <span className="min-w-0">
           <span className="block text-base font-semibold text-foreground">
@@ -95,13 +95,16 @@ export function OverviewDetails({
             <span className="mt-0.5 block text-sm text-muted-foreground">{summary}</span>
           ) : null}
         </span>
-        <ChevronDown
-          aria-hidden
-          className={cn(
-            "h-5 w-5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-            open && "rotate-180"
-          )}
-        />
+        {/* Round chevron button; turns into the anchor pill on hover. */}
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "h-4 w-4 transition-transform motion-reduce:transition-none",
+              open && "rotate-180"
+            )}
+          />
+        </span>
       </button>
       <div
         id={id}

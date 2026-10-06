@@ -81,19 +81,20 @@ export function AlertLine({ alerts, href }: { alerts: Anomaly[]; href: string })
     <Link
       href={href}
       className={cn(
-        "group mt-4 flex items-start gap-3 rounded-lg border-l-4 px-4 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group mt-3 flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4",
         urgent
-          ? "border-red-500 bg-red-500/10 hover:bg-red-500/15"
-          : "border-amber-500 bg-amber-500/10 hover:bg-amber-500/15"
+          ? "bg-negative-soft hover:bg-negative-soft/70"
+          : "bg-warning-soft hover:bg-warning-soft/70"
       )}
     >
-      <AlertTriangle
+      <span
         className={cn(
-          "mt-0.5 h-4 w-4 shrink-0",
-          urgent ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300"
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card shadow-sm",
+          urgent ? "text-negative" : "text-warning"
         )}
-        aria-hidden
-      />
+      >
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+      </span>
       <span className="min-w-0 flex-1">
         <span className="sr-only">Do sprawdzenia: </span>
         <span className="font-medium text-foreground">{top.title}</span>
@@ -102,11 +103,31 @@ export function AlertLine({ alerts, href }: { alerts: Anomaly[]; href: string })
           <span className="text-muted-foreground"> · i jeszcze {more}</span>
         ) : null}
       </span>
-      <span className="flex shrink-0 items-center gap-1 font-medium text-foreground group-hover:underline">
+      <span className="flex shrink-0 items-center gap-1 rounded-full bg-card px-3 py-1 text-[13px] font-medium text-foreground shadow-sm transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
         <span className="hidden sm:inline">Zobacz</span>
         <ArrowRight className="h-3.5 w-3.5" aria-hidden />
       </span>
     </Link>
+  );
+}
+
+// Numbers (with their unit) in the headline get full weight; the words
+// around them step back a little - the eye lands on the figures first.
+const FIGURE = /(\d[\d\u00a0\u202f ]*(?:[.,]\d+)?(?:\s?(?:zł|%|tys\.|mln))?)/g;
+
+function Headline({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(FIGURE).map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="whitespace-nowrap text-foreground">
+            {part}
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </>
   );
 }
 
@@ -136,11 +157,11 @@ export function OverviewSummary({
       aria-label="Najważniejsze w skrócie"
       // The period sits in the page header; screen readers get it here.
       aria-description={periodLabel}
-      className="surface p-5 sm:p-6"
+      className="surface p-5 sm:p-7"
     >
       <div className="flex flex-wrap items-center gap-2">{status}</div>
-      <p className="mt-3 max-w-5xl text-balance text-xl font-semibold leading-snug tracking-tight lg:text-[1.375rem]">
-        {story.headline}
+      <p className="mt-4 max-w-4xl text-balance text-[1.375rem] font-semibold leading-snug tracking-[-0.02em] text-foreground/70 lg:text-[1.75rem] lg:leading-[1.25]">
+        <Headline text={story.headline} />
       </p>
 
       {story.facts.length === 0 && story.note ? (
@@ -151,7 +172,7 @@ export function OverviewSummary({
       ) : null}
 
       {aiSummary ? (
-        <div className="mt-4 border-t border-border pt-4">
+        <div className="mt-5">
           <AiComment
             text={aiSummary.summaryText.replace(/[–—]/g, "-")}
             // Its own fixed 7-day window, not the range above - say which
@@ -184,7 +205,7 @@ export function GoodNews({ story }: { story: Story }) {
           {story.wins.map((w) => (
             <li key={w} className="flex items-start gap-2 text-sm">
               <span
-                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"
+                className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-lime ring-2 ring-lime-soft"
                 aria-hidden
               />
               <span>{w}</span>

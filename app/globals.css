@@ -3,81 +3,170 @@
 @tailwind utilities;
 
 @layer base {
-  /* ===== Design tokens ======================================================
-     Calm, content-first system: white surfaces on a soft grey page, separated
-     by space and a very soft shadow rather than 1px borders. One accent (the
-     brand indigo); green/red/orange only for meaning. Every value below is
-     consumed through Tailwind (tailwind.config.ts) - components never use raw
-     colours. Contrast notes are measured against the surface they sit on. */
+  /* ===== Design tokens (v2 skin) ============================================
+     Calm, premium, colourful with purpose (owner's Dribbble benchmarks, see
+     bench/visual-v2.md): white borderless cards with a big radius and a soft
+     diffuse shadow on a warm-neutral page; ONE near-black "anchor" for
+     whatever is selected (nav item, segmented choice, primary button); ONE
+     signature lime/leaf-green accent family for good news, progress and the
+     highlighted series, olive/khaki as its quiet sibling; greys for
+     everything that is not the point. Multi-series charts use the earthy
+     --chart-* palette (never rainbow).
+
+     Every value below is consumed through Tailwind (tailwind.config.ts) -
+     components never use raw colours. Contrast notes are measured against
+     the surface they sit on (scratchpad v2contrast.js). */
   :root {
-    /* Page: soft grey so white cards read as layers without borders. */
-    --background: 240 11% 96%;
-    --foreground: 240 4% 11%;
+    /* Page: warm light grey (not blue-grey) so white cards read as layers. */
+    --background: 45 9% 95%;
+    --foreground: 60 4% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 4% 11%;
+    --card-foreground: 60 4% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 4% 11%;
-    --primary: 243 75% 59%;
+    --popover-foreground: 60 4% 9%;
+    /* Deep leaf green: the readable member of the lime family. White text on
+       it 5.6:1, as link text 5.6:1 on cards / 5.0:1 on the page. Use it for
+       links, focus and filled bars; the vivid lime (--lime) is decoration. */
+    --primary: 90 55% 29%;
     --primary-foreground: 0 0% 100%;
-    /* Soft grey fill: secondary buttons, inputs, segmented-control tracks. */
-    --secondary: 240 6% 93%;
-    --secondary-foreground: 240 4% 11%;
-    --muted: 240 6% 94%;
-    /* 5.3:1 on white, 4.7:1 on the page and on bg-muted tracks (AA). */
-    --muted-foreground: 240 4% 40%;
-    --accent: 240 100% 97.5%;
-    --accent-foreground: 245 58% 48%;
-    --destructive: 0 72% 44%;
+    /* Soft warm fill: secondary buttons, inputs, segmented-control tracks. */
+    --secondary: 45 7% 92%;
+    --secondary-foreground: 60 4% 9%;
+    --muted: 45 7% 92.5%;
+    /* 6.1:1 on white, 5.5:1 on the page, 5.2:1 on bg-muted tracks (AA). */
+    --muted-foreground: 40 4% 38%;
+    /* Pale lime wash for chips/highlights; deep green text on it 7.2:1. */
+    --accent: 80 55% 92%;
+    --accent-foreground: 92 60% 22%;
+    --destructive: 4 68% 44%;
     --destructive-foreground: 0 0% 100%;
     /* Dividers inside cards (table rows, separators). */
-    --border: 240 6% 90%;
-    --input: 240 6% 88%;
-    --ring: 243 75% 59%;
+    --border: 45 8% 90%;
+    --input: 45 6% 87%;
+    --ring: 90 55% 32%;
     /* Inner elements (buttons, inputs, chips, tiles). */
-    --radius: 0.75rem;
-    /* Top-level surfaces (cards, sections). */
-    --radius-card: 1.25rem;
-    /* Card edge: barely-there hairline so white-on-grey keeps a crisp edge
-       on low-contrast screens; the shadow does the real separation. */
-    --hairline: 0 0% 0% / 0.05;
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 2px 12px -2px rgb(0 0 0 / 0.05);
-    --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 8px 28px -6px rgb(0 0 0 / 0.12);
-    /* Selected segment of a segmented control (sits on bg-muted). */
+    --radius: 0.875rem;
+    /* Top-level surfaces (cards, sections): ~24px like the benchmarks. */
+    --radius-card: 1.5rem;
+    /* Cards are borderless; a near-invisible edge only keeps white-on-grey
+       crisp on washed-out screens. The diffuse shadow does the work. */
+    --hairline: 40 10% 10% / 0.035;
+    --shadow-card: 0 1px 2px 0 rgb(40 34 20 / 0.03), 0 10px 30px -12px rgb(40 34 20 / 0.10);
+    --shadow-raised: 0 2px 4px 0 rgb(40 34 20 / 0.04), 0 18px 44px -14px rgb(40 34 20 / 0.20);
+    /* Selected segment of a light segmented control (sits on bg-muted). */
     --segment: 0 0% 100%;
     /* Translucent chrome (sticky header, tab bar). */
-    --chrome: 240 11% 96%;
+    --chrome: 45 9% 95%;
+
+    /* --- v2 additions ---------------------------------------------------- */
+    /* The anchor: near-black pill for the selected/primary thing. 17:1. */
+    --anchor: 60 5% 10%;
+    --anchor-foreground: 0 0% 100%;
+    /* The small dot on the active nav item. */
+    --anchor-dot: 82 72% 55%;
+    /* Secondary text / hairlines inside an anchor surface (9:1 / subtle). */
+    --anchor-muted: 45 6% 72%;
+    --anchor-border: 60 4% 20%;
+    /* Signature accent family. Fills only (bars, gauges, washes) - never
+       text on white (1.8:1). Text on lime uses --lime-foreground (8:1). */
+    --lime: 82 65% 52%;
+    --lime-soft: 80 60% 90%;
+    --lime-foreground: 90 50% 12%;
+    --olive: 56 35% 58%;
+    --olive-soft: 56 40% 91%;
+    /* Earthy categorical palette (3.webp). chart-1 is the "this period"
+       series: deep enough for a 2px line on white (4.2:1); fill it with a
+       lime gradient. Order = assignment order for multi-series charts. */
+    --chart-1: 92 48% 36%;
+    --chart-2: 170 18% 24%;
+    --chart-3: 20 60% 50%;
+    --chart-4: 232 40% 64%;
+    --chart-5: 52 40% 46%;
+    --chart-6: 105 16% 64%;
+    /* Comparison / previous period / "not the point" series. */
+    --chart-muted: 40 5% 62%;
+    /* Chart tooltip: dark rounded card in both themes. */
+    --tooltip: 60 5% 10%;
+    --tooltip-foreground: 45 10% 96%;
+    /* Meaning. Text tones are AA on their soft fill and on white. */
+    --positive: 142 64% 28%;
+    --positive-soft: 100 55% 92%;
+    --negative: 4 68% 44%;
+    --negative-soft: 6 80% 95%;
+    --warning: 30 85% 34%;
+    --warning-soft: 40 90% 92%;
+    /* Fill (bars, gauges) for "behind plan" - text uses --warning. */
+    --warning-fill: 36 88% 56%;
+    /* AI insight banner (2.webp): lavender -> pink wash, violet text 6.3:1. */
+    --ai: 262 50% 48%;
+    --ai-soft: 262 85% 94%;
+    --ai-wash-from: 258 90% 97%;
+    --ai-wash-to: 320 85% 96.5%;
+    /* Diagonal stripes over a filled bar (.bg-stripes). */
+    --stripe: 0 0% 100% / 0.32;
   }
 
   .dark {
-    /* Near-black page, cards one clear step above; neutral greys (no navy
-       tint) keep the data colours the only colour on screen. */
-    --background: 240 5% 4%;
-    --foreground: 240 5% 96%;
-    --card: 240 4% 10.5%;
-    --card-foreground: 240 5% 96%;
-    --popover: 240 4% 13%;
-    --popover-foreground: 240 5% 96%;
-    /* Same indigo as light: white text on it stays at 6:1. Small indigo
-       text gets a lighter shade below (text-primary override). */
-    --primary: 243 75% 59%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 4% 17%;
-    --secondary-foreground: 240 5% 96%;
-    --muted: 240 4% 16%;
-    /* 7.6:1 on cards, 6.2:1 on bg-muted tracks. */
-    --muted-foreground: 240 5% 68%;
-    --accent: 243 32% 20%;
-    --accent-foreground: 235 90% 86%;
-    --destructive: 0 65% 50%;
+    /* Deep warm charcoal page; cards a clear step lifted; lime stays vivid. */
+    --background: 40 6% 6.5%;
+    --foreground: 45 10% 95%;
+    --card: 40 5% 10.5%;
+    --card-foreground: 45 10% 95%;
+    --popover: 40 5% 13%;
+    --popover-foreground: 45 10% 95%;
+    /* Vivid lime with near-black text (10.8:1); as text on cards 10.9:1. */
+    --primary: 82 70% 58%;
+    --primary-foreground: 90 50% 8%;
+    --secondary: 40 4% 16%;
+    --secondary-foreground: 45 10% 95%;
+    --muted: 40 4% 15.5%;
+    /* 7.9:1 on cards, 6.7:1 on bg-muted tracks. */
+    --muted-foreground: 40 6% 68%;
+    --accent: 85 30% 16%;
+    --accent-foreground: 82 70% 72%;
+    --destructive: 4 70% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 4% 18%;
-    --input: 240 4% 22%;
-    --ring: 239 84% 72%;
-    --hairline: 0 0% 100% / 0.06;
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.5);
-    --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.7);
-    --segment: 240 4% 28%;
-    --chrome: 240 5% 4%;
+    --border: 40 4% 17%;
+    --input: 40 4% 21%;
+    --ring: 82 70% 58%;
+    --hairline: 45 20% 90% / 0.06;
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.45), 0 12px 32px -14px rgb(0 0 0 / 0.6);
+    --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 18px 44px -12px rgb(0 0 0 / 0.75);
+    --segment: 40 4% 26%;
+    --chrome: 40 6% 6.5%;
+
+    /* Inverted anchor: warm off-white pill, near-black text (15:1). */
+    --anchor: 45 12% 93%;
+    --anchor-foreground: 60 6% 9%;
+    --anchor-dot: 92 60% 34%;
+    --anchor-muted: 40 4% 34%;
+    --anchor-border: 45 8% 84%;
+    --lime: 82 72% 58%;
+    --lime-soft: 85 30% 16%;
+    --lime-foreground: 90 50% 8%;
+    --olive: 56 38% 60%;
+    --olive-soft: 56 18% 16%;
+    --chart-1: 82 65% 58%;
+    --chart-2: 190 15% 62%;
+    --chart-3: 20 65% 60%;
+    --chart-4: 232 55% 74%;
+    --chart-5: 54 40% 62%;
+    --chart-6: 105 18% 60%;
+    --chart-muted: 40 4% 45%;
+    --tooltip: 40 5% 18%;
+    --tooltip-foreground: 45 10% 96%;
+    --positive: 95 60% 62%;
+    --positive-soft: 95 40% 14%;
+    --negative: 4 85% 72%;
+    --negative-soft: 4 40% 16%;
+    --warning: 38 90% 64%;
+    --warning-soft: 38 50% 14%;
+    --warning-fill: 38 85% 55%;
+    --ai: 262 80% 82%;
+    --ai-soft: 262 30% 22%;
+    --ai-wash-from: 258 30% 15%;
+    --ai-wash-to: 320 25% 14%;
+    --stripe: 0 0% 100% / 0.22;
   }
 }
 
@@ -182,19 +271,63 @@
 @media print {
   .dark {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 60 4% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 44%;
-    --border: 214.3 31.8% 91.4%;
-    --primary: 243 75% 59%;
-    --accent: 240 100% 97.5%;
-    --accent-foreground: 245 58% 48%;
-    --hairline: 0 0% 0% / 0.08;
+    --card-foreground: 60 4% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 60 4% 9%;
+    --muted: 45 7% 93%;
+    --muted-foreground: 40 4% 38%;
+    --border: 45 8% 88%;
+    --primary: 90 55% 29%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 80 55% 92%;
+    --accent-foreground: 92 60% 22%;
+    --anchor: 60 5% 10%;
+    --anchor-foreground: 0 0% 100%;
+    --lime: 82 65% 52%;
+    --lime-soft: 80 60% 90%;
+    --olive: 56 35% 58%;
+    --chart-1: 92 48% 36%;
+    --chart-2: 170 18% 24%;
+    --chart-3: 20 60% 50%;
+    --chart-4: 232 40% 64%;
+    --chart-5: 52 40% 46%;
+    --chart-6: 105 16% 64%;
+    --chart-muted: 40 5% 62%;
+    --positive: 142 64% 28%;
+    --positive-soft: 100 55% 92%;
+    --negative: 4 68% 44%;
+    --negative-soft: 6 80% 95%;
+    --warning: 30 85% 34%;
+    --warning-soft: 40 90% 92%;
+    --ai: 262 50% 48%;
+    --ai-soft: 262 85% 94%;
   }
-  :root {
+  /* Paper: white page, no shadows, no washes; a thin edge keeps cards
+     readable. The selected KPI tile prints as a normal card (no ink slab). */
+  :root,
+  .dark {
+    --background: 0 0% 100%;
     --shadow-card: none;
+    --shadow-raised: none;
+    --hairline: 40 10% 10% / 0.12;
+  }
+  .surface-anchor {
+    --card: 0 0% 100%;
+    --card-foreground: 60 4% 9%;
+    --foreground: 60 4% 9%;
+    --muted-foreground: 40 4% 38%;
+    --chart-muted: 40 5% 62%;
+    --border: 45 8% 88%;
+    --muted: 45 7% 93%;
+  }
+  .hero-aurora,
+  .bg-ai-wash::before {
+    display: none !important;
+  }
+  .bg-ai-wash {
+    background: none !important;
   }
 
   html,
@@ -346,14 +479,60 @@ html[data-present="true"] {
 }
 /* ===== End print ========================================================== */
 
-/* Dark mode: one indigo can't serve both as a button fill under white text
-   (needs to be darker) and as small text on dark cards (needs to be
-   lighter), so text-primary gets its own lighter shade. */
-@media screen {
-  .dark .text-primary {
-    color: hsl(230 90% 80%);
+/* ===== v2 pattern & wash utilities ========================================
+   Reusable pieces of the benchmark look. All colours come from tokens. */
+@layer utilities {
+  /* Diagonal stripes over whatever bg-* the element has (Sales Goals bar,
+     the "highlighted" bar in a bar chart). Override the stripe colour per
+     use with [--stripe:...] if a fill is very light. */
+  .bg-stripes {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      hsl(var(--stripe)) 0 5px,
+      transparent 5px 11px
+    );
+  }
+  /* Dot grid for a second "special" bar (benchmark's dotted black bar). */
+  .bg-dots {
+    background-image: radial-gradient(hsl(var(--stripe)) 1.2px, transparent 1.6px);
+    background-size: 8px 8px;
+  }
+  /* AI insight banner wash (2.webp): lavender -> pink, very soft. */
+  .bg-ai-wash {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--ai-wash-from)) 0%,
+      hsl(var(--ai-wash-to)) 100%
+    );
   }
 }
+
+/* Overview hero band (1.webp spirit, no photo): a calm aurora from the
+   signature lime, the client's own accent and a touch of olive, fading into
+   the canvas. Decorative only: aria-hidden, no pointer events, hidden in
+   print and while presenting. Rendered by <HeroBackdrop/>; its positioned
+   ancestor is the dashboard content column. */
+.hero-aurora {
+  --aurora-client: var(--client-accent, hsl(var(--chart-4)));
+  background:
+    radial-gradient(55% 85% at 6% 0%, hsl(var(--lime) / 0.38), transparent 70%),
+    radial-gradient(40% 70% at 30% 30%, hsl(var(--lime-soft) / 0.9), transparent 70%),
+    radial-gradient(42% 75% at 66% -5%, color-mix(in srgb, var(--aurora-client) 13%, transparent), transparent 72%),
+    radial-gradient(38% 70% at 100% 15%, hsl(var(--olive) / 0.32), transparent 70%),
+    radial-gradient(30% 55% at 85% 55%, hsl(var(--chart-4) / 0.10), transparent 70%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 40%, transparent 100%);
+}
+.dark .hero-aurora {
+  /* Dark: the lime glow leads, the client colour is only a whisper (a
+     saturated brand red turns muddy on charcoal). */
+  background:
+    radial-gradient(55% 85% at 6% 0%, hsl(var(--lime) / 0.17), transparent 70%),
+    radial-gradient(42% 75% at 66% -5%, color-mix(in srgb, var(--aurora-client) 9%, transparent), transparent 72%),
+    radial-gradient(38% 70% at 100% 15%, hsl(var(--olive) / 0.13), transparent 70%),
+    radial-gradient(30% 55% at 85% 55%, hsl(var(--chart-4) / 0.08), transparent 70%);
+}
+
 
 /* ===== Surfaces & legacy bridges ==========================================
    Phase-2 code should use <Card> (components/ui/card.tsx) or the `surface`
@@ -364,6 +543,20 @@ html[data-present="true"] {
    cards nested inside another card stay flat inner panels. Coloured,
    dashed or status-striped borders are meaningful and are left alone. */
 @layer components {
+  /* A surface flipped to the anchor colour (the selected KPI tile): the
+     tokens are re-pointed, so everything inside - text-foreground,
+     text-muted-foreground, bg-card rings, chart greys - follows without
+     per-child dark variants. */
+  .surface-anchor {
+    --card: var(--anchor);
+    --card-foreground: var(--anchor-foreground);
+    --foreground: var(--anchor-foreground);
+    --muted-foreground: var(--anchor-muted);
+    --chart-muted: var(--anchor-muted);
+    --border: var(--anchor-border);
+    --muted: var(--anchor-border);
+    --hairline: var(--anchor-border);
+  }
   .surface {
     border-radius: var(--radius-card);
     border: 1px solid hsl(var(--hairline));
@@ -423,12 +616,16 @@ html[data-present="true"] {
    once the page has scrolled (scroll-driven where supported; otherwise the
    header simply has no line, which is fine). */
 @supports (animation-timeline: scroll()) {
+  /* At the very top the header is see-through, so the overview's hero
+     aurora runs up behind it; it frosts over once content scrolls under. */
   @keyframes chrome-hairline {
     from {
       border-bottom-color: transparent;
+      background-color: transparent;
     }
     to {
       border-bottom-color: hsl(var(--border));
+      background-color: hsl(var(--chrome) / 0.75);
     }
   }
   [data-chrome-header] {

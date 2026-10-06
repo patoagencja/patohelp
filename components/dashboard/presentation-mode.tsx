@@ -414,9 +414,10 @@ export function PresentationMode({
       <Button
         ref={triggerRef}
         type="button"
-        variant="outline"
+        // The header's one dark "anchor" pill (v2 skin).
+        variant="default"
         size="sm"
-        className="gap-1.5"
+        className="gap-1.5 max-sm:w-9 max-sm:px-0"
         onClick={() => (active ? exit() : void enter())}
         aria-pressed={active}
         aria-label="Prezentuj"

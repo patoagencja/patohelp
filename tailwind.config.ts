@@ -58,6 +58,55 @@ const config: Config = {
         hairline: "hsl(var(--hairline))",
         segment: "hsl(var(--segment))",
         chrome: "hsl(var(--chrome))",
+        // v2 skin (app/globals.css). `anchor` = the near-black selected /
+        // primary pill (inverts to off-white in dark); `lime` = signature
+        // accent for fills, `olive` its quiet sibling; `chart-*` = earthy
+        // categorical palette; positive/negative/warning = meaning; `ai` =
+        // the AI insight banner.
+        anchor: {
+          DEFAULT: "hsl(var(--anchor) / <alpha-value>)",
+          foreground: "hsl(var(--anchor-foreground) / <alpha-value>)",
+          dot: "hsl(var(--anchor-dot) / <alpha-value>)",
+        },
+        lime: {
+          DEFAULT: "hsl(var(--lime) / <alpha-value>)",
+          soft: "hsl(var(--lime-soft) / <alpha-value>)",
+          foreground: "hsl(var(--lime-foreground) / <alpha-value>)",
+        },
+        olive: {
+          DEFAULT: "hsl(var(--olive) / <alpha-value>)",
+          soft: "hsl(var(--olive-soft) / <alpha-value>)",
+        },
+        chart: {
+          1: "hsl(var(--chart-1) / <alpha-value>)",
+          2: "hsl(var(--chart-2) / <alpha-value>)",
+          3: "hsl(var(--chart-3) / <alpha-value>)",
+          4: "hsl(var(--chart-4) / <alpha-value>)",
+          5: "hsl(var(--chart-5) / <alpha-value>)",
+          6: "hsl(var(--chart-6) / <alpha-value>)",
+          muted: "hsl(var(--chart-muted) / <alpha-value>)",
+        },
+        tooltip: {
+          DEFAULT: "hsl(var(--tooltip) / <alpha-value>)",
+          foreground: "hsl(var(--tooltip-foreground) / <alpha-value>)",
+        },
+        positive: {
+          DEFAULT: "hsl(var(--positive) / <alpha-value>)",
+          soft: "hsl(var(--positive-soft) / <alpha-value>)",
+        },
+        negative: {
+          DEFAULT: "hsl(var(--negative) / <alpha-value>)",
+          soft: "hsl(var(--negative-soft) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          soft: "hsl(var(--warning-soft) / <alpha-value>)",
+          fill: "hsl(var(--warning-fill) / <alpha-value>)",
+        },
+        ai: {
+          DEFAULT: "hsl(var(--ai) / <alpha-value>)",
+          soft: "hsl(var(--ai-soft) / <alpha-value>)",
+        },
         // Tremor tokens. Pointed at the same CSS variables as shadcn, so a
         // Tremor <Card> and a hand-built card are the same surface in both
         // themes (the variables switch under .dark; `dark-tremor` repeats
@@ -144,9 +193,11 @@ const config: Config = {
         // Type scale (see the design spec in the phase-1 notes):
         // page title > section title > body > label; numbers have their own.
         "page-title": ["1.875rem", { lineHeight: "2.25rem", letterSpacing: "-0.022em", fontWeight: "600" }],
-        "section-title": ["1.25rem", { lineHeight: "1.75rem", letterSpacing: "-0.014em", fontWeight: "600" }],
-        "metric-lg": ["2.5rem", { lineHeight: "1", letterSpacing: "-0.03em", fontWeight: "600" }],
-        metric: ["1.875rem", { lineHeight: "1.1", letterSpacing: "-0.025em", fontWeight: "600" }],
+        // v2: section titles ~18px semibold; numbers large, medium weight,
+        // tight tracking (benchmarks) - confident without shouting.
+        "section-title": ["1.125rem", { lineHeight: "1.625rem", letterSpacing: "-0.012em", fontWeight: "600" }],
+        "metric-lg": ["2.75rem", { lineHeight: "1", letterSpacing: "-0.035em", fontWeight: "500" }],
+        metric: ["2rem", { lineHeight: "1.1", letterSpacing: "-0.03em", fontWeight: "500" }],
         "tremor-label": ["0.75rem", { lineHeight: "1rem" }],
         "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],
         "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],

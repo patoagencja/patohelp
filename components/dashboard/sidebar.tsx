@@ -16,12 +16,15 @@ import {
 import { cn } from "@/lib/utils";
 
 const rowBase =
-  "flex w-full items-center gap-3 rounded-xl px-3 text-sm transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "flex w-full items-center gap-3 rounded-full px-3.5 text-sm transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const rowIdle =
   "text-muted-foreground hover:bg-foreground/[0.045] hover:text-foreground dark:hover:bg-foreground/[0.07]";
-// The one raised element in the sidebar: a white pill, like the selected
-// segment of a segmented control. The icon takes the accent colour.
-const rowActive = "bg-card font-medium text-foreground shadow-card dark:bg-secondary";
+// The one loud element in the sidebar (v2 skin, benchmark 4): the
+// near-black anchor pill with white text and a small lime dot - the same
+// "selected" language as segmented controls. aria-current carries it for
+// assistive tech; the fill + weight + dot make it more than colour.
+const rowActive =
+  "bg-anchor font-medium text-anchor-foreground shadow-[0_6px_16px_-8px_rgb(0_0_0/0.45)]";
 
 /**
  * Dimmed sidebar so the content wins: muted monochrome items, four places
@@ -150,17 +153,13 @@ function NavLink({
     <Link
       href={`${item.href}${suffix}`}
       aria-current={active ? "page" : undefined}
-      className={cn(rowBase, sub ? "h-9 pl-10" : "h-10", active ? rowActive : rowIdle)}
+      className={cn(rowBase, sub ? "h-9 pl-10" : "h-11", active ? rowActive : rowIdle)}
     >
-      <Icon
-        className={cn(
-          "shrink-0",
-          sub ? "h-4 w-4" : "h-[18px] w-[18px]",
-          active && "text-primary"
-        )}
-        aria-hidden
-      />
-      <span className="truncate">{item.label}</span>
+      <Icon className={cn("shrink-0", sub ? "h-4 w-4" : "h-[18px] w-[18px]")} aria-hidden />
+      <span className="flex-1 truncate">{item.label}</span>
+      {active ? (
+        <span aria-hidden className="mr-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-anchor-dot" />
+      ) : null}
     </Link>
   );
 }

@@ -54,15 +54,26 @@ export function DetailsDisclosure({
 
   return (
     <section className={cn("space-y-6", className)}>
-      <div data-print-hide className="border-t border-border pt-4">
+      <div data-print-hide>
+        {/* Same disclosure surface as the overview's "Pokaż szczegóły": a
+            white card row with a round chevron that turns into the anchor
+            pill on hover. */}
         <button
           type="button"
           onClick={toggle}
           aria-expanded={open}
           aria-controls={contentId}
-          className="group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4"
+          className="group flex w-full items-center justify-between gap-3 rounded-card bg-card px-5 py-4 text-left shadow-card transition-shadow hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-6"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors group-hover:bg-background group-hover:text-foreground">
+          <span className="min-w-0">
+            <span className="block text-base font-semibold text-foreground">
+              {open ? closeLabel : openLabel}
+            </span>
+            {summary && !open ? (
+              <span className="mt-0.5 block text-sm text-muted-foreground">{summary}</span>
+            ) : null}
+          </span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-foreground transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
             <ChevronDown
               className={cn(
                 "h-4 w-4 transition-transform duration-200 motion-reduce:transition-none",
@@ -70,14 +81,6 @@ export function DetailsDisclosure({
               )}
               aria-hidden
             />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[15px] font-semibold text-foreground">
-              {open ? closeLabel : openLabel}
-            </span>
-            {summary && !open ? (
-              <span className="mt-0.5 block text-sm text-muted-foreground">{summary}</span>
-            ) : null}
           </span>
         </button>
       </div>

@@ -9,7 +9,6 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { Card } from "@tremor/react";
 import { differenceInCalendarDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
@@ -22,6 +21,8 @@ import {
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 import type { ClientEvent } from "@/lib/dashboard/overview";
 import type { EngagementYoY, YoYPoint } from "@/lib/dashboard/yoy";
+import { Card } from "@/components/ui/card";
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 /** Metrics the chart can draw. The picker only offers the first four; the
@@ -45,6 +46,7 @@ const METRIC_KEYS: MetricKey[] = ["spend", "sessions", "clicks", "conversions"];
 // Drawn and summed in złoty (valueOf divides minor units by 100).
 const MONEY_METRICS: ReadonlySet<MetricKey> = new Set(["spend", "cpc", "revenue", "roas"]);
 const LIST_VISIBLE = 5;
+const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1";
 // Stable fallbacks so memoised marker building doesn't rerun every render.
 const NO_POINTS: TrendPoint[] = [];
 const NO_EVENTS: ChartEvent[] = [];
@@ -557,9 +559,9 @@ export function MainChart({
     t.weekdays[new Date(`${date}T12:00:00`).getDay()];
 
   return (
-    <Card>
+    <Card className="p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold">
+        <h2 className="text-section-title">
           {t.long[metric]}
           {label ? ` - ${label}` : ""}
         </h2>
@@ -569,7 +571,7 @@ export function MainChart({
         <div
           role="group"
           aria-label={t.long[metric]}
-          className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:flex"
+          className={cn(segmentedTrack, "grid grid-cols-2 rounded-2xl sm:inline-flex sm:rounded-full")}
         >
           {METRIC_KEYS.map((k) => (
             <button
@@ -577,12 +579,7 @@ export function MainChart({
               type="button"
               aria-pressed={metric === k}
               onClick={() => setMetric(k)}
-              className={cn(
-                "whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                metric === k
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={segmentedItem(metric === k, "justify-center px-3 py-1.5 text-xs sm:py-1")}
             >
               {t.tab[k]}
             </button>
@@ -591,7 +588,7 @@ export function MainChart({
         )}
       </div>
 
-      <p className="mt-3 text-sm text-foreground tabular-nums">
+      <p className="mt-2 text-sm text-foreground tabular-nums">
         <span className="font-semibold">
           {/* "0,00 zł" next to "no data" contradicts itself - a dash says it. */}
           {t.long[metric]}: {isEmpty ? "-" : full(total, isMoney, lang)}
@@ -602,25 +599,27 @@ export function MainChart({
       </p>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span className={cn("inline-flex items-center gap-1.5", isEmpty && "invisible")}>
-            <svg width="16" height="8" aria-hidden className="text-indigo-500 dark:text-indigo-400">
-              <line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="2" />
+        {/* Legend as small dot chips; the glyph repeats the line style so
+            the series are told apart without colour too. */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <span className={cn(LEGEND_CHIP, isEmpty && "invisible")}>
+            <svg width="14" height="8" aria-hidden className="text-chart-1">
+              <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
             {t.current}
           </span>
           {showPrev || showYoy ? (
-            <span className="inline-flex items-center gap-1.5">
-              <svg width="16" height="8" aria-hidden className="text-slate-400 dark:text-slate-500">
-                <line x1="0" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="4 3" />
+            <span className={LEGEND_CHIP}>
+              <svg width="14" height="8" aria-hidden className="text-chart-muted">
+                <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2.5" />
               </svg>
               {cmpLabel}
             </span>
           ) : null}
           {partialIdx >= 0 ? (
-            <span className="inline-flex items-center gap-1.5">
-              <svg width="10" height="10" aria-hidden className="text-indigo-500 dark:text-indigo-400">
-                <circle cx="5" cy="5" r="3.5" className="fill-card" stroke="currentColor" strokeWidth="1.5" />
+            <span className={LEGEND_CHIP}>
+              <svg width="10" height="10" aria-hidden className="text-chart-1">
+                <circle cx="5" cy="5" r="3.5" className="fill-card" stroke="currentColor" strokeWidth="1.75" />
               </svg>
               {t.partial}
             </span>
@@ -639,7 +638,8 @@ export function MainChart({
             {/* Even columns on phones: long labels wrapped unevenly in a flex row. */}
             <div
               className={cn(
-                "grid gap-0.5 rounded-md bg-muted p-0.5 sm:inline-flex",
+                segmentedTrack,
+                "grid rounded-2xl p-0.5 sm:inline-flex sm:rounded-full",
                 compareModes.length === 3 ? "grid-cols-3" : "grid-cols-2"
               )}
             >
@@ -649,11 +649,9 @@ export function MainChart({
                   type="button"
                   aria-pressed={mode === k}
                   onClick={() => setCompare(k)}
-                  className={cn(
-                    "rounded px-2 py-1 text-center font-medium leading-tight transition-colors sm:whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    mode === k
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
+                  className={segmentedItem(
+                    mode === k,
+                    "justify-center whitespace-normal px-2.5 py-1 text-center text-xs leading-tight sm:whitespace-nowrap"
                   )}
                 >
                   {t.compareOpts[k]}
@@ -673,7 +671,7 @@ export function MainChart({
       <div ref={boxRef} className="relative mt-2 h-60 w-full sm:h-72">
         {isEmpty ? (
           // Same box height as the chart so the page doesn't jump between tabs.
-          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+          <div className="flex h-full items-center justify-center rounded-2xl bg-muted/60 px-4 text-center text-sm text-muted-foreground">
             {t.empty[metric]}
           </div>
         ) : width > 0 && n > 0 ? (
@@ -695,11 +693,13 @@ export function MainChart({
                 x2="0"
                 y2="1"
                 // currentColor in a gradient resolves where the gradient is
-                // defined, not where it is used - colour it here.
-                className="text-indigo-500 dark:text-indigo-400"
+                // defined, not where it is used - colour it here. The vivid
+                // lime fills; the deeper chart-1 draws the line on top.
+                className="text-lime"
               >
-                <stop offset="0%" stopColor="currentColor" stopOpacity={0.22} />
-                <stop offset="100%" stopColor="currentColor" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="currentColor" stopOpacity={0.42} />
+                <stop offset="70%" stopColor="currentColor" stopOpacity={0.08} />
+                <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
               </linearGradient>
             </defs>
 
@@ -713,6 +713,8 @@ export function MainChart({
                   y2={y(v)}
                   className="stroke-border"
                   strokeWidth={1}
+                  // Only the zero line is solid; the rest are faint guides.
+                  strokeDasharray={v === 0 ? undefined : "2 5"}
                 />
                 <text
                   x={pad.left - 8}
@@ -750,16 +752,24 @@ export function MainChart({
                   y1={pad.top - 6}
                   y2={pad.top + plotH}
                   stroke="currentColor"
-                  strokeOpacity={active === i ? 0.8 : 0.45}
-                  strokeDasharray="3 3"
+                  strokeOpacity={active === i ? 0.7 : 0.3}
+                  strokeDasharray="2 4"
                 />
-                <circle cx={x(i)} cy={pad.top - 15} r={8} className="fill-primary" />
+                {/* Flag: small anchor chip, like the benchmark's floating
+                    "+16%" marker above the highlighted bar. */}
+                <circle
+                  cx={x(i)}
+                  cy={pad.top - 15}
+                  r={active === i ? 10 : 9}
+                  className="fill-anchor stroke-card"
+                  strokeWidth={2}
+                />
                 <text
                   x={x(i)}
                   y={pad.top - 15}
                   dy="0.35em"
                   textAnchor="middle"
-                  className="fill-primary-foreground text-[10px] font-semibold tabular-nums"
+                  className="fill-anchor-foreground text-[10px] font-semibold tabular-nums"
                 >
                   {m.number}
                 </text>
@@ -773,20 +783,21 @@ export function MainChart({
                 d={gapPath(cmp)}
                 fill="none"
                 strokeWidth={1.75}
-                strokeDasharray="5 4"
+                strokeDasharray="4 4"
                 strokeLinejoin="round"
-                className="stroke-slate-400 dark:stroke-slate-500"
+                strokeLinecap="round"
+                className="stroke-chart-muted"
               />
             ) : null}
 
             {/* Current period */}
-            <g className="text-indigo-500 dark:text-indigo-400">
+            <g className="text-chart-1">
               <path d={areaPath} fill={`url(#${gradId})`} />
               <path
                 d={linePath(cur, 0, solidTo)}
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -828,29 +839,29 @@ export function MainChart({
                   x2={activeX}
                   y1={pad.top}
                   y2={pad.top + plotH}
-                  className="stroke-muted-foreground"
-                  strokeOpacity={0.5}
+                  className="stroke-foreground"
+                  strokeOpacity={0.25}
+                  strokeDasharray="2 3"
                 />
                 {cmp[active] != null ? (
                   <circle
                     cx={activeX}
                     cy={y(cmp[active] as number)}
                     r={4}
-                    className="fill-slate-400 stroke-card dark:fill-slate-500"
+                    className="fill-chart-muted stroke-card"
                     strokeWidth={2}
                   />
                 ) : null}
+                {/* Soft halo, then the point. */}
+                <circle cx={activeX} cy={y(cur[active])} r={11} className="fill-lime/30" />
                 <circle
                   cx={activeX}
                   cy={y(cur[active])}
-                  r={5}
+                  r={5.5}
                   className={cn(
-                    "stroke-card",
-                    active === partialIdx
-                      ? "fill-card stroke-indigo-500 dark:stroke-indigo-400"
-                      : "fill-indigo-500 dark:fill-indigo-400"
+                    active === partialIdx ? "fill-card stroke-chart-1" : "fill-chart-1 stroke-card"
                   )}
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                 />
               </g>
             ) : null}
@@ -879,28 +890,27 @@ export function MainChart({
             : ""}
         </p>
         {active != null && width > 0 && !isEmpty && trend[active] ? (
+          // Dark rounded tooltip card (benchmarks 3 / 4) in both themes.
           <div
-            className="pointer-events-none absolute z-10 rounded-lg border border-border bg-popover p-2.5 text-xs text-popover-foreground shadow-md"
+            className="pointer-events-none absolute z-10 rounded-2xl bg-tooltip p-3 text-xs text-tooltip-foreground shadow-raised"
             style={{ left: tipLeft, top: pad.top, width: tipW }}
           >
-            <p className="font-medium tabular-nums">
+            <p className="font-medium tabular-nums text-tooltip-foreground/70">
               {weekday(trend[active].date)} {ddmm(trend[active].date)}
-              {active === partialIdx ? (
-                <span className="font-normal text-muted-foreground"> · {t.partialShort}</span>
-              ) : null}
+              {active === partialIdx ? <span className="font-normal"> · {t.partialShort}</span> : null}
             </p>
             <div className="mt-1.5 space-y-1 tabular-nums">
               <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                  <span className="h-0.5 w-3 rounded-full bg-indigo-500 dark:bg-indigo-400" />
+                <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
+                  <span className="h-2 w-2 rounded-full bg-lime" />
                   {t.current}
                 </span>
-                <span className="font-semibold">{full(cur[active], isMoney, lang)}</span>
+                <span className="text-sm font-semibold">{full(cur[active], isMoney, lang)}</span>
               </div>
               {active < cmp.length && cmpDate(active) ? (
                 <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                    <span className="h-0.5 w-3 rounded-full bg-slate-400 dark:bg-slate-500" />
+                  <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
+                    <span className="h-2 w-2 rounded-full border border-current" />
                     {cmpLabel} ({ddmm(cmpDate(active)!)})
                   </span>
                   <span>
@@ -910,10 +920,10 @@ export function MainChart({
               ) : null}
             </div>
             {markerByIndex.get(active) ? (
-              <ul className="mt-2 space-y-1 border-t border-border pt-2">
+              <ul className="mt-2 space-y-1 border-t border-tooltip-foreground/15 pt-2">
                 {markerByIndex.get(active)!.events.map((ev) => (
                   <li key={ev.id} className="flex gap-1.5">
-                    <span className="mt-px inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground tabular-nums">
+                    <span className="mt-px inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-lime px-1 text-[10px] font-semibold text-lime-foreground tabular-nums">
                       {markerByIndex.get(active)!.number}
                     </span>
                     <span>{ev.text}</span>
@@ -927,9 +937,7 @@ export function MainChart({
 
       {flatEvents.length > 0 ? (
         <div className="mt-4 border-t border-border pt-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {t.whatHappened}
-          </p>
+          <p className="mb-2 text-sm font-medium text-muted-foreground">{t.whatHappened}</p>
           <ul className="space-y-1">
             {visibleEvents.map(({ marker, ev }) => {
               const i = trend.findIndex((p) => p.date === marker.date);
@@ -939,11 +947,11 @@ export function MainChart({
                     type="button"
                     onClick={() => setActive(i >= 0 ? i : null)}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "flex w-full items-start gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       active === i && "bg-muted"
                     )}
                   >
-                    <span className="mt-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground tabular-nums">
+                    <span className="mt-px inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-anchor px-1 text-[11px] font-semibold text-anchor-foreground tabular-nums">
                       {marker.number}
                     </span>
                     <span className="w-11 shrink-0 font-medium tabular-nums">
@@ -966,7 +974,7 @@ export function MainChart({
             <button
               type="button"
               onClick={() => setShowAll((s) => !s)}
-              className="mt-2 rounded-sm px-1.5 text-xs font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-2 rounded-sm px-2 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {showAll ? t.showLess : t.showMore(flatEvents.length - LIST_VISIBLE)}
             </button>

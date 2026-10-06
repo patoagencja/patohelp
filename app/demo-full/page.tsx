@@ -21,7 +21,7 @@ import { PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsCard } from "@/components/dashboard/records-card";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
-import { PageHeader } from "@/components/ui/page-header";
+import { HeroBackdrop, PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { demoEngagementGoals } from "@/lib/dashboard/goals";
 import type { GlossaryKey } from "@/lib/dashboard/glossary";
@@ -74,6 +74,7 @@ export default function DemoFullOverview({
         description={`Jak idą reklamy i strona ${CLIENT} - najważniejsze na jednym ekranie.`}
         actions={period}
       />
+      <HeroBackdrop />
 
       <OverviewSummary
         story={story}
@@ -140,6 +141,7 @@ function EnglishOverview({
         description={`How ${CLIENT}'s ads and website are doing - the essentials on one screen.`}
         actions={period}
       />
+      <HeroBackdrop />
       <AiSummaryCard summary={d.summary} lang="en" />
       <KpiCards kpis={d.kpis} trend={d.trend} lang="en" />
       <div className="grid items-start gap-4 lg:grid-cols-3">

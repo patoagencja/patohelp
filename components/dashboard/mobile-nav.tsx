@@ -118,6 +118,9 @@ export function MobileNav({
                             <span className={cn("flex-1", isActive ? "font-semibold" : "font-medium")}>
                               {item.label}
                             </span>
+                            {isActive ? (
+                              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            ) : null}
                             <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
                           </Link>
                         </li>
@@ -160,12 +163,21 @@ export function MobileNav({
                 href={`${href}${suffix}`}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 pb-1.5 pt-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  isActive ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
+                  "flex flex-col items-center gap-0.5 pb-1.5 pt-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  isActive ? "text-foreground" : "text-muted-foreground"
                 )}
               >
-                <Icon className="h-[22px] w-[22px]" strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
-                {short ?? label}
+                {/* Active tab: the anchor pill behind the icon (same language
+                    as the desktop sidebar) + bolder label. */}
+                <span
+                  className={cn(
+                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
+                    isActive && "bg-anchor text-anchor-foreground"
+                  )}
+                >
+                  <Icon className="h-[20px] w-[20px]" strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
+                </span>
+                <span className={cn(isActive && "font-semibold")}>{short ?? label}</span>
               </Link>
             );
           })}
@@ -175,12 +187,19 @@ export function MobileNav({
             aria-expanded={open}
             aria-haspopup="dialog"
             className={cn(
-              "flex flex-col items-center gap-0.5 pb-1.5 pt-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              open || moreActive ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
+              "flex flex-col items-center gap-0.5 pb-1.5 pt-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              open || moreActive ? "text-foreground" : "text-muted-foreground"
             )}
           >
-            <MoreHorizontal className="h-[22px] w-[22px]" strokeWidth={open || moreActive ? 2.25 : 1.75} aria-hidden />
-            Więcej
+            <span
+              className={cn(
+                "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
+                (open || moreActive) && "bg-anchor text-anchor-foreground"
+              )}
+            >
+              <MoreHorizontal className="h-[20px] w-[20px]" strokeWidth={open || moreActive ? 2.25 : 1.75} aria-hidden />
+            </span>
+            <span className={cn((open || moreActive) && "font-semibold")}>Więcej</span>
           </button>
         </div>
       </nav>

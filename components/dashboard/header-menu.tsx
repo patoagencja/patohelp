@@ -25,13 +25,13 @@ import { cn } from "@/lib/utils";
 export function AlertsBell({ href, count = 0 }: { href: string; count?: number }) {
   const label = count > 0 ? `Alerty - do sprawdzenia: ${count}` : "Alerty";
   return (
-    <Button asChild variant="ghost" size="icon" className="relative">
+    <Button asChild variant="outline" size="icon" className="relative">
       <Link href={href} aria-label={label} title={label}>
         <Bell className="h-[18px] w-[18px]" aria-hidden />
         {count > 0 ? (
           <span
             aria-hidden
-            className="absolute right-0 top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums ring-2 ring-background"
+            className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums ring-[2.5px] ring-background"
           >
             {count > 9 ? "9+" : count}
           </span>
