@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { subDays } from "date-fns";
@@ -12,7 +13,15 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import {
+  AgencyTodoChipAsync,
+  AgencyTodoChipSkeleton,
+  AgencyTodoSection,
+  AgencyTodoSkeleton,
+  CLIENT_GRADIENTS,
+} from "@/components/dashboard/agency-todo";
 import { RECONNECT_PATH } from "@/components/dashboard/integration-health-banner";
+import { getAgencyTodo } from "@/lib/agency/todo";
 import { Button } from "@/components/ui/button";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
@@ -169,6 +178,20 @@ export default async function ClientsPage({
     })
   );
 
+  // Not awaited: the to-do checks stream in under Suspense, so the tiles
+  // (already computed above) render without waiting for them. Health and
+  // critical counts are handed over rather than refetched.
+  const todo = getAgencyTodo(
+    clientList.map((c) => ({
+      id: c.id as string,
+      slug: c.slug as string,
+      name: c.name as string,
+      health: healthByClient.get(c.id as string),
+      criticalAlerts: alertCounts.get(c.id as string) ?? 0,
+    }))
+  );
+  const clientSlugs = clientList.map((c) => c.slug as string);
+
   const totalYesterday = [...spendByClient.values()].reduce((a, b) => a + b, 0);
   const totalAlerts = [...alertCounts.values()].reduce((a, b) => a + b, 0);
   const totalBroken = [...healthByClient.values()].reduce((a, h) => a + h.down.length, 0);
@@ -178,15 +201,8 @@ export default async function ClientsPage({
   );
 
   // A distinct gradient per client tile, cycled by index - the pop of colour
-  // that makes the picker feel alive.
-  const GRADIENTS = [
-    "from-violet-500 to-indigo-500",
-    "from-amber-400 to-orange-500",
-    "from-emerald-400 to-teal-500",
-    "from-sky-400 to-blue-500",
-    "from-pink-500 to-rose-500",
-    "from-fuchsia-500 to-purple-600",
-  ];
+  // that makes the picker feel alive (shared with the to-do avatars).
+  const GRADIENTS = CLIENT_GRADIENTS;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-muted/40 via-background to-background">
@@ -234,8 +250,14 @@ export default async function ClientsPage({
           </p>
         </div>
 
+        <div className="mt-8">
+          <Suspense fallback={<AgencyTodoSkeleton />}>
+            <AgencyTodoSection todo={todo} clientSlugs={clientSlugs} />
+          </Suspense>
+        </div>
+
         {/* Summary strip across all clients */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-3xl border border-border/70 bg-card p-5 shadow-sm">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Klienci
@@ -370,6 +392,12 @@ export default async function ClientsPage({
                       /{c.slug}
                     </p>
                   </div>
+                </div>
+
+                <div className="pointer-events-none relative z-10 mt-3 flex flex-wrap gap-1.5">
+                  <Suspense fallback={<AgencyTodoChipSkeleton />}>
+                    <AgencyTodoChipAsync todo={todo} clientSlug={c.slug as string} />
+                  </Suspense>
                 </div>
 
                 <div className="relative mt-5 flex items-end justify-between">

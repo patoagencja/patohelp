@@ -205,14 +205,17 @@ export default async function OverviewPage({
         </SectionBoundary>
       ) : null}
 
-      <SectionBoundary name="overview/budget">
-        <BudgetProgress
-          budget={budget}
-          clientSlug={params.clientSlug}
-          isAgency={isAgency}
-          setBudgetAction={setMonthlyBudget}
-        />
-      </SectionBoundary>
+      {/* Anchors: the agency to-do list deep-links here. */}
+      <div id="budzet" className="scroll-mt-6">
+        <SectionBoundary name="overview/budget">
+          <BudgetProgress
+            budget={budget}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
+            setBudgetAction={setMonthlyBudget}
+          />
+        </SectionBoundary>
+      </div>
 
       {isDre && pacing.length > 0 ? (
         <SectionBoundary name="overview/rings">
@@ -240,14 +243,16 @@ export default async function OverviewPage({
         </Suspense>
       </SectionBoundary>
 
-      <SectionBoundary name="overview/agency-activity">
-        <AgencyActivity
-          work={agencyWork}
-          autoEvents={data.autoEvents}
-          isAgency={isAgency}
-          clientSlug={params.clientSlug}
-        />
-      </SectionBoundary>
+      <div id="dzialania" className="scroll-mt-6">
+        <SectionBoundary name="overview/agency-activity">
+          <AgencyActivity
+            work={agencyWork}
+            autoEvents={data.autoEvents}
+            isAgency={isAgency}
+            clientSlug={params.clientSlug}
+          />
+        </SectionBoundary>
+      </div>
 
       {/* 4. Details for the curious. The hero already carries the headline
           numbers; these tiles add the rest, each with its ⓘ definition. */}
