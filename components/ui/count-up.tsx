@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
-const NUM = /^(\D*?)(\d[\d \u00a0\u202f]*(?:,\d+)?)([\s\S]*)$/;
+// The number must end on a digit: "194 tys." would otherwise swallow the
+// space before "tys." and tick as "189tys." until the last frame.
+const NUM = /^(\D*?)(\d(?:[\d \u00a0\u202f]*\d)?(?:,\d+)?)([\s\S]*)$/;
 const ease = (t: number) => 1 - Math.pow(1 - t, 4);
 
 function format(n: number, decimals: number, sep: string): string {
@@ -57,8 +60,18 @@ export function CountUp({
     };
     setShown(`${pre}${format(0, decimals, sep)}${post}`);
     raf.current = requestAnimationFrame(tick);
+    // Printing (Ctrl+P, "PDF" in the menu) snapshots the DOM as it is: a
+    // count still running - or parked in a background tab, where rAF never
+    // fires - would print a wrong figure. Jump to the final text first;
+    // flushSync so it is committed before the browser lays out the page.
+    const finish = () => {
+      if (raf.current) cancelAnimationFrame(raf.current);
+      flushSync(() => setShown(text));
+    };
+    window.addEventListener("beforeprint", finish);
     return () => {
       if (raf.current) cancelAnimationFrame(raf.current);
+      window.removeEventListener("beforeprint", finish);
     };
   }, [text, durationMs, delayMs]);
 

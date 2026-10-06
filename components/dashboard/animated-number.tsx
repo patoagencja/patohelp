@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { cn } from "@/lib/utils";
 
@@ -55,8 +56,20 @@ export function AnimatedNumber({
     };
 
     rafRef.current = requestAnimationFrame(tick);
+    // Print snapshots the DOM as is - land on the real value first (same
+    // as CountUp).
+    const finish = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      fromRef.current = to;
+      flushSync(() => {
+        setDisplay(to);
+        setFlash(null);
+      });
+    };
+    window.addEventListener("beforeprint", finish);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("beforeprint", finish);
     };
   }, [value, durationMs]);
 

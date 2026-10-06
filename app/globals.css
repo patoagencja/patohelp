@@ -1052,6 +1052,10 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
    pill can glide. Before hydration the item paints itself (no flash). */
 .seg-track[data-sliding="on"] .seg-active {
   background-color: transparent !important;
+}
+/* Keep the shadow while focused: the focus ring IS a box-shadow, and
+   dropping it left the current tab (e.g. "Przegląd") with no visible focus. */
+.seg-track[data-sliding="on"] .seg-active:not(:focus-visible) {
   box-shadow: none !important;
 }
 .seg-indicator {

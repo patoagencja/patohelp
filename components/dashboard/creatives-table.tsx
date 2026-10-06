@@ -80,8 +80,11 @@ export function CreativeModal({
     : [];
 
   return (
+    // !m-0: callers render this inline, often as a direct child of a
+    // `space-y-*` stack (<main>), whose sibling margin would push the fixed
+    // overlay down and leave an undimmed strip at the top of the screen.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 !m-0 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

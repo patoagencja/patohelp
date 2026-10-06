@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Minus, Search, SearchX, X } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -38,6 +38,13 @@ function norm(s: string): string {
 export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
   const [query, setQuery] = useState("");
   const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Both clear buttons unmount once the query is empty; hand focus back to
+  // the field so keyboard users don't land on <body> at the top of the page.
+  const clear = () => {
+    setQuery("");
+    inputRef.current?.focus();
+  };
   const q = norm(query.trim());
 
   const visible = groups
@@ -61,6 +68,7 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
           aria-hidden
         />
         <Input
+          ref={inputRef}
           id={inputId}
           type="search"
           value={query}
@@ -72,7 +80,7 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
         {query ? (
           <button
             type="button"
-            onClick={() => setQuery("")}
+            onClick={clear}
             aria-label="Wyczyść wyszukiwanie"
             className="absolute right-1.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-chip text-ink-2 hover:bg-[var(--chip-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -97,7 +105,7 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
           </p>
           <button
             type="button"
-            onClick={() => setQuery("")}
+            onClick={clear}
             className="mt-5 inline-flex min-h-11 items-center rounded-full bg-anchor px-5 text-[15px] font-medium text-anchor-foreground transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:active:scale-100"
           >
             Pokaż wszystkie pojęcia
