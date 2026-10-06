@@ -118,6 +118,7 @@ export default async function WebsitePage({
         <WebsiteKpis
           engagement={data.engagement}
           totalSessions={totalSessions}
+          sessionsSeries={data.sessionsTrend.map((p) => p.sessions)}
           periodLabel="w ostatnich 30 dniach"
         />
       </SectionBoundary>

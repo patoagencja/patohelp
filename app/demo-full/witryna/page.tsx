@@ -49,6 +49,7 @@ export default function DemoFullWitryna({
       <WebsiteKpis
         engagement={w.engagement}
         totalSessions={totalSessions}
+        sessionsSeries={w.sessionsTrend.map((p) => p.sessions)}
         periodLabel={en ? "in the last 30 days" : "w ostatnich 30 dniach"}
         lang={lang}
       />

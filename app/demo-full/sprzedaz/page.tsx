@@ -48,6 +48,7 @@ export default function DemoSprzedazPage({
 
       <EcommerceKpis
         data={d.ecommerce}
+        trend={d.trend}
         yoy={d.yoy.available ? d.yoy : null}
         spend={d.spend}
         heading={null}

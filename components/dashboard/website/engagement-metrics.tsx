@@ -29,8 +29,11 @@ export function WebsiteKpis({
   engagement,
   totalSessions,
   periodLabel,
+  sessionsSeries,
   lang = "pl",
 }: {
+  /** Daily visits, oldest -> newest: drawn as the Wizyty tile's sparkline. */
+  sessionsSeries?: number[];
   engagement: {
     engagementRate: number;
     bounceRate: number;
@@ -71,9 +74,14 @@ export function WebsiteKpis({
           />
         }
         value={dash(formatNumberPL(totalSessions))}
-      >
-        <p className="text-muted-foreground">{noVisits ? pending : periodLabel}</p>
-      </MetricTile>
+        // The period sits beside the sparkline, like the overview's deltas.
+        delta={
+          <p className="text-[13px] leading-snug text-muted-foreground">
+            {noVisits ? pending : periodLabel}
+          </p>
+        }
+        sparkline={noVisits ? undefined : sessionsSeries}
+      />
       <MetricTile
         label={
           <MetricLabel

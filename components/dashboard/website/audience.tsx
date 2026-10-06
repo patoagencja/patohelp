@@ -62,7 +62,6 @@ export function Audience({ data }: { data: DemographicsData }) {
       key: a.bucket,
       label: ageLabel(a.bucket),
       value: a.value,
-      barClass: "bg-primary",
     }));
   const ageTotal = ageRows.reduce((s, r) => s + r.value, 0);
   const topAge = [...ageRows].sort((a, b) => b.value - a.value)[0];
@@ -73,7 +72,6 @@ export function Audience({ data }: { data: DemographicsData }) {
       key: g.bucket,
       label: GENDER_PL[g.bucket.toLowerCase()] ?? g.bucket,
       value: g.value,
-      barClass: "bg-primary",
     }));
   const genderTotal = genderRows.reduce((s, r) => s + r.value, 0);
   const topGender = [...genderRows].sort((a, b) => b.value - a.value)[0];
@@ -85,7 +83,6 @@ export function Audience({ data }: { data: DemographicsData }) {
       key: g.bucket,
       label: regionPL(g.bucket),
       value: g.value,
-      barClass: "bg-primary",
     }));
 
   const sourceNote = (src: "meta" | "ga4" | null) =>

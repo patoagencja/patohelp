@@ -1,7 +1,7 @@
 import { ShowMoreList } from "@/components/dashboard/show-more-list";
 import { Card } from "@/components/ui/card";
 
-import { formatNumberPL, formatPercent } from "@/lib/utils";
+import { cn, formatNumberPL, formatPercent } from "@/lib/utils";
 
 function segments(path: string): string[] {
   return path
@@ -96,7 +96,7 @@ export function TopPages({
       ) : null}
       <ShowMoreList
         initial={limit}
-        className="mt-5 space-y-3 empty:hidden"
+        className="mt-5 space-y-4 empty:hidden"
         moreLabel={en ? "Show all" : "Pokaż wszystkie"}
         lessLabel={en ? "Show less" : "Pokaż mniej"}
       >
@@ -104,7 +104,13 @@ export function TopPages({
           const context = en ? null : pathContext(p.path);
           return (
           <li key={p.path} className="flex items-center gap-3">
-            <span className="w-5 shrink-0 self-start pt-px text-right text-sm tabular-nums text-muted-foreground">
+            {/* Rank chip: the leader in lime, the rest quiet (benchmark 4). */}
+            <span
+              className={cn(
+                "flex h-6 w-6 shrink-0 self-start items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+                i === 0 ? "bg-lime text-lime-foreground" : "bg-muted text-muted-foreground"
+              )}
+            >
               {i + 1}
             </span>
             <div className="min-w-0 flex-1">
@@ -119,10 +125,13 @@ export function TopPages({
                   </span>
                 </p>
               </div>
-              <div className="mt-1 flex items-center gap-2">
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
                   <div
-                    className="h-full rounded-full bg-primary/80"
+                    className={`${cn(
+                      "h-full rounded-full",
+                      i === 0 ? "bg-lime" : "bg-chart-muted/55"
+                    )}${i === 0 ? " bg-stripes" : ""}`}
                     style={{ width: `${(p.views / max) * 100}%` }}
                   />
                 </div>

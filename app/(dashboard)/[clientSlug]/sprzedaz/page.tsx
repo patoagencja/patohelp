@@ -190,6 +190,7 @@ export default async function SprzedazPage({
       <SectionBoundary name="sales/kpis">
         <EcommerceKpis
           data={data.ecommerce}
+          trend={data.trend}
           yoy={yoy.available ? yoy : null}
           spend={rangeSpend}
           heading={null}

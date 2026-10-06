@@ -15,15 +15,17 @@ const DAY_SHORT = ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Ndz"];
 const DAY_NAME = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"];
 
 // Index 0 = no visits at all; 1-6 = intensity relative to the busiest cell.
-// Literal class strings so Tailwind generates every level.
+// Signature lime scale (v2), ending in the deeper chart-1 green so the peak
+// hours read as "the point" in both themes. Literal class strings so
+// Tailwind generates every level.
 const LEVEL_CLASSES = [
   "bg-muted",
-  "bg-indigo-500/15 dark:bg-indigo-400/15",
-  "bg-indigo-500/30 dark:bg-indigo-400/30",
-  "bg-indigo-500/45 dark:bg-indigo-400/45",
-  "bg-indigo-500/60 dark:bg-indigo-400/60",
-  "bg-indigo-500/80 dark:bg-indigo-400/80",
-  "bg-indigo-600 dark:bg-indigo-400",
+  "bg-lime/15",
+  "bg-lime/30",
+  "bg-lime/50",
+  "bg-lime/75",
+  "bg-lime",
+  "bg-chart-1",
 ];
 const LEGEND_LEVELS = [1, 2, 3, 4, 5, 6];
 
@@ -93,9 +95,9 @@ function Grid({
                 onPointerEnter={() => onSelect({ day: d, hour, span })}
                 onClick={() => onSelect({ day: d, hour, span })}
                 className={cn(
-                  "aspect-square cursor-pointer rounded-[3px] transition-shadow",
+                  "aspect-square cursor-pointer rounded-[4px] transition-shadow",
                   LEVEL_CLASSES[level(v, max)],
-                  isSelected && "ring-2 ring-foreground/70"
+                  isSelected && "ring-2 ring-foreground ring-offset-1 ring-offset-card"
                 )}
               />
             );
@@ -169,13 +171,14 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
           />
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="text-sm font-medium tabular-nums" aria-live="polite">
+            <p className="inline-flex items-center gap-2 text-sm font-medium tabular-nums" aria-live="polite">
+              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-lime" />
               {readout}
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-hidden>
               <span>mniej</span>
               {LEGEND_LEVELS.map((l) => (
-                <span key={l} className={cn("h-3 w-3 rounded-[3px]", LEVEL_CLASSES[l])} />
+                <span key={l} className={cn("h-3 w-3 rounded-[4px]", LEVEL_CLASSES[l])} />
               ))}
               <span>więcej</span>
             </div>
@@ -184,9 +187,9 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
 
         <dl className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 lg:w-56 lg:grid-cols-1">
           {facts.map((f) => (
-            <div key={f.label} className="rounded-lg bg-muted/60 px-3 py-2">
+            <div key={f.label} className="rounded-2xl bg-muted/60 px-4 py-3">
               <dt className="text-xs text-muted-foreground">{f.label}</dt>
-              <dd className="mt-0.5 text-sm font-semibold tabular-nums">{f.value}</dd>
+              <dd className="mt-1 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">{f.value}</dd>
             </div>
           ))}
         </dl>

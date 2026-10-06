@@ -52,16 +52,6 @@ const NAME: Record<ChannelKey, string> = {
   other: "Pozostałe",
 };
 
-const BAR: Record<ChannelKey, string> = {
-  meta: "bg-indigo-500",
-  google_ads: "bg-sky-500",
-  tiktok: "bg-rose-400",
-  organic_search: "bg-emerald-500",
-  social_organic: "bg-violet-400",
-  direct: "bg-slate-400",
-  email: "bg-amber-400",
-  other: "bg-slate-300",
-};
 
 // Below this ratio the cost-per-order gap between platforms is too small to
 // headline - "1,1× taniej" would be noise dressed up as a finding.
@@ -141,13 +131,20 @@ export function ChannelEfficiency({
 
   const clears = (r: ChannelRow) =>
     breakEven !== null && r.roas !== null ? r.roas >= breakEven : null;
+  // The biggest seller gets the striped lime bar; the rest stay grey.
+  const topShare = Math.max(0, ...rows.map((r) => r.share));
+  // bg-stripes stays outside cn(): tailwind-merge would drop bg-lime.
+  const shareBar = (r: ChannelRow, base: string) =>
+    r.share === topShare && topShare > 0
+      ? `${cn(base, "bg-lime")} bg-stripes`
+      : cn(base, "bg-chart-muted/55");
   const roasBadge = (r: ChannelRow) =>
     r.roas !== null ? (
       <span
         className={cn(
-          "rounded px-1.5 py-0.5 font-semibold",
-          clears(r) === true && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-          clears(r) === false && "bg-rose-500/10 text-rose-700 dark:text-rose-400"
+          "rounded-full px-2 py-0.5 font-semibold",
+          clears(r) === true && "bg-positive-soft text-positive",
+          clears(r) === false && "bg-negative-soft text-negative"
         )}
       >
         {zlPerZl(r.roas)}
@@ -204,8 +201,8 @@ export function ChannelEfficiency({
               <li
                 key={r.channel}
                 className={cn(
-                  "rounded-lg border border-border/70 p-3",
-                  r.spend === null && "bg-muted/30"
+                  "rounded-2xl p-3.5",
+                  r.spend === null ? "bg-muted/30" : "bg-muted/60"
                 )}
               >
                 <div className="flex items-baseline justify-between gap-3">
@@ -215,9 +212,9 @@ export function ChannelEfficiency({
                   </span>
                 </div>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-card" aria-hidden>
                     <div
-                      className={cn("h-full rounded-full", BAR[r.channel])}
+                      className={shareBar(r, "h-full rounded-full")}
                       style={{ width: `${Math.max(r.share * 100, 1.5)}%` }}
                     />
                   </div>
@@ -258,8 +255,8 @@ export function ChannelEfficiency({
           <div className="mt-4 hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Kanał</th>
+                <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
+                  <th className="pb-2.5 pr-4 font-medium">Kanał</th>
                   <th className="pb-2 pr-4 text-right font-medium">Wydano na reklamy</th>
                   <th className="pb-2 pr-4 text-right font-medium">Sprzedaż</th>
                   <th className="pb-2 pr-4 text-right font-medium">{ECOM_TERMS.roas.name}</th>
@@ -302,7 +299,18 @@ export function ChannelEfficiency({
                       <td className="whitespace-nowrap py-2.5 pr-4 text-right tabular-nums">
                         {r.conversionRate !== null ? perHundred(r.conversionRate) : "—"}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums">{pctOf(r.share)}</td>
+                      <td className="py-2.5 text-right tabular-nums">
+                        <span className="inline-flex items-center justify-end gap-2">
+                          <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-muted lg:inline-block" aria-hidden>
+                            <span
+                              className={shareBar(r, "block h-full rounded-full")}
+                              // Relative to the biggest channel: a ranking glance.
+                              style={{ width: `${Math.max(topShare > 0 ? (r.share / topShare) * 100 : 0, 4)}%` }}
+                            />
+                          </span>
+                          <span className="w-9">{pctOf(r.share)}</span>
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
@@ -313,8 +321,8 @@ export function ChannelEfficiency({
       )}
 
       {data.untrackedPaid.length ? (
-        <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-warning-soft p-3.5 text-sm text-foreground">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
           <p>
             <b>{data.untrackedPaid.map((c) => NAME[c]).join(", ")}</b>: budżet jest wydawany,
             ale Google Analytics nie widzi z tych reklam ani wizyt, ani sprzedaży -

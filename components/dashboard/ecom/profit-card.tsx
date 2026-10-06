@@ -55,7 +55,7 @@ export function ProfitCard({
         {isAgency ? (
           <Link
             href={`/${clientSlug}/settings#ecommerce`}
-            className="mt-3 inline-flex h-8 items-center rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            className="mt-4 inline-flex h-9 items-center rounded-full bg-anchor px-4 text-sm font-medium text-anchor-foreground hover:bg-anchor/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Podaj marżę w Ustawieniach
           </Link>
@@ -118,16 +118,14 @@ export function ProfitCard({
           <MetricLabel name="Zysk po reklamach" explain={PROFIT_EXPLAIN} />
           <p
             className={cn(
-              "mt-1 text-3xl font-bold tabular-nums tracking-tight",
-              profitable
-                ? "text-emerald-700 dark:text-emerald-400"
-                : "text-rose-600 dark:text-rose-400"
+              "mt-1.5 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums sm:text-metric",
+              profitable ? "text-positive" : "text-negative"
             )}
           >
             {profitable ? "" : "−"}
             {formatPlnWhole(Math.abs(p.profitAfterAds))}
           </p>
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          <p className="mt-2 text-xs tabular-nums text-muted-foreground">
             marża ze sprzedaży {formatPlnWhole(p.grossProfit)} − reklamy{" "}
             {formatPlnWhole(spend)}
           </p>
@@ -150,21 +148,21 @@ export function ProfitCard({
                 </span>
               </div>
               <div
-                className="relative mt-2 h-2.5 rounded-full bg-gradient-to-r from-rose-500/25 via-amber-400/25 to-emerald-500/30"
+                className="relative mt-2.5 h-3 rounded-full bg-gradient-to-r from-negative/25 via-warning-fill/30 to-lime/50"
                 role="img"
                 aria-label={`Zwrot z reklam ${zlPerZl(p.roas)} przy progu opłacalności ${zlPerZl(
                   p.breakEvenRoas
                 )}`}
               >
                 <div
-                  className="absolute h-[18px] w-0.5 bg-foreground/60"
-                  style={{ left: "50%", top: "-4px" }}
+                  className="absolute h-[22px] w-[3px] -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
+                  style={{ left: "50%", top: "-5px" }}
                   title="Próg opłacalności"
                 />
                 <div
                   className={cn(
-                    "absolute h-[18px] w-[18px] -translate-x-1/2 rounded-full border-2 border-card shadow",
-                    roas >= p.breakEvenRoas ? "bg-emerald-500" : "bg-rose-500"
+                    "absolute h-5 w-5 -translate-x-1/2 rounded-full border-[3px] border-card shadow-raised",
+                    roas >= p.breakEvenRoas ? "bg-positive" : "bg-negative"
                   )}
                   style={{ left: pos(roas), top: "-4px" }}
                 />
@@ -178,8 +176,8 @@ export function ProfitCard({
           ) : null}
         </div>
 
-        <dl className="grid grid-cols-2 content-start gap-x-4 gap-y-4 text-sm">
-          <div className="col-span-2 min-w-0 sm:col-span-1">
+        <dl className="grid grid-cols-2 content-start gap-3 text-sm">
+          <div className="col-span-2 min-w-0 rounded-2xl bg-muted/50 px-4 py-3 sm:col-span-1">
             <dt>
               <MetricLabel
                 name={ECOM_TERMS.poas.name}
@@ -187,16 +185,16 @@ export function ProfitCard({
                 explain={ECOM_TERMS.poas.explain}
               />
             </dt>
-            <dd className="mt-0.5 font-semibold tabular-nums">
+            <dd className="mt-1 text-lg font-semibold tabular-nums tracking-[-0.01em]">
               {p.poas !== null ? `${zlPerZl(p.poas)} marży` : "—"}
             </dd>
           </div>
-          <div className="col-span-2 min-w-0 sm:col-span-1">
+          <div className="col-span-2 min-w-0 rounded-2xl bg-muted/50 px-4 py-3 sm:col-span-1">
             <dt className="text-sm font-medium">Na czysto z każdej 1 zł reklam</dt>
             <dd
               className={cn(
-                "mt-0.5 font-semibold tabular-nums",
-                netPerZl !== null && netPerZl < 0 && "text-rose-600 dark:text-rose-400"
+                "mt-1 text-lg font-semibold tabular-nums tracking-[-0.01em]",
+                netPerZl !== null && netPerZl < 0 && "text-negative"
               )}
             >
               {netPerZl !== null
@@ -204,7 +202,7 @@ export function ProfitCard({
                 : "—"}
             </dd>
           </div>
-          <p className="col-span-2 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="col-span-2 mt-1 text-[11px] leading-relaxed text-muted-foreground">
             Liczone przy marży {p.marginPct.toLocaleString("pl-PL")}% od całej
             sprzedaży sklepu
             {settings.revenueIncludesVat ? " (po odjęciu 23% VAT)" : ""}. Nie

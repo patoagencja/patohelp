@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Card } from "@/components/ui/card";
 
 import { plPlural } from "@/lib/dashboard/story";
@@ -13,9 +15,20 @@ export interface ShareRow {
   /** One plain-language line under the label ("wpisali adres strony"). */
   hint?: string;
   value: number;
-  /** Tailwind bg-* class for the bar (palette classes, no hex). */
-  barClass: string;
+  /**
+   * Tailwind bg-* class for the bar (palette classes, no hex). Omit for the
+   * v2 default: the largest row is the striped lime "highlight" bar, the
+   * rest quiet grey - colour marks the point, not the category.
+   */
+  barClass?: string;
+  /** Small icon before the label (decorative). */
+  icon?: ReactNode;
 }
+
+// bg-stripes is appended outside cn(): tailwind-merge reads it as a
+// background colour and would drop bg-lime (or vice versa).
+const BAR_TOP = "bg-lime";
+const BAR_REST = "bg-chart-muted/55";
 
 /**
  * GA4 source/device/page breakdowns are a fixed 30-day snapshot, not the
@@ -86,6 +99,7 @@ export function ShareBars({
   const visible = rows.filter((r) => r.value > 0);
   const sorted = keepOrder ? visible : [...visible].sort((a, b) => b.value - a.value);
   const pcts = sharesSumming100(sorted.map((r) => r.value));
+  const maxValue = Math.max(0, ...sorted.map((r) => r.value));
 
   return (
     <Card className={cn("flex flex-col p-5 sm:p-6", className)}>
@@ -97,19 +111,33 @@ export function ShareBars({
       <ul className="mt-5 space-y-4">
         {sorted.map((r, i) => {
           const share = total > 0 ? r.value / total : 0;
+          const isTop = r.value === maxValue && sorted.findIndex((o) => o.value === maxValue) === i;
           return (
             <li key={r.key}>
               <div className="flex items-baseline justify-between gap-3">
-                <div className="min-w-0">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  {r.icon ? (
+                    <span
+                      aria-hidden
+                      className="flex h-4 w-4 shrink-0 translate-y-[3px] items-center justify-center text-muted-foreground [&_svg]:h-4 [&_svg]:w-4"
+                    >
+                      {r.icon}
+                    </span>
+                  ) : null}
                   <span className="text-sm font-medium">{r.label}</span>
+                  {/* The hint is a side note: it shortens with an ellipsis
+                      (full text on hover) instead of wrapping the row. */}
                   {r.hint ? (
-                    <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">
+                    <span
+                      className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block"
+                      title={r.hint}
+                    >
                       {r.hint}
                     </span>
                   ) : null}
                 </div>
                 <div className="shrink-0 text-right">
-                  <span className="text-sm font-semibold tabular-nums">
+                  <span className="text-[15px] font-semibold tabular-nums tracking-[-0.01em]">
                     {pcts[i]}%
                   </span>
                   <span className="ml-2 text-xs tabular-nums text-muted-foreground">
@@ -118,10 +146,13 @@ export function ShareBars({
                 </div>
               </div>
               {/* The % is printed above; the bar only repeats it visually. */}
-              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden>
                 <div
-                  className={cn("h-full rounded-full transition-[width] duration-700 motion-reduce:transition-none", r.barClass)}
-                  style={{ width: `${Math.max(share * 100, 1.5)}%` }}
+                  className={`${cn(
+                    "h-full rounded-full transition-[width] duration-700 motion-reduce:transition-none",
+                    r.barClass ?? (isTop ? BAR_TOP : BAR_REST)
+                  )}${!r.barClass && isTop ? " bg-stripes" : ""}`}
+                  style={{ width: `${Math.max(share * 100, 2)}%` }}
                 />
               </div>
             </li>

@@ -60,7 +60,8 @@ export function ShowMoreList({
           aria-expanded={open}
           aria-controls={id}
           data-print-hide
-          className="mt-3 inline-flex items-center gap-1 self-start rounded-full px-1 py-1 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-indigo-300"
+          // Soft pill (v2): same family as the segmented controls.
+          className="mt-4 inline-flex items-center gap-1 self-start rounded-full bg-muted px-3.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {open ? lessLabel : `${moreLabel} (${items.length})`}
           <ChevronDown

@@ -1,6 +1,6 @@
 import { ShowMoreList } from "@/components/dashboard/show-more-list";
 import { Card } from "@/components/ui/card";
-import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
+import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import { aboutPln, pctOf } from "./plain";
 
@@ -94,10 +94,14 @@ export function TopProducts({
             return (
               <li
                 key={`${p.itemId}:${p.itemName}`}
-                className="flex gap-3 border-t border-border py-3 first:border-t-0 first:pt-0"
+                className="flex gap-3 border-t border-border/70 py-3.5 first:border-t-0 first:pt-0"
               >
+                {/* Rank chip: the bestseller in lime, the rest quiet grey. */}
                 <span
-                  className="w-5 shrink-0 pt-px text-right text-sm tabular-nums text-muted-foreground"
+                  className={cn(
+                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+                    i === 0 ? "bg-lime text-lime-foreground" : "bg-muted text-muted-foreground"
+                  )}
                   aria-label={`Miejsce ${i + 1}`}
                 >
                   {i + 1}
@@ -107,14 +111,25 @@ export function TopProducts({
                     <p className="line-clamp-2 min-w-0 break-words text-sm font-medium" title={p.itemName}>
                       {p.itemName}
                     </p>
-                    <p className="shrink-0 text-sm font-semibold tabular-nums">
+                    <p className="shrink-0 text-[15px] font-semibold tabular-nums tracking-[-0.01em]">
                       {formatPlnWhole(p.revenueMinorUnits)}
                     </p>
                   </div>
-                  {/* Bar length is relative to the bestseller (a ranking, not shares). */}
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+                  {/* Bar length is relative to the bestseller (a ranking, not
+                      shares). The leader gets the striped lime highlight
+                      bar, the rest grey - like the benchmark's best bar. */}
+                  <div
+                    className={cn(
+                      "mt-2 overflow-hidden rounded-full bg-muted",
+                      i === 0 ? "h-3" : "h-2"
+                    )}
+                    aria-hidden
+                  >
                     <div
-                      className="h-full rounded-full bg-primary/80"
+                      className={`${cn(
+                        "h-full rounded-full",
+                        i === 0 ? "bg-lime" : "bg-chart-muted/55"
+                      )}${i === 0 ? " bg-stripes" : ""}`}
                       style={{ width: `${Math.max((p.revenueMinorUnits / max) * 100, 1.5)}%` }}
                     />
                   </div>

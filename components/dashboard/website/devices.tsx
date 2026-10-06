@@ -1,11 +1,14 @@
+import type { ReactNode } from "react";
+import { Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react";
+
 import { formatNumberPL } from "@/lib/utils";
 
 import { outOfTen, ShareBars, visitsUnit, type ShareRow } from "./share-bars";
 
-const DEVICE: Record<string, { pl: string; en: string; bar: string }> = {
-  mobile: { pl: "Telefon", en: "Mobile", bar: "bg-primary" },
-  desktop: { pl: "Komputer", en: "Desktop", bar: "bg-primary" },
-  tablet: { pl: "Tablet", en: "Tablet", bar: "bg-primary" },
+const DEVICE: Record<string, { pl: string; en: string; icon: ReactNode }> = {
+  mobile: { pl: "Telefon", en: "Mobile", icon: <Smartphone /> },
+  desktop: { pl: "Komputer", en: "Desktop", icon: <Monitor /> },
+  tablet: { pl: "Tablet", en: "Tablet", icon: <Tablet /> },
 };
 
 export function Devices({
@@ -25,7 +28,7 @@ export function Devices({
     key: d.device,
     label: DEVICE[d.device]?.[en ? "en" : "pl"] ?? d.device,
     value: d.sessions,
-    barClass: DEVICE[d.device]?.bar ?? "bg-primary",
+    icon: DEVICE[d.device]?.icon ?? <MonitorSmartphone />,
   }));
   const total = rows.reduce((a, r) => a + r.value, 0);
   const mobile = rows.find((r) => r.key === "mobile")?.value ?? 0;

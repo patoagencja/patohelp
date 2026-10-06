@@ -1,17 +1,14 @@
 "use client";
 
-import { LineChart } from "@tremor/react";
-
 import { Card } from "@/components/ui/card";
-import { usePrefersReducedMotion } from "@/components/dashboard/use-reduced-motion";
+import { TrendLineChart, type TrendLinePoint } from "@/components/dashboard/trend-line-chart";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
 import { dayMonthPL } from "@/lib/dashboard/story";
 import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import { aboutPln, todayWarsawIso } from "./plain";
 
-// Non-breaking spaces: Recharts wraps axis ticks on plain spaces, which split
-// the top tick into "12 tys." / "zł" on two lines.
+// Non-breaking spaces keep "12 tys. zł" one token on the axis.
 const compactPln = (zl: number) => {
   if (Math.abs(zl) >= 1_000_000)
     return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln zł`;
@@ -38,7 +35,6 @@ export function SalesOverview({
   /** Last year's revenue per current date (52-week aligned), when reliable. */
   lastYear?: Array<{ date: string; revenue: number | null }> | null;
 }) {
-  const reducedMotion = usePrefersReducedMotion();
   const lyByDate = new Map((lastYear ?? []).map((p) => [p.date, p.revenue]));
   const showLy = lyByDate.size > 0;
   const totalRev = trend.reduce((a, p) => a + p.revenueMinorUnits, 0);
@@ -82,13 +78,13 @@ export function SalesOverview({
       : `Sklep sprzedał w tym okresie za ok. ${aboutPln(totalRev)}.`;
   }
 
-  const chart = fullDays.map((p) => {
-    const [, month, day] = p.date.split("-");
+  // Złoty, not grosze: the axis and tooltip speak whole money.
+  const chart: TrendLinePoint[] = fullDays.map((p) => {
     const ly = lyByDate.get(p.date);
     return {
-      date: `${day}.${month}`,
-      [SALES]: p.revenueMinorUnits / 100,
-      ...(showLy ? { [LAST_YEAR]: ly != null ? ly / 100 : null } : {}),
+      date: p.date,
+      value: p.revenueMinorUnits / 100,
+      compare: showLy ? (ly != null ? ly / 100 : null) : undefined,
     };
   });
 
@@ -97,31 +93,26 @@ export function SalesOverview({
       <h2 className="text-section-title text-foreground">Sprzedaż dzień po dniu</h2>
       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{takeaway}</p>
 
-      {/* Fewer than two finished days gives Tremor nothing to draw but an
-          English "No data". Say why instead. */}
+      {/* Fewer than two finished days draw no line at all - say why. */}
       {chart.length < 2 || totalRev <= 0 ? (
-        <div className="mt-5 flex h-64 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground sm:h-72">
+        <div className="mt-5 flex h-64 items-center justify-center rounded-2xl bg-muted/60 px-4 text-center text-sm text-muted-foreground sm:h-72">
           {chart.length < 2
             ? "Za mało dni, by narysować wykres - wróć za kilka dni."
             : "Wykres pojawi się, gdy Google Analytics zarejestruje pierwszą sprzedaż."}
         </div>
       ) : (
-        <LineChart
+        <div className="mt-4">
+        <TrendLineChart
           // Last year is the comparison, not the news: grey and dashed.
-          className="mt-5 h-64 sm:h-72 [&_.recharts-line.stroke-slate-500_.recharts-line-curve]:[stroke-dasharray:5_5]"
-          data={chart}
-          index="date"
-          categories={showLy ? [SALES, LAST_YEAR] : [SALES]}
-          colors={showLy ? ["indigo", "slate"] : ["indigo"]}
-          valueFormatter={compactPln}
-          yAxisWidth={72}
-          showLegend={showLy}
-          showAnimation={!reducedMotion}
-          curveType="monotone"
-          connectNulls
-          role="img"
-          aria-label={`Wykres sprzedaży dzień po dniu. ${takeaway}`}
+          className="h-64 sm:h-72"
+          points={chart}
+          valueLabel={SALES}
+          compareLabel={showLy ? LAST_YEAR : undefined}
+          formatValue={(zl) => formatPlnWhole(Math.round(zl * 100))}
+          formatAxis={compactPln}
+          ariaLabel={`Wykres sprzedaży dzień po dniu. ${takeaway}`}
         />
+        </div>
       )}
       {todayPoint ? (
         <p className="mt-2 text-xs text-muted-foreground">

@@ -36,10 +36,16 @@ function LabelWithTip({ label, explain }: { label: string; explain?: string }) {
   );
 }
 
+// Fill opacity per step: one chart-1 green, lighter as the funnel narrows
+// (benchmark 2's stepped area).
+const STEP_OPACITY = [0.82, 0.48, 0.22];
+
 // From visit to purchase, with the data we track daily: visits -> engaged
-// visits (engagement rate applied) -> orders. Widths are linear shares of all
-// visits - a log scale made 1,6% of visits look like two thirds of the bar.
-// Tiny steps get a minimum sliver plus the printed % so they stay readable.
+// visits (engagement rate applied) -> orders. Drawn as a stepped area
+// (benchmark 2): each column's top edge runs from its own step to the next.
+// Heights are linear shares of all visits - a log scale made 1,6% of visits
+// look like two thirds of the bar. Tiny steps get a minimum sliver plus the
+// printed % so they stay readable.
 export function ConversionFunnel({
   sessions,
   engagementRate, // percent 0-100
@@ -86,7 +92,13 @@ export function ConversionFunnel({
     };
   }
 
-  const colors = ["bg-indigo-300/70", "bg-indigo-500/80", "bg-emerald-500"];
+  // Geometry in a 0..300 x 0..100 box, stretched to the card width. The
+  // last column tapers a little so the shape reads as "flowing on".
+  const MIN_H = 0.05;
+  const hOf = (v: number) => (v > 0 ? Math.max(MIN_H, share(v)) : 0);
+  const tops = steps.map((st) => 100 - hOf(st.value) * 92);
+  const ends = [tops[1], tops[2], 100 - hOf(steps[2].value) * 92 * 0.7];
+  const colW = 300 / steps.length;
 
   return (
     <Card className="flex flex-col p-5 sm:p-6">
@@ -106,45 +118,94 @@ export function ConversionFunnel({
         </span>
       </div>
 
-      <div className="mt-5 space-y-4">
-        {steps.map((s, i) => {
-          const prev = i > 0 ? steps[i - 1].value : 0;
-          return (
-            <div key={s.label}>
-              <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="min-w-0 text-sm text-muted-foreground">
+      <div className="mt-6">
+        <div className="grid grid-cols-3">
+          {steps.map((s, i) => {
+            const prev = i > 0 ? steps[i - 1].value : 0;
+            return (
+              <div
+                key={s.label}
+                className={cn(
+                  "flex min-w-0 flex-col pb-3",
+                  i > 0 && "border-l border-border/70 pl-2.5 sm:pl-3.5",
+                  i < steps.length - 1 && "pr-2"
+                )}
+              >
+                {/* Fixed label height so the three numbers share one baseline
+                    even when a label wraps. */}
+                <span className="min-h-[3.5rem] text-[13px] leading-snug text-muted-foreground sm:min-h-[2.5rem]">
                   <LabelWithTip label={s.label} explain={s.explain} />
                 </span>
-                <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
-                  {formatNumberPL(s.value)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-7 min-w-0 flex-1 overflow-hidden rounded-lg bg-muted">
-                  <div
-                    className={cn("h-full rounded-lg transition-all duration-700", colors[i])}
-                    style={{
-                      width: s.value > 0 ? `max(${share(s.value) * 100}%, 0.375rem)` : 0,
-                    }}
-                  />
+                <div className="pt-2">
+                  <p className="text-xl font-medium leading-none tracking-[-0.03em] tabular-nums text-foreground sm:text-2xl">
+                    {formatNumberPL(s.value)}
+                  </p>
+                  <p className="mt-1.5 flex flex-wrap items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-px font-semibold",
+                        i === steps.length - 1 ? "bg-lime text-lime-foreground" : "bg-muted text-foreground"
+                      )}
+                    >
+                      {pctText(share(s.value))}
+                    </span>
+                    {/* Step 2's "of previous" equals its share of visits,
+                        already in the chip - only later steps need it. */}
+                    {i > 1 && prev > 0 ? (
+                      <span>{pctText(s.value / prev)} z poprzedniego kroku</span>
+                    ) : null}
+                  </p>
                 </div>
-                <span className="w-12 shrink-0 text-right text-xs font-medium tabular-nums text-muted-foreground">
-                  {pctText(share(s.value))}
-                </span>
               </div>
-              {/* Step 2's "of previous" equals its share of visits, already
-                  printed beside the bar - only later steps need it. */}
-              {i > 1 && prev > 0 ? (
-                <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                  {pctText(s.value / prev)} z poprzedniego kroku
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+        {/* The numbers above carry the meaning; the shape repeats them. */}
+        <svg
+          viewBox="0 0 300 100"
+          preserveAspectRatio="none"
+          aria-hidden
+          className="block h-28 w-full text-chart-1 sm:h-36"
+        >
+          {steps.map((s, i) => {
+            const x0 = i * colW;
+            const x1 = (i + 1) * colW;
+            return s.value > 0 ? (
+              <path
+                key={s.label}
+                d={`M${x0},100 L${x0},${tops[i]} L${x1},${ends[i]} L${x1},100 Z`}
+                fill="currentColor"
+                fillOpacity={STEP_OPACITY[i]}
+              />
+            ) : null;
+          })}
+          <path
+            d={steps
+              .map((_, i) => `${i ? "L" : "M"}${i * colW},${tops[i]}`)
+              .concat(`L300,${ends[steps.length - 1]}`)
+              .join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          {steps.slice(1).map((_, i) => (
+            <line
+              key={i}
+              x1={(i + 1) * colW}
+              x2={(i + 1) * colW}
+              y1={0}
+              y2={100}
+              className="stroke-card"
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        </svg>
       </div>
       <p className="mt-4 text-[11px] text-muted-foreground">
-        Procent przy pasku to część wszystkich wizyt w sklepie.
+        Procent pod liczbą to część wszystkich wizyt w sklepie.
       </p>
     </Card>
   );

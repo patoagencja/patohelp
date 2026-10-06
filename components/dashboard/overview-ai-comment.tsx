@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 
 // Percentages in the comment ("o 16%", "+60%") become small tinted chips,
 // like the key-number chips of the benchmark's AI banner (2.webp).
-const PCT = /([+\-−]?\d+(?:[.,]\d+)?\s?%)/g;
+// Ranges ("30-40%") stay one chip.
+const PCT = /((?:\d+(?:[.,]\d+)?\s?[-–]\s?)?[+\-−]?\d+(?:[.,]\d+)?\s?%)/g;
 
 function withChips(text: string) {
   return text.split(PCT).map((part, i) =>

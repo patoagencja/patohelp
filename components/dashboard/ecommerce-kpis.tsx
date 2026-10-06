@@ -1,11 +1,12 @@
 import { ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { ECOM_TERMS } from "@/components/dashboard/ecom/plain";
+import { ECOM_TERMS, withoutToday } from "@/components/dashboard/ecom/plain";
 import { MetricLabel } from "@/components/dashboard/info-tip";
 import { MetricTile } from "@/components/dashboard/metric-tile";
 import { Card } from "@/components/ui/card";
-import { Pill } from "@/components/ui/pill";
+import { DeltaPill } from "@/components/ui/pill";
+import type { SparklineTone } from "@/components/ui/sparkline";
 import {
   GLOSSARY,
   describeChange,
@@ -29,23 +30,26 @@ import {
 const FLAT_THRESHOLD = 3;
 
 // Every e-commerce KPI here is "higher is better": up = green, down = red,
-// tiny moves stay neutral grey.
+// tiny moves stay neutral grey. The arrow follows the number either way.
 function delta(kpi: Kpi) {
   if (kpi.deltaPercent === null || !Number.isFinite(kpi.deltaPercent)) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
   return {
     tone:
       Math.abs(rounded) < FLAT_THRESHOLD
-        ? ("neutral" as const)
+        ? ("flat" as const)
         : rounded > 0
-          ? ("positive" as const)
-          : ("negative" as const),
-    label: `${rounded > 0 ? "▲ " : rounded < 0 ? "▼ " : ""}${Math.abs(rounded).toLocaleString(
-      "pl-PL",
-      { maximumFractionDigits: 1 }
-    )}%`,
+          ? ("good" as const)
+          : ("bad" as const),
+    direction: rounded > 0 ? ("up" as const) : rounded < 0 ? ("down" as const) : null,
+    label: `${Math.abs(rounded).toLocaleString("pl-PL", { maximumFractionDigits: 1 })}%`,
   };
 }
+
+const SPARK_TONE = { good: "positive", bad: "negative", flat: "neutral" } as const satisfies Record<
+  string,
+  SparklineTone
+>;
 
 function KpiTile({
   metric,
@@ -55,7 +59,10 @@ function KpiTile({
   kpi,
   yoyRatio,
   thinBase = false,
+  series,
 }: {
+  /** Daily values (finished days, oldest -> newest) for the sparkline. */
+  series?: number[];
   metric: GlossaryKey;
   /** Shorter label than the glossary's, where that one wraps in a tile. */
   name?: string;
@@ -78,29 +85,30 @@ function KpiTile({
     <MetricTile
       // No "ROAS"/"AOV" tag here: the friendly name + ⓘ say it without jargon.
       label={<MetricLabel name={name ?? g.name} explain={g.explain} />}
-      value={value}
+      // Two tiles per row on phones: "250 863 zł" at full size gets cut to
+      // "250 863…", so long values step down a size there.
+      value={value.length > 8 ? <span className="max-sm:text-2xl">{value}</span> : value}
+      delta={
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-snug text-muted-foreground">
+          {d ? (
+            <DeltaPill tone={d.tone} direction={d.direction}>
+              {d.label}
+            </DeltaPill>
+          ) : null}
+          {/* The pill already carries the number; the words carry direction. */}
+          <span>{d ? sentence.replace(/^o \d+% /, "") : sentence}</span>
+        </p>
+      }
+      sparkline={series}
+      sparkTone={d ? SPARK_TONE[d.tone] : "neutral"}
     >
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground">
-        {d ? (
-          <Pill tone={d.tone} className="tabular-nums">
-            {d.label}
-          </Pill>
-        ) : null}
-        {/* The pill already carries the number; the words carry direction. */}
-        <span>{d ? sentence.replace(/^o \d+% /, "") : sentence}</span>
-      </p>
       {yoyRatio != null ? (
         <p
           className="text-xs tabular-nums text-muted-foreground"
           title="Ten sam okres rok temu (wyrównany do dni tygodnia)"
         >
           <span
-            className={cn(
-              "font-medium",
-              yoyRatio >= 0
-                ? "text-emerald-700 dark:text-emerald-400"
-                : "text-red-700 dark:text-red-400"
-            )}
+            className={cn("font-medium", yoyRatio >= 0 ? "text-positive" : "text-negative")}
           >
             {formatSignedPct(yoyRatio)}
           </span>{" "}
@@ -131,12 +139,13 @@ const ratio = (cur: number, prev: number) => (prev > 0 ? cur / prev - 1 : null);
 // with one comparison each; the trend lives in the one chart below the row.
 export function EcommerceKpis({
   data,
+  trend,
   yoy,
   spend,
   heading = "Wyniki sklepu w wybranym okresie",
 }: {
   data: EcommerceKpisData;
-  /** No longer drawn (tiles carry no sparklines); kept so callers compile. */
+  /** Daily trend of the same window: drawn as each tile's sparkline. */
   trend?: TrendPoint[];
   /** Last year's same window; omit when last year's data is too thin. */
   yoy?: EcommerceYoY | null;
@@ -168,6 +177,19 @@ export function EcommerceKpis({
     data.revenueMinorUnits.previous === 0 &&
     data.transactions.previous === 0;
   const hasSpend = (spend ?? 0) > 0;
+  // Sparklines from finished days only: a half-synced today would end every
+  // line in a cliff. Ratios skip days without a denominator.
+  const days = trend ? withoutToday(trend) : [];
+  const series = {
+    revenue: days.map((p) => p.revenueMinorUnits),
+    transactions: days.map((p) => p.transactions),
+    roas: days
+      .filter((p) => p.spendMinorUnits > 0)
+      .map((p) => p.revenueMinorUnits / p.spendMinorUnits),
+    aov: days
+      .filter((p) => p.transactions > 0)
+      .map((p) => p.revenueMinorUnits / p.transactions),
+  };
   return (
     <section aria-label={heading ? undefined : "Wyniki sklepu"}>
       {heading ? (
@@ -185,6 +207,7 @@ export function EcommerceKpis({
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <KpiTile
             metric="revenue"
+            series={series.revenue}
             tone="amount"
             value={formatPlnWhole(data.revenueMinorUnits.value)}
             kpi={data.revenueMinorUnits}
@@ -193,6 +216,7 @@ export function EcommerceKpis({
           />
           <KpiTile
             metric="transactions"
+            series={series.transactions}
             tone="amount"
             value={formatNumberPL(data.transactions.value)}
             kpi={data.transactions}
@@ -201,6 +225,7 @@ export function EcommerceKpis({
           />
           <KpiTile
             metric="roas"
+            series={series.roas}
             tone="rate"
             // Return on zero spend is undefined, not "0×" (overview passes no
             // spend - there the stored ROAS of 0 means the same thing).
@@ -218,6 +243,7 @@ export function EcommerceKpis({
           />
           <KpiTile
             metric="aov"
+            series={series.aov}
             name={ECOM_TERMS.aov.name}
             tone="amount"
             // Whole złoty: grosze in a headline number are false precision.

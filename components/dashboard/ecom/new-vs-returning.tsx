@@ -10,16 +10,20 @@ const SEGMENTS = [
   {
     key: "newBuyers",
     name: "Nowi klienci",
-    bar: "bg-emerald-500",
-    dot: "bg-emerald-500",
+    // Growth = the signature lime (striped), loyalty = its olive sibling
+    // (benchmark 5's 68% / 32% pair).
+    bar: "bg-lime",
+    striped: true,
+    dot: "bg-lime",
     explain:
       "Osoby, które w czasie zakupu były w sklepie po raz pierwszy (tak rozpoznaje je Google Analytics). To przybliżenie „pierwszego zakupu” - ktoś mógł wcześniej kupić na innym urządzeniu.",
   },
   {
     key: "returning",
     name: "Stali klienci",
-    bar: "bg-indigo-500",
-    dot: "bg-indigo-500",
+    bar: "bg-olive",
+    striped: false,
+    dot: "bg-olive",
     explain:
       "Osoby, które już wcześniej odwiedzały sklep i wróciły, żeby kupić. Część z nich kupuje po raz pierwszy, ale znała już sklep - np. z reklamy albo newslettera.",
   },
@@ -104,7 +108,7 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
       <div className="mt-5">
         <p className="mb-2 text-sm text-muted-foreground">Udział w sprzedaży</p>
         <div
-          className="flex h-7 w-full overflow-hidden rounded-lg bg-muted"
+          className="flex h-4 w-full gap-1"
           role="img"
           aria-label={`Nowi klienci ${pctOf(data.newBuyers.revenueShare)} sprzedaży, stali klienci ${pctOf(
             data.returning.revenueShare
@@ -115,7 +119,10 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
             return share > 0 ? (
               <div
                 key={s.key}
-                className={cn("h-full transition-all duration-700", s.bar)}
+                // bg-stripes outside cn(): tailwind-merge would drop the colour.
+                className={`${cn("h-full rounded-full transition-all duration-700", s.bar)}${
+                  s.striped ? " bg-stripes" : ""
+                }`}
                 style={{ width: `max(${share * 100}%, 0.375rem)` }}
               />
             ) : null;
@@ -127,16 +134,16 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
         {SEGMENTS.map((s) => {
           const seg = data[s.key];
           return (
-            <div key={s.key} className="min-w-0 rounded-lg bg-muted/50 p-3">
+            <div key={s.key} className="min-w-0 rounded-2xl bg-muted/50 px-4 py-3.5">
               <p className="flex items-center gap-1.5 text-sm font-medium">
                 <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", s.dot)} aria-hidden />
                 <span className="min-w-0">{s.name}</span>
                 <InfoTip label={s.name} text={s.explain} />
-                <span className="ml-auto shrink-0 text-base font-bold tabular-nums">
+                <span className="ml-auto shrink-0 text-xl font-medium leading-none tracking-[-0.02em] tabular-nums">
                   {pctOf(seg.revenueShare)}
                 </span>
               </p>
-              <dl className="mt-2 space-y-1 text-sm">
+              <dl className="mt-3 space-y-1 text-sm">
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Sprzedaż</dt>
                   <dd className="font-medium tabular-nums">
@@ -162,7 +169,7 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
       {aovLine ? <p className="mt-3 text-sm text-muted-foreground">{aovLine}</p> : null}
 
       {data.costPerNewOrderMinorUnits !== null ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-lg border border-dashed border-border p-3 text-sm">
+        <div className="mt-4 flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-2xl border border-dashed border-border px-4 py-3 text-sm">
           <span className="text-muted-foreground">
             Szacunkowy koszt pozyskania nowego klienta:
           </span>

@@ -92,12 +92,15 @@ export function SeasonPlanner({
         {/* Phones: the countdown wraps under the title, so it reads as one
             left-aligned line ("52 dni do Black Friday") instead of a lone
             right-aligned number. */}
+        {/* The countdown as a small anchor tile (dark in light mode, light
+            in dark mode); .surface-anchor re-points the tokens and prints
+            as a plain white card. */}
         {next ? (
-          <div className="flex items-baseline gap-2 sm:block sm:text-right">
-            <p className="text-3xl font-bold leading-none tabular-nums tracking-tight">
+          <div className="surface-anchor flex items-baseline gap-2 rounded-2xl bg-card px-4 py-3 text-foreground sm:block sm:text-right">
+            <p className="text-3xl font-medium leading-none tabular-nums tracking-[-0.03em]">
               {next.daysTo}
             </p>
-            <p className="text-xs text-muted-foreground sm:mt-1">
+            <p className="text-xs text-muted-foreground sm:mt-1.5">
               {next.daysTo === 0
                 ? `dni - dziś ${next.label}`
                 : `${plPlural(next.daysTo, "dzień", "dni", "dni")} do ${
@@ -109,12 +112,12 @@ export function SeasonPlanner({
       </div>
 
       {takeaway ? (
-        <div className="px-5 pt-5">
+        <div className="px-5 pt-5 sm:px-6">
           <Takeaway>{takeaway}</Takeaway>
         </div>
       ) : null}
 
-      <div className="grid gap-5 p-5 lg:grid-cols-[1.1fr_1fr]">
+      <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1.1fr_1fr]">
         {/* Last year's season, in numbers. */}
         <div className="min-w-0">
           {ly ? (
@@ -173,7 +176,7 @@ export function SeasonPlanner({
           {plan.events.length ? (
             <div>
               <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                <CalendarClock className="h-3.5 w-3.5" /> Nadchodzące szczyty
+                <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Nadchodzące szczyty
               </p>
               <ul className="space-y-2">
                 {plan.events.map((e) => (
@@ -181,9 +184,16 @@ export function SeasonPlanner({
                   // flex-wrap broke only the longest names, so rows differed.
                   <li
                     key={e.key}
-                    className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
+                    className="flex flex-col gap-0.5 border-t border-border/70 pt-2 text-sm first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
                   >
                     <span className="min-w-0">
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "mr-2 inline-block h-2 w-2 rounded-full align-middle",
+                          e.key === next?.key ? "bg-lime" : "bg-chart-muted/60"
+                        )}
+                      />
                       <span className="font-medium">{e.label}</span>{" "}
                       <span className="whitespace-nowrap text-muted-foreground">
                         · {dayLabelPl(e.date)}
@@ -200,9 +210,9 @@ export function SeasonPlanner({
             </div>
           ) : null}
 
-          <div className="rounded-xl bg-muted/60 p-4">
-            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
-              <Lightbulb className="h-3.5 w-3.5" /> Co z tego wynika
+          <div className="rounded-2xl bg-lime-soft/70 p-4 sm:p-5">
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <Lightbulb className="h-4 w-4 text-positive" aria-hidden /> Co z tego wynika
             </p>
             <ul className="space-y-2 text-sm leading-relaxed">
               {plan.suggestedNovBudget !== null && ly?.novRoas ? (
@@ -247,7 +257,7 @@ export function SeasonPlanner({
             {isAgency && !plan.novemberGoal ? (
               <Link
                 href={`/${clientSlug}/settings#ecommerce`}
-                className="mt-3 inline-block text-xs font-medium text-primary dark:text-indigo-300 underline-offset-2 hover:underline"
+                className="mt-3 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
               >
                 Ustaw cel na listopad, żeby policzyć budżet pod cel
               </Link>
@@ -273,12 +283,12 @@ function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("min-w-0 rounded-lg border border-border/70 p-3", className)}>
+    <div className={cn("min-w-0 rounded-2xl bg-muted/50 px-4 py-3", className)}>
       <dt className="flex items-center gap-1 text-xs text-muted-foreground">
         {label}
         {explain ? <InfoTip label={label} text={explain} /> : null}
       </dt>
-      <dd className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight">{value}</dd>
+      <dd className="mt-1 text-xl font-medium leading-tight tabular-nums tracking-[-0.02em]">{value}</dd>
       {note ? <p className="text-[11px] text-muted-foreground">{note}</p> : null}
     </div>
   );
