@@ -22,7 +22,7 @@ import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { regionPL } from "@/components/dashboard/website/audience";
-import { getClientBranding } from "@/lib/dashboard/branding";
+import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
@@ -206,26 +206,18 @@ export default async function RaportPage({
     share?: string;
   };
 }) {
-  const supabase = createClient();
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
+  // Shared per-request lookups (the layout asks the same questions). The
+  // role only matters for the OLX share box, so it doesn't gate the reads:
+  // this used to be client -> auth -> role, three trips before any data.
+  const viewerPromise = getViewer();
+  // Awaited below; this only stops Node flagging an early rejection.
+  viewerPromise.catch(() => {});
+  const client = await getClientBySlug(params.clientSlug);
 
   if (!client) {
     redirect("/login");
   }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("users").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isAgency =
-    profile?.role === "admin" || profile?.role === "member";
+  const supabase = createClient();
 
   // OLX gets the agency's SM-template deck (auto-filled monthly report);
   // other clients keep the generic performance deck below.
@@ -235,7 +227,10 @@ export default async function RaportPage({
       monthParam && /^\d{4}-\d{2}$/.test(monthParam)
         ? new Date(`${monthParam}-15T00:00:00`)
         : undefined;
-    const sm = await getOlxSmReportData(client.id, client.name, monthDate);
+    const [sm, { isAgency }] = await Promise.all([
+      getOlxSmReportData(client.id, client.name, monthDate),
+      viewerPromise,
+    ]);
     const smFoot = `${client.name} · ${sm.periodLabel} · patoagencja`;
 
     return (
@@ -291,7 +286,7 @@ export default async function RaportPage({
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const [data, website, demo, creatives, branding] = await Promise.all([
+  const [data, website, demo, creatives] = await Promise.all([
     getDashboardData(client.id, range, custom),
     getWebsiteData(client.id),
     getDemographics(client.id),
@@ -302,8 +297,6 @@ export default async function RaportPage({
       .order("spend_minor_units", { ascending: false })
       .limit(4)
       .then((res) => res.data ?? []),
-    // Pre-0031 databases keep the built-in logo / name-only cover.
-    getClientBranding(supabase, client.id),
   ]);
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
@@ -370,7 +363,10 @@ export default async function RaportPage({
         {/* Cover - MUST stay first (AI summary is injected right after it) */}
         {(() => {
           const Logo = clientLogo(params.clientSlug);
-          const uploaded = branding.logoUrl;
+          // The shared client lookup already carries the branding columns
+          // (pre-0031 databases: none - the built-in logo / name-only cover),
+          // so the deck no longer reads them separately.
+          const uploaded = client.logoUrl;
           return (
             <CoverSlide
               title={Logo || uploaded ? "Raport" : `${client.name} - Raport`}

@@ -74,91 +74,96 @@ export async function getUnhealthyIntegrations(
       .filter((p): p is ProviderKey => p in PROVIDER_LABEL);
     if (!configured.length) return [];
 
-    const out: ProviderHealth[] = [];
-    for (const provider of configured) {
-      // Two targeted queries per provider. A single windowed fetch across all
-      // providers was wrong: ~4 providers x 48 cron runs/day means a few
-      // hundred rows cover barely two days, so an older last-success fell out
-      // of the window and the age was reported from incomplete data.
-      const [newestRes, successRes] = await Promise.all([
-        admin
-          .from("sync_runs")
-          .select("status, started_at, finished_at, error_message")
-          .eq("client_id", clientId)
-          .eq("provider", provider)
-          .order("started_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        admin
-          .from("sync_runs")
-          .select("finished_at")
-          .eq("client_id", clientId)
-          .eq("provider", provider)
-          .eq("status", "success")
-          .not("finished_at", "is", null)
-          .order("finished_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
+    // Providers are independent: check them all at once. A sequential loop
+    // made the banner (and the agency's client list) wait one extra round
+    // trip per connected integration.
+    const checks = await Promise.all(
+      configured.map(async (provider): Promise<ProviderHealth | null> => {
+        // Two targeted queries per provider. A single windowed fetch across all
+        // providers was wrong: ~4 providers x 48 cron runs/day means a few
+        // hundred rows cover barely two days, so an older last-success fell out
+        // of the window and the age was reported from incomplete data.
+        const [newestRes, successRes] = await Promise.all([
+          admin
+            .from("sync_runs")
+            .select("status, started_at, finished_at, error_message")
+            .eq("client_id", clientId)
+            .eq("provider", provider)
+            .order("started_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          admin
+            .from("sync_runs")
+            .select("finished_at")
+            .eq("client_id", clientId)
+            .eq("provider", provider)
+            .eq("status", "success")
+            .not("finished_at", "is", null)
+            .order("finished_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
-      const newest = newestRes.data;
-      // A provider with no runs at all was just connected - not a failure yet.
-      if (!newest) continue;
+        const newest = newestRes.data;
+        // A provider with no runs at all was just connected - not a failure yet.
+        if (!newest) return null;
 
-      const hoursSinceSuccess = successRes.data?.finished_at
-        ? (Date.now() -
-            new Date(successRes.data.finished_at as string).getTime()) /
-          3_600_000
-        : null;
+        const hoursSinceSuccess = successRes.data?.finished_at
+          ? (Date.now() -
+              new Date(successRes.data.finished_at as string).getTime()) /
+            3_600_000
+          : null;
 
-      const lastAttemptAt = (newest.started_at as string | null) ?? null;
-      const hoursSinceAttempt = lastAttemptAt
-        ? (Date.now() - new Date(lastAttemptAt).getTime()) / 3_600_000
-        : null;
+        const lastAttemptAt = (newest.started_at as string | null) ?? null;
+        const hoursSinceAttempt = lastAttemptAt
+          ? (Date.now() - new Date(lastAttemptAt).getTime()) / 3_600_000
+          : null;
 
-      const failing = newest.status === "failed";
-      const stale =
-        hoursSinceSuccess === null || hoursSinceSuccess > STALE_HOURS;
-      if (!failing && !stale) continue;
+        const failing = newest.status === "failed";
+        const stale =
+          hoursSinceSuccess === null || hoursSinceSuccess > STALE_HOURS;
+        if (!failing && !stale) return null;
 
-      const lastError = (newest.error_message as string | null) ?? null;
-      const tokenExpired = failing && isTokenError(lastError);
+        const lastError = (newest.error_message as string | null) ?? null;
+        const tokenExpired = failing && isTokenError(lastError);
 
-      // Testing-mode tokens die 7 days after consent. If the last success
-      // landed 6-8 days after the integration was (re)connected, that is the
-      // signature - point at the permanent fix instead of another reconnect.
-      let testingModeSuspected = false;
-      const connectedAt = integrations.find((i) => i.provider === provider)
-        ?.updated_at as string | undefined;
-      if (
-        tokenExpired &&
-        (provider === "ga4" || provider === "google_ads") &&
-        connectedAt &&
-        successRes.data?.finished_at
-      ) {
-        const days =
-          (new Date(successRes.data.finished_at as string).getTime() -
-            new Date(connectedAt).getTime()) /
-          86_400_000;
-        testingModeSuspected = days >= 6 && days <= 8;
-      }
+        // Testing-mode tokens die 7 days after consent. If the last success
+        // landed 6-8 days after the integration was (re)connected, that is the
+        // signature - point at the permanent fix instead of another reconnect.
+        let testingModeSuspected = false;
+        const connectedAt = integrations.find((i) => i.provider === provider)
+          ?.updated_at as string | undefined;
+        if (
+          tokenExpired &&
+          (provider === "ga4" || provider === "google_ads") &&
+          connectedAt &&
+          successRes.data?.finished_at
+        ) {
+          const days =
+            (new Date(successRes.data.finished_at as string).getTime() -
+              new Date(connectedAt).getTime()) /
+            86_400_000;
+          testingModeSuspected = days >= 6 && days <= 8;
+        }
 
-      out.push({
-        provider,
-        label: PROVIDER_LABEL[provider],
-        hoursSinceSuccess,
-        hoursSinceAttempt,
-        lastError,
-        failing,
-        // Only claim "token expired" when that is the CURRENT failure. A stale
-        // error from an old run must not keep telling you to reconnect after
-        // you already have.
-        tokenExpired,
-        testingModeSuspected,
-      });
-    }
+        return {
+          provider,
+          label: PROVIDER_LABEL[provider],
+          hoursSinceSuccess,
+          hoursSinceAttempt,
+          lastError,
+          failing,
+          // Only claim "token expired" when that is the CURRENT failure. A stale
+          // error from an old run must not keep telling you to reconnect after
+          // you already have.
+          tokenExpired,
+          testingModeSuspected,
+        };
+      })
+    );
 
-    return out;
+    // Same order as the configured providers, as before.
+    return checks.filter((h): h is ProviderHealth => h !== null);
   } catch {
     return [];
   }

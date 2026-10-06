@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ImageOff } from "lucide-react";
 
 import { CreativesExplorer } from "@/components/dashboard/creatives/creatives-explorer";
+import { getClientBySlug } from "@/lib/dashboard/context";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateWarsaw } from "@/lib/utils";
@@ -25,18 +26,15 @@ export default async function KreacjePage({
 }: {
   params: { clientSlug: string };
 }) {
-  const supabase = createClient();
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
+  // Shared per-request lookup: the layout already asked for this client, so
+  // the page no longer pays its own round trip for the same row.
+  const client = await getClientBySlug(params.clientSlug);
 
   if (!client) {
     redirect("/login");
   }
 
+  const supabase = createClient();
   const { data } = await supabase
     .from("creatives")
     // "*" rather than a column list: naming the 0025 metric columns would

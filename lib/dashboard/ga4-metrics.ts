@@ -167,9 +167,10 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
   const BASE =
     "id, date, sessions, users_new, users_returning, engagement_rate, source_medium, device_category, page_path, page_views";
   // Revenue columns arrive with migration 0016 - selecting an unknown column
-  // fails the whole query, so probe once and fall back to the base select.
-  const probe = await supabase.from("ga4_daily").select("revenue_minor_units").limit(1);
-  const select = probe.error ? BASE : `${BASE}, revenue_minor_units, transactions`;
+  // fails the whole query. Ask for them and fall back to the base select only
+  // when that errors: a probe query awaited up front cost every render of
+  // Witryna/Sprzedaż a full extra round trip for a long-applied migration.
+  const FULL = `${BASE}, revenue_minor_units, transactions`;
 
   // Separate, paginated reads. One unordered select of the whole window used
   // to hit PostgREST's silent 1000-row cap: every sync leaves a dated
@@ -177,20 +178,24 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
   // snapshots crowded out arbitrary daily-total rows and the trend/engagement
   // undercounted (or the latest snapshot vanished) with no error.
   type Ga4Row = Record<string, unknown>;
-  const dailyRowsPromise = fetchAll<Ga4Row>((from, to) =>
-    supabase
-      .from("ga4_daily")
-      // The cast only quiets the select-string parser; rows are read loosely.
-      .select(select as "*")
-      .eq("client_id", clientId)
-      .is("source_medium", null)
-      .is("device_category", null)
-      .is("page_path", null)
-      .gte("date", start)
-      .lte("date", todayStr)
-      .order("date", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, to)
+  const withRevenueFallback = (read: (select: string) => Promise<Ga4Row[]>) =>
+    read(FULL).catch(() => read(BASE));
+  const dailyRowsPromise = withRevenueFallback((select) =>
+    fetchAll<Ga4Row>((from, to) =>
+      supabase
+        .from("ga4_daily")
+        // The cast only quiets the select-string parser; rows are read loosely.
+        .select(select as "*")
+        .eq("client_id", clientId)
+        .is("source_medium", null)
+        .is("device_category", null)
+        .is("page_path", null)
+        .gte("date", start)
+        .lte("date", todayStr)
+        .order("date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    )
   );
   // Each dimension is a snapshot of the whole 30-day window dated to the sync
   // day, so only the latest snapshot date may be read - never summed across days.
@@ -209,15 +214,17 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
       .maybeSingle();
     const date = latest?.date as string | undefined;
     if (!date) return [];
-    return fetchAll<Ga4Row>((from, to) =>
-      supabase
-        .from("ga4_daily")
-        .select(select as "*")
-        .eq("client_id", clientId)
-        .eq("date", date)
-        .not(column, "is", null)
-        .order("id", { ascending: true })
-        .range(from, to)
+    return withRevenueFallback((select) =>
+      fetchAll<Ga4Row>((from, to) =>
+        supabase
+          .from("ga4_daily")
+          .select(select as "*")
+          .eq("client_id", clientId)
+          .eq("date", date)
+          .not(column, "is", null)
+          .order("id", { ascending: true })
+          .range(from, to)
+      )
     );
   };
   const [dailyTotals, sourceRows, deviceRows, pageRows] = await Promise.all([

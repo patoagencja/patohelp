@@ -248,6 +248,45 @@ function buildPrevTrend(
   return out;
 }
 
+export interface DashboardRange extends ResolvedRange {
+  label: string;
+  /** Warsaw "today" the range was resolved against. */
+  today: string;
+}
+
+/**
+ * The window getDashboardData reads, without reading it. Pages use it to
+ * start range-dependent queries (events, YoY, products) in the same round as
+ * the dashboard data instead of waiting for `data.rangeStart`.
+ */
+export function resolveDashboardRange(
+  rangeKey: RangeKey = "30d",
+  custom?: CustomRange | null
+): DashboardRange {
+  const todayStr = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
+  // A custom from/to overrides the preset; its baseline is the same-length
+  // period immediately before it (for the vs-previous deltas).
+  if (custom) {
+    const start = new Date(`${custom.start}T00:00:00`);
+    const end = new Date(`${custom.end}T00:00:00`);
+    const len = differenceInCalendarDays(end, start) + 1;
+    const prevEnd = subDays(start, 1);
+    return {
+      start: custom.start,
+      end: custom.end,
+      prevStart: fmt(subDays(prevEnd, len - 1)),
+      prevEnd: fmt(prevEnd),
+      label: `${custom.start} - ${custom.end}`,
+      today: todayStr,
+    };
+  }
+  return {
+    ...resolveRange(rangeKey, new Date(`${todayStr}T00:00:00`)),
+    label: RANGE_LABELS[rangeKey],
+    today: todayStr,
+  };
+}
+
 /**
  * Everything the dashboard needs for a date range: period-over-period KPIs
  * (ads + GA4 sessions), per-day trend, campaign list with health status and
@@ -263,37 +302,35 @@ export async function getDashboardData(
 ): Promise<DashboardData> {
   const supabase: SupabaseClient = db ?? createClient();
 
-  const todayStr = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
-  const today = new Date(`${todayStr}T00:00:00`);
-  // A custom from/to overrides the preset; its baseline is the same-length
-  // period immediately before it (for the vs-previous deltas).
-  let range: ResolvedRange;
-  let label = RANGE_LABELS[rangeKey];
-  if (custom) {
-    const start = new Date(`${custom.start}T00:00:00`);
-    const end = new Date(`${custom.end}T00:00:00`);
-    const len = differenceInCalendarDays(end, start) + 1;
-    const prevEnd = subDays(start, 1);
-    range = {
-      start: custom.start,
-      end: custom.end,
-      prevStart: fmt(subDays(prevEnd, len - 1)),
-      prevEnd: fmt(prevEnd),
-    };
-    label = `${custom.start} - ${custom.end}`;
-  } else {
-    range = resolveRange(rangeKey, today);
-  }
+  const resolved = resolveDashboardRange(rangeKey, custom);
+  const todayStr = resolved.today;
+  const label = resolved.label;
+  const range: ResolvedRange = resolved;
 
-  // The revenue columns land with migration 0016; probe once so the whole GA4
-  // read doesn't error (and drop sessions) before the migration is applied.
-  const ga4Probe = await supabase
-    .from("ga4_daily")
-    .select("revenue_minor_units")
-    .limit(1);
-  const ga4Select = ga4Probe.error
-    ? "date, sessions, engagement_rate"
-    : "date, sessions, engagement_rate, revenue_minor_units, transactions";
+  type Ga4TotalRow = {
+    date: string;
+    sessions: number | string;
+    engagement_rate: number | string | null;
+    revenue_minor_units: number | string | null;
+    transactions: number | string | null;
+  };
+  const readGa4 = (columns: string) =>
+    fetchAll<Ga4TotalRow>((from, to) =>
+      supabase
+        .from("ga4_daily")
+        .select(
+          columns as "date, sessions, engagement_rate, revenue_minor_units, transactions"
+        )
+        .eq("client_id", clientId)
+        .is("source_medium", null)
+        .is("device_category", null)
+        .is("page_path", null)
+        .gte("date", range.prevStart)
+        .lte("date", range.end)
+        .order("date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
 
   // Paginated reads: a long range on a large account easily exceeds
   // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
@@ -312,28 +349,13 @@ export async function getDashboardData(
         .order("campaign_id", { ascending: true })
         .range(from, to)
     ),
-    // GA4 daily totals only (dimension columns null).
-    fetchAll<{
-      date: string;
-      sessions: number | string;
-      engagement_rate: number | string | null;
-      revenue_minor_units: number | string | null;
-      transactions: number | string | null;
-    }>((from, to) =>
-      supabase
-        .from("ga4_daily")
-        .select(
-          ga4Select as "date, sessions, engagement_rate, revenue_minor_units, transactions"
-        )
-        .eq("client_id", clientId)
-        .is("source_medium", null)
-        .is("device_category", null)
-        .is("page_path", null)
-        .gte("date", range.prevStart)
-        .lte("date", range.end)
-        .order("date", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to)
+    // GA4 daily totals only (dimension columns null). The revenue columns
+    // land with migration 0016: ask for them straight away and only fall
+    // back to the base columns when that select errors. This used to be a
+    // separate probe query awaited before both reads - a whole extra round
+    // trip on every dashboard render to cover a long-applied migration.
+    readGa4("date, sessions, engagement_rate, revenue_minor_units, transactions").catch(
+      () => readGa4("date, sessions, engagement_rate")
     ),
   ]);
 

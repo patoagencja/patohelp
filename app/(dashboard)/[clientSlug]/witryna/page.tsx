@@ -11,10 +11,9 @@ import { SessionsTrend } from "@/components/dashboard/website/sessions-trend";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import { getActivityHeatmap } from "@/lib/dashboard/activity";
-import { getViewer } from "@/lib/dashboard/context";
+import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDemographics } from "@/lib/dashboard/demographics";
 import { getGa4Status, getWebsiteData } from "@/lib/dashboard/ga4-metrics";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +22,9 @@ export default async function WebsitePage({
 }: {
   params: { clientSlug: string };
 }) {
-  const supabase = createClient();
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
+  // Shared per-request lookups: the layout already asked for the client and
+  // the viewer, so the page no longer pays its own round trip for the row.
+  const client = await getClientBySlug(params.clientSlug);
 
   if (!client) {
     redirect("/login");

@@ -17,6 +17,7 @@ import {
   normalizeRange,
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
+import { getClientBySlug } from "@/lib/dashboard/context";
 import { getImpressionShare } from "@/lib/dashboard/impression-share";
 import { getSearchTerms } from "@/lib/dashboard/search-terms";
 import { createClient } from "@/lib/supabase/server";
@@ -50,13 +51,9 @@ export default async function AdsPage({
   params: { clientSlug: string };
   searchParams: { range?: string; camp?: string; from?: string; to?: string };
 }) {
-  const supabase = createClient();
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
+  // Shared per-request lookup: the layout already asked for this client, so
+  // the page no longer pays its own round trip for the same row.
+  const client = await getClientBySlug(params.clientSlug);
 
   if (!client) {
     redirect("/login");

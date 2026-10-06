@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { ExternalLink, Newspaper } from "lucide-react";
 
 import { NewsRefreshButton } from "@/components/dashboard/news-refresh-button";
+import { getClientBySlug } from "@/lib/dashboard/context";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import type { NewsCategory } from "@/lib/news/fetch";
 import { cn } from "@/lib/utils";
 
@@ -69,17 +69,11 @@ export default async function NewsyPage({
   params: { clientSlug: string };
   searchParams: { cat?: string };
 }) {
-  const supabase = createClient();
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
-  if (!client) redirect("/login");
-
   const filter = FILTERS.find((f) => f.key === searchParams.cat)?.key ?? "all";
 
   // News are global (not per client) - read via admin (RLS, no policy).
+  // Nothing here depends on the client, so it runs alongside the access
+  // check below instead of after it; the rows are only used once that passes.
   let q = createAdminClient()
     .from("news_items")
     .select("id, published_on, category, title, summary, source_name, source_url")
@@ -87,7 +81,13 @@ export default async function NewsyPage({
     .order("created_at", { ascending: false })
     .limit(120);
   if (filter !== "all") q = q.eq("category", filter);
-  const { data } = await q;
+
+  // Shared per-request lookup (the layout already asked for this client).
+  const [client, { data }] = await Promise.all([
+    getClientBySlug(params.clientSlug),
+    q,
+  ]);
+  if (!client) redirect("/login");
 
   const items = data ?? [];
   const byDate = new Map<string, typeof items>();

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
@@ -6,6 +7,16 @@ import {
   getUnhealthyIntegrations,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
+
+// Per-request memo: the layout starts the health read as soon as it knows the
+// client (preloadIntegrationHealth), and the banner - which only renders after
+// the layout's own awaits - picks up the same promise instead of starting late.
+// Both helpers swallow their own errors.
+const getUnhealthyForRequest = cache(getUnhealthyIntegrations);
+
+export function preloadIntegrationHealth(clientId: string): void {
+  void getUnhealthyForRequest(clientId);
+}
 
 function since(h: ProviderHealth): string {
   if (h.hoursSinceSuccess === null) return "nigdy się nie zsynchronizowało";
@@ -113,7 +124,7 @@ export async function IntegrationHealthBanner({
   isAgency?: boolean;
 }) {
   const [unhealthy, expiring] = await Promise.all([
-    getUnhealthyIntegrations(clientId),
+    getUnhealthyForRequest(clientId),
     // Upcoming expiry is our housekeeping - clients don't need to see it.
     isAgency ? getExpiringTokens(clientId) : Promise.resolve([]),
   ]);

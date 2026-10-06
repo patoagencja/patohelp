@@ -6,7 +6,10 @@ import { Toaster } from "sonner";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { AutoSync } from "@/components/dashboard/auto-sync";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
-import { IntegrationHealthBanner } from "@/components/dashboard/integration-health-banner";
+import {
+  IntegrationHealthBanner,
+  preloadIntegrationHealth,
+} from "@/components/dashboard/integration-health-banner";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
@@ -22,7 +25,6 @@ import {
   getLastSyncAt,
   getViewer,
 } from "@/lib/dashboard/context";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import { getSyncStamp } from "./live-actions";
@@ -42,27 +44,35 @@ export default async function ClientDashboardLayout({
   children: React.ReactNode;
   params: { clientSlug: string };
 }) {
-  // Everything below is independent once we know who is asking - fetch it in
-  // one round instead of six sequential ones.
-  const [viewer, client] = await Promise.all([
+  // The layout holds back the whole shell (the loading skeleton included), so
+  // it waits on as few sequential round trips as possible: the viewer's role
+  // (two trips: auth -> users) and the client row (one) run side by side, and
+  // whatever needs only the client starts the moment that row is in. The page
+  // renders in parallel and shares both lookups (React cache).
+  const clientPromise = getClientBySlug(params.clientSlug);
+  const [viewer, client, lastSyncAt, clientList] = await Promise.all([
     getViewer(),
-    getClientBySlug(params.clientSlug),
+    clientPromise,
+    clientPromise.then((c) => {
+      // The health banner streams in after the shell; start its reads now so
+      // it lands with the page instead of a couple of round trips later.
+      if (c) preloadIntegrationHealth(c.id);
+      return c ? getLastSyncAt(c.id) : null;
+    }),
+    // Agency users get a client switcher in the sidebar. Read through RLS,
+    // which gives agency users every client (the same rows the service-role
+    // read used to return), so it can start right away instead of waiting
+    // for the role. Other viewers only see their own row; dropped below.
+    createClient()
+      .from("clients")
+      .select("slug, name")
+      .order("name", { ascending: true })
+      .then((r) => r.data),
   ]);
   const isAgency = viewer.isAgency;
   const isEcommerce = client?.clientType === "ecommerce";
   const user = viewer.email ? { email: viewer.email } : null;
-
-  const [lastSyncAt, allClients] = await Promise.all([
-    client ? getLastSyncAt(client.id) : Promise.resolve(null),
-    // Agency users get a client switcher in the sidebar.
-    isAgency
-      ? createAdminClient()
-          .from("clients")
-          .select("slug, name")
-          .order("name", { ascending: true })
-          .then((r) => r.data)
-      : Promise.resolve(null),
-  ]);
+  const allClients = isAgency ? clientList : null;
   const checkStamp = getSyncStamp.bind(null, params.clientSlug);
 
   return (

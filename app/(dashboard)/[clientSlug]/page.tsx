@@ -16,7 +16,10 @@ import { GoalsCard } from "@/components/dashboard/goals-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
-import { RecordsSection } from "@/components/dashboard/records-section";
+import {
+  preloadRecords,
+  RecordsSection,
+} from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { StoryHero } from "@/components/dashboard/story-hero";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
@@ -26,6 +29,7 @@ import {
   getDashboardData,
   normalizeRange,
   parseCustomRange,
+  resolveDashboardRange,
 } from "@/lib/dashboard/metrics";
 import {
   getBudgetStatus,
@@ -52,18 +56,27 @@ export default async function OverviewPage({
   params: { clientSlug: string };
   searchParams: { range?: string; from?: string; to?: string };
 }) {
-  const [viewer, client] = await Promise.all([
-    getViewer(),
-    getClientBySlug(params.clientSlug),
-  ]);
+  // Every query below needs only the client row (one round trip); the
+  // viewer's role (auth -> users, two trips) just decides what to render, so
+  // it finishes alongside the data instead of gating it.
+  const viewerPromise = getViewer();
+  // Awaited below; this only stops Node flagging an early rejection.
+  viewerPromise.catch(() => {});
+  const client = await getClientBySlug(params.clientSlug);
   if (!client) {
     redirect("/login");
   }
-  const isAgency = viewer.isAgency;
   const clientType = client.clientType;
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
+  // The window getDashboardData will read - known up front, so events and
+  // YoY needn't wait for the dashboard data to learn it.
+  const period = resolveDashboardRange(range, custom);
+
+  // Records stream in below the hero; start the (possibly cold) history scan
+  // now rather than when React first reaches the section.
+  preloadRecords(client.id, clientType === "ecommerce");
 
   // Campaign rings (gamification) are DRE-only for now.
   const isDre = params.clientSlug === "dre";
@@ -113,17 +126,26 @@ export default async function OverviewPage({
       ? Promise.resolve([])
       : getEngagementGoals(client.id).catch(() => []);
 
-  const data = await getDashboardData(client.id, range, custom);
-  const [[budget, summary, pacing, score, monthPacing], events, agencyWork, yoy] =
-    await Promise.all([
-      sidePromise,
-      getEvents(client.id, data.rangeStart, data.rangeEnd),
-      // A failed read just hides the "Co dla Ciebie zrobiliśmy" card.
-      getRecentAgencyWork(client.id).catch(() => undefined),
-      // Same window a year earlier; null (no lines, no option) on any error.
-      getEngagementYoY(client.id, data.rangeStart, data.rangeEnd),
-    ]);
-  const engagementGoals = await goalsPromise;
+  const [
+    data,
+    [budget, summary, pacing, score, monthPacing],
+    events,
+    agencyWork,
+    yoy,
+    engagementGoals,
+    viewer,
+  ] = await Promise.all([
+    getDashboardData(client.id, range, custom),
+    sidePromise,
+    getEvents(client.id, period.start, period.end),
+    // A failed read just hides the "Co dla Ciebie zrobiliśmy" card.
+    getRecentAgencyWork(client.id).catch(() => undefined),
+    // Same window a year earlier; null (no lines, no option) on any error.
+    getEngagementYoY(client.id, period.start, period.end),
+    goalsPromise,
+    viewerPromise,
+  ]);
+  const isAgency = viewer.isAgency;
 
   return (
     <div className="space-y-6 p-6">

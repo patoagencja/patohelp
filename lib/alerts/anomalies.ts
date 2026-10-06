@@ -72,6 +72,15 @@ export async function detectAnomalies(
   const inRecent = (d: string) => d >= recentStart && d <= recentEnd;
   const inBase = (d: string) => d >= baseStart && d <= baseEnd;
 
+  // Sales-side checks (broken checkout etc.). Separate query so a missing
+  // revenue column can never take down the ad/traffic checks below. Started
+  // now rather than after them: it needs nothing from the ads read, and
+  // awaiting it afterwards made every anomaly scan two round trips deep.
+  const ecomPromise = detectEcomAnomalies(clientId, supabase).catch(
+    // best effort
+    () => [] as Anomaly[]
+  );
+
   const [rows, ga4Rows] = await Promise.all([
     fetchAll<Record<string, unknown>>((from, to) =>
       supabase
@@ -294,13 +303,7 @@ export async function detectAnomalies(
     }
   }
 
-  // Sales-side checks (broken checkout etc.). Separate query so a missing
-  // revenue column can never take down the ad/traffic checks above.
-  try {
-    anomalies.push(...(await detectEcomAnomalies(clientId, supabase)));
-  } catch {
-    // best effort
-  }
+  anomalies.push(...(await ecomPromise));
 
   const rank = { critical: 0, high: 1, medium: 2 };
   return anomalies

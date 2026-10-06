@@ -713,6 +713,9 @@ export async function getChannelEfficiency(
   const windowEnd = latest.date as string;
   const windowStart = addDays(windowEnd, -29);
 
+  // Spend needs only the window, not the source rows - read both at once
+  // instead of one after the other. getDailySpend never throws.
+  const spendPromise = getDailySpend(clientId, windowStart, windowEnd);
   const { data: rows, error: rowsErr } = await admin
     .from("ga4_daily")
     .select("source_medium, sessions, revenue_minor_units, transactions")
@@ -734,7 +737,7 @@ export async function getChannelEfficiency(
     byChannel.set(ch, cur);
   }
 
-  const spend = await getDailySpend(clientId, windowStart, windowEnd);
+  const spend = await spendPromise;
   const spendBy = (p: keyof Omit<DaySpend, "total">) =>
     sumRange(spend, windowStart, windowEnd, (v) => v[p]).total;
 

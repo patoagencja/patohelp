@@ -105,6 +105,14 @@ export async function getNewVsReturning(clientId: string): Promise<NewVsReturnin
     if (latest.error || !latest.data?.length) return null;
     const snapshotDate = latest.data[0].snapshot_date as string;
 
+    // Same window as the GA4 report (30daysAgo..yesterday, seen from the
+    // snapshot day) so spend and orders line up. It depends only on the
+    // snapshot date, so it runs alongside the segment read rather than after
+    // it (getDailySpend never throws).
+    const windowStart = addDays(snapshotDate, -30);
+    const windowEnd = addDays(snapshotDate, -1);
+    const spendPromise = getDailySpend(clientId, windowStart, windowEnd);
+
     const { data, error } = await admin
       .from("ga4_new_vs_returning")
       .select("segment, revenue_minor_units, transactions, users, sessions")
@@ -124,11 +132,7 @@ export async function getNewVsReturning(clientId: string): Promise<NewVsReturnin
       };
     }
 
-    // Same window as the GA4 report (30daysAgo..yesterday, seen from the
-    // snapshot day) so spend and orders line up.
-    const windowStart = addDays(snapshotDate, -30);
-    const windowEnd = addDays(snapshotDate, -1);
-    const spend = await getDailySpend(clientId, windowStart, windowEnd);
+    const spend = await spendPromise;
     let spendMinorUnits = 0;
     for (const v of spend.values()) spendMinorUnits += v.total;
 

@@ -12,11 +12,11 @@ import { Button } from "@/components/ui/button";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing, type FlightMetric, type PacingFlight } from "@/lib/alerts/pacing";
+import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { dayMonthPL, plPlural } from "@/lib/dashboard/story";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { isAgencyUser, type UserRole } from "@/lib/types";
 import { cn, formatNumberPL } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -246,58 +246,46 @@ export default async function AlertyPage({
 }: {
   params: { clientSlug: string };
 }) {
-  const supabase = createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: client } = await supabase
-    .from("clients")
-    .select("id, name")
-    .eq("slug", params.clientSlug)
-    .single();
+  // Shared per-request lookups (the layout asks the same). The role decides
+  // only what to render and which extras to read, so it no longer sits in
+  // front of the alert scans: this used to be seven sequential round trips
+  // (user -> client -> role -> caps -> scans -> ecom check -> campaigns).
+  const viewerPromise = getViewer();
+  // Awaited below; this only stops Node flagging an early rejection.
+  viewerPromise.catch(() => {});
+  const client = await getClientBySlug(params.clientSlug);
 
   if (!client) {
     redirect("/login");
   }
 
-  const { data: profile } = user
-    ? await supabase.from("users").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isAgency = profile ? isAgencyUser(profile.role as UserRole) : false;
-
-  // Budget-spike thresholds are configured per client in settings.
-  const { data: notif } = await createAdminClient()
+  // Budget-spike thresholds are configured per client in settings; the spike
+  // detector needs them, so chain just those two.
+  const spikesPromise = createAdminClient()
     .from("notification_settings")
     .select(
       "daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
     )
     .eq("client_id", client.id)
-    .maybeSingle();
-  const budgetConfig: BudgetConfig = {
-    campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
-    accountCap:
-      (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
-    multiplier:
-      notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
-        ? Number(notif.spike_multiplier)
-        : 3,
-  };
+    .maybeSingle()
+    .then(({ data: notif }) => {
+      const budgetConfig: BudgetConfig = {
+        campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
+        accountCap:
+          (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
+        multiplier:
+          notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
+            ? Number(notif.spike_multiplier)
+            : 3,
+      };
+      return detectBudgetSpikes(client.id, undefined, budgetConfig);
+    });
 
-  const [spikes, anomalies, pacing] = await Promise.all([
-    detectBudgetSpikes(client.id, undefined, budgetConfig),
-    detectAnomalies(client.id),
-    getPacing(client.id),
-  ]);
-  // One list, grouped by urgency: the client shouldn't have to know which
-  // detector found what. Spend spikes go first within their severity.
-  const alerts: Anomaly[] = [...spikes, ...anomalies];
-
-  // Campaign options for the flight form (top spenders, last 30 days).
-  let campaignOptions: Array<{ id: string; name: string }> = [];
-  if (isAgency) {
-    const { data: campRows } = await supabase
+  // Campaign options for the flight form (agency only; top spenders). Needs
+  // the role, not the alerts, so it starts as soon as the role is known.
+  const campaignOptionsPromise = viewerPromise.then(async (viewer) => {
+    if (!viewer.isAgency) return [] as Array<{ id: string; name: string }>;
+    const { data: campRows } = await createClient()
       .from("ads_daily")
       .select("campaign_id, campaign_name, spend_minor_units")
       .eq("client_id", client.id)
@@ -313,11 +301,23 @@ export default async function AlertyPage({
       c.spend += Number(r.spend_minor_units);
       byId.set(id, c);
     }
-    campaignOptions = Array.from(byId.entries())
+    return Array.from(byId.entries())
       .sort((a, b) => b[1].spend - a[1].spend)
       .slice(0, 150)
       .map(([id, v]) => ({ id, name: v.name }));
-  }
+  });
+
+  const [spikes, anomalies, pacing, viewer, campaignOptions] = await Promise.all([
+    spikesPromise,
+    detectAnomalies(client.id),
+    getPacing(client.id),
+    viewerPromise,
+    campaignOptionsPromise,
+  ]);
+  const isAgency = viewer.isAgency;
+  // One list, grouped by urgency: the client shouldn't have to know which
+  // detector found what. Spend spikes go first within their severity.
+  const alerts: Anomaly[] = [...spikes, ...anomalies];
 
   // Clients only see the goals section once the agency has set goals - an
   // empty "no goals" box is noise for them.
