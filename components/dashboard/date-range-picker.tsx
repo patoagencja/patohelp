@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Loader2 } from "lucide-react";
 
 import { RANGE_KEYS, RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
-import { cn } from "@/lib/utils";
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 
 const SHORT_LABELS: Record<RangeKey, string> = {
   "7d": "7 dni",
@@ -72,7 +72,7 @@ export function DateRangePicker({
       <div
         role="radiogroup"
         aria-label="Zakres dat"
-        className="inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm"
+        className={segmentedTrack}
       >
         {RANGE_KEYS.map((key) => {
           const isActive = (target ?? active) === key;
@@ -84,12 +84,7 @@ export function DateRangePicker({
               aria-checked={isActive}
               title={RANGE_LABELS[key]}
               onClick={() => onPreset(key)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
+              className={segmentedItem(isActive)}
             >
               {pending && target === key ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -103,12 +98,7 @@ export function DateRangePicker({
           role="radio"
           aria-checked={active === "custom" && !target}
           onClick={() => setCustomOpen((o) => !o)}
-          className={cn(
-            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-            active === "custom" && !target
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
+          className={segmentedItem(active === "custom" && !target)}
         >
           <CalendarDays className="h-3.5 w-3.5" aria-hidden />
           Własny
@@ -140,7 +130,7 @@ export function DateRangePicker({
             required
             defaultValue={customFrom ?? ""}
             aria-label="Data od"
-            className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm text-foreground focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <input
@@ -149,11 +139,11 @@ export function DateRangePicker({
             required
             defaultValue={customTo ?? ""}
             aria-label="Data do"
-            className="h-9 rounded-lg border border-border bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm text-foreground focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
           />
           <button
             type="submit"
-            className="h-9 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="h-9 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Pokaż
           </button>
