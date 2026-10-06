@@ -1,28 +1,43 @@
+import { CalendarDays } from "lucide-react";
+
 import { AgencyActivity } from "@/components/dashboard/agency-activity";
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
-import { AlertsDigest } from "@/components/dashboard/alerts-digest";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
-import { GoalsCard } from "@/components/dashboard/goals-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
-import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
+import { OverviewDetails } from "@/components/dashboard/overview-details";
+import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
+import {
+  AlertLine,
+  attentionOf,
+  GoodNews,
+  OverviewSummary,
+  StatusPill,
+} from "@/components/dashboard/overview-summary";
+import { buildPlanRows, PlanCard } from "@/components/dashboard/plan-card";
+import { PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsCard } from "@/components/dashboard/records-card";
-import { StoryHero } from "@/components/dashboard/story-hero";
+import { TopCampaigns } from "@/components/dashboard/top-campaigns";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
-import { buildStory } from "@/lib/dashboard/story";
+import { PageHeader } from "@/components/ui/page-header";
+import { Pill } from "@/components/ui/pill";
+import { demoEngagementGoals } from "@/lib/dashboard/goals";
+import type { GlossaryKey } from "@/lib/dashboard/glossary";
+import { buildStory, overviewStatus } from "@/lib/dashboard/story";
 import { demoEngagementYoY } from "@/lib/dashboard/yoy";
 import { DEMO_BRANDING } from "@/lib/demo/branding";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { getDemoRecords } from "@/lib/demo/records";
-import { demoEngagementGoals } from "@/lib/dashboard/goals";
 
 export const dynamic = "force-dynamic";
 
 async function noop() {
   "use server";
 }
+
+const CLIENT = "lokalnepomidorki";
 
 // Same section order as the real overview (app/(dashboard)/[clientSlug]/
 // page.tsx) - keep the two in sync. Every top-level child is one slide in
@@ -33,64 +48,114 @@ export default function DemoFullOverview({
   searchParams: { lang?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
-  const en = lang === "en";
   const d = getDemoDashboard(lang);
   const yoy = demoEngagementYoY(d.trend);
+  // The demo has one fixed window, so the period is a label, not a picker.
+  const period = (
+    <Pill tone="neutral" className="px-3 py-1.5 text-sm [&_svg]:size-4">
+      <CalendarDays aria-hidden />
+      {d.rangeLabel}
+    </Pill>
+  );
+
+  if (lang === "en") return <EnglishOverview d={d} yoy={yoy} period={period} />;
+
+  const story = buildStory({ kpis: d.kpis, trend: d.trend, includeSpend: true, yoy });
+  const planRows = buildPlanRows({ budget: d.budget, goals: demoEngagementGoals() });
+  const shownMetrics = story.facts
+    .map((f) => f.key)
+    .filter((k): k is GlossaryKey => ["spend", "clicks", "sessions", "cpc"].includes(k));
+
   return (
     <>
-      <PrintHeader
-        clientName="lokalnepomidorki"
+      <PrintHeader clientName={CLIENT} periodLabel={d.rangeLabel} logoUrl={DEMO_BRANDING.logoUrl} />
+      <PageHeader
+        title="Przegląd"
+        description={`Jak idą reklamy i strona ${CLIENT} - najważniejsze na jednym ekranie.`}
+        actions={period}
+      />
+
+      <OverviewSummary
+        story={story}
         periodLabel={d.rangeLabel}
-        logoUrl={DEMO_BRANDING.logoUrl}
+        aiSummary={d.summary}
+        status={<StatusPill status={overviewStatus(story, attentionOf(d.alerts))} />}
+        alert={<AlertLine alerts={d.alerts} href="/demo-full/alerty" />}
       />
-      <div data-print-hide className="flex items-start justify-between gap-4">
-       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {en ? "Hi 👋" : "Cześć 👋"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {en
-            ? "Campaign overview for lokalnepomidorki (demo view)."
-            : "Przegląd kampanii lokalnepomidorki (widok demonstracyjny)."}
-        </p>
-       </div>
-       <PrintButton />
-      </div>
 
-      {/* 1. Summary: what happened, is it good, what to tell the board. */}
-      {en ? (
-        <AiSummaryCard summary={d.summary} lang={lang} />
-      ) : (
-        <StoryHero
-          story={buildStory({ kpis: d.kpis, trend: d.trend, includeSpend: true, yoy })}
+      <OverviewMetrics
+        facts={story.facts}
+        periodLabel={d.rangeLabel}
+        trend={d.trend}
+        events={[]}
+        yoy={yoy}
+        demo
+        aside={
+          planRows.length > 0 ? (
+            <PlanCard rows={planRows} clientSlug="demo-full" isAgency={false} />
+          ) : undefined
+        }
+      />
+
+      <TopCampaigns campaigns={d.campaigns} allHref="/demo-full/reklamy" />
+
+      <OverviewDetails summary="Dobre wiadomości, rekordy, pozostałe wskaźniki, ocena dnia, co dla Ciebie zrobiliśmy i najlepsze reklamy.">
+        <GoodNews story={story} />
+        <RecordsCard records={getDemoRecords({ ecommerce: false })} />
+        <KpiCards
+          kpis={d.kpis}
+          trend={d.trend}
           periodLabel={d.rangeLabel}
-          aiSummary={d.summary}
+          exclude={shownMetrics}
         />
-      )}
+        <DailyScoreCard data={d.score} compact />
+        <div id="dzialania" className="scroll-mt-24">
+          <AgencyActivity demo isAgency={false} clientSlug="demo-full" />
+        </div>
+        <TopCreatives creatives={d.creatives} />
+      </OverviewDetails>
+    </>
+  );
+}
 
-      {/* 2. Records and plan vs actual (goals, then the money side). */}
-      {en ? null : <RecordsCard records={getDemoRecords({ ecommerce: false })} />}
-      {en ? null : (
-        <GoalsCard goals={demoEngagementGoals()} clientSlug="demo-full" isAgency={false} />
-      )}
-      <BudgetProgress
-        budget={d.budget}
-        clientSlug="demo-full"
-        isAgency={false}
-        setBudgetAction={noop}
-        lang={lang}
+/**
+ * English demo: the plain-language story (and its tiles) is Polish-only, so
+ * prospects reading English get the same skeleton built from the bilingual
+ * widgets - summary, metrics, chart + budget, campaigns.
+ */
+function EnglishOverview({
+  d,
+  yoy,
+  period,
+}: {
+  d: ReturnType<typeof getDemoDashboard>;
+  yoy: ReturnType<typeof demoEngagementYoY>;
+  period: React.ReactNode;
+}) {
+  return (
+    <>
+      <PrintHeader clientName={CLIENT} periodLabel={d.rangeLabel} logoUrl={DEMO_BRANDING.logoUrl} />
+      <PageHeader
+        title="Overview"
+        description={`How ${CLIENT}'s ads and website are doing - the essentials on one screen.`}
+        actions={period}
       />
-
-      {/* 3. The trend, then anything that needs attention and what we did. */}
-      <MainChart trend={d.trend} events={[]} yoy={yoy} label={d.rangeLabel} lang={lang} demo />
-      <AlertsDigest alerts={d.alerts} clientSlug="demo-full" lang={lang} linkless />
-      {en ? null : <AgencyActivity demo isAgency={false} clientSlug="demo-full" />}
-
-      {/* 4. Details for the curious: every metric with its definition. */}
-      <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} periodLabel={d.rangeLabel} />
-      <DailyScoreCard data={d.score} lang={lang} compact />
-      <CampaignPositions campaigns={d.campaigns} lang={lang} />
-      <TopCreatives creatives={d.creatives} lang={lang} />
+      <AiSummaryCard summary={d.summary} lang="en" />
+      <KpiCards kpis={d.kpis} trend={d.trend} lang="en" />
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
+          <MainChart trend={d.trend} events={[]} yoy={yoy} label={d.rangeLabel} lang="en" demo />
+        </div>
+        <BudgetProgress
+          budget={d.budget}
+          clientSlug="demo-full"
+          isAgency={false}
+          setBudgetAction={noop}
+          lang="en"
+        />
+      </div>
+      <CampaignPositions campaigns={d.campaigns} lang="en" />
+      <TopCreatives creatives={d.creatives} lang="en" />
     </>
   );
 }

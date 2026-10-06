@@ -486,3 +486,39 @@ function buildVerdict(facts: StoryFact[], watch: string | null): StoryVerdict | 
   if (bad > 0) return { tone: "flat", text: "Mieszany okres - są plusy i minusy" };
   return { tone: "flat", text: "Stabilnie - podobnie jak wcześniej" };
 }
+
+export type OverviewStatusTone = "good" | "warn" | "bad" | "neutral";
+
+/** The one status pill on the overview: "is it working, do I need to act?" */
+export interface OverviewStatus {
+  tone: OverviewStatusTone;
+  text: string;
+}
+
+/**
+ * Folds the three "health" signals the overview used to show separately (the
+ * period verdict, the alerts digest and the daily score) into one phrase.
+ * Open alerts win: they are the only thing that asks the client to look at
+ * something. `attention` counts alerts worth a look (not the FYI ones).
+ */
+export function overviewStatus(
+  story: Story,
+  alerts: { attention: number; urgent: boolean } | null
+): OverviewStatus {
+  if (alerts && alerts.attention > 0) {
+    const n = alerts.attention;
+    const what = `${n} ${plPlural(n, "rzecz", "rzeczy", "rzeczy")} do sprawdzenia`;
+    return alerts.urgent
+      ? { tone: "bad", text: `Pilne: ${what}` }
+      : { tone: "warn", text: what };
+  }
+  if (story.facts.length === 0) return { tone: "neutral", text: "Czekamy na pierwsze dane" };
+  const v = story.verdict;
+  if (!v || v.tone === "good") return { tone: "good", text: "Wszystko idzie dobrze" };
+  if (v.tone === "bad") return { tone: "warn", text: "Słabszy okres niż poprzedni" };
+  // "flat" covers both "nothing changed" and "plusy i minusy".
+  const mixed = story.facts.some((f) => f.change?.tone === "bad") || Boolean(story.watch);
+  return mixed
+    ? { tone: "neutral", text: "Są plusy i minusy" }
+    : { tone: "good", text: "Stabilnie, bez niespodzianek" };
+}

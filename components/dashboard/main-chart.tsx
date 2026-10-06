@@ -24,11 +24,26 @@ import type { ClientEvent } from "@/lib/dashboard/overview";
 import type { EngagementYoY, YoYPoint } from "@/lib/dashboard/yoy";
 import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
-type MetricKey = "spend" | "sessions" | "clicks" | "conversions";
+/** Metrics the chart can draw. The picker only offers the first four; the
+ *  rest (ratios, shop metrics) are reachable when the parent selects the
+ *  metric from outside, e.g. the overview's KPI tiles. */
+export type ChartMetric =
+  | "spend"
+  | "sessions"
+  | "clicks"
+  | "conversions"
+  | "cpc"
+  | "impressions"
+  | "revenue"
+  | "orders"
+  | "roas";
+type MetricKey = ChartMetric;
 type Lang = "pl" | "en";
 type CompareMode = "prev" | "yoy" | "none";
 
 const METRIC_KEYS: MetricKey[] = ["spend", "sessions", "clicks", "conversions"];
+// Drawn and summed in złoty (valueOf divides minor units by 100).
+const MONEY_METRICS: ReadonlySet<MetricKey> = new Set(["spend", "cpc", "revenue", "roas"]);
 const LIST_VISIBLE = 5;
 // Stable fallbacks so memoised marker building doesn't rerun every render.
 const NO_POINTS: TrendPoint[] = [];
@@ -37,8 +52,8 @@ const NO_YOY: YoYPoint[] = [];
 
 const COPY = {
   pl: {
-    tab: { spend: "Wydatki", sessions: "Wizyty na stronie", clicks: "Kliknięcia", conversions: "Działania" },
-    long: { spend: "Wydatki", sessions: "Wizyty na stronie", clicks: "Kliknięcia", conversions: "Działania na stronie" },
+    tab: { spend: "Wydatki", sessions: "Wizyty na stronie", clicks: "Kliknięcia", conversions: "Działania", cpc: "Koszt kliknięcia", impressions: "Wyświetlenia", revenue: "Sprzedaż", orders: "Zamówienia", roas: "Zwrot z reklam" },
+    long: { spend: "Wydatki", sessions: "Wizyty na stronie", clicks: "Kliknięcia", conversions: "Działania na stronie", cpc: "Koszt kliknięcia", impressions: "Wyświetlenia reklam", revenue: "Sprzedaż w sklepie", orders: "Zamówienia", roas: "Zwrot z reklam" },
     current: "Ten okres",
     previous: "Poprzedni okres",
     yearAgo: "Rok wcześniej",
@@ -68,12 +83,17 @@ const COPY = {
       clicks: "Kliknięcia pojawią się po pierwszej synchronizacji kont reklamowych.",
       sessions: "Dane z Google Analytics pojawią się po pierwszej synchronizacji.",
       conversions: "W tym okresie nie zarejestrowano działań na stronie.",
+      cpc: "Koszt kliknięcia pojawi się po pierwszych kliknięciach w reklamy.",
+      impressions: "Wyświetlenia pojawią się po pierwszej synchronizacji kont reklamowych.",
+      revenue: "Sprzedaż pojawi się po pierwszej synchronizacji Google Analytics.",
+      orders: "Zamówienia pojawią się po pierwszej synchronizacji Google Analytics.",
+      roas: "Zwrot z reklam pojawi się, gdy będą i wydatki, i sprzedaż.",
     },
     emptyTail: "brak danych w tym okresie",
   },
   en: {
-    tab: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions" },
-    long: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions" },
+    tab: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions", cpc: "Cost per click", impressions: "Impressions", revenue: "Revenue", orders: "Orders", roas: "Return on ad spend" },
+    long: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions", cpc: "Cost per click", impressions: "Ad impressions", revenue: "Revenue", orders: "Orders", roas: "Return on ad spend" },
     current: "This period",
     previous: "Previous period",
     yearAgo: "A year earlier",
@@ -103,6 +123,11 @@ const COPY = {
       clicks: "Clicks appear after the first ad account sync.",
       sessions: "Google Analytics data appears after the first sync.",
       conversions: "No key actions were recorded in this period.",
+      cpc: "Cost per click appears after the first ad clicks.",
+      impressions: "Impressions appear after the first ad account sync.",
+      revenue: "Revenue appears after the first Google Analytics sync.",
+      orders: "Orders appear after the first Google Analytics sync.",
+      roas: "Return on ad spend appears once there is both spend and revenue.",
     },
     emptyTail: "no data in this period",
   },
@@ -115,24 +140,100 @@ const MIN_PREV_TOTAL: Record<MetricKey, number> = {
   sessions: 50,
   clicks: 50,
   conversions: 10,
+  impressions: 1_000,
+  revenue: 100,
+  orders: 10,
+  // Ratios are judged on their base instead (see baseTotal).
+  cpc: 50,
+  roas: 100,
 };
 
 const hasAnyData = (p: TrendPoint) =>
   p.spendMinorUnits > 0 || p.sessions > 0 || p.clicks > 0 || p.impressions > 0;
 
 function valueOf(p: TrendPoint, metric: MetricKey): number {
-  if (metric === "spend") return p.spendMinorUnits / 100;
-  if (metric === "sessions") return p.sessions;
-  if (metric === "clicks") return p.clicks;
-  return p.conversions;
+  switch (metric) {
+    case "spend":
+      return p.spendMinorUnits / 100;
+    case "sessions":
+      return p.sessions;
+    case "clicks":
+      return p.clicks;
+    case "impressions":
+      return p.impressions;
+    case "revenue":
+      return p.revenueMinorUnits / 100;
+    case "orders":
+      return p.transactions;
+    case "cpc":
+      return p.clicks > 0 ? p.spendMinorUnits / 100 / p.clicks : 0;
+    case "roas":
+      return p.spendMinorUnits > 0 ? p.revenueMinorUnits / p.spendMinorUnits : 0;
+    default:
+      return p.conversions;
+  }
+}
+
+/**
+ * Period total on the same basis as the KPI tiles: ratios are the ratio of
+ * the sums (a 30-day CPC is not the sum of 30 daily CPCs).
+ */
+function totalOf(points: TrendPoint[], metric: MetricKey): number {
+  if (metric === "cpc" || metric === "roas") {
+    let spend = 0;
+    let clicks = 0;
+    let revenue = 0;
+    for (const p of points) {
+      spend += p.spendMinorUnits;
+      clicks += p.clicks;
+      revenue += p.revenueMinorUnits;
+    }
+    if (metric === "cpc") return clicks > 0 ? spend / 100 / clicks : 0;
+    return spend > 0 ? revenue / spend : 0;
+  }
+  return points.reduce((a, p) => a + valueOf(p, metric), 0);
+}
+
+/** What the thin-base check looks at: ratios swing on their denominator. */
+function baseTotal(points: TrendPoint[], metric: MetricKey): number {
+  if (metric === "cpc") return totalOf(points, "clicks");
+  if (metric === "roas") return totalOf(points, "spend");
+  return totalOf(points, metric);
 }
 
 /** Same as valueOf for last year's points; null = nothing synced that day. */
 function yoyValueOf(p: YoYPoint, metric: MetricKey): number | null {
-  if (metric === "spend") return p.spendMinorUnits === null ? null : p.spendMinorUnits / 100;
-  if (metric === "sessions") return p.sessions;
-  if (metric === "clicks") return p.clicks;
-  return p.conversions;
+  switch (metric) {
+    case "spend":
+      return p.spendMinorUnits === null ? null : p.spendMinorUnits / 100;
+    case "sessions":
+      return p.sessions;
+    case "clicks":
+      return p.clicks;
+    case "impressions":
+      return p.impressions;
+    case "conversions":
+      return p.conversions;
+    case "cpc":
+      return p.spendMinorUnits !== null && p.clicks ? p.spendMinorUnits / 100 / p.clicks : null;
+    default:
+      // Last year's shop numbers aren't part of the engagement YoY read.
+      return null;
+  }
+}
+
+function yoyTotalOf(points: YoYPoint[], metric: MetricKey): number {
+  if (metric === "cpc") {
+    let spend = 0;
+    let clicks = 0;
+    for (const p of points) {
+      if (p.spendMinorUnits === null || p.clicks === null) continue;
+      spend += p.spendMinorUnits;
+      clicks += p.clicks;
+    }
+    return clicks > 0 ? spend / 100 / clicks : 0;
+  }
+  return points.reduce<number>((a, p) => a + (yoyValueOf(p, metric) ?? 0), 0);
 }
 
 const ddmm = (date: string) => {
@@ -144,6 +245,10 @@ const ddmm = (date: string) => {
 function compact(v: number, money: boolean): string {
   const unit = money ? " zł" : "";
   const abs = Math.abs(v);
+  // Cost per click and return on ads live around 0-10 zł: "1 zł" on every
+  // gridline would hide the whole story.
+  if (abs < 10 && v !== Math.round(v))
+    return `${v.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}${unit}`;
   if (abs >= 1_000_000)
     return `${(v / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln${unit}`;
   if (abs >= 1_000)
@@ -187,6 +292,9 @@ export function MainChart({
   label,
   lang = "pl",
   demo = false,
+  metric: metricProp,
+  hidePicker = false,
+  hideCompare = false,
 }: {
   trend: TrendPoint[];
   /** Comparison period, aligned to `trend` by day index. */
@@ -201,16 +309,26 @@ export function MainChart({
   lang?: Lang;
   /** Public demo pages: synthesize comparison + annotations from `trend`. */
   demo?: boolean;
+  /**
+   * Controlled metric: the parent picks what is drawn (the overview's KPI
+   * tiles act as the chart's tabs). Omit to use the built-in picker.
+   */
+  metric?: ChartMetric;
+  /** Hide the built-in metric buttons (use with `metric`). */
+  hidePicker?: boolean;
+  /** Hide "Porównaj z:" - the chart then always shows the previous period. */
+  hideCompare?: boolean;
 }) {
   const t = COPY[lang];
   // Open on a tab that has something to show: a GA4-only client (no ads
   // connected yet) shouldn't land on an empty "Wydatki" chart.
-  const [metric, setMetric] = useState<MetricKey>(() =>
+  const [ownMetric, setMetric] = useState<MetricKey>(() =>
     rawTrend.some((p) => p.spendMinorUnits > 0) ||
     !rawTrend.some((p) => p.sessions > 0)
       ? "spend"
       : "sessions"
   );
+  const metric: MetricKey = metricProp ?? ownMetric;
   const [compare, setCompare] = useState<CompareMode>("prev");
   const [active, setActive] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -274,12 +392,12 @@ export function MainChart({
     return map;
   }, [markers, trend]);
 
-  const isMoney = metric === "spend";
+  const isMoney = MONEY_METRICS.has(metric);
   const cur = trend.map((p) => valueOf(p, metric));
   const prv = prev.slice(0, n).map((p) => valueOf(p, metric));
   // --- Takeaway line (full-period totals, same basis as the KPI cards) ---
-  const total = cur.reduce((a, v) => a + v, 0);
-  const prevTotal = prev.reduce((a, p) => a + valueOf(p, metric), 0);
+  const total = totalOf(trend, metric);
+  const prevTotal = totalOf(prev, metric);
   // A zero-filled comparison period is no comparison: no dashed line at 0,
   // no toggle for it.
   const hasPrev = prev.length > 0 && prevTotal > 0;
@@ -290,13 +408,21 @@ export function MainChart({
     [yoy, trimFrom]
   );
   const yoyCovered =
-    yoy != null && (metric === "sessions" ? yoy.sessions !== null : yoy.spendMinorUnits !== null);
+    yoy != null &&
+    metric !== "revenue" &&
+    metric !== "orders" &&
+    metric !== "roas" &&
+    (metric === "sessions" ? yoy.sessions !== null : yoy.spendMinorUnits !== null);
   const yoyVals = yoyPts.slice(0, n).map((p) => yoyValueOf(p, metric));
-  const yoyTotal = yoyVals.reduce<number>((a, v) => a + (v ?? 0), 0);
+  const yoyTotal = yoyTotalOf(yoyPts.slice(0, n), metric);
   const hasYoy = yoyCovered && yoyTotal > 0;
   // A "year earlier" choice made on another tab falls back to the default
   // here rather than silently showing nothing.
-  const mode: CompareMode = compare === "yoy" && !hasYoy ? "prev" : compare;
+  const mode: CompareMode = hideCompare
+    ? "prev"
+    : compare === "yoy" && !hasYoy
+      ? "prev"
+      : compare;
   const showPrev = mode === "prev" && hasPrev;
   const showYoy = mode === "yoy";
   const cmp: (number | null)[] = showPrev ? prv : showYoy ? yoyVals : [];
@@ -323,7 +449,9 @@ export function MainChart({
   } else if (mode === "none") {
     takeawayTail = "";
   } else if (mode === "yoy") {
-    if (yoyTotal < MIN_PREV_TOTAL[metric]) {
+    const yoyBase =
+      metric === "cpc" ? yoyTotalOf(yoyPts.slice(0, n), "clicks") : yoyTotal;
+    if (yoyBase < MIN_PREV_TOTAL[metric]) {
       takeawayTail = t.thinYoy;
     } else {
       const pct = ((total - yoyTotal) / yoyTotal) * 100;
@@ -332,7 +460,7 @@ export function MainChart({
     }
   } else if (!hasPrev) {
     takeawayTail = t.noPrev;
-  } else if (prevTotal < MIN_PREV_TOTAL[metric]) {
+  } else if (baseTotal(prev, metric) < MIN_PREV_TOTAL[metric]) {
     takeawayTail = t.thinPrev;
   } else {
     const pct = ((total - prevTotal) / prevTotal) * 100;
@@ -437,6 +565,7 @@ export function MainChart({
         </h2>
         {/* Toggle buttons, not ARIA tabs: there is one shared chart, no
             separate tab panels, and tabs would promise arrow-key roving. */}
+        {hidePicker ? null : (
         <div
           role="group"
           aria-label={t.long[metric]}
@@ -459,6 +588,7 @@ export function MainChart({
             </button>
           ))}
         </div>
+        )}
       </div>
 
       <p className="mt-3 text-sm text-foreground tabular-nums">
@@ -496,7 +626,7 @@ export function MainChart({
             </span>
           ) : null}
         </div>
-        {hasPrev || hasYoy ? (
+        {!hideCompare && (hasPrev || hasYoy) ? (
           // Toggle buttons (one shared chart, no panels), like the metric picker.
           <div
             role="group"

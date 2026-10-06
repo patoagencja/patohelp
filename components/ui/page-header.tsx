@@ -46,7 +46,12 @@ export function PageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2" data-print-hide>
+        // min-w-0 on the controls lets a wide one (the date range segments)
+        // scroll inside the phone screen instead of widening the page.
+        <div
+          className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2 [&>*]:min-w-0 [&>*]:max-w-full"
+          data-print-hide
+        >
           {actions}
         </div>
       ) : null}

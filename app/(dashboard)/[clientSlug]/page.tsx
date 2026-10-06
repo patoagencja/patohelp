@@ -5,26 +5,31 @@ import {
   AddActivityButton,
   AgencyActivity,
 } from "@/components/dashboard/agency-activity";
-import { AlertsDigest } from "@/components/dashboard/alerts-digest";
-import { BudgetProgress } from "@/components/dashboard/budget-progress";
-import { CampaignRings } from "@/components/dashboard/campaign-rings";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
-import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
-import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
-import { GoalsCard } from "@/components/dashboard/goals-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
-import { MainChart } from "@/components/dashboard/main-chart";
-import { PrintButton, PrintHeader } from "@/components/dashboard/print-button";
+import { OverviewDetails } from "@/components/dashboard/overview-details";
+import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
+import {
+  AlertLine,
+  attentionOf,
+  GoodNews,
+  OverviewSummary,
+  StatusPill,
+} from "@/components/dashboard/overview-summary";
+import { buildPlanRows, PlanCard } from "@/components/dashboard/plan-card";
+import { PrintHeader } from "@/components/dashboard/print-button";
 import {
   preloadRecords,
   RecordsSection,
 } from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
-import { StoryHero } from "@/components/dashboard/story-hero";
+import { TopCampaigns } from "@/components/dashboard/top-campaigns";
+import { PageHeader } from "@/components/ui/page-header";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing, type PacingFlight } from "@/lib/alerts/pacing";
+import type { GlossaryKey } from "@/lib/dashboard/glossary";
 import {
   getDashboardData,
   normalizeRange,
@@ -40,7 +45,7 @@ import {
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDailyScore } from "@/lib/dashboard/score";
 import { getEngagementGoals } from "@/lib/dashboard/goals";
-import { buildStory } from "@/lib/dashboard/story";
+import { buildStory, overviewStatus, type Story } from "@/lib/dashboard/story";
 import { getEngagementYoY } from "@/lib/dashboard/yoy";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -147,176 +152,145 @@ export default async function OverviewPage({
   ]);
   const isAgency = viewer.isAgency;
 
+  const isEcommerce = clientType === "ecommerce";
+  const story = buildStory({
+    kpis: data.kpis,
+    trend: data.trend,
+    ecommerce: isEcommerce ? data.ecommerce : null,
+    includeSpend: true,
+    yoy,
+  });
+  // Everything "are we on plan?" in one card; DRE's campaign flights too.
+  const planRows = buildPlanRows({
+    budget,
+    goals: engagementGoals,
+    monthPacing,
+    flights: isDre ? pacing : [],
+  });
+  const showPlan = planRows.length > 0 || isAgency;
+  // The details' metric tiles only add what the KPI tiles above don't show.
+  const shownMetrics = story.facts
+    .map((f) => f.key)
+    .filter((k): k is GlossaryKey => ["spend", "clicks", "sessions", "cpc"].includes(k));
+
+  // Order (same as app/demo-full/page.tsx - keep in sync): header -> summary
+  // (sentence, status, AI comment, alert line) -> numbers + chart + plan ->
+  // top campaigns -> one "Pokaż szczegóły". Top-level children stay flat
+  // siblings: presentation mode turns each into one slide. Each section has
+  // its own boundary: one widget choking on odd data must not blank the page.
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-8 px-4 py-6 sm:px-6 md:py-8 lg:px-6">
       <PrintHeader
         clientName={client.name}
         periodLabel={data.rangeLabel}
         clientSlug={params.clientSlug}
         logoUrl={client.logoUrl}
       />
-      <div
-        data-print-hide
-        className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
-      >
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{greeting()}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Oto co słychać w kampaniach {client.name}.
-          </p>
-        </div>
-        <div className="flex items-start gap-2">
-          {isAgency ? <AddActivityButton clientSlug={params.clientSlug} /> : null}
-          <PrintButton />
-          <DateRangePicker
-            value={range}
-            customFrom={custom?.start}
-            customTo={custom?.end}
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="Przegląd"
+        description={`Jak idą reklamy i strona ${client.name} - najważniejsze na jednym ekranie.`}
+        actions={
+          <DateRangePicker value={range} customFrom={custom?.start} customTo={custom?.end} />
+        }
+      />
 
-      {/* Each section gets its own boundary: one widget choking on odd data
-          (or a streamed query failing) must not blank the whole overview.
-          Order (same as app/demo-full/page.tsx - keep in sync): summary ->
-          records & plan vs actual -> trend -> attention/what we did ->
-          detailed metrics. Sections stay flat siblings: presentation mode
-          turns each top-level child into one slide. */}
-
-      {/* 1. Summary - the AI weekly commentary lives inside it, so the page
-          has one summary instead of two saying the same in other words. */}
-      <SectionBoundary name="overview/story">
-        <StoryHero
-          story={buildStory({
-            kpis: data.kpis,
-            trend: data.trend,
-            ecommerce: clientType === "ecommerce" ? data.ecommerce : null,
-            includeSpend: true,
-            yoy,
-          })}
+      <SectionBoundary name="overview/summary">
+        <OverviewSummary
+          story={story}
           periodLabel={data.rangeLabel}
           aiSummary={summary}
+          // Anomaly detection scans weeks of rows - stream the status in.
+          status={
+            <Suspense fallback={<StatusPill status={null} />}>
+              <LiveStatus story={story} alerts={anomaliesPromise} />
+            </Suspense>
+          }
+          alert={
+            <Suspense fallback={null}>
+              <LiveAlertLine alerts={anomaliesPromise} href={`/${params.clientSlug}/alerty`} />
+            </Suspense>
+          }
         />
       </SectionBoundary>
 
-      {/* 2. Records, then plan vs actual. History scan is cached but can be
-          cold - never hold the page for it. */}
-      <SectionBoundary name="overview/records">
-        <Suspense fallback={null}>
-          <RecordsSection clientId={client.id} ecommerce={clientType === "ecommerce"} />
-        </Suspense>
-      </SectionBoundary>
-
-      {monthPacing ? (
-        <SectionBoundary name="overview/month-pacing">
-          <MonthPacingCard
-            pacing={monthPacing}
-            clientSlug={params.clientSlug}
-            isAgency={isAgency}
-          />
-        </SectionBoundary>
-      ) : null}
-
-      {clientType !== "ecommerce" ? (
-        <SectionBoundary name="overview/goals">
-          <GoalsCard
-            goals={engagementGoals}
-            clientSlug={params.clientSlug}
-            isAgency={isAgency}
-          />
-        </SectionBoundary>
-      ) : null}
-
-      {/* Anchors: the agency to-do list deep-links here. */}
-      <div id="budzet" className="scroll-mt-6">
-        <SectionBoundary name="overview/budget">
-          <BudgetProgress
-            budget={budget}
-            clientSlug={params.clientSlug}
-            isAgency={isAgency}
-            setBudgetAction={setMonthlyBudget}
-          />
-        </SectionBoundary>
-      </div>
-
-      {isDre && pacing.length > 0 ? (
-        <SectionBoundary name="overview/rings">
-          <CampaignRings flights={pacing} />
-        </SectionBoundary>
-      ) : null}
-
-      {/* 3. GA-style: the big picture, then what needs attention and what
-          the agency did about it. */}
-      <SectionBoundary name="overview/main-chart">
-        <MainChart
+      <SectionBoundary name="overview/metrics">
+        <OverviewMetrics
+          facts={story.facts}
+          periodLabel={data.rangeLabel}
           trend={data.trend}
           prevTrend={data.prevTrend}
           events={events}
           autoEvents={data.autoEvents}
           yoy={yoy}
-          label={data.rangeLabel}
+          aside={
+            showPlan ? (
+              <SectionBoundary name="overview/plan">
+                <PlanCard
+                  rows={planRows}
+                  budget={budget}
+                  clientSlug={params.clientSlug}
+                  isAgency={isAgency}
+                  setBudgetAction={setMonthlyBudget}
+                  showGoalsLink={!isEcommerce}
+                />
+              </SectionBoundary>
+            ) : undefined
+          }
         />
       </SectionBoundary>
 
-      {/* Anomaly detection scans weeks of rows - stream it in. */}
-      <SectionBoundary name="overview/alerts-digest">
-        <Suspense fallback={null}>
-          <DigestSection alerts={anomaliesPromise} clientSlug={params.clientSlug} />
-        </Suspense>
+      <SectionBoundary name="overview/campaigns">
+        <TopCampaigns campaigns={data.campaigns} allHref={`/${params.clientSlug}/reklamy`} />
       </SectionBoundary>
 
-      <div id="dzialania" className="scroll-mt-6">
-        <SectionBoundary name="overview/agency-activity">
-          <AgencyActivity
-            work={agencyWork}
-            autoEvents={data.autoEvents}
-            isAgency={isAgency}
-            clientSlug={params.clientSlug}
+      <OverviewDetails summary="Dobre wiadomości, rekordy, pozostałe wskaźniki, ocena dnia i co dla Ciebie zrobiliśmy.">
+        <SectionBoundary name="overview/good-news">
+          <GoodNews story={story} />
+        </SectionBoundary>
+        {/* History scan is cached but can be cold - never hold the page. */}
+        <SectionBoundary name="overview/records">
+          <Suspense fallback={null}>
+            <RecordsSection clientId={client.id} ecommerce={isEcommerce} />
+          </Suspense>
+        </SectionBoundary>
+        <SectionBoundary name="overview/kpis">
+          <KpiCards
+            kpis={data.kpis}
+            trend={data.trend}
+            periodLabel={data.rangeLabel}
+            exclude={shownMetrics}
           />
         </SectionBoundary>
-      </div>
-
-      {/* 4. Details for the curious. The hero already carries the headline
-          numbers; these tiles add the rest, each with its ⓘ definition. */}
-      {clientType === "ecommerce" ? (
-        <SectionBoundary name="overview/ecommerce-kpis">
-          <EcommerceKpis data={data.ecommerce} />
-        </SectionBoundary>
-      ) : null}
-
-      <SectionBoundary name="overview/kpis">
-        <KpiCards kpis={data.kpis} trend={data.trend} periodLabel={data.rangeLabel} />
-      </SectionBoundary>
-
-      {score ? (
-        <SectionBoundary name="overview/score">
-          <DailyScoreCard data={score} compact />
-        </SectionBoundary>
-      ) : null}
+        {score ? (
+          <SectionBoundary name="overview/score">
+            <DailyScoreCard data={score} compact />
+          </SectionBoundary>
+        ) : null}
+        {/* Anchor: the agency to-do list deep-links here; it opens the
+            details on arrival. */}
+        <div id="dzialania" className="scroll-mt-24">
+          <SectionBoundary name="overview/agency-activity">
+            <AgencyActivity
+              work={agencyWork}
+              autoEvents={data.autoEvents}
+              isAgency={isAgency}
+              clientSlug={params.clientSlug}
+              action={isAgency ? <AddActivityButton clientSlug={params.clientSlug} /> : undefined}
+            />
+          </SectionBoundary>
+        </div>
+      </OverviewDetails>
     </div>
   );
 }
 
-async function DigestSection({
-  alerts,
-  clientSlug,
-}: {
-  alerts: Promise<Anomaly[]>;
-  clientSlug: string;
-}) {
-  const list = await alerts.catch(() => [] as Anomaly[]);
-  return <AlertsDigest alerts={list} clientSlug={clientSlug} />;
+async function LiveStatus({ story, alerts }: { story: Story; alerts: Promise<Anomaly[]> }) {
+  // A failed scan shouldn't claim "all good" - fall back to the verdict only.
+  const list = await alerts.catch(() => null);
+  return <StatusPill status={overviewStatus(story, list ? attentionOf(list) : null)} />;
 }
 
-/** Time-of-day greeting in Warsaw - a small human touch on the first screen. */
-function greeting(): string {
-  const hour = Number(
-    new Intl.DateTimeFormat("pl-PL", {
-      hour: "numeric",
-      hourCycle: "h23",
-      timeZone: "Europe/Warsaw",
-    }).format(new Date())
-  );
-  if (hour >= 5 && hour < 18) return "Dzień dobry 👋";
-  return "Dobry wieczór 👋";
+async function LiveAlertLine({ alerts, href }: { alerts: Promise<Anomaly[]>; href: string }) {
+  const list = await alerts.catch(() => [] as Anomaly[]);
+  return <AlertLine alerts={list} href={href} />;
 }

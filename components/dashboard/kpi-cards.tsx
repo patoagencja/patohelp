@@ -176,10 +176,16 @@ export function KpiCards({
   trend,
   lang = "pl",
   periodLabel,
+  exclude,
 }: {
   kpis: DashboardKpis;
   trend: TrendPoint[];
   lang?: "pl" | "en";
+  /**
+   * Metrics already shown elsewhere on the page (the overview's KPI tiles),
+   * so the details layer only adds what is new.
+   */
+  exclude?: GlossaryKey[];
   /**
    * Overview only: turns the hidden heading into a visible "Szczegółowe
    * wskaźniki" intro naming the comparison period. The hero already carries spend, clicks,
@@ -190,6 +196,7 @@ export function KpiCards({
 }) {
   const en = lang === "en";
   const headingId = useId();
+  const show = (k: GlossaryKey) => !exclude?.includes(k);
   const L = {
     afterGa4: en
       ? "Google Analytics data appears after the first sync"
@@ -271,6 +278,7 @@ export function KpiCards({
       </div>
     )}
     <Grid numItemsSm={2} numItemsLg={3} className="gap-4">
+{show("spend") ? (
       <KpiCard
         metric="spend"
         tone="amount"
@@ -283,6 +291,8 @@ export function KpiCards({
         thinBase={kpis.spendMinorUnits.previous < MIN_PREV_SPEND}
         lang={lang}
       />
+      ) : null}
+{show("clicks") ? (
       <KpiCard
         metric="clicks"
         tone="amount"
@@ -294,6 +304,8 @@ export function KpiCards({
         thinBase={thinClicks}
         lang={lang}
       />
+      ) : null}
+{show("sessions") ? (
       <KpiCard
         metric="sessions"
         tone="amount"
@@ -305,6 +317,8 @@ export function KpiCards({
         thinBase={kpis.sessions.previous < MIN_PREV_SESSIONS}
         lang={lang}
       />
+      ) : null}
+{show("ctr") ? (
       <KpiCard
         metric="ctr"
         tone="rate"
@@ -316,6 +330,8 @@ export function KpiCards({
         thinBase={thinClicks}
         lang={lang}
       />
+      ) : null}
+{show("cpc") ? (
       <KpiCard
         metric="cpc"
         tone="cost"
@@ -328,6 +344,8 @@ export function KpiCards({
         thinBase={thinClicks}
         lang={lang}
       />
+      ) : null}
+{show("conversions") ? (
       <KpiCard
         metric="conversions"
         tone="amount"
@@ -339,6 +357,7 @@ export function KpiCards({
         thinBase={kpis.conversions.previous < MIN_PREV_CONVERSIONS}
         lang={lang}
       />
+      ) : null}
     </Grid>
     </section>
   );

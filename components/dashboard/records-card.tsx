@@ -40,9 +40,9 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
   const items = records.slice(0, 4);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-amber-500/25 bg-card">
-      <div className="flex items-center gap-3 border-b border-amber-500/15 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-transparent px-5 py-4">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30">
+    <section className="surface overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
           <Trophy className="h-5 w-5 text-amber-700 dark:text-amber-400" aria-hidden />
         </span>
         <div>
@@ -67,15 +67,10 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
             <li
               key={r.id}
               className={cn(
-                "group relative flex shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.08] via-card to-card p-4 transition-colors hover:border-amber-500/40 sm:w-auto",
+                "group relative flex shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-border bg-card p-4 sm:w-auto",
                 items.length > 1 ? "w-[80%]" : "w-full"
               )}
             >
-              {/* Oversized faded icon: decoration only, keeps tiles from feeling flat. */}
-              <Icon
-                aria-hidden
-                className="pointer-events-none absolute -right-3 -top-3 h-20 w-20 text-amber-500/[0.07] transition-transform group-hover:scale-105"
-              />
               <span className="relative flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400">
                 <Icon className="h-4 w-4" aria-hidden />
               </span>

@@ -365,6 +365,7 @@ export function AgencyActivity({
   isAgency,
   clientSlug,
   demo = false,
+  action,
 }: {
   work?: AgencyWork;
   autoEvents?: ChartEvent[];
@@ -372,6 +373,8 @@ export function AgencyActivity({
   clientSlug: string;
   /** Public demo pages: render six synthetic entries, no editing. */
   demo?: boolean;
+  /** Header control on the right, e.g. the agency's "Dodaj działanie". */
+  action?: React.ReactNode;
 }) {
   const demoData = useMemo(
     () =>
@@ -413,18 +416,20 @@ export function AgencyActivity({
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-3 border-b border-border bg-gradient-to-r from-primary/10 via-primary/5 to-transparent px-5 py-4">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
-          <ClipboardCheck className="h-5 w-5 text-primary" aria-hidden />
+    // No overflow-hidden: the "Dodaj działanie" popover opens out of the header.
+    <section className="rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
+          <ClipboardCheck className="h-5 w-5 text-muted-foreground" aria-hidden />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold">Co dla Ciebie zrobiliśmy</h2>
           <p className="text-xs text-muted-foreground tabular-nums">
             Ostatnie 30 dni
             {items.length > 0 ? ` · ${actionsCount(items.length)}` : ""}
           </p>
         </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
 
       {items.length === 0 ? (
@@ -432,7 +437,7 @@ export function AgencyActivity({
           <Plus className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
             Dodaj pierwsze działanie - klient zobaczy je tutaj. Użyj przycisku
-            „Dodaj działanie” na górze strony.
+            „Dodaj działanie”{action ? " obok" : " na górze strony"}.
           </p>
         </div>
       ) : (
