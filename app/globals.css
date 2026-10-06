@@ -3,54 +3,81 @@
 @tailwind utilities;
 
 @layer base {
+  /* ===== Design tokens ======================================================
+     Calm, content-first system: white surfaces on a soft grey page, separated
+     by space and a very soft shadow rather than 1px borders. One accent (the
+     brand indigo); green/red/orange only for meaning. Every value below is
+     consumed through Tailwind (tailwind.config.ts) - components never use raw
+     colours. Contrast notes are measured against the surface they sit on. */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Page: soft grey so white cards read as layers without borders. */
+    --background: 240 11% 96%;
+    --foreground: 240 4% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 4% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 240 4% 11%;
     --primary: 243 75% 59%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    /* A touch darker than shadcn's slate-500 so muted text still clears
-       WCAG AA (4.5:1) on bg-muted chips and segmented controls. */
-    --muted-foreground: 215.4 16.3% 44%;
-    --accent: 226 100% 97%;
-    --accent-foreground: 245 58% 51%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    /* Soft grey fill: secondary buttons, inputs, segmented-control tracks. */
+    --secondary: 240 6% 93%;
+    --secondary-foreground: 240 4% 11%;
+    --muted: 240 6% 94%;
+    /* 5.3:1 on white, 4.7:1 on the page and on bg-muted tracks (AA). */
+    --muted-foreground: 240 4% 40%;
+    --accent: 240 100% 97.5%;
+    --accent-foreground: 245 58% 48%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    /* Dividers inside cards (table rows, separators). */
+    --border: 240 6% 90%;
+    --input: 240 6% 88%;
     --ring: 243 75% 59%;
+    /* Inner elements (buttons, inputs, chips, tiles). */
     --radius: 0.75rem;
+    /* Top-level surfaces (cards, sections). */
+    --radius-card: 1.25rem;
+    /* Card edge: barely-there hairline so white-on-grey keeps a crisp edge
+       on low-contrast screens; the shadow does the real separation. */
+    --hairline: 0 0% 0% / 0.05;
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.04), 0 2px 12px -2px rgb(0 0 0 / 0.05);
+    --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.06), 0 8px 28px -6px rgb(0 0 0 / 0.12);
+    /* Selected segment of a segmented control (sits on bg-muted). */
+    --segment: 0 0% 100%;
+    /* Translucent chrome (sticky header, tab bar). */
+    --chrome: 240 11% 96%;
   }
 
   .dark {
-    /* Cards sit one step above the page so sections read as layers (the old
-       palette used one colour for both and the page looked flat), and the
-       brand indigo survives dark mode instead of turning white. */
-    --background: 224 40% 5%;
-    --foreground: 210 40% 98%;
-    --card: 224 32% 8.5%;
-    --card-foreground: 210 40% 98%;
-    --popover: 224 32% 10%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 239 84% 64%;
+    /* Near-black page, cards one clear step above; neutral greys (no navy
+       tint) keep the data colours the only colour on screen. */
+    --background: 240 5% 4%;
+    --foreground: 240 5% 96%;
+    --card: 240 4% 10.5%;
+    --card-foreground: 240 5% 96%;
+    --popover: 240 4% 13%;
+    --popover-foreground: 240 5% 96%;
+    /* Same indigo as light: white text on it stays at 6:1. Small indigo
+       text gets a lighter shade below (text-primary override). */
+    --primary: 243 75% 59%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 222 26% 15%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 222 26% 14%;
-    --muted-foreground: 217 16% 66%;
-    --accent: 238 40% 18%;
-    --accent-foreground: 230 90% 85%;
-    --destructive: 0 62.8% 45%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 222 22% 17%;
-    --input: 222 22% 19%;
-    --ring: 239 84% 70%;
+    --secondary: 240 4% 17%;
+    --secondary-foreground: 240 5% 96%;
+    --muted: 240 4% 16%;
+    /* 7.6:1 on cards, 6.2:1 on bg-muted tracks. */
+    --muted-foreground: 240 5% 68%;
+    --accent: 243 32% 20%;
+    --accent-foreground: 235 90% 86%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 4% 18%;
+    --input: 240 4% 22%;
+    --ring: 239 84% 72%;
+    --hairline: 0 0% 100% / 0.06;
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+    --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.7);
+    --segment: 240 4% 28%;
+    --chrome: 240 5% 4%;
   }
 }
 
@@ -59,7 +86,15 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+  /* Headings: tighter tracking reads calmer and more "designed" at size. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.015em;
   }
   /* Baseline keyboard focus in the brand ring colour for anything that has
      no custom focus-visible:ring (those set outline-none and win). Keeps
@@ -154,8 +189,12 @@
     --muted-foreground: 215.4 16.3% 44%;
     --border: 214.3 31.8% 91.4%;
     --primary: 243 75% 59%;
-    --accent: 226 100% 97%;
-    --accent-foreground: 245 58% 51%;
+    --accent: 240 100% 97.5%;
+    --accent-foreground: 245 58% 48%;
+    --hairline: 0 0% 0% / 0.08;
+  }
+  :root {
+    --shadow-card: none;
   }
 
   html,
@@ -306,3 +345,87 @@ html[data-present="true"] {
     color: hsl(230 90% 80%);
   }
 }
+
+/* ===== Surfaces & legacy bridges ==========================================
+   Phase-2 code should use <Card> (components/ui/card.tsx) or the `surface`
+   class. The rules below make the sections written before the redesign
+   (hand-built "rounded-xl border border-border bg-card") pick up the same
+   look without touching each component: top-level cards drop the grey 1px
+   outline for a hairline + soft shadow and get the larger card radius;
+   cards nested inside another card stay flat inner panels. Coloured,
+   dashed or status-striped borders are meaningful and are left alone. */
+@layer components {
+  .surface {
+    border-radius: var(--radius-card);
+    border: 1px solid hsl(var(--hairline));
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000),
+      var(--tw-ring-shadow, 0 0 #0000), var(--shadow-card);
+  }
+}
+
+:is(.rounded-xl, .rounded-2xl, .rounded-3xl).bg-card:is(
+    .border-border,
+    .border-border\/70,
+    .border-border\/60,
+    .border-border\/50
+  ):not(.border-dashed, .border-l-4) {
+  border-radius: var(--radius-card);
+  border-color: hsl(var(--hairline));
+  /* Keep Tailwind's ring layers so focus-visible:ring-* still shows. */
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000), var(--shadow-card);
+}
+
+/* Nested: a card inside a card is an inner panel, not another layer. */
+:is(.bg-card, .tremor-Card-root, .surface)
+  :is(.rounded-xl, .rounded-2xl, .rounded-3xl).bg-card:is(
+    .border-border,
+    .border-border\/70,
+    .border-border\/60,
+    .border-border\/50
+  ):not(.border-dashed, .border-l-4) {
+  border-radius: var(--radius);
+  border-color: hsl(var(--border));
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000),
+    var(--tw-ring-shadow, 0 0 #0000);
+}
+
+/* Eyebrow labels: tiny ALL-CAPS with wide tracking shout and are slow to
+   read in Polish. Render them as normal-case small labels instead; opt out
+   with data-caps for genuine acronyms/badges. */
+:is(.uppercase):is(.tracking-wide, .tracking-wider, .tracking-widest):not([data-caps]) {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Page titles written before the redesign (h1.text-2xl) get the new title
+   size; phase 2 should use <PageHeader> (components/ui/page-header.tsx). */
+@media (min-width: 768px) {
+  main h1.text-2xl {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    letter-spacing: -0.022em;
+  }
+}
+
+/* Sticky translucent chrome: the hairline under the header fades in only
+   once the page has scrolled (scroll-driven where supported; otherwise the
+   header simply has no line, which is fine). */
+@supports (animation-timeline: scroll()) {
+  @keyframes chrome-hairline {
+    from {
+      border-bottom-color: transparent;
+    }
+    to {
+      border-bottom-color: hsl(var(--border));
+    }
+  }
+  [data-chrome-header] {
+    animation: chrome-hairline linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 24px;
+  }
+}
+/* ===== End surfaces ======================================================= */

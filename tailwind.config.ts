@@ -54,88 +54,116 @@ const config: Config = {
         // The client's own accent (clients.brand_color, migration 0031), set
         // as --client-accent on the dashboard wrapper. Unset = our primary.
         "client-accent": "var(--client-accent, hsl(var(--primary)))",
-        // Tremor tokens
+        // Card edge hairline and the selected segment of segmented controls.
+        hairline: "hsl(var(--hairline))",
+        segment: "hsl(var(--segment))",
+        chrome: "hsl(var(--chrome))",
+        // Tremor tokens. Pointed at the same CSS variables as shadcn, so a
+        // Tremor <Card> and a hand-built card are the same surface in both
+        // themes (the variables switch under .dark; `dark-tremor` repeats
+        // them because Tremor emits dark: classes for its own palette).
         tremor: {
           brand: {
-            faint: "#eff6ff",
-            muted: "#bfdbfe",
-            subtle: "#60a5fa",
-            DEFAULT: "#3b82f6",
-            emphasis: "#1d4ed8",
-            inverted: "#ffffff",
+            faint: "hsl(var(--accent))",
+            muted: "hsl(var(--primary) / 0.25)",
+            subtle: "hsl(var(--primary) / 0.6)",
+            DEFAULT: "hsl(var(--primary))",
+            emphasis: "hsl(var(--accent-foreground))",
+            inverted: "hsl(var(--primary-foreground))",
           },
           background: {
-            muted: "#f9fafb",
-            subtle: "#f3f4f6",
-            DEFAULT: "#ffffff",
-            emphasis: "#374151",
+            muted: "hsl(var(--muted))",
+            subtle: "hsl(var(--secondary))",
+            DEFAULT: "hsl(var(--card))",
+            emphasis: "hsl(var(--foreground))",
           },
-          border: { DEFAULT: "#e5e7eb" },
-          ring: { DEFAULT: "#e5e7eb" },
+          border: { DEFAULT: "hsl(var(--border))" },
+          ring: { DEFAULT: "hsl(var(--hairline))" },
           content: {
-            subtle: "#9ca3af",
-            DEFAULT: "#6b7280",
-            emphasis: "#374151",
-            strong: "#111827",
-            inverted: "#ffffff",
+            subtle: "hsl(var(--muted-foreground) / 0.75)",
+            DEFAULT: "hsl(var(--muted-foreground))",
+            emphasis: "hsl(var(--foreground) / 0.85)",
+            strong: "hsl(var(--foreground))",
+            inverted: "hsl(var(--background))",
           },
         },
         "dark-tremor": {
           brand: {
-            faint: "#0B1229",
-            muted: "#172554",
-            subtle: "#1e40af",
-            DEFAULT: "#3b82f6",
-            emphasis: "#60a5fa",
-            inverted: "#030712",
+            faint: "hsl(var(--accent))",
+            muted: "hsl(var(--primary) / 0.3)",
+            subtle: "hsl(var(--primary) / 0.6)",
+            DEFAULT: "hsl(var(--primary))",
+            emphasis: "hsl(var(--accent-foreground))",
+            inverted: "hsl(var(--primary-foreground))",
           },
           background: {
-            muted: "#131A2B",
-            subtle: "#1f2937",
-            DEFAULT: "#111827",
-            emphasis: "#d1d5db",
+            muted: "hsl(var(--muted))",
+            subtle: "hsl(var(--secondary))",
+            DEFAULT: "hsl(var(--card))",
+            emphasis: "hsl(var(--foreground))",
           },
-          border: { DEFAULT: "#1f2937" },
-          ring: { DEFAULT: "#1f2937" },
+          border: { DEFAULT: "hsl(var(--border))" },
+          ring: { DEFAULT: "hsl(var(--hairline))" },
           content: {
-            subtle: "#4b5563",
-            // gray-400, not gray-500: Tremor's default body text (KPI
-            // subtitles, chart legends) only reached ~3.7:1 on dark cards.
-            DEFAULT: "#9ca3af",
-            emphasis: "#e5e7eb",
-            strong: "#f9fafb",
-            inverted: "#000000",
+            subtle: "hsl(var(--muted-foreground) / 0.75)",
+            DEFAULT: "hsl(var(--muted-foreground))",
+            emphasis: "hsl(var(--foreground) / 0.85)",
+            strong: "hsl(var(--foreground))",
+            inverted: "hsl(var(--background))",
           },
         },
       },
+      fontFamily: {
+        // System UI first (SF Pro on Apple devices, Segoe on Windows), Inter
+        // (next/font, --font-inter) where the system face is unavailable.
+        sans: [
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          "var(--font-inter)",
+          "Inter",
+          "system-ui",
+          '"Segoe UI"',
+          "sans-serif",
+        ],
+      },
       borderRadius: {
+        // Top-level surfaces (cards, sections).
+        card: "var(--radius-card)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-        // Tremor radii
-        "tremor-small": "0.375rem",
-        // Matches the custom cards (rounded-xl) so Tremor and hand-built
-        // sections share one corner radius.
-        "tremor-default": "0.75rem",
+        // Tremor radii: Tremor's Card uses tremor-default, so it matches
+        // <Card> and the bridged hand-built cards.
+        "tremor-small": "0.625rem",
+        "tremor-default": "var(--radius-card)",
         "tremor-full": "9999px",
       },
       fontSize: {
+        // Type scale (see the design spec in the phase-1 notes):
+        // page title > section title > body > label; numbers have their own.
+        "page-title": ["1.875rem", { lineHeight: "2.25rem", letterSpacing: "-0.022em", fontWeight: "600" }],
+        "section-title": ["1.25rem", { lineHeight: "1.75rem", letterSpacing: "-0.014em", fontWeight: "600" }],
+        "metric-lg": ["2.5rem", { lineHeight: "1", letterSpacing: "-0.03em", fontWeight: "600" }],
+        metric: ["1.875rem", { lineHeight: "1.1", letterSpacing: "-0.025em", fontWeight: "600" }],
         "tremor-label": ["0.75rem", { lineHeight: "1rem" }],
         "tremor-default": ["0.875rem", { lineHeight: "1.25rem" }],
         "tremor-title": ["1.125rem", { lineHeight: "1.75rem" }],
         "tremor-metric": ["1.875rem", { lineHeight: "2.25rem" }],
       },
       boxShadow: {
-        "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-        "tremor-card":
-          "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
-        "tremor-dropdown":
-          "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-        "dark-tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.05)",
-        "dark-tremor-card":
-          "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
-        "dark-tremor-dropdown":
-          "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+        // Softer defaults: existing shadow-sm/shadow-md usages calm down too.
+        sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        md: "0 2px 4px -1px rgb(0 0 0 / 0.06), 0 6px 16px -4px rgb(0 0 0 / 0.08)",
+        card: "var(--shadow-card)",
+        raised: "var(--shadow-raised)",
+        "tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.04)",
+        "tremor-card": "var(--shadow-card)",
+        "tremor-dropdown": "var(--shadow-raised)",
+        "dark-tremor-input": "0 1px 2px 0 rgb(0 0 0 / 0.3)",
+        "dark-tremor-card": "var(--shadow-card)",
+        "dark-tremor-dropdown": "var(--shadow-raised)",
       },
       keyframes: {
         "accordion-down": {
