@@ -10,6 +10,7 @@ import {
   syncImpressionShareSnapshot,
   syncSearchTermsSnapshot,
 } from "@/lib/integrations/google-ads";
+import { hasAdsetTable, syncGoogleAdGroups } from "@/lib/integrations/adset-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull Google Ads campaign metrics for yesterday+today into
@@ -209,11 +210,36 @@ export async function GET(request: Request) {
     }
   }
 
+  // Ad group daily rows for ad group goals (migration 0033; skipped until
+  // then). Same rules as the snapshots: after every main sync, isolated, and
+  // nothing starts once the budget is spent.
+  let adGroupsUpserted = 0;
+  let adGroupTable: boolean | null = null;
+
   // Extra once-a-day snapshots, after all sync_runs rows are closed: they
   // must never change a sync's outcome or its health status. Each step is
   // isolated, and none starts once the budget is spent - a skipped snapshot
   // is simply retried on the next tick, a killed function is not harmless.
   for (const job of snapshotJobs) {
+    if (Date.now() - startedAt > SNAPSHOT_START_BUDGET_MS) break;
+    try {
+      adGroupTable ??= await hasAdsetTable(admin);
+      if (adGroupTable) {
+        adGroupsUpserted += await syncGoogleAdGroups(
+          admin,
+          job.clientId,
+          job.refreshToken,
+          job.accounts,
+          () => Date.now() - startedAt > SNAPSHOT_START_BUDGET_MS
+        );
+      }
+    } catch (agErr) {
+      console.error(
+        "[cron/refresh-ads-google] ad group sync failed",
+        describeError(agErr)
+      );
+    }
+
     if (Date.now() - startedAt > SNAPSHOT_START_BUDGET_MS) break;
     try {
       await syncSearchTermsSnapshot(
@@ -251,6 +277,7 @@ export async function GET(request: Request) {
     ok: true,
     integrations_processed: integrationsProcessed,
     campaigns_upserted: campaignsUpserted,
+    ad_groups_upserted: adGroupsUpserted,
     accounts_failed: accountsFailed,
   });
 }

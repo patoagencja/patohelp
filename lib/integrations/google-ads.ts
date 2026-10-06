@@ -223,6 +223,65 @@ export async function getCampaignMetrics(
   }));
 }
 
+export interface GoogleAdGroupMetric {
+  campaign_id: string;
+  campaign_name: string;
+  ad_group_id: string;
+  ad_group_name: string;
+  date: string;
+  cost_micros: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+}
+
+/**
+ * Daily ad group metrics for [since, until] (ad group goals). Same account
+ * rules as getCampaignMetrics (videoOnly = YouTube campaigns only).
+ * Performance Max has no ad groups, so its goals stay campaign-level.
+ */
+export async function getAdGroupMetrics(
+  refreshToken: string,
+  customerId: string,
+  since: string,
+  until: string,
+  videoOnly = false
+): Promise<GoogleAdGroupMetric[]> {
+  const client = apiClient();
+  const gaql = `
+    SELECT
+      campaign.id,
+      campaign.name,
+      ad_group.id,
+      ad_group.name,
+      metrics.cost_micros,
+      metrics.impressions,
+      metrics.clicks,
+      metrics.conversions,
+      segments.date
+    FROM ad_group
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+      AND campaign.status != 'REMOVED'
+      AND ad_group.status != 'REMOVED'
+      AND metrics.impressions > 0
+      ${videoOnly ? "AND campaign.advertising_channel_type = 'VIDEO'" : ""}
+  `;
+
+  const rows = await queryWithFallback(client, refreshToken, customerId, gaql);
+
+  return (rows as Array<Record<string, any>>).map((row) => ({
+    campaign_id: String(row.campaign?.id ?? ""),
+    campaign_name: String(row.campaign?.name ?? ""),
+    ad_group_id: String(row.ad_group?.id ?? ""),
+    ad_group_name: String(row.ad_group?.name ?? ""),
+    date: String(row.segments?.date ?? since),
+    cost_micros: Number(row.metrics?.cost_micros ?? 0),
+    impressions: Number(row.metrics?.impressions ?? 0),
+    clicks: Number(row.metrics?.clicks ?? 0),
+    conversions: Number(row.metrics?.conversions ?? 0),
+  }));
+}
+
 export interface GoogleSearchTermMetric {
   search_term: string;
   campaign_name: string;

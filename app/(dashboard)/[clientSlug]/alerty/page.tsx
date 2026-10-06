@@ -145,31 +145,37 @@ export default async function AlertyPage({
     redirect("/login");
   }
 
-  // Campaign options for the flight form (agency only; top spenders). Needs
-  // the role, not the alerts, so it starts as soon as the role is known.
+  // Campaign options for the goal form (agency only): every campaign with
+  // delivery in the last 60 days, biggest recent spend first (the picker is
+  // searchable, so long lists are fine). Paginated: PostgREST caps at 1000.
   const campaignOptionsPromise = viewerPromise.then(async (viewer) => {
     if (!viewer.isAgency) return [] as CampaignOption[];
-    const { data: campRows } = await createClient()
-      .from("ads_daily")
-      .select("campaign_id, campaign_name, provider, spend_minor_units")
-      .eq("client_id", client.id)
-      .order("spend_minor_units", { ascending: false })
-      .limit(2000);
+    const since = formatInTimeZone(subDays(new Date(), 60), "Europe/Warsaw", "yyyy-MM-dd");
+    const campRows = await fetchAll<Record<string, unknown>>((from, to) =>
+      createClient()
+        .from("ads_daily")
+        .select("campaign_id, campaign_name, provider, spend_minor_units, date")
+        .eq("client_id", client.id)
+        .gte("date", since)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ).catch(() => [] as Record<string, unknown>[]);
     const byId = new Map<string, { name: string; provider: string | null; spend: number }>();
-    for (const r of campRows ?? []) {
+    for (const r of campRows) {
       const id = r.campaign_id as string;
-      const c = byId.get(id) ?? {
-        name: (r.campaign_name as string) || id,
-        provider: (r.provider as string | null) ?? null,
-        spend: 0,
-      };
-      c.spend += Number(r.spend_minor_units);
+      const c = byId.get(id) ?? { name: id, provider: null, spend: 0 };
+      // Oldest first: the latest name wins (campaigns get renamed).
+      c.name = (r.campaign_name as string) || c.name;
+      c.provider = (r.provider as string | null) ?? c.provider;
+      c.spend += Number(r.spend_minor_units ?? 0);
       byId.set(id, c);
     }
     return Array.from(byId.entries())
       .sort((a, b) => b[1].spend - a[1].spend)
-      .slice(0, 150)
-      .map(([id, v]) => ({ id, name: v.name, provider: v.provider }));
+      .slice(0, 1500)
+      .map(([id, v]) => ({ id, name: v.name, provider: v.provider, spend: v.spend }));
   });
 
   // Ad sets / ad groups for the goal form's optional second picker (agency
@@ -271,7 +277,7 @@ async function getAdsetOptions(clientId: string): Promise<AdsetOption[] | null> 
     return Array.from(byId.values())
       .sort((a, b) => b.spend - a.spend)
       .slice(0, 1500)
-      .map(({ id, name, campaignId, provider }) => ({ id, name, campaignId, provider }));
+      .map(({ id, name, campaignId, provider, spend }) => ({ id, name, campaignId, provider, spend }));
   } catch (err) {
     console.error("[alerty] ad set options failed", (err as Error).message);
     return null;

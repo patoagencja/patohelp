@@ -207,6 +207,77 @@ export async function getCampaignInsights(
   return rows;
 }
 
+export interface MetaAdsetInsight {
+  adset_id: string;
+  adset_name: string;
+  campaign_id: string;
+  campaign_name: string;
+  date: string;
+  spend: string;
+  impressions: string;
+  clicks: string;
+  reach?: string;
+  actions?: Array<{ action_type: string; value: string }>;
+}
+
+/**
+ * Ad-set-level daily insights (time_increment=1) for [since, until], for ad
+ * set goals. Wide multi-day queries get silently truncated on big accounts
+ * (see getCampaignInsights), so the range goes out in 7-day slices, each
+ * fully paginated. `shouldStop` lets the cron cut the work short at its time
+ * budget; slices already fetched are returned.
+ */
+export async function getAdsetInsights(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string,
+  shouldStop: () => boolean = () => false
+): Promise<MetaAdsetInsight[]> {
+  const days = eachDay(since, until);
+  const rows: MetaAdsetInsight[] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    if (shouldStop()) break;
+    const slice = days.slice(i, i + 7);
+    let body = await graphGet<{
+      data: Array<Record<string, unknown>>;
+      paging?: { next?: string };
+    }>(`/${adAccountId}/insights`, {
+      fields: "adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks,reach,actions",
+      level: "adset",
+      time_increment: "1",
+      time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
+      access_token: accessToken,
+      limit: "500",
+    });
+    const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
+    let guard = 0;
+    while (body.paging?.next && guard < 50) {
+      guard += 1;
+      const res = await fetch(body.paging.next, { cache: "no-store" });
+      body = await res.json();
+      if (body?.data?.length) raw.push(...body.data);
+      else break;
+    }
+    for (const row of raw) {
+      if (!row.adset_id) continue;
+      rows.push({
+        adset_id: String(row.adset_id),
+        adset_name: String(row.adset_name ?? ""),
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        date: String(row.date_start ?? slice[0]),
+        spend: String(row.spend ?? "0"),
+        impressions: String(row.impressions ?? "0"),
+        clicks: String(row.clicks ?? "0"),
+        reach: row.reach != null ? String(row.reach) : undefined,
+        actions: row.actions as MetaAdsetInsight["actions"],
+      });
+    }
+  }
+  return rows;
+}
+
 export interface MetaAdInsight {
   ad_id: string;
   ad_name: string;

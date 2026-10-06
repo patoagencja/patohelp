@@ -2,23 +2,44 @@
 
 import { useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { SearchCombobox, type ComboOption } from "@/components/dashboard/search-combobox";
 
 /**
  * Campaign + optional ad set (Meta) / ad group (Google) pickers for the
- * "Nowy cel kampanii" form. The page hands over every recent ad set; once a
- * campaign is picked, only its ad sets are offered. Without JS (or before
- * hydration) the ad set list shows them all, grouped by campaign - the
- * server action rejects an ad set that doesn't belong to the campaign.
+ * "Nowy cel kampanii" form - both searchable (accounts like OLX have
+ * hundreds of long campaign names). Once a campaign is picked, the second
+ * picker offers only its ad sets. Without JS both are native selects and the
+ * ad set list holds every ad set grouped by campaign; the server action
+ * rejects an ad set that doesn't belong to the chosen campaign.
  */
 
-export type CampaignOption = { id: string; name: string; provider?: string | null };
+export type CampaignOption = {
+  id: string;
+  name: string;
+  provider?: string | null;
+  /** Recent spend in grosze (sort + hint). */
+  spend?: number;
+};
 export type AdsetOption = {
   id: string;
   name: string;
   campaignId: string;
   provider: string;
+  spend?: number;
 };
+
+const TAG: Record<string, string> = { meta_ads: "Meta", google_ads: "Google" };
+
+function spendMeta(spend?: number): string | null {
+  if (spend === undefined) return null;
+  const zl = Math.round(spend / 100)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${zl} zł w 60 dni`;
+}
+
+/** The posted campaign key the server action parses: "id|||name|||provider". */
+const campaignKey = (c: CampaignOption) => `${c.id}|||${c.name}|||${c.provider ?? ""}`;
 
 export function GoalTargetFields({
   campaignOptions,
@@ -36,81 +57,76 @@ export function GoalTargetFields({
 }) {
   const [campaign, setCampaign] = useState("");
   const [adset, setAdset] = useState("");
-  const selected = campaignOptions.find((c) => c.id === campaign);
+  const campaignId = campaign.split("|||")[0] ?? "";
+  const selected = campaignOptions.find((c) => c.id === campaignId);
   const google = selected?.provider === "google_ads";
-
-  const forCampaign = campaign ? (adsetOptions ?? []).filter((a) => a.campaignId === campaign) : [];
-  // No campaign yet: every ad set, grouped (also the no-JS rendering).
-  const groups = new Map<string, AdsetOption[]>();
-  if (!campaign) {
-    for (const a of adsetOptions ?? []) {
-      const list = groups.get(a.campaignId) ?? [];
-      list.push(a);
-      groups.set(a.campaignId, list);
-    }
-  }
   const campaignName = (id: string) => campaignOptions.find((c) => c.id === id)?.name ?? id;
-  const noAdsets = Boolean(campaign) && forCampaign.length === 0;
+
+  const campaignCombo: ComboOption[] = campaignOptions.map((c) => ({
+    value: campaignKey(c),
+    label: c.name,
+    tag: c.provider ? TAG[c.provider] : null,
+    meta: spendMeta(c.spend),
+  }));
+  // Picked campaign: its ad sets only. Nothing picked (and the no-JS
+  // select): all of them, grouped by campaign.
+  const adsetCombo: ComboOption[] = (adsetOptions ?? [])
+    .filter((a) => !campaignId || a.campaignId === campaignId)
+    .map((a) => ({
+      value: a.id,
+      label: a.name,
+      tag: TAG[a.provider] ?? null,
+      meta: spendMeta(a.spend),
+      group: campaignName(a.campaignId),
+    }));
+  const noAdsets = Boolean(campaignId) && adsetCombo.length === 0;
+  const adsetLabel = google ? "Grupa reklam (opcjonalnie)" : "Zestaw reklam (opcjonalnie)";
 
   return (
     <>
-      <label className={cn("flex min-w-0 flex-col gap-2", className)}>
-        <span className={labelClass}>Kampania</span>
-        <select
+      <div className={`flex min-w-0 flex-col gap-2 ${className ?? ""}`}>
+        <label htmlFor="goal-campaign" className={labelClass}>
+          Kampania
+        </label>
+        <SearchCombobox
+          id="goal-campaign"
           name="campaign"
           required
-          className={fieldClass}
-          value={campaign ? `${campaign}|||${selected?.name ?? ""}|||${selected?.provider ?? ""}` : ""}
-          onChange={(e) => {
-            setCampaign(e.target.value.split("|||")[0] ?? "");
+          options={campaignCombo}
+          value={campaign}
+          onChange={(v) => {
+            setCampaign(v);
             setAdset("");
           }}
-        >
-          <option value="">Wybierz…</option>
-          {campaignOptions.map((c) => (
-            <option key={c.id} value={`${c.id}|||${c.name}|||${c.provider ?? ""}`}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+          placeholder="Szukaj kampanii…"
+          invalidText="Wybierz kampanię z listy."
+          fieldClass={fieldClass}
+        />
+      </div>
 
       {adsetOptions ? (
-        <label className={cn("flex min-w-0 flex-col gap-2", className)}>
-          <span className={labelClass}>
-            {google ? "Grupa reklam (opcjonalnie)" : "Zestaw reklam (opcjonalnie)"}
-          </span>
-          <select
+        <div className={`flex min-w-0 flex-col gap-2 ${className ?? ""}`}>
+          <label htmlFor="goal-adset" className={labelClass}>
+            {adsetLabel}
+          </label>
+          <SearchCombobox
+            id="goal-adset"
             name="adset"
-            className={fieldClass}
+            options={adsetCombo}
             value={adset}
-            onChange={(e) => setAdset(e.target.value)}
-            disabled={noAdsets}
-            aria-describedby={noAdsets ? "adset-hint" : undefined}
-          >
-            <option value="">Cała kampania</option>
-            {campaign
-              ? forCampaign.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))
-              : Array.from(groups.entries()).map(([cid, list]) => (
-                  <optgroup key={cid} label={campaignName(cid)}>
-                    {list.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-          </select>
+            onChange={setAdset}
+            disabled={!campaignId || noAdsets}
+            emptyOption="Cała kampania"
+            placeholder={campaignId ? "Cała kampania - lub szukaj…" : "Najpierw wybierz kampanię"}
+            fieldClass={fieldClass}
+            describedBy={noAdsets ? "goal-adset-hint" : undefined}
+          />
           {noAdsets ? (
-            <span id="adset-hint" className="text-xs text-ink-3">
+            <span id="goal-adset-hint" className="text-xs text-ink-3">
               Brak {google ? "grup" : "zestawów"} z wynikami w ostatnich 60 dniach - cel obejmie całą kampanię.
             </span>
           ) : null}
-        </label>
+        </div>
       ) : null}
     </>
   );
