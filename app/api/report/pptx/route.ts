@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   // ?month=2026-06 → any date inside that month; invalid/missing → previous month.
   const monthParam = searchParams.get("month");
   const monthDate =
-    monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)
       ? new Date(`${monthParam}-15T00:00:00`)
       : undefined;
 

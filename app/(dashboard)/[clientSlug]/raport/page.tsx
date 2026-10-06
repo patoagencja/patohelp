@@ -238,7 +238,7 @@ export default async function RaportPage({
   if (["olx", "https-www-olx-pl"].includes(params.clientSlug)) {
     const monthParam = searchParams.month;
     const monthDate =
-      monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+      monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)
         ? new Date(`${monthParam}-15T00:00:00`)
         : undefined;
     const [sm, { isAgency }] = await Promise.all([
@@ -253,7 +253,7 @@ export default async function RaportPage({
           className="print:hidden"
           eyebrow={<span className="kick">Raport · {sm.monthLabel}</span>}
           title="Raporty"
-          description={`Raport social media ${client.name} za wybrany miesiąc, do pobrania jako PPTX.`}
+          description={`Raport social media ${client.name} za wybrany miesiąc${isAgency ? ", do pobrania jako PPTX" : ""}.`}
           actions={
             <>
               <form method="get" className="flex items-center gap-1.5">
@@ -268,15 +268,19 @@ export default async function RaportPage({
                   Pokaż
                 </Button>
               </form>
-              <Button asChild size="pill">
-                <a
-                  href={`/api/report/pptx?client=${params.clientSlug}${
-                    monthParam ? `&month=${monthParam}` : ""
-                  }`}
-                >
-                  Pobierz PPTX
-                </a>
-              </Button>
+              {/* The PPTX route is agency-only; a client clicking it got a 403
+                  JSON page. Clients present from the deck below instead. */}
+              {isAgency ? (
+                <Button asChild size="pill">
+                  <a
+                    href={`/api/report/pptx?client=${params.clientSlug}${
+                      monthParam ? `&month=${monthParam}` : ""
+                    }`}
+                  >
+                    Pobierz PPTX
+                  </a>
+                </Button>
+              ) : null}
             </>
           }
         />
@@ -338,13 +342,18 @@ export default async function RaportPage({
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits)
     .slice(0, 8);
 
+  const k = data.kpis;
+
   // Source breakdown total (for %), and the true period total from daily rows.
   const totalSessions = website.hasData
     ? website.sources.reduce((s, x) => s + x.sessions, 0)
     : 0;
-  const sessionsTotal = website.sessionsTrend.reduce((s, x) => s + x.sessions, 0);
-
-  const k = data.kpis;
+  // Visits and engagement follow the report's range (the KPI slide shows the
+  // same number); getWebsiteData is a fixed last-30-days read, so on "Poprzedni
+  // miesiąc" / 90 days this slide used to contradict the KPI slide. Sources,
+  // devices, pages and new/returning are 30-day snapshots - labelled as such.
+  const sessionsTotal = k.sessions.value;
+  const rangeEngagement = data.engagementRate ?? null;
 
   const genderTotal = demo.gender.reduce((s, g) => s + g.value, 0) || 1;
   const ageTotal = demo.age.reduce((s, a) => s + a.value, 0) || 1;
@@ -361,11 +370,13 @@ export default async function RaportPage({
         description="Wyniki za wybrany okres w formie slajdów - do pokazania na spotkaniu albo pobrania."
         actions={
           <>
-            <Button asChild variant="chip" size="pill">
-              <a href={`/api/report/pptx?client=${params.clientSlug}`}>
-                Pobierz PPTX (poprz. miesiąc)
-              </a>
-            </Button>
+            {(await viewerPromise).isAgency ? (
+              <Button asChild variant="chip" size="pill">
+                <a href={`/api/report/pptx?client=${params.clientSlug}`}>
+                  Pobierz PPTX (poprz. miesiąc)
+                </a>
+              </Button>
+            ) : null}
             <DateRangePicker
               value={range}
               customFrom={custom?.start}
@@ -641,14 +652,16 @@ export default async function RaportPage({
                   <Stat label="Wizyty na stronie" value={formatNumberPL(sessionsTotal)} />
                   <Stat
                     label="Zainteresowani goście"
-                    value={formatPercent(website.engagement.engagementRate)}
+                    value={
+                      rangeEngagement !== null ? formatPercent(rangeEngagement) : "-"
+                    }
                   />
                   <Stat
-                    label="Nowi"
+                    label="Nowi (ostatnie 30 dni)"
                     value={formatNumberPL(website.newVsReturning.newUsers)}
                   />
                   <Stat
-                    label="Powracający"
+                    label="Powracający (ostatnie 30 dni)"
                     value={formatNumberPL(website.newVsReturning.returningUsers)}
                   />
                 </div>
@@ -658,7 +671,7 @@ export default async function RaportPage({
                   </p>
                   <div className="min-h-0 flex-1">
                     <LineChart
-                      values={website.sessionsTrend.map((s) => s.sessions)}
+                      values={data.trend.map((t) => t.sessions)}
                       color={DECK_COLORS[0]}
                       format={axisNum}
                     />
@@ -670,7 +683,7 @@ export default async function RaportPage({
             {/* Sources */}
             <ContentSlide
               title="Źródła ruchu"
-              subtitle="Wizyty na stronie wg źródła"
+              subtitle="Wizyty na stronie wg źródła · ostatnie 30 dni"
               section="Dane Analytics"
               foot={foot}
             >
@@ -693,7 +706,7 @@ export default async function RaportPage({
             {/* Devices + top pages */}
             <ContentSlide
               title="Urządzenia i podstrony"
-              subtitle={data.rangeLabel}
+              subtitle="Ostatnie 30 dni"
               section="Dane Analytics"
               foot={foot}
             >

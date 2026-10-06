@@ -60,7 +60,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Run on everything except Next internals, static assets and API routes
   // (API routes carry their own auth — CRON_SECRET / OAuth state).
+  // "api/" with the slash: a bare "api" also skipped every client slug that
+  // merely starts with it ("/apix"), so those dashboards never had their
+  // session refreshed here.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

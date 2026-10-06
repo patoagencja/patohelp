@@ -45,6 +45,12 @@ async function selectProperty(formData: FormData) {
     .single();
 
   const accountIds = (data?.account_ids ?? {}) as Ga4AccountIds;
+  // Only a property the OAuth callback actually listed for this connection:
+  // a crafted post must not point this client's sync (and dashboard) at some
+  // other property the agency's Google account happens to reach.
+  if (!(accountIds.properties ?? []).some((p) => p.propertyId === propertyId)) {
+    redirect(`/${access.clientSlug}/settings/ga4-select`);
+  }
   await admin
     .from("integrations")
     .update({ account_ids: { ...accountIds, propertyId } })

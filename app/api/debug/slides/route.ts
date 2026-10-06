@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
   const monthParam = searchParams.get("month");
   const monthDate =
-    monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+    monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)
       ? new Date(`${monthParam}-15T00:00:00`)
       : undefined;
   const filter: CampaignFilter = { all_of: allOf, any_of: anyOf };

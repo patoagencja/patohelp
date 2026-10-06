@@ -1,3 +1,5 @@
+import { formatInTimeZone } from "date-fns-tz";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
@@ -9,6 +11,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Public, read-only report view behind an unguessable token (see share_links).
 // No session required - the token IS the access. Revoking the link kills it.
 export const dynamic = "force-dynamic";
+
+// Same as the board link (/s): keep the capability URL out of search indexes
+// and out of the Referer sent to third parties (Meta CDN creative thumbnails).
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+  referrer: "no-referrer",
+};
 
 export default async function SharedReportPage({
   params,
@@ -41,11 +50,20 @@ export default async function SharedReportPage({
 
   if (!client) notFound();
 
+  // Anyone holding the link controls ?month=, and every month not yet in
+  // report_cache costs a fresh Claude call (plus a cache row). Only the last
+  // two years up to the current month are reachable; anything else (incl.
+  // "2026-13", which made date-fns throw -> 500) falls back to the default.
   const monthParam = searchParams.month;
-  const monthDate =
-    monthParam && /^\d{4}-\d{2}$/.test(monthParam)
-      ? new Date(`${monthParam}-15T00:00:00`)
-      : undefined;
+  const currentMonth = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM");
+  const [cy, cm] = currentMonth.split("-").map(Number);
+  const earliestMonth = `${cy - 2}-${String(cm).padStart(2, "0")}`;
+  const monthOk =
+    !!monthParam &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam) &&
+    monthParam >= earliestMonth &&
+    monthParam <= currentMonth;
+  const monthDate = monthOk ? new Date(`${monthParam}-15T00:00:00`) : undefined;
 
   const sm = await getOlxSmReportData(client.id, client.name, monthDate);
   const foot = `${client.name} · ${sm.periodLabel} · patoagencja`;

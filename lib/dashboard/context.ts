@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { toBranding, type ClientBranding } from "@/lib/dashboard/branding";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 
@@ -78,10 +79,16 @@ export const getClientBySlug = cache(
   }
 );
 
-/** Newest successful sync for the client - drives "Zaktualizowano X temu". */
+/**
+ * Newest successful sync for the client - drives "Zaktualizowano X temu" and
+ * the auto-refresh poll. sync_runs is agency-only under RLS (error messages
+ * are operational), so through the cookie client a client user always got
+ * null: a permanent "Na żywo" over stale data and no auto-refresh. Only the
+ * timestamp leaves this function, read with the service role - callers MUST
+ * pass an id resolved through RLS (getClientBySlug).
+ */
 export async function getLastSyncAt(clientId: string): Promise<string | null> {
-  const supabase = createClient();
-  const { data } = await supabase
+  const { data } = await createAdminClient()
     .from("sync_runs")
     .select("finished_at")
     .eq("client_id", clientId)
