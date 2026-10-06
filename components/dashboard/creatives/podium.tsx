@@ -167,7 +167,7 @@ export function CreativesPodium({
                 />
                 {hook != null ? (
                   <MiniStat
-                    label={en ? "Watch 3s+" : "Ogląda 3 s+"}
+                    label={en ? "Watch 3s+" : "Oglądane 3 s+"}
                     value={formatPercent(hook * 100, 0)}
                   />
                 ) : null}

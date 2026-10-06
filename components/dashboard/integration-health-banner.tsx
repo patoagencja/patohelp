@@ -153,7 +153,7 @@ export async function IntegrationHealthBanner({
           <p className="font-medium text-amber-900 dark:text-amber-200">
             {unhealthy.length === 1
               ? "Jedno źródło danych nie działa"
-              : `${unhealthy.length} źródła danych nie działają`}{" "}
+              : "Kilka źródeł danych nie działa"}{" "}
             - liczby poniżej są niepełne.
           </p>
           <ul className="mt-1 space-y-0.5 text-amber-800 dark:text-amber-300/90">

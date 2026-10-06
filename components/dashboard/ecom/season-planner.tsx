@@ -33,7 +33,7 @@ function seasonTakeaway(plan: SeasonPlan): string | null {
   // Pick the single most decision-relevant fact from last year.
   let fact: string | null = null;
   if (ly?.bfWeekShareOfNov && ly.bfWeekShareOfNov >= 0.2) {
-    fact = `rok temu same 5 dni wokół Black Friday dały ${pctOf(
+    fact = `rok temu same 5 dni wokół Black Friday dało ${pctOf(
       ly.bfWeekShareOfNov
     )} sprzedaży całego listopada`;
   } else if (ly?.novVsOct && Math.abs(ly.novVsOct - 1) >= 0.15) {

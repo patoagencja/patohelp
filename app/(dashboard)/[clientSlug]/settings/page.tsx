@@ -516,7 +516,7 @@ export default async function SettingsPage({
       <div id="powiadomienia" className="mt-8 scroll-mt-6">
         <h2 className="text-lg font-semibold">Powiadomienia o alertach</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Wysyłamy alerty (anomalie + „nie dowozi") na wskazane kanały, tylko w
+          Wysyłamy alerty (anomalie + „cel zagrożony”) na wskazane kanały, tylko w
           wybranych godzinach. Jeden alert = maks. raz dziennie.
         </p>
 

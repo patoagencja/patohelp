@@ -78,12 +78,12 @@ function statusLine(g: EngagementGoal): { text: string; tone: keyof typeof TONE 
   }
   if (g.status === "on_track") {
     return {
-      text: `Jesteśmy blisko - brakuje ${aboutCount(gap, g.metric)} dziennie, żeby dowieźć cel.`,
+      text: `Jesteśmy blisko - brakuje ${aboutCount(gap, g.metric)} dziennie, żeby osiągnąć cel.`,
       tone: "neutral",
     };
   }
   return {
-    text: `Brakuje ${aboutCount(gap, g.metric)} dziennie, żeby dowieźć cel.`,
+    text: `Brakuje ${aboutCount(gap, g.metric)} dziennie, żeby osiągnąć cel.`,
     tone: "warn",
   };
 }

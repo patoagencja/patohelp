@@ -1,7 +1,7 @@
-import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 
 const WARSAW_TZ = "Europe/Warsaw";
@@ -158,28 +158,79 @@ export async function getGa4Status(clientId: string): Promise<Ga4Status> {
 export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
   const supabase = createClient();
   const todayStr = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
-  const start = formatInTimeZone(
-    subDays(new Date(`${todayStr}T00:00:00`), 29),
-    WARSAW_TZ,
-    "yyyy-MM-dd"
-  );
+  // Plain date-string maths: the window is 30 Warsaw days ending today,
+  // whatever the server's own time zone is.
+  const start = new Date(Date.parse(`${todayStr}T00:00:00Z`) - 29 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
 
   const BASE =
-    "date, sessions, users_new, users_returning, engagement_rate, source_medium, device_category, page_path, page_views";
+    "id, date, sessions, users_new, users_returning, engagement_rate, source_medium, device_category, page_path, page_views";
   // Revenue columns arrive with migration 0016 - selecting an unknown column
   // fails the whole query, so probe once and fall back to the base select.
   const probe = await supabase.from("ga4_daily").select("revenue_minor_units").limit(1);
   const select = probe.error ? BASE : `${BASE}, revenue_minor_units, transactions`;
 
-  const { data } = await supabase
-    .from("ga4_daily")
-    .select(select as typeof BASE)
-    .eq("client_id", clientId)
-    .gte("date", start)
-    .lte("date", todayStr);
+  // Separate, paginated reads. One unordered select of the whole window used
+  // to hit PostgREST's silent 1000-row cap: every sync leaves a dated
+  // source/device/page snapshot behind (~30-100 rows a day), so 30 days of
+  // snapshots crowded out arbitrary daily-total rows and the trend/engagement
+  // undercounted (or the latest snapshot vanished) with no error.
+  type Ga4Row = Record<string, unknown>;
+  const dailyRowsPromise = fetchAll<Ga4Row>((from, to) =>
+    supabase
+      .from("ga4_daily")
+      // The cast only quiets the select-string parser; rows are read loosely.
+      .select(select as "*")
+      .eq("client_id", clientId)
+      .is("source_medium", null)
+      .is("device_category", null)
+      .is("page_path", null)
+      .gte("date", start)
+      .lte("date", todayStr)
+      .order("date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)
+  );
+  // Each dimension is a snapshot of the whole 30-day window dated to the sync
+  // day, so only the latest snapshot date may be read - never summed across days.
+  const latestSnapshotRows = async (
+    column: "source_medium" | "device_category" | "page_path"
+  ): Promise<Ga4Row[]> => {
+    const { data: latest } = await supabase
+      .from("ga4_daily")
+      .select("date")
+      .eq("client_id", clientId)
+      .not(column, "is", null)
+      .gte("date", start)
+      .lte("date", todayStr)
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const date = latest?.date as string | undefined;
+    if (!date) return [];
+    return fetchAll<Ga4Row>((from, to) =>
+      supabase
+        .from("ga4_daily")
+        .select(select as "*")
+        .eq("client_id", clientId)
+        .eq("date", date)
+        .not(column, "is", null)
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
+  };
+  const [dailyTotals, sourceRows, deviceRows, pageRows] = await Promise.all([
+    dailyRowsPromise,
+    latestSnapshotRows("source_medium"),
+    latestSnapshotRows("device_category"),
+    latestSnapshotRows("page_path"),
+  ]);
 
-  const rows = data ?? [];
-  if (rows.length === 0) {
+  if (
+    dailyTotals.length + sourceRows.length + deviceRows.length + pageRows.length ===
+    0
+  ) {
     return {
       hasData: false,
       sources: [],
@@ -191,23 +242,11 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
     };
   }
 
-  const dailyTotals = rows.filter(
-    (r) => !r.source_medium && !r.device_category && !r.page_path
-  );
-  const sourceRows = rows.filter((r) => r.source_medium);
-  const deviceRows = rows.filter((r) => r.device_category);
-  const pageRows = rows.filter((r) => r.page_path);
-
-  // Dimension breakdowns come from the latest snapshot date only.
-  const latestSnapshot = (list: typeof rows) =>
-    list.reduce((max, r) => (r.date > max ? (r.date as string) : max), "");
-
-  const srcDate = latestSnapshot(sourceRows);
   const grouped = new Map<
     SourceCategory,
     { sessions: number; revenueMinorUnits: number; transactions: number }
   >();
-  for (const r of sourceRows.filter((r) => r.date === srcDate)) {
+  for (const r of sourceRows) {
     const cat = categorize(r.source_medium as string);
     const cur =
       grouped.get(cat) ?? { sessions: 0, revenueMinorUnits: 0, transactions: 0 };
@@ -224,18 +263,14 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
     .map(([category, v]) => ({ category, ...v }))
     .sort((a, b) => b.sessions - a.sessions);
 
-  const devDate = latestSnapshot(deviceRows);
   const devices = deviceRows
-    .filter((r) => r.date === devDate)
     .map((r) => ({
       device: r.device_category as string,
       sessions: Number(r.sessions),
     }))
     .sort((a, b) => b.sessions - a.sessions);
 
-  const pageDate = latestSnapshot(pageRows);
   const topPages = pageRows
-    .filter((r) => r.date === pageDate)
     .map((r) => ({
       path: r.page_path as string,
       views: Number(r.page_views),

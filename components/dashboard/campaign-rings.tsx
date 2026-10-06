@@ -117,16 +117,16 @@ function Ring({ flight, index }: { flight: PacingFlight; index: number }) {
         )}
       >
         {won
-          ? "Cel dowieziony!"
+          ? "Cel osiągnięty!"
           : flight.status === "upcoming"
             ? "Wkrótce start"
             : flight.status === "ended"
               ? "Zakończona"
               : flight.status === "behind"
-                ? `Za wolno - zostało ${Math.max(flight.daysLeft, 0)} dni`
+                ? `Za wolno · dni do końca: ${Math.max(flight.daysLeft, 0)}`
                 : flight.status === "ahead"
-                  ? `Przed planem - ${Math.max(flight.daysLeft, 0)} dni`
-                  : `Na czas - ${Math.max(flight.daysLeft, 0)} dni`}
+                  ? `Przed planem · dni do końca: ${Math.max(flight.daysLeft, 0)}`
+                  : `Zgodnie z planem · dni do końca: ${Math.max(flight.daysLeft, 0)}`}
       </p>
     </div>
   );
@@ -151,7 +151,7 @@ export function CampaignRings({ flights }: { flights: PacingFlight[] }) {
         </h2>
         {won > 0 ? (
           <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
-            {won} dowiezione 🏆
+            Osiągnięte: {won} 🏆
           </span>
         ) : null}
       </div>

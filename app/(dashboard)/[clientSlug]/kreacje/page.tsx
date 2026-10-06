@@ -89,16 +89,16 @@ export default async function KreacjePage({
         <h1 className="text-2xl font-semibold tracking-tight">Kreacje - {client.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Które reklamy działają najlepiej i dlaczego · Meta · {period} ·
-          odświeżane automatycznie co 6h
+          odświeżane automatycznie co 6 godzin
         </p>
       </div>
 
       {creatives.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-4 py-16 text-center">
           <ImageOff className="mb-3 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">Brak danych o kreacjach</p>
+          <p className="text-sm font-medium">Brak danych o reklamach</p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Reklamy pojawią się tu po najbliższej synchronizacji kreacji (co 6h).
+            Reklamy pojawią się tu po najbliższej synchronizacji (co 6 godzin).
           </p>
         </div>
       ) : (

@@ -311,7 +311,7 @@ function demoWork(today: string): { work: AgencyWork; autoEvents: ChartEvent[] }
           "demo-1",
           1,
           "kreacja",
-          "Przygotowaliśmy 4 nowe kreacje na jesień",
+          "Przygotowaliśmy 4 nowe reklamy na jesień",
           "Grafiki z sezonowymi pomidorami i 2 krótkie wideo do kampanii na Facebooku i Instagramie."
         ),
         entry(
@@ -460,7 +460,7 @@ export function AgencyActivity({
             >
               {showAll
                 ? "Pokaż mniej"
-                : `Pokaż wszystkie (${items.length - COLLAPSED_ITEMS} więcej)`}
+                : `Pokaż wszystkie (jeszcze ${items.length - COLLAPSED_ITEMS})`}
             </button>
           ) : null}
         </div>
@@ -711,7 +711,7 @@ export function AddActivityButton({ clientSlug }: { clientSlug: string }) {
                 maxLength={120}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="np. Przygotowaliśmy 3 nowe kreacje na Black Friday"
+                placeholder="np. Przygotowaliśmy 3 nowe reklamy na Black Friday"
                 className="h-9"
               />
             </label>

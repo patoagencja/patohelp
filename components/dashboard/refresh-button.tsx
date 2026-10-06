@@ -25,7 +25,7 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
       };
       if (body.still_running) {
         toast.success(
-          "Odświeżanie trwa w tle - duże konto dociąga historię, dane wpadają partiami.",
+          "Odświeżanie trwa w tle - przy dużym koncie historię pobieramy partiami, więc dane będą pojawiać się stopniowo.",
           { id: "refresh", duration: 6000 }
         );
       } else {

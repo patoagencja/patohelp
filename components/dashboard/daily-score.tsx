@@ -26,7 +26,7 @@ const RING_COPY: Record<Lang, Record<ScoreRing["key"], { label: string; hint: st
   pl: {
     form: {
       label: "Forma",
-      hint: "Ogólna ocena ostatnich 7 dni: klikalność, kliknięcia, wizyty na stronie i zasięg na tle Twojej normy.",
+      hint: "Ogólna ocena ostatnich 7 dni: klikalność, kliknięcia, wizyty na stronie i wyświetlenia reklam na tle Twojej normy.",
     },
     engagement: {
       label: "Zaangażowanie",
@@ -40,7 +40,7 @@ const RING_COPY: Record<Lang, Record<ScoreRing["key"], { label: string; hint: st
   en: {
     form: {
       label: "Form",
-      hint: "Overall rating of the last 7 days: click rate, clicks, website visits and reach versus your usual level.",
+      hint: "Overall rating of the last 7 days: click rate, clicks, website visits and ad impressions versus your usual level.",
     },
     engagement: {
       label: "Engagement",

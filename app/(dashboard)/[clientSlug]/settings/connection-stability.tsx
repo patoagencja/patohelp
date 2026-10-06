@@ -73,7 +73,7 @@ export async function ConnectionStability({
               ) : metaDaysLeft !== null ? (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                   <TriangleAlert className="h-3.5 w-3.5" />
-                  wygasa za {Math.max(0, metaDaysLeft)} dni
+                  wygasa za {Math.max(0, metaDaysLeft)} {metaDaysLeft === 1 ? "dzień" : "dni"}
                 </span>
               ) : null}
             </div>
@@ -96,7 +96,7 @@ export async function ConnectionStability({
                   </li>
                   <li>
                     <b>Przypisz zasoby</b> → konta reklamowe klienta → „Zarządzanie
-                    kampaniami" lub „Wyświetlanie wyników".
+                    kampaniami” lub „Wyświetlanie wyników”.
                   </li>
                   <li>
                     <b>Wygeneruj token</b> → wybierz aplikację panelu → wygasanie:{" "}
@@ -143,7 +143,7 @@ export async function ConnectionStability({
               </li>
               <li>
                 W innym razie: <b>Publishing status → Publish app</b> (In production).
-                Google może pokazać ekran „niezweryfikowana aplikacja" - dla
+                Google może pokazać ekran „niezweryfikowana aplikacja” - dla
                 wewnętrznego użytku agencji można go przejść.
               </li>
               <li>

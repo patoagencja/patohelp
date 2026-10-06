@@ -245,7 +245,7 @@ export function MonthPacingCard({
           <div className="min-w-0">
             <dt className="text-xs text-muted-foreground">
               {p.requiredDaily !== null
-                ? "Potrzeba dziennie, żeby dowieźć cel"
+                ? "Potrzeba dziennie, żeby osiągnąć cel"
                 : "Sprzedaż dziennie (śr. z 2 tygodni)"}
             </dt>
             <dd className="font-semibold tabular-nums">
@@ -330,7 +330,7 @@ export function MonthPacingCard({
             Ustaw cel miesięczny
           </Link>{" "}
           <span className="text-muted-foreground">
-            - pokażemy postęp i ile trzeba dziennie, żeby go dowieźć.
+            - pokażemy postęp i ile trzeba dziennie, żeby go osiągnąć.
           </span>
         </p>
       ) : null}

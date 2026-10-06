@@ -124,7 +124,7 @@ export function CreativesExplorer({
           <p className="mt-0.5 text-sm text-muted-foreground">
             {en
               ? "The winners of this period, and what they do better than the rest."
-              : "Zwycięzcy tego okresu - i w czym są lepsze od pozostałych."}
+              : "Najlepsze reklamy tego okresu - i w czym wygrywają z pozostałymi."}
           </p>
         </div>
         <CreativesPodium entries={podium} bench={bench} lang={lang} onSelect={setSelected} />
@@ -144,7 +144,7 @@ export function CreativesExplorer({
             <p className="mt-0.5 text-sm text-muted-foreground">
               {en
                 ? `${counts.better} above and ${counts.worse} below your average. Click an ad to see it bigger.`
-                : `${counts.better} lepiej i ${counts.worse} słabiej niż Twoja średnia. Kliknij reklamę, by ją powiększyć.`}
+                : `Lepiej niż Twoja średnia: ${counts.better}, słabiej: ${counts.worse}. Kliknij reklamę, by ją powiększyć.`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -158,7 +158,7 @@ export function CreativesExplorer({
                 }}
                 options={[
                   { value: "best", label: en ? "Best" : "Najlepsze" },
-                  { value: "spend", label: en ? "Most spent" : "Najwięcej wydane" },
+                  { value: "spend", label: en ? "Most spent" : "Największe wydatki" },
                   { value: "newest", label: en ? "Newest" : "Najnowsze" },
                 ]}
               />

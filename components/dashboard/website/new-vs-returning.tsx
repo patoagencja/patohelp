@@ -17,7 +17,7 @@ export function NewVsReturning({
   const insight =
     total > 0 && !en
       ? newShare >= 0.5
-        ? `${outOfTen(newShare)} gości to nowe osoby - reklamy docierają do ludzi, którzy wcześniej Was nie znali.`
+        ? `${outOfTen(newShare)} gości to nowe osoby - reklamy docierają do ludzi, którzy wcześniej nie znali marki.`
         : `${outOfTen(1 - newShare)} gości wraca na stronę - marka zostaje w pamięci.`
       : null;
 

@@ -623,11 +623,11 @@ export function awardSentence(
         : (() => {
             const pct = Math.round((1 - cpc / (b.cpc ?? cpc)) * 100);
             if (pct < 5) return null;
-            return en ? `${pct}% below your average` : `o ${pct}% mniej niż średnio`;
+            return en ? `${pct}% below your average` : `o ${pct}% taniej niż średnio`;
           })();
     return en
       ? `One visit to your site costs ${price}${gap ? ` - ${gap}` : ""}.`
-      : `Jedno wejście na stronę kosztuje tu ${price}${gap ? ` - ${gap}` : ""}.`;
+      : `Jedno kliknięcie kosztuje tu ${price}${gap ? ` - ${gap}` : ""}.`;
   }
   if (kind === "hook") {
     const hook = videoRatesOf(c)?.hook ?? 0;

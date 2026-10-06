@@ -60,9 +60,15 @@ export function SalesOverview({
   trend,
   revenueKpi,
   lastYear,
+  thinBase = false,
 }: {
   trend: TrendPoint[];
   revenueKpi: Kpi;
+  /**
+   * Previous period had too few orders for a meaningful % - same guard as
+   * the revenue tile above, so the two cards never disagree on the change.
+   */
+  thinBase?: boolean;
   /** Last year's revenue per current date (52-week aligned), when reliable. */
   lastYear?: Array<{ date: string; revenue: number | null }> | null;
 }) {
@@ -71,7 +77,14 @@ export function SalesOverview({
   const showLy = lyByDate.size > 0;
   const totalRev = trend.reduce((a, p) => a + p.revenueMinorUnits, 0);
   const totalSpend = trend.reduce((a, p) => a + p.spendMinorUnits, 0);
-  const net = totalRev - totalSpend;
+  // The three summary rows are a little sum (sales - ads = rest), so they are
+  // shown in whole złoty and the rest is derived from the ROUNDED parts:
+  // rounded separately (or as "12 tys. zł"), 12 600 - 3 400 printed as
+  // "13 tys. - 3 tys. = 9 tys.", which a board member will subtract.
+  const revZl = Math.round(totalRev / 100);
+  const spendZl = Math.round(totalSpend / 100);
+  const netZl = revZl - spendZl;
+  const zl = (v: number) => `${formatNumberPL(v)}\u00a0zł`;
   // Totals above include today's orders so far (they match the KPI tiles);
   // per-day figures and the curve use finished days only - a half-synced
   // today would drag the average down and plunge the end of the chart.
@@ -147,7 +160,7 @@ export function SalesOverview({
           </p>
           {/* No sales this period vs a real baseline is a tracking gap, not
               a "-100%" headline. */}
-          {deltaPct !== null && Number.isFinite(deltaPct) && totalRev > 0 ? (
+          {deltaPct !== null && Number.isFinite(deltaPct) && totalRev > 0 && !thinBase ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <BadgeDelta
                 deltaType={deltaType}
@@ -170,17 +183,17 @@ export function SalesOverview({
           ) : null}
 
           <div className="mt-5 divide-y divide-border/60 border-y border-border/60">
-            <SummaryRow dot="bg-emerald-500" label="Sprzedaż" value={compactPln(totalRev / 100)} />
+            <SummaryRow dot="bg-emerald-500" label="Sprzedaż" value={zl(revZl)} />
             <SummaryRow
               dot="bg-indigo-500"
               label="Wydatki na reklamy"
-              value={compactPln(totalSpend / 100)}
+              value={zl(spendZl)}
             />
             {/* Not profit (no margin applied) - the profit card does that. */}
             <SummaryRow
-              dot={net >= 0 ? "bg-emerald-600" : "bg-rose-500"}
+              dot={netZl >= 0 ? "bg-emerald-600" : "bg-rose-500"}
               label="Po odjęciu reklam"
-              value={compactPln(net / 100)}
+              value={zl(netZl)}
               strong
               explain="Sprzedaż minus wydatki na reklamy. To jeszcze nie zysk - nie odjęliśmy kosztu towaru ani VAT. Zysk liczymy w karcie „Zysk po reklamach”."
             />

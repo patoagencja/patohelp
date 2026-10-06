@@ -529,7 +529,7 @@ export default async function RaportPage({
         {/* Top creatives */}
         {creatives.length > 0 ? (
           <ContentSlide
-            title="Najlepsze kreacje"
+            title="Najlepsze reklamy"
             subtitle="Meta - wg wydatków"
             section="Dane mediowe"
             foot={foot}
@@ -549,7 +549,7 @@ export default async function RaportPage({
         {/* Trend */}
         <ContentSlide
           title="Trend okresu"
-          subtitle="Wydatki vs sesje"
+          subtitle="Wydatki a wizyty na stronie"
           section="Dane mediowe"
           foot={foot}
         >
@@ -567,7 +567,7 @@ export default async function RaportPage({
                   className="inline-block h-2 w-4 rounded-full"
                   style={{ background: DECK_COLORS[1] }}
                 />
-                Sesje (GA4)
+                Wizyty na stronie (GA4)
               </span>
             </div>
             <div className="min-h-0 flex-1">
@@ -588,7 +588,7 @@ export default async function RaportPage({
         </ContentSlide>
 
         {/* ── Section: analytics ── */}
-        <DividerSlide title="Dane Analytics" subtitle={periodLabel} />
+        <DividerSlide title="Dane z Google Analytics" subtitle={periodLabel} />
 
         {website.hasData ? (
           <>
@@ -617,7 +617,7 @@ export default async function RaportPage({
                 </div>
                 <div className="flex flex-col">
                   <p className="mb-2 text-sm font-medium text-slate-500">
-                    Sesje w czasie
+                    Wizyty na stronie dzień po dniu
                   </p>
                   <div className="min-h-0 flex-1">
                     <LineChart

@@ -623,7 +623,7 @@ export function computeRecords(input: RecordsInput): RecordItem[] {
   if (iy) {
     out.push(milestoneCandidate("impressions", iy, today,
       `Przekroczyliśmy ${thresholdPl(iy.threshold, IMPRESSIONS)} reklam w ${year} roku`,
-      `Od 1 stycznia Wasze reklamy zebrały ${countPl(iy.total, IMPRESSIONS)} - próg ${thresholdPl(iy.threshold, null)} padł ${dayPl(iy.crossedOn, today)}.`));
+      `Od 1 stycznia Twoje reklamy zebrały ${countPl(iy.total, IMPRESSIONS)} - próg ${thresholdPl(iy.threshold, null)} padł ${dayPl(iy.crossedOn, today)}.`));
   }
 
   // CPC: cheapest 7-day window in 90 days.

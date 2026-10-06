@@ -24,13 +24,13 @@ export function TopCreatives({
   return (
     <Card>
       <h2 className="text-base font-semibold">
-        {en ? "Top 5 creatives (Meta, last 30 days)" : "Top 5 kreacji (Meta, ostatnie 30 dni)"}
+        {en ? "Top 5 creatives (Meta, last 30 days)" : "5 najlepszych reklam (Meta, ostatnie 30 dni)"}
       </h2>
       {creatives.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
           {en
             ? "Creative data appears after the first creatives sync."
-            : "Dane o kreacjach pojawią się po pierwszej synchronizacji kreacji (odświeżamy je co 6 godzin)."}
+            : "Dane o reklamach pojawią się po pierwszej synchronizacji (odświeżamy je co 6 godzin)."}
         </p>
       ) : (
         <Grid numItemsSm={2} numItemsLg={5} className="mt-4 gap-4">

@@ -111,6 +111,13 @@ function pct(recent: number, base: number): number | null {
 export async function getDailyScore(clientId: string): Promise<DailyScore | null> {
   const supabase = createClient();
   const today = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
+  // Complete days only: today's half-synced day counted as a full day in the
+  // 7-day averages, so every morning the "Puls" and its factor deltas sagged
+  // (and disagreed with the goals card, which also stops at yesterday).
+  // Date-string maths, so a 23/25-hour DST day can't land back on today.
+  const lastFullDay = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   const since = formatInTimeZone(
     subDays(new Date(), FETCH_DAYS),
     WARSAW_TZ,
@@ -129,8 +136,11 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
         .select("date, spend_minor_units, clicks, impressions")
         .eq("client_id", clientId)
         .gte("date", since)
-        .lte("date", today)
+        .lte("date", lastFullDay)
         .order("date", { ascending: true })
+        // Provider too: campaign ids are only unique per platform, and
+        // fetchAll needs a total order to page without skips/duplicates.
+        .order("provider", { ascending: true })
         .order("campaign_id", { ascending: true })
         .range(from, to)
     ),
@@ -143,7 +153,7 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
         .is("device_category", null)
         .is("page_path", null)
         .gte("date", since)
-        .lte("date", today)
+        .lte("date", lastFullDay)
         .order("date", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to)
@@ -215,11 +225,11 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
     { key: "clicks", label: "Kliknięcia", deltaPct: pct(avg(win.map((d) => d.clicks)), base.clicks) },
     {
       key: "sessions",
-      label: "Sesje",
+      label: "Wizyty na stronie",
       // A week with zero sessions is GA4 not syncing, not "-100%" traffic.
       deltaPct: winSessions > 0 ? pct(winSessions, base.sessions) : null,
     },
-    { key: "reach", label: "Zasięg", deltaPct: pct(avg(win.map((d) => d.impressions)), base.impressions) },
+    { key: "reach", label: "Wyświetlenia", deltaPct: pct(avg(win.map((d) => d.impressions)), base.impressions) },
   ];
 
   // Headline: always lead with the strongest positive; only nudge gently if the
@@ -230,11 +240,11 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
   const best = ranked[0];
   let headline: string;
   if (best && best.deltaPct! >= 5) {
-    headline = `${best.label} w tym tygodniu wyżej o ${best.deltaPct}% 🔥`;
+    headline = `${best.label}: w tym tygodniu o ${best.deltaPct}% powyżej normy 🔥`;
   } else if (score >= 78) {
     headline = "Mocny tydzień - forma trzyma poziom.";
   } else if (best && best.deltaPct! <= -8) {
-    headline = `${best.label} lekko niżej niż zwykle - jest co poprawiać.`;
+    headline = `${best.label}: lekko poniżej normy - sprawdzamy, co poprawić.`;
   } else {
     headline = "Stabilna forma - blisko Twojej normy.";
   }

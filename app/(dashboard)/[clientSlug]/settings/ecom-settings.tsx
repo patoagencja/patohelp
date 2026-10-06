@@ -41,7 +41,7 @@ export async function EcomSettingsSection({
       <h2 className="text-lg font-semibold">E-commerce: marża i cele sprzedaży</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Marża zamienia ROAS w realny zysk po reklamie. Cele pokazują klientowi
-        postęp miesiąca i prognozę, a na Q4 - budżet potrzebny do ich dowiezienia.
+        postęp miesiąca i prognozę, a na Q4 - budżet potrzebny do ich osiągnięcia.
       </p>
 
       {!settings.available ? (

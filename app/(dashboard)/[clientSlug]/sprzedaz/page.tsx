@@ -7,7 +7,10 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
+import {
+  EcommerceKpis,
+  MIN_PREV_TRANSACTIONS,
+} from "@/components/dashboard/ecommerce-kpis";
 import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button";
 import { ChannelEfficiency } from "@/components/dashboard/ecom/channel-efficiency";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
@@ -121,6 +124,9 @@ export default async function SprzedazPage({
           .gte("date", rangeStart)
           .lte("date", rangeEnd)
           .order("date", { ascending: true })
+          // Tie-breaker: with date alone, rows of one day could repeat or go
+          // missing across 1000-row pages, skewing product totals.
+          .order("id", { ascending: true })
           .range(from, to)
       );
       const byItem = new Map<string, ProductRow>();
@@ -194,6 +200,7 @@ export default async function SprzedazPage({
           <SalesOverview
             trend={data.trend}
             revenueKpi={data.ecommerce.revenueMinorUnits}
+          thinBase={data.ecommerce.transactions.previous < MIN_PREV_TRANSACTIONS}
             lastYear={yoy.available ? yoy.series : null}
           />
         </SectionBoundary>

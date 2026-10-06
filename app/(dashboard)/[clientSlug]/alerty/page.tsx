@@ -80,15 +80,15 @@ function pacingSentence(f: PacingFlight): string {
   const plan = Math.round(Math.min(f.expectedPct, 1) * 100);
   switch (f.status) {
     case "behind":
-      return `Zrobione ${done}% celu, a według planu powinno być już ${plan}%. Sprawdzamy, co hamuje kampanię.`;
+      return `Zrealizowano ${done}% celu, a według planu powinno być już ${plan}%. Sprawdzamy, co hamuje kampanię.`;
     case "ahead":
-      return `Zrobione ${done}% celu - szybciej niż zakładał plan (${plan}%).`;
+      return `Zrealizowano ${done}% celu - szybciej niż zakładał plan (${plan}%).`;
     case "on_track":
-      return `Zrobione ${done}% celu - zgodnie z planem (${plan}%).`;
+      return `Zrealizowano ${done}% celu - zgodnie z planem (${plan}%).`;
     case "upcoming":
       return `Kampania rusza ${dayMonthPL(f.startDate)}.`;
     case "ended":
-      return `Kampania zakończona - zrobione ${done}% celu.`;
+      return `Kampania zakończona - zrealizowano ${done}% celu.`;
   }
 }
 
@@ -323,7 +323,7 @@ export default async function AlertyPage({
         <section>
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Target className="h-4 w-4 text-sky-500" aria-hidden />
-            Czy kampanie dowożą zaplanowany cel
+            Czy kampanie realizują zaplanowane cele
           </h2>
           <p className="mb-3 mt-1 text-sm text-muted-foreground">
             Pionowa kreska na pasku pokazuje, gdzie według planu powinniśmy być dzisiaj.
@@ -422,7 +422,7 @@ export default async function AlertyPage({
         <BellRing className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
           {isAgency
-            ? "Skoki wydatków lecą natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach."
+            ? "Skoki wydatków trafiają natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach."
             : "Pilne sprawy, np. nagły skok wydatków, wykrywamy automatycznie - powiadomienie trafia do nas od razu."}
         </span>
       </div>

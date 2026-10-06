@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 
 // Full showcase with a working sidebar and clickable tabs. Public, synthetic.
 export const metadata = {
-  title: "Demo (pełne) — Dashboard klienta",
+  title: "Demo (pełne) - panel klienta",
   description: "Pełny przykładowy dashboard marketingowy (dane demonstracyjne).",
 };
 

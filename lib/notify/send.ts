@@ -35,9 +35,9 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
 
   // Plaintext (WhatsApp / fallback).
   const lines = sorted.map(
-    (i) => `${i.critical ? "🚨 " : "• "}${i.title} — ${i.scope}: ${i.detail}`
+    (i) => `${i.critical ? "🚨 " : "• "}${i.title} - ${i.scope}: ${i.detail}`
   );
-  const text = `${hasCritical ? "PILNE — " : ""}Alerty dla ${clientName} (${
+  const text = `${hasCritical ? "PILNE - " : ""}Alerty dla ${clientName} (${
     sorted.length
   }):\n\n${lines.join("\n")}`;
 
@@ -50,7 +50,7 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
       const icon = i.critical ? "🚨" : "⚠️";
       const tileBg = i.critical ? "#fee2e2" : "#eef2ff";
       const pillBg = i.critical ? "#dc2626" : "#f59e0b";
-      const pillText = i.critical ? "Krytyczny" : "Uwaga";
+      const pillText = i.critical ? "Pilne" : "Ważne";
       return `
         <tr>
           <td style="padding:0 24px">
@@ -79,8 +79,8 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
     <table role="presentation" width="100%" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;border-collapse:separate;overflow:hidden">
       <tr>
         <td style="background:${headerBg};padding:22px 24px;color:#ffffff">
-          <div style="font-size:19px;font-weight:800;letter-spacing:-0.2px">${hasCritical ? "🚨 PILNE · " : "📊 "}Alerty — ${esc(clientName)}</div>
-          <div style="font-size:13px;margin-top:4px;color:#ffffff;opacity:0.9">${sorted.length} ${sorted.length === 1 ? "rzecz wymaga" : "rzeczy wymaga"} uwagi</div>
+          <div style="font-size:19px;font-weight:800;letter-spacing:-0.2px">${hasCritical ? "🚨 PILNE · " : "📊 "}Alerty - ${esc(clientName)}</div>
+          <div style="font-size:13px;margin-top:4px;color:#ffffff;opacity:0.9">Do sprawdzenia: ${sorted.length}</div>
         </td>
       </tr>
       ${rowsHtml}

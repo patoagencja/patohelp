@@ -138,7 +138,7 @@ export default async function NewsyPage({
           <Newspaper className="mb-3 h-8 w-8 text-muted-foreground" />
           <p className="text-sm font-medium">Brak newsów</p>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Feed wypełnia się automatycznie raz dziennie. Kliknij ikonę
+            Lista wypełnia się automatycznie raz dziennie. Kliknij ikonę
             odświeżania, aby pobrać pierwszą porcję (potrwa ~1 min).
           </p>
         </div>

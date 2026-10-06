@@ -59,8 +59,13 @@ function nounFor(n: number, one: string, few: string, many: string): string {
   return n >= 100_000 ? many : plPlural(n, one, few, many);
 }
 
-/** Minimum previous-period size before a % change is worth saying out loud. */
-const MIN_BASE = { clicks: 50, sessions: 50, conversions: 10, orders: 5 };
+/**
+ * Minimum previous-period size before a % change is worth saying out loud.
+ * Must match the KPI cards' thin-base cut-offs (kpi-cards.tsx,
+ * ecommerce-kpis.tsx MIN_PREV_TRANSACTIONS = 10): with orders at 5 the hero
+ * said "o 40% więcej" while the tile below said "za mało danych".
+ */
+const MIN_BASE = { clicks: 50, sessions: 50, conversions: 10, orders: 10 };
 
 function pct(kpi: Kpi): number | null {
   if (kpi.deltaPercent === null || !Number.isFinite(kpi.deltaPercent)) return null;
@@ -147,12 +152,13 @@ export function buildStory({
   if (isShop && ecommerce) {
     const orders = ecommerce.transactions.value;
     const roas = ecommerce.roas.value / 100;
-    const ordersDelta =
-      ecommerce.transactions.previous >= MIN_BASE.orders ? pct(ecommerce.transactions) : null;
-    const revenueDelta =
-      ecommerce.transactions.previous >= MIN_BASE.orders
-        ? pct(ecommerce.revenueMinorUnits)
-        : null;
+    // Revenue, orders and ROAS share one guard, like the tiles: all three
+    // swing on one or two baskets when last period had few orders.
+    const ordersComparable = ecommerce.transactions.previous >= MIN_BASE.orders;
+    const ordersDelta = ordersComparable ? pct(ecommerce.transactions) : null;
+    const revenueDelta = ordersComparable ? pct(ecommerce.revenueMinorUnits) : null;
+    const roasDelta =
+      ordersComparable && ecommerce.roas.previous > 0 ? pct(ecommerce.roas) : null;
 
     headline = `Sklep sprzedał za ${formatPlnWhole(revenue)} - ${formatNumberPL(
       orders
@@ -175,10 +181,7 @@ export function buildStory({
         key: "roas",
         value: `${roas.toLocaleString("pl-PL", { maximumFractionDigits: 2 })} zł`,
         caption: "wróciło z każdej 1 zł wydanej na reklamy",
-        change: phraseChange(
-          ecommerce.roas.previous > 0 ? pct(ecommerce.roas) : null,
-          "more_is_good"
-        ),
+        change: phraseChange(roasDelta, "more_is_good"),
       });
     }
     if (hasSessions) {
@@ -190,7 +193,6 @@ export function buildStory({
       });
     }
 
-    const roasDelta = ecommerce.roas.previous > 0 ? pct(ecommerce.roas) : null;
     if (roasDelta !== null && roasDelta >= 5)
       wins.push(
         `Reklamy zarabiają efektywniej - z każdej złotówki wraca o ${Math.round(
@@ -233,7 +235,7 @@ export function buildStory({
         "raz",
         "razy",
         "razy"
-      )} - pierwsze kliknięcia są w drodze.`;
+      )} - czekamy na pierwsze kliknięcia.`;
     } else {
       headline = "Pierwsze dane już spływają.";
     }

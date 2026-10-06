@@ -583,20 +583,20 @@ export async function getDashboardData(
       if (isActive || c.earlierSpend > 0) {
         if (c.earlierSpend > 0 && c.recentImpressions === 0 && c.recentSpend === 0) {
           status = "critical";
-          statusReason = "Brak wyświetleń w ostatnich 48h";
+          statusReason = "Brak wyświetleń w ostatnich 48 godzinach";
         } else if (cpc != null && clientAvgCpc > 0 && cpc > 3 * clientAvgCpc) {
           status = "critical";
-          statusReason = "CPC ponad 3× wyższy niż średnia konta";
+          statusReason = "Koszt kliknięcia ponad 3× wyższy niż średnia konta";
         } else if (avgFreq > 4) {
           status = "attention";
-          statusReason = "Częstotliwość > 4 - czas na nowe kreacje";
+          statusReason = "Ta sama osoba widziała reklamę średnio ponad 4 razy - czas ją odświeżyć";
         } else if (
           clientAvgCtr > 0 &&
           c.impressions > 500 &&
           ctr < 0.5 * clientAvgCtr
         ) {
           status = "attention";
-          statusReason = "CTR poniżej 50% średniej konta";
+          statusReason = "Klikalność poniżej połowy średniej konta";
         }
       }
 

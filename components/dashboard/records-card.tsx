@@ -48,7 +48,7 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
         <div>
           <h2 className="text-base font-semibold">Rekordy i kamienie milowe</h2>
           <p className="text-xs text-muted-foreground">
-            Policzone na Waszych danych - warte pokazania zarządowi
+            Policzone na Twoich danych - warte pokazania zarządowi
           </p>
         </div>
       </div>

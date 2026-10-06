@@ -212,7 +212,7 @@ export function CreativesTable({
   const en = lang === "en";
   const sortLabel: Record<SortKey, string> = en
     ? { spend: "Spend", clicks: "Clicks", ctr: "CTR", cpc: "CPC" }
-    : { spend: "Wydatki", clicks: "Kliknięcia", ctr: "CTR", cpc: "CPC" };
+    : { spend: "Wydatki", clicks: "Kliknięcia", ctr: "Klikalność", cpc: "Koszt kliknięcia" };
   const [sort, setSort] = useState<SortKey>("spend");
   const [selected, setSelected] = useState<CreativeItem | null>(null);
   const bench = useMemo(() => computeBenchmarks(creatives), [creatives]);
@@ -235,10 +235,10 @@ export function CreativesTable({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold">
-          {en ? "All creatives" : "Wszystkie kreacje"} ({Math.min(creatives.length, 50)}
+          {en ? "All creatives" : "Wszystkie reklamy"} ({Math.min(creatives.length, 50)}
           {creatives.length > 50 ? `${en ? " of " : " z "}${creatives.length}` : ""})
           <span className="ml-2 font-normal text-muted-foreground">
-            {en ? "· click a row to view the creative" : "· kliknij wiersz, by zobaczyć kreację"}
+            {en ? "· click a row to view the creative" : "· kliknij wiersz, by zobaczyć reklamę"}
           </span>
         </h2>
         <div className="flex self-start rounded-lg bg-muted p-1 sm:self-auto">
@@ -265,12 +265,12 @@ export function CreativesTable({
         <table className="w-full min-w-[40rem]">
           <thead>
             <tr className="border-b border-border text-left tabular-nums text-[11px] uppercase tracking-wide text-muted-foreground">
-              <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Kreacja"}</th>
+              <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Reklama"}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Spend" : "Wydatki"}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Impr." : "Wyśw."}</th>
               <th className="py-2 pr-3 text-right font-medium">{en ? "Clicks" : "Klik."}</th>
-              <th className="py-2 pr-3 text-right font-medium">CTR</th>
-              <th className="py-2 pr-3 text-right font-medium">CPC</th>
+              <th className="py-2 pr-3 text-right font-medium">{en ? "CTR" : "Klikalność"}</th>
+              <th className="py-2 pr-3 text-right font-medium">{en ? "CPC" : "Koszt klik."}</th>
               <th className="py-2 pr-3 text-right font-medium" title={en ? "Times seen per person" : "Ile razy 1 osoba widziała reklamę"}>
                 {en ? "Freq." : "Częst."}
               </th>

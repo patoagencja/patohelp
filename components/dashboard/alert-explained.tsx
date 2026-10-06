@@ -144,7 +144,7 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
       pl: [
         stripEmoji(a.title),
         "Jeśli to nie jest zaplanowany wzrost, budżet może skończyć się szybciej, niż zakładaliśmy.",
-        "Sprawdzamy, czy to celowe (np. promocja). Jeśli nie - korygujemy budżet kampanii.",
+        "Sprawdzamy, czy to celowe (np. promocja). Jeśli nie - proponujemy korektę budżetu kampanii.",
       ],
       en: [
         stripEmoji(a.title),
@@ -156,7 +156,7 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
       pl: [
         stripEmoji(a.title),
         "W takim tempie budżet na miesiąc może skończyć się przed jego końcem.",
-        "Sprawdzamy, czy większe wydatki dają też więcej kliknięć i wizyt. Jeśli nie - wracamy do wcześniejszego poziomu.",
+        "Sprawdzamy, czy większe wydatki dają też więcej kliknięć i wizyt. Jeśli nie - proponujemy powrót do wcześniejszego poziomu.",
       ],
       en: [
         stripEmoji(a.title),
@@ -192,7 +192,7 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
       pl: [
         `Kliknięcie w reklamę zdrożało o ${p}`,
         "Za ten sam budżet dostajemy mniej kliknięć - czyli mniej osób trafia na stronę.",
-        "Sprawdzamy, czy rośnie konkurencja albo czy reklama się „opatrzyła”. W razie potrzeby zmieniamy stawki lub kreacje.",
+        "Sprawdzamy, czy rośnie konkurencja albo czy reklama się „opatrzyła”. W razie potrzeby proponujemy zmianę stawek lub odświeżenie reklam.",
       ],
       en: [
         `An ad click got ${p} more expensive`,
@@ -311,7 +311,7 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
     revenue_down: {
       pl: [
         `Spadek sprzedaży (o ${p})`,
-        "Sklep zarabia mniej przy podobnych wydatkach na reklamy.",
+        "Sklep sprzedaje mniej, choć wydatki na reklamy są podobne.",
         "Sprawdzamy, czy to efekt mniejszego ruchu, czy mniejszej liczby zamówień.",
       ],
       en: [

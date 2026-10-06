@@ -12,7 +12,7 @@ function engagedVerdict(rate: number): { text: string; tone: string } {
     return { text: "Świetnie - większość gości naprawdę się interesuje.", tone: "text-emerald-700 dark:text-emerald-400" };
   if (rate >= 45)
     return { text: "Dobrze - około połowy gości zostaje na dłużej.", tone: "text-emerald-700 dark:text-emerald-400" };
-  return { text: "Sporo osób szybko wychodzi - pracujemy nad dopasowaniem ruchu.", tone: "text-amber-700 dark:text-amber-400" };
+  return { text: "Sporo osób szybko wychodzi - sprawdzamy, czy reklamy trafiają do właściwych osób.", tone: "text-amber-700 dark:text-amber-400" };
 }
 
 export function EngagementMetrics({

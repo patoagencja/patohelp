@@ -305,7 +305,7 @@ export default async function ClientsPage({
             </p>
             {totalExpiring > 0 ? (
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {totalExpiring} {totalExpiring === 1 ? "token wygasa" : "tokeny wygasają"} w ciągu 14 dni
+                Tokeny wygasające w ciągu 14 dni: {totalExpiring}
               </p>
             ) : null}
           </div>
@@ -419,7 +419,7 @@ export default async function ClientsPage({
                       {health.expiring.map((e) => (
                         <li key={`exp-${e.provider}`} className="flex items-center justify-between gap-2">
                           <span className="truncate text-muted-foreground">
-                            {e.label}: token wygasa za {e.daysLeft} dni
+                            {e.label}: token wygasa za {e.daysLeft} {e.daysLeft === 1 ? "dzień" : "dni"}
                           </span>
                           <Link
                             href={`/${c.slug}/settings#polaczenia`}

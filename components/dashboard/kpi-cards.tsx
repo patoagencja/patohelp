@@ -196,7 +196,7 @@ export function KpiCards({
     noImpressions: en
       ? "ads were not shown in this period"
       : "reklamy nie wyświetlały się w tym okresie",
-    noConv: en ? "no conversion events" : "brak zdarzeń konwersji",
+    noConv: en ? "no conversion events" : "brak działań na stronie w tym okresie",
   };
   const impressions = trend.reduce((a, t) => a + t.impressions, 0);
   // No ads history at all (new client, Google/Meta not connected yet) vs ads

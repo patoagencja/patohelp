@@ -65,8 +65,8 @@ export function ReportActions({
         </ContentSlide>
       ) : (
         <p className="text-center text-sm text-slate-500 print:hidden">
-          Kliknij „Generuj opis AI", aby dodać slajd z narracją o wynikach, a potem
-          „Pobierz PDF", aby zapisać deck i wysłać.
+          Kliknij „Generuj opis AI”, aby dodać slajd z narracją o wynikach, a potem
+          „Pobierz PDF”, aby zapisać prezentację i ją wysłać.
         </p>
       )}
     </>

@@ -131,7 +131,9 @@ function KpiTile({
 
 // Fewer orders than this last period and every e-commerce % (revenue, ROAS,
 // AOV) swings on one or two baskets - say "not enough data" instead.
-const MIN_PREV_TRANSACTIONS = 10;
+// Exported so every card that shows a revenue change (SalesOverview, the
+// story hero) applies the same cut-off.
+export const MIN_PREV_TRANSACTIONS = 10;
 
 /** Same window last year, used for the r/r line under each tile. */
 export interface EcommerceYoY {

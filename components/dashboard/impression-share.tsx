@@ -180,7 +180,7 @@ export function ImpressionShare({
   return (
     <Card>
       <h2 className="text-base font-semibold">
-        {en ? "How visible you are on Google" : "Jak bardzo jesteś widoczny w Google"}
+        {en ? "How visible you are on Google" : "Jak dobrze widać Twoje reklamy w Google"}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {en
@@ -234,7 +234,7 @@ export function ImpressionShare({
         <p>
           {en
             ? `"Searches where you could have shown" is Google's own estimate, based on your keywords, locations and schedule. Based on ${formatNumberPL(data.impressions)} impressions.`
-            : `„Wyszukiwania, przy których mogłeś się pojawić” to szacunek Google na podstawie słów kluczowych, lokalizacji i harmonogramu kampanii. Podstawa: ${formatNumberPL(data.impressions)} wyświetleń.`}
+            : `„Wyszukiwania, przy których Twoja reklama mogła się pojawić” to szacunek Google na podstawie słów kluczowych, lokalizacji i harmonogramu kampanii. Podstawa: ${formatNumberPL(data.impressions)} wyświetleń.`}
         </p>
         <p>
           {en

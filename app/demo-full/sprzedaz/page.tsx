@@ -1,6 +1,9 @@
 import { CalendarRange, LineChart, ShoppingBag, Sparkles, TrendingUp } from "lucide-react";
 
-import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
+import {
+  EcommerceKpis,
+  MIN_PREV_TRANSACTIONS,
+} from "@/components/dashboard/ecommerce-kpis";
 import { ChannelEfficiency } from "@/components/dashboard/ecom/channel-efficiency";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
@@ -68,6 +71,7 @@ export default function DemoSprzedazPage({
         <SalesOverview
           trend={d.trend}
           revenueKpi={d.ecommerce.revenueMinorUnits}
+          thinBase={d.ecommerce.transactions.previous < MIN_PREV_TRANSACTIONS}
           lastYear={d.yoy.available ? d.yoy.series : null}
         />
       </StorySection>

@@ -54,7 +54,7 @@ export default async function WebsitePage({
       },
       no_data_yet: {
         title: "Trwa pierwsza synchronizacja GA4",
-        body: `Property ${status.propertyId} jest podłączone, ale w bazie nie ma jeszcze danych. Kliknij „Odśwież" w nagłówku i odczekaj chwilę. Jeśli dalej pusto - sprawdź, czy w Google Cloud jest włączone „Analytics Data API".`,
+        body: `Property ${status.propertyId} jest podłączona, ale w bazie nie ma jeszcze danych. Kliknij „Odśwież” w nagłówku i odczekaj chwilę. Jeśli dalej pusto - sprawdź, czy w Google Cloud jest włączone „Analytics Data API”.`,
       },
       not_connected: {
         title: "GA4 nie jest połączone",
@@ -64,7 +64,7 @@ export default async function WebsitePage({
       },
       no_property: {
         title: "Nie wybrano property GA4",
-        body: "GA4 jest połączone, ale nie wskazano, którą property pobierać. Bez tego synchronizacja jest pomijana. Wybierz property DRE.",
+        body: "GA4 jest połączone, ale nie wskazano, którą property pobierać. Bez tego synchronizacja jest pomijana. Wybierz właściwą property.",
         href: `/${params.clientSlug}/settings/ga4-select`,
         cta: "Wybierz property",
       },
@@ -72,7 +72,7 @@ export default async function WebsitePage({
         title: "Synchronizacja GA4 się nie powiodła",
         body:
           status.lastError ??
-          `Ostatni sync GA4 zwrócił błąd. Najczęściej: niewłączone „Analytics Data API" w projekcie Google Cloud, albo property należy do innego konta niż użyte przy logowaniu.`,
+          `Ostatnia synchronizacja GA4 zwróciła błąd. Najczęściej: niewłączone „Analytics Data API” w projekcie Google Cloud albo property należy do innego konta niż użyte przy logowaniu.`,
         href: `/${params.clientSlug}/settings`,
         cta: "Sprawdź integrację",
       },

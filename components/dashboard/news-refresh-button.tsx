@@ -48,7 +48,7 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
       const timedOut = err instanceof Error && err.name === "TimeoutError";
       toast.error(
         timedOut
-          ? "Research trwał za długo i został przerwany. Spróbuj ponownie - cron też dobija newsy co 30 min."
+          ? "Wyszukiwanie trwało za długo i zostało przerwane. Spróbuj ponownie - newsy i tak uzupełniamy automatycznie co 30 min."
           : "Nie udało się połączyć z serwerem.",
         { id: "news", duration: 10000 }
       );

@@ -79,23 +79,23 @@ const STEPS: Step[] = [
   },
   {
     title: "Wybierz okres",
-    body: "Zmień okres – wszystko na stronie się przeliczy.",
+    body: "Zmień okres - wszystko na stronie się przeliczy.",
     find: () => firstShown('[role="radiogroup"][aria-label="Zakres dat"]'),
   },
   {
     title: "Co znaczy ten wskaźnik?",
-    body: "Nie wiesz, co znaczy wskaźnik? Najedź lub kliknij ⓘ – wyjaśnimy to prostymi słowami.",
+    body: "Najedź kursorem na ⓘ albo je kliknij - wyjaśnimy wskaźnik prostymi słowami.",
     find: findKpiInfoButton,
     pad: 8,
   },
   {
     title: "Tryb prezentacji",
-    body: "Pokaż panel na spotkaniu – pełny ekran, duże liczby.",
+    body: "Pokaż panel na spotkaniu - pełny ekran, duże liczby.",
     find: () => firstShown('button[aria-label="Prezentuj"]'),
   },
   {
     title: "Więcej szczegółów",
-    body: "Więcej szczegółów w zakładkach – reklamy, kreacje i ruch na stronie mają własne widoki.",
+    body: "Reklamy, kreacje i ruch na stronie mają własne zakładki ze szczegółami.",
     // Desktop sidebar or the phone's bottom tab bar, whichever is visible.
     find: () => firstShown('aside nav, nav[aria-label="Nawigacja"]'),
     prefer: ["right", "top", "bottom", "left"],

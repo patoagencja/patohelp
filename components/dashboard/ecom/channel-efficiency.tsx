@@ -316,7 +316,7 @@ export function ChannelEfficiency({
         <div className="mt-4 flex items-start gap-2 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            <b>{data.untrackedPaid.map((c) => NAME[c]).join(", ")}</b> wydaje budżet,
+            <b>{data.untrackedPaid.map((c) => NAME[c]).join(", ")}</b>: budżet jest wydawany,
             ale Google Analytics nie widzi z tych reklam ani wizyt, ani sprzedaży -
             najpewniej linki w reklamach nie mają oznaczeń śledzących (UTM). Ta
             sprzedaż trafia wtedy do „Pozostałych” i zaniża wynik reklam.

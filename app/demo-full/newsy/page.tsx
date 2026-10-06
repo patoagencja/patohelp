@@ -24,12 +24,12 @@ export default function DemoFullNewsy({
     <>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          {en ? "News — ads & AI" : "Newsy — reklama & AI"}
+          {en ? "News — ads & AI" : "Newsy - reklama i AI"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {en
             ? "Daily digest: Meta, Google/YouTube, TikTok and AI — gathered automatically from the web."
-            : "Codzienny przegląd: Meta, Google/YouTube, TikTok i AI — zbierane automatycznie z sieci."}
+            : "Codzienny przegląd: Meta, Google/YouTube, TikTok i AI - zbierany automatycznie z sieci."}
         </p>
       </div>
 

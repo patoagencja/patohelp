@@ -45,7 +45,7 @@ export async function GoalsSettingsSection({
       <h2 className="text-lg font-semibold">Cele miesięczne</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Klient zobaczy na przeglądzie postęp każdego celu, prognozę na koniec
-        miesiąca i ile trzeba dziennie, żeby go dowieźć. Puste pole = brak celu.
+        miesiąca i ile trzeba dziennie, żeby go osiągnąć. Puste pole = brak celu.
       </p>
 
       {!targets.available ? (
