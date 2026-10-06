@@ -127,7 +127,12 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6 p-6">
-      <PrintHeader clientName={client.name} periodLabel={data.rangeLabel} />
+      <PrintHeader
+        clientName={client.name}
+        periodLabel={data.rangeLabel}
+        clientSlug={params.clientSlug}
+        logoUrl={client.logoUrl}
+      />
       <div
         data-print-hide
         className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"

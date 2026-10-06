@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
+import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
@@ -26,6 +27,7 @@ import {
   type TrendPoint,
 } from "@/lib/dashboard/metrics";
 import type { AiSummary, ClientEvent } from "@/lib/dashboard/overview";
+import { clientAccentStyle, getClientBranding } from "@/lib/dashboard/branding";
 import { buildStory } from "@/lib/dashboard/story";
 import { getEngagementYoY } from "@/lib/dashboard/yoy";
 import { getMonthPacing } from "@/lib/ecom/insights";
@@ -78,13 +80,15 @@ async function resolveOverviewLink(
 async function getClient(admin: SupabaseClient, clientId: string) {
   const { data } = await admin
     .from("clients")
-    .select("id, name, client_type")
+    .select("id, slug, name, client_type")
     .eq("id", clientId)
     .maybeSingle();
   if (data) {
-    const row = data as { id: string; name: string; client_type?: string };
+    const row = data as { id: string; slug: string; name: string; client_type?: string };
     return {
       id: row.id,
+      // Only used to pick a built-in SVG logo; never echoed into links.
+      slug: row.slug,
       name: row.name,
       ecommerce: row.client_type === "ecommerce",
     };
@@ -92,11 +96,16 @@ async function getClient(admin: SupabaseClient, clientId: string) {
   // Pre-0016 databases have no client_type column.
   const { data: basic } = await admin
     .from("clients")
-    .select("id, name")
+    .select("id, slug, name")
     .eq("id", clientId)
     .maybeSingle();
   return basic
-    ? { id: basic.id as string, name: basic.name as string, ecommerce: false }
+    ? {
+        id: basic.id as string,
+        slug: basic.slug as string,
+        name: basic.name as string,
+        ecommerce: false,
+      }
     : null;
 }
 
@@ -194,7 +203,11 @@ export default async function SharedOverviewPage({
   const clientId = await resolveOverviewLink(admin, params.token);
   if (!clientId) notFound();
 
-  const client = await getClient(admin, clientId);
+  const [client, branding] = await Promise.all([
+    getClient(admin, clientId),
+    // Pre-0031 databases just keep the default look.
+    getClientBranding(admin, clientId),
+  ]);
   if (!client) notFound();
 
   // Presets only - no custom from/to on the public view.
@@ -229,11 +242,23 @@ export default async function SharedOverviewPage({
   const basePath = `/s/${params.token}`;
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div
+      className="min-h-screen bg-muted/20"
+      style={clientAccentStyle(branding.brandColor)}
+    >
       <header
         data-present-hide
         className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-card px-4 py-2 sm:px-6 print:hidden"
       >
+        {/* The board sees the client's own mark first; no initials badge when
+            there is no logo - the name right next to it says it already. */}
+        <ClientBrandMark
+          name={client.name}
+          slug={client.slug}
+          logoUrl={branding.logoUrl}
+          className="h-9 max-w-[10rem] shrink-0 text-foreground [&:not(img)]:h-6"
+          fallback={null}
+        />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{client.name}</p>
           <p className="text-xs text-muted-foreground">
@@ -241,12 +266,27 @@ export default async function SharedOverviewPage({
           </p>
         </div>
         <span className="flex-1" />
-        <PresentationMode />
+        <PresentationMode
+          brand={
+            <ClientBrandMark
+              name={client.name}
+              slug={client.slug}
+              logoUrl={branding.logoUrl}
+              className="h-8"
+              fallback={<span className="text-sm font-semibold">{client.name}</span>}
+            />
+          }
+        />
         <PrintButton />
       </header>
 
       <main className="mx-auto w-full max-w-6xl p-4 sm:p-6">
-        <PrintHeader clientName={client.name} periodLabel={data.rangeLabel} />
+        <PrintHeader
+          clientName={client.name}
+          periodLabel={data.rangeLabel}
+          clientSlug={client.slug}
+          logoUrl={branding.logoUrl}
+        />
 
         <nav
           aria-label="Zakres dat"

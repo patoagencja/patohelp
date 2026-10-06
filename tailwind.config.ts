@@ -51,6 +51,9 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // The client's own accent (clients.brand_color, migration 0031), set
+        // as --client-accent on the dashboard wrapper. Unset = our primary.
+        "client-accent": "var(--client-accent, hsl(var(--primary)))",
         // Tremor tokens
         tremor: {
           brand: {

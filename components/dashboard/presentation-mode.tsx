@@ -144,7 +144,13 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   return false;
 }
 
-export function PresentationMode() {
+export function PresentationMode({
+  brand,
+}: {
+  /** The client's mark, shown top-left while presenting so the TV shows
+   *  whose report this is once the sidebar and header are gone. */
+  brand?: React.ReactNode;
+} = {}) {
   const [active, setActive] = useState(false);
   const [position, setPosition] = useState({ index: 0, total: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -193,6 +199,15 @@ export function PresentationMode() {
       triggerRef.current?.focus();
     };
   }, [active]);
+
+  // Lets globals.css keep sections clear of the top-left brand watermark.
+  const hasBrand = Boolean(brand);
+  useEffect(() => {
+    if (!active || !hasBrand) return;
+    const root = document.documentElement;
+    root.setAttribute("data-present-brand", "true");
+    return () => root.removeAttribute("data-present-brand");
+  }, [active, hasBrand]);
 
   useEffect(() => {
     if (!active) return;
@@ -333,6 +348,15 @@ export function PresentationMode() {
   const bar =
     active && typeof document !== "undefined"
       ? createPortal(
+          <>
+          {brand ? (
+            <div
+              aria-hidden
+              className="pointer-events-none fixed left-5 top-4 z-[60] flex max-w-[14rem] items-center rounded-xl bg-card/80 px-3 py-2 text-foreground opacity-80 shadow-sm backdrop-blur print:hidden"
+            >
+              {brand}
+            </div>
+          ) : null}
           <div
             role="toolbar"
             aria-label="Sterowanie prezentacją"
@@ -379,7 +403,8 @@ export function PresentationMode() {
               <X className="h-3.5 w-3.5" aria-hidden />
               Zakończ
             </Button>
-          </div>,
+          </div>
+          </>,
           document.body
         )
       : null;

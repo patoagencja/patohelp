@@ -1,6 +1,7 @@
 import { getISOWeek, getISOWeekYear } from "date-fns";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getClientBranding, safeLogoUrl } from "@/lib/dashboard/branding";
 import { getDashboardData } from "@/lib/dashboard/metrics";
 import {
   getAgencyWorkEntries,
@@ -100,6 +101,8 @@ export interface WeeklyDigestContent {
   dashboardUrl: string;
   /** "Co zrobiliśmy w tym tygodniu": manual, client-visible entries (max 5). */
   agencyWork?: { date: string; title: string; category: AgencyWorkCategory }[];
+  /** The client's own logo (clients.logo_url, https) for the e-mail header. */
+  logoUrl?: string | null;
 }
 
 // buildStory() compares against "the previous period"; in a weekly e-mail the
@@ -165,6 +168,9 @@ export async function loadWeeklyDigest(
     .slice(0, 5)
     .map(({ date, title, category }) => ({ date, title, category }));
 
+  // Pre-0031 databases (or a failed read) just send the name-only header.
+  const branding = await getClientBranding(admin, client.id).catch(() => null);
+
   return {
     clientName: client.name,
     week,
@@ -183,10 +189,23 @@ export async function loadWeeklyDigest(
     // different totals, so the e-mail looked wrong next to the panel.
     dashboardUrl: `${appUrl.replace(/\/+$/, "")}/${client.slug}?from=${week.start}&to=${week.end}`,
     agencyWork,
+    logoUrl: branding?.logoUrl ?? null,
   };
 }
 
 // ---- pure HTML builder ----
+
+/**
+ * The logo as an e-mail can show it: https only (re-checked, the builder is
+ * pure and may get content from elsewhere) and no SVG - Gmail and Outlook
+ * don't render SVG images, and a broken-image icon in the header is worse
+ * than the name alone.
+ */
+function emailLogoUrl(value: string | null | undefined): string | null {
+  const url = safeLogoUrl(value);
+  if (!url) return null;
+  return /\.svg$/i.test(new URL(url).pathname) ? null : url;
+}
 // Table-based layout with inline styles: e-mail clients (Gmail, Outlook)
 // strip most <style> rules, so styling must live on the elements. Palette
 // matches the alert e-mail in lib/notify/send.ts (slate + indigo).
@@ -390,6 +409,18 @@ export function buildWeeklyDigestEmail(c: WeeklyDigestContent): WeeklyDigestEmai
     : "";
 
   const url = esc(c.dashboardUrl);
+  const logo = emailLogoUrl(c.logoUrl);
+  // A white strip above the coloured hero: client logos are usually made for
+  // light backgrounds, and a dark logo on the indigo gradient would vanish.
+  // Fixed width/height attributes for Outlook (which ignores CSS sizing);
+  // other clients honour width:auto and keep the aspect ratio.
+  const logoRow = logo
+    ? `<tr>
+          <td class="px" style="padding:20px 32px;background:#ffffff;border-bottom:1px solid #e2e8f0">
+            <img src="${esc(logo)}" alt="${esc(c.clientName)}" width="160" height="40" style="display:block;width:auto;max-width:200px;height:40px;border:0;outline:none;text-decoration:none">
+          </td>
+        </tr>`
+    : "";
   // Preheader padding stops clients from pulling body text into the preview.
   const preheaderPad = "&#847;&zwnj;&nbsp;".repeat(60);
 
@@ -421,6 +452,7 @@ export function buildWeeklyDigestEmail(c: WeeklyDigestContent): WeeklyDigestEmai
   <tr>
     <td class="outer" align="center" style="padding:32px 12px;font-family:${FONT}">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;border-collapse:separate;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;overflow:hidden">
+        ${logoRow}
         <tr>
           <td class="hero" style="background:#4f46e5;background-image:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:34px 32px 30px;color:#ffffff">
             <div style="font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#e0e7ff">Twój tydzień w skrócie</div>

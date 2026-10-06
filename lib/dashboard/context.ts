@@ -1,5 +1,6 @@
 import { cache } from "react";
 
+import { toBranding, type ClientBranding } from "@/lib/dashboard/branding";
 import { createClient } from "@/lib/supabase/server";
 import { isAgencyUser, type UserRole } from "@/lib/types";
 
@@ -33,7 +34,7 @@ export const getViewer = cache(async (): Promise<Viewer> => {
   };
 });
 
-export interface DashboardClient {
+export interface DashboardClient extends ClientBranding {
   id: string;
   name: string;
   clientType: "engagement" | "ecommerce";
@@ -43,29 +44,37 @@ export interface DashboardClient {
 export const getClientBySlug = cache(
   async (slug: string): Promise<DashboardClient | null> => {
     const supabase = createClient();
-    const { data } = await supabase
-      .from("clients")
-      .select("id, name, client_type")
-      .eq("slug", slug)
-      .maybeSingle();
-    if (data) {
-      const row = data as { id: string; name: string; client_type?: string };
+    // Newest schema first, then step back: pre-0031 databases have no
+    // branding columns and pre-0016 ones no client_type, and either makes the
+    // whole select error out - fall back rather than bouncing the user to
+    // /login. A plain "not found" (no error) stops the cascade early.
+    for (const columns of [
+      "id, name, client_type, logo_url, brand_color",
+      "id, name, client_type",
+      "id, name",
+    ]) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select(columns)
+        .eq("slug", slug)
+        .maybeSingle();
+      if (error) continue;
+      if (!data) return null;
+      const row = data as unknown as {
+        id: string;
+        name: string;
+        client_type?: string;
+        logo_url?: string | null;
+        brand_color?: string | null;
+      };
       return {
         id: row.id,
         name: row.name,
         clientType: row.client_type === "ecommerce" ? "ecommerce" : "engagement",
+        ...toBranding(row),
       };
     }
-    // Pre-0016 databases have no client_type column and the select above
-    // errors out - fall back rather than bouncing the user to /login.
-    const { data: basic } = await supabase
-      .from("clients")
-      .select("id, name")
-      .eq("slug", slug)
-      .maybeSingle();
-    return basic
-      ? { id: basic.id as string, name: basic.name as string, clientType: "engagement" }
-      : null;
+    return null;
   }
 );
 

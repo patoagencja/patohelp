@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { AutoSync } from "@/components/dashboard/auto-sync";
-import { clientLogo } from "@/components/dashboard/client-logo";
+import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { IntegrationHealthBanner } from "@/components/dashboard/integration-health-banner";
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
@@ -16,6 +16,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { clientAccentStyle } from "@/lib/dashboard/branding";
 import {
   getClientBySlug,
   getLastSyncAt,
@@ -65,26 +66,32 @@ export default async function ClientDashboardLayout({
   const checkStamp = getSyncStamp.bind(null, params.clientSlug);
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
+    // --client-accent scopes the client's brand colour to their dashboard.
+    <div
+      className="flex min-h-screen bg-muted/20"
+      style={clientAccentStyle(client?.brandColor)}
+    >
       <aside
         data-present-hide
         className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden"
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
-          {(() => {
-            const Logo = clientLogo(params.clientSlug);
-            if (Logo) {
-              return <Logo className="h-6 w-auto text-foreground" />;
-            }
-            return (
+          <ClientBrandMark
+            name={client?.name ?? "Pato"}
+            slug={params.clientSlug}
+            logoUrl={client?.logoUrl}
+            // Built-in SVG wordmarks keep their h-6; uploaded logos get a bit more
+            // room since they often carry padding or a symbol.
+            className="h-6 max-w-[11rem] text-foreground [&:is(img)]:h-8"
+            fallback={
               <>
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                   <LayoutDashboard className="h-4 w-4" />
                 </span>
                 <span className="font-semibold">{client?.name ?? "Pato"}</span>
               </>
-            );
-          })()}
+            }
+          />
         </div>
         {isAgency && allClients && allClients.length > 1 ? (
           <div className="border-b border-border p-3">
@@ -115,7 +122,19 @@ export default async function ClientDashboardLayout({
             clients={allClients}
           />
           <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
-          <PresentationMode />
+          <PresentationMode
+            brand={
+              client ? (
+                <ClientBrandMark
+                  name={client.name}
+                  slug={params.clientSlug}
+                  logoUrl={client.logoUrl}
+                  className="h-8"
+                  fallback={<span className="text-sm font-semibold">{client.name}</span>}
+                />
+              ) : null
+            }
+          />
           <ThemeToggle />
           {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
           {user?.email ? (

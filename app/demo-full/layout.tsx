@@ -1,12 +1,13 @@
-import { Sparkles } from "lucide-react";
-
 import { DemoSidebar } from "@/components/demo/demo-sidebar";
 import { LangToggle } from "@/components/demo/lang-toggle";
+import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
+import { clientAccentStyle } from "@/lib/dashboard/branding";
+import { DEMO_BRANDING } from "@/lib/demo/branding";
 
 // Full showcase with a working sidebar and clickable tabs. Public, synthetic.
 export const metadata = {
@@ -20,16 +21,21 @@ export default function DemoFullLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-muted/20">
+    // Same branding path as a real client (logo + --client-accent), demo data.
+    <div
+      className="flex min-h-screen bg-muted/20"
+      style={clientAccentStyle(DEMO_BRANDING.brandColor)}
+    >
       <aside
         data-present-hide
         className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex"
       >
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Sparkles className="h-4 w-4" aria-hidden />
-          </span>
-          <span className="font-semibold">lokalnepomidorki</span>
+          <ClientBrandMark
+            name="lokalnepomidorki"
+            logoUrl={DEMO_BRANDING.logoUrl}
+            className="h-8 max-w-[11rem]"
+          />
         </div>
         <DemoSidebar />
       </aside>
@@ -51,7 +57,15 @@ export default function DemoFullLayout({
             omit={["/demo-full/raport"]}
           />
           <GuidedTour isAgency={false} overviewPath="/demo-full" />
-          <PresentationMode />
+          <PresentationMode
+            brand={
+              <ClientBrandMark
+                name="lokalnepomidorki"
+                logoUrl={DEMO_BRANDING.logoUrl}
+                className="h-8"
+              />
+            }
+          />
           <ThemeToggle />
         </header>
 

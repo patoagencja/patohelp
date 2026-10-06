@@ -10,11 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getClientBranding } from "@/lib/dashboard/branding";
+import { getClientBySlug } from "@/lib/dashboard/context";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { IntegrationProvider } from "@/lib/types";
 
+import { BrandingSettingsSection } from "./branding-settings";
 import { ConnectedToast } from "./connected-toast";
 import { ConnectionStability } from "./connection-stability";
 import { EcomSettingsSection } from "./ecom-settings";
@@ -264,6 +267,12 @@ export default async function SettingsPage({
   const isEcommerce =
     (ct as { client_type?: string } | null)?.client_type === "ecommerce";
 
+  // Separate read so a missing 0031 migration only disables this section.
+  const [branding, brandedClient] = await Promise.all([
+    getClientBranding(createAdminClient(), access.clientId),
+    getClientBySlug(params.clientSlug),
+  ]);
+
   return (
     <div className="p-6">
       <ConnectedToast
@@ -285,6 +294,7 @@ export default async function SettingsPage({
           ...(isEcommerce ? [{ href: "#ecommerce", label: "Marża i cele" }] : []),
           ...(isEcommerce ? [] : [{ href: "#cele", label: "Cele miesięczne" }]),
           { href: "#powiadomienia", label: "Powiadomienia" },
+          { href: "#wyglad", label: "Wygląd panelu" },
           { href: "#udostepnianie", label: "Link dla zarządu" },
         ].map((l) => (
           <a
@@ -744,6 +754,14 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       </div>
+
+      <BrandingSettingsSection
+        clientSlug={params.clientSlug}
+        clientName={brandedClient?.name ?? params.clientSlug.toUpperCase()}
+        available={branding.available}
+        initialLogoUrl={branding.logoUrl}
+        initialBrandColor={branding.brandColor}
+      />
 
       <ShareOverviewSection clientId={access.clientId} clientSlug={params.clientSlug} />
     </div>

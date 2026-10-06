@@ -64,6 +64,9 @@ export function StoryHero({
         aria-hidden
         className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"
       />
+      {/* Thin strip in the client's accent (primary when unset): enough to
+          read as "their" report without recolouring the dashboard. */}
+      <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-client-accent" />
 
       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-accent-foreground">
         <Sparkles className="h-3.5 w-3.5" aria-hidden />

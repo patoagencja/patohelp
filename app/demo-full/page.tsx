@@ -13,6 +13,7 @@ import { StoryHero } from "@/components/dashboard/story-hero";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
 import { buildStory } from "@/lib/dashboard/story";
 import { demoEngagementYoY } from "@/lib/dashboard/yoy";
+import { DEMO_BRANDING } from "@/lib/demo/branding";
 import { getDemoDashboard } from "@/lib/demo/data";
 import { getDemoRecords } from "@/lib/demo/records";
 import { demoEngagementGoals } from "@/lib/dashboard/goals";
@@ -37,7 +38,11 @@ export default function DemoFullOverview({
   const yoy = demoEngagementYoY(d.trend);
   return (
     <>
-      <PrintHeader clientName="lokalnepomidorki" periodLabel={d.rangeLabel} />
+      <PrintHeader
+        clientName="lokalnepomidorki"
+        periodLabel={d.rangeLabel}
+        logoUrl={DEMO_BRANDING.logoUrl}
+      />
       <div data-print-hide className="flex items-start justify-between gap-4">
        <div>
         <h1 className="text-2xl font-semibold tracking-tight">

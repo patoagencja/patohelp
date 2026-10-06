@@ -249,6 +249,15 @@ html[data-present="true"] {
 [data-present="true"] [data-present-slide] ~ [data-present-slide] {
   margin-top: 2.5rem;
 }
+/* The client's logo floats top-left while presenting (data-present-brand is
+   set only when there is one); keep the first section and every scrolled-to
+   slide below it instead of under it. */
+[data-present="true"][data-present-brand="true"] main {
+  padding-top: 5rem;
+}
+[data-present="true"][data-present-brand="true"] [data-present-slide] {
+  scroll-margin-top: 5rem;
+}
 /* ===== End presentation mode ============================================ */
 
 /* ===== Print / "Pobierz PDF" =============================================

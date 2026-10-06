@@ -19,8 +19,10 @@ import {
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
+import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { regionPL } from "@/components/dashboard/website/audience";
+import { getClientBranding } from "@/lib/dashboard/branding";
 import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
@@ -289,7 +291,7 @@ export default async function RaportPage({
 
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const [data, website, demo, creatives] = await Promise.all([
+  const [data, website, demo, creatives, branding] = await Promise.all([
     getDashboardData(client.id, range, custom),
     getWebsiteData(client.id),
     getDemographics(client.id),
@@ -300,6 +302,8 @@ export default async function RaportPage({
       .order("spend_minor_units", { ascending: false })
       .limit(4)
       .then((res) => res.data ?? []),
+    // Pre-0031 databases keep the built-in logo / name-only cover.
+    getClientBranding(supabase, client.id),
   ]);
 
   const generatedAt = formatDateWarsaw(new Date(), "d MMM yyyy, HH:mm");
@@ -366,13 +370,29 @@ export default async function RaportPage({
         {/* Cover - MUST stay first (AI summary is injected right after it) */}
         {(() => {
           const Logo = clientLogo(params.clientSlug);
+          const uploaded = branding.logoUrl;
           return (
             <CoverSlide
-              title={Logo ? "Raport" : `${client.name} - Raport`}
+              title={Logo || uploaded ? "Raport" : `${client.name} - Raport`}
               eyebrow="Kampania online"
               period={periodLabel}
               monogram={client.name.slice(0, 3).toUpperCase()}
-              logo={Logo ? <Logo className="h-9 w-auto" /> : undefined}
+              logo={
+                uploaded ? (
+                  // Uploaded logos are usually drawn for light backgrounds;
+                  // a white plate keeps them visible on the dark cover.
+                  <span className="flex items-center rounded-lg bg-white px-3 py-1.5">
+                    <ClientBrandMark
+                      name={client.name}
+                      slug={params.clientSlug}
+                      logoUrl={uploaded}
+                      className="h-7 max-w-[12rem] text-slate-900"
+                    />
+                  </span>
+                ) : Logo ? (
+                  <Logo className="h-9 w-auto" />
+                ) : undefined
+              }
             />
           );
         })()}
