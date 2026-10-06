@@ -108,7 +108,9 @@ export function getDemoDashboard(
     clicks: mkKpi(curClicks, Math.round(curClicks * 0.86)),
     sessions: mkKpi(curSessions, Math.round(curSessions * 0.83)),
     ctr: mkKpi(Number(ctrVal.toFixed(2)), Number((ctrVal * 0.94).toFixed(2))),
-    cpcMinorUnits: mkKpi(cpcVal, Math.round(cpcVal * 1.07)),
+    // Derived from the previous spend and clicks above, so the tile agrees
+    // with the chart's dashed previous-period line (buildDemoChartExtras).
+    cpcMinorUnits: mkKpi(cpcVal, Math.round((curSpend * 0.9) / (curClicks * 0.86))),
     conversions: mkKpi(curConv, Math.round(curConv * 0.88)),
   };
 
@@ -134,9 +136,17 @@ export function getDemoDashboard(
     { id: "d-g4", provider: "google_ads", namePl: "YT | Wideo", nameEn: "YT | Video", weight: 0.07, ctr: 1.1, status: "active", reasonPl: null, reasonEn: null },
   ];
 
+  // Google clicks cost about twice Meta's (search intent), like real
+  // accounts; raw shares are normalised so all campaigns still add up to the
+  // KPI total. The cost trend below is built around the same averages.
+  const PLATFORM_CPC = { meta_ads: 0.72, google_ads: 1.55, tiktok_ads: 1 } as const;
+  const rawShares = campaignDefs.map(
+    (c) => (c.weight * (0.9 + rand() * 0.2)) / (PLATFORM_CPC[c.provider] ?? 1)
+  );
+  const rawTotal = rawShares.reduce((a, v) => a + v, 0) || 1;
   const campaigns: CampaignRow[] = campaignDefs.map((c, idx) => {
     const spend = Math.round(curSpend * c.weight);
-    const clicks = Math.round(curClicks * c.weight * (0.9 + rand() * 0.2));
+    const clicks = Math.round((curClicks * rawShares[idx]) / rawTotal);
     const impressions = Math.round((clicks / c.ctr) * 100);
     const cpc = clicks > 0 ? Math.round(spend / clicks) : null;
     const spark = Array.from({ length: 7 }, (_, i) =>
@@ -222,10 +232,18 @@ export function getDemoDashboard(
   }));
 
   // --- Cost trend ------------------------------------------------------------
+  const avgCpc = (provider: AdProvider) => {
+    const rows = campaigns.filter((c) => c.provider === provider);
+    const sp = rows.reduce((a, c) => a + c.spendMinorUnits, 0);
+    const cl = rows.reduce((a, c) => a + c.clicks, 0);
+    return cl > 0 ? sp / cl : 0;
+  };
+  const metaAvgCpc = avgCpc("meta_ads");
+  const googleAvgCpc = avgCpc("google_ads");
   const costTrend: CostTrendPoint[] = trend.map((p, i) => ({
     date: p.date,
-    metaCpcMinorUnits: Math.round(62 + Math.sin(i / 4) * 8 + rand() * 6),
-    googleCpcMinorUnits: Math.round(138 + Math.cos(i / 5) * 14 + rand() * 10),
+    metaCpcMinorUnits: Math.round(metaAvgCpc * (1 + Math.sin(i / 4) * 0.1 + (rand() - 0.5) * 0.08)),
+    googleCpcMinorUnits: Math.round(googleAvgCpc * (1 + Math.cos(i / 5) * 0.08 + (rand() - 0.5) * 0.06)),
   }));
 
   // --- Platform split --------------------------------------------------------

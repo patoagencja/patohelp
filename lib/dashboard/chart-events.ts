@@ -358,21 +358,31 @@ export function buildDemoChartExtras(
 
   // Deterministic wobble so the dashed line doesn't look like a scaled copy.
   const wobble = (i: number) => 1 + 0.08 * Math.sin(i * 1.7) + 0.05 * Math.cos(i * 0.6);
-  const prevTrend: TrendPoint[] = trend.map((p, i) => {
-    const w = wobble(i);
-    // Older period ran flatter (no upward drift), hence the index ramp.
-    const flat = 1 - (i / Math.max(1, n - 1)) * 0.12;
-    return {
-      date: fmt(addDays(prevStart, i)),
-      spendMinorUnits: Math.round(p.spendMinorUnits * 0.96 * w * flat),
-      sessions: Math.round(p.sessions * 0.89 * w * flat),
-      clicks: Math.round(p.clicks * 0.92 * w * flat),
-      impressions: Math.round(p.impressions * 0.95 * w * flat),
-      conversions: Math.round(p.conversions * 0.94 * w * flat),
-      revenueMinorUnits: 0,
-      transactions: 0,
-    };
-  });
+  // Older period ran flatter (no upward drift), hence the index ramp.
+  const shape = trend.map((_, i) => wobble(i) * (1 - (i / Math.max(1, n - 1)) * 0.12));
+  const shapeSum = shape.reduce((a, v) => a + v, 0) || 1;
+  // Each series totals exactly `ratio` x the current total - the same ratios
+  // the demo KPI tiles use as "previous" (lib/demo/data.ts) - so the chart's
+  // "o X% więcej niż wcześniej" can't contradict the tile above it.
+  const series = (pick: (p: TrendPoint) => number, ratio: number) => {
+    const total = trend.reduce((a, p) => a + pick(p), 0) * ratio;
+    return shape.map((s) => Math.round((total * s) / shapeSum));
+  };
+  const spend = series((p) => p.spendMinorUnits, 0.9);
+  const sessions = series((p) => p.sessions, 0.83);
+  const clicks = series((p) => p.clicks, 0.86);
+  const impressions = series((p) => p.impressions, 0.95);
+  const conversions = series((p) => p.conversions, 0.88);
+  const prevTrend: TrendPoint[] = trend.map((_, i) => ({
+    date: fmt(addDays(prevStart, i)),
+    spendMinorUnits: spend[i],
+    sessions: sessions[i],
+    clicks: clicks[i],
+    impressions: impressions[i],
+    conversions: conversions[i],
+    revenueMinorUnits: 0,
+    transactions: 0,
+  }));
 
   const at = (frac: number) => trend[Math.min(n - 1, Math.round((n - 1) * frac))].date;
   const en = lang === "en";
