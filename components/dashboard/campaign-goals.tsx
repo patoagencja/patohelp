@@ -1,5 +1,10 @@
 import { Target, Trash2 } from "lucide-react";
 
+import {
+  GoalTargetFields,
+  type AdsetOption,
+  type CampaignOption,
+} from "@/components/dashboard/goal-target-fields";
 import { Button } from "@/components/ui/button";
 import { StatusChip, type PingTone } from "@/components/ui/primitives";
 import type { FlightMetric, PacingFlight } from "@/lib/alerts/pacing";
@@ -11,7 +16,7 @@ import { cn, formatNumberPL } from "@/lib/utils";
 // presentation - the page owns the data and the server actions.
 
 type FormAction = (formData: FormData) => void | Promise<void>;
-export type CampaignOption = { id: string; name: string };
+export type { AdsetOption, CampaignOption };
 
 // Always group thousands ("7 581 zł"): pl-PL Intl skips grouping for 4-digit
 // numbers, which looks inconsistent next to "50 000 zł" in the same line.
@@ -93,9 +98,14 @@ function PacingCard({
   const realizedPct = Math.min(f.realizedPct * 100, 100);
   const expectedPct = Math.min(f.expectedPct * 100, 100);
   const running = f.status !== "upcoming" && f.status !== "ended";
+  const title = f.adsetName ?? f.campaignName;
 
   return (
-    <article className="glass flex min-w-0 flex-col gap-4 rounded-card p-6 sm:p-7">
+    // #cel-<id>: the goal tiles (Alerty top row, overview) link here.
+    <article
+      id={`cel-${f.id}`}
+      className="glass flex min-w-0 scroll-mt-28 flex-col gap-4 rounded-card p-6 transition-shadow target:shadow-lime-ring sm:p-7"
+    >
       {/* Phones: the status chip sits above, so the name keeps the width. */}
       <div className="flex flex-col-reverse items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
@@ -103,8 +113,13 @@ function PacingCard({
             {METRIC_KICK[f.metric]} · {shortDate(f.startDate)} - {shortDate(f.endDate)}
           </p>
           <h3 className="mt-2 break-words text-[17px] font-semibold leading-snug tracking-[-0.01em]">
-            {f.campaignName}
+            {title}
           </h3>
+          {f.adsetName ? (
+            <p className="mt-0.5 break-words text-sm text-ink-3">
+              {f.provider === "google_ads" ? "Grupa reklam" : "Zestaw reklam"} w kampanii {f.campaignName}
+            </p>
+          ) : null}
         </div>
         <StatusChip tone={meta.tone} className="shrink-0">
           {meta.label}
@@ -156,7 +171,7 @@ function PacingCard({
               <button
                 type="submit"
                 className="-mr-2 grid h-11 w-11 place-items-center rounded-full text-ink-3 transition-colors hover:bg-negative-soft hover:text-negative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={`Usuń cel: ${f.campaignName}`}
+                aria-label={`Usuń cel: ${title}`}
                 title="Usuń cel"
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
@@ -193,16 +208,19 @@ function Field({
 
 /**
  * Agency-only "add a goal" form. One <Field> per input, all posting to
- * the page's addFlight action - a new goal dimension (e.g. ad set level) is
- * one more Field here plus its key in the page's addFlightSchema.
+ * the page's addFlight action - a new goal dimension is one more Field here
+ * plus its key in the page's addFlightSchema. Campaign + optional ad set
+ * live in a small client component (the ad set list follows the campaign).
  */
 function FlightForm({
   clientSlug,
   campaignOptions,
+  adsetOptions,
   addAction,
 }: {
   clientSlug: string;
   campaignOptions: CampaignOption[];
+  adsetOptions: AdsetOption[] | null;
   addAction: FormAction;
 }) {
   return (
@@ -219,17 +237,14 @@ function FlightForm({
         Klient zobaczy postęp celu na tej stronie od razu po zapisaniu.
       </p>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
-        <Field label="Kampania" className="sm:col-span-2">
-          <select name="campaign" required className={FIELD}>
-            <option value="">Wybierz…</option>
-            {campaignOptions.map((c) => (
-              <option key={c.id} value={`${c.id}|||${c.name}`}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-start">
+        <GoalTargetFields
+          campaignOptions={campaignOptions}
+          adsetOptions={adsetOptions}
+          fieldClass={FIELD}
+          labelClass="kick text-[11px]"
+          className="sm:col-span-2"
+        />
         <Field label="Co mierzymy">
           <select name="metric" required className={FIELD}>
             <option value="clicks">Kliknięcia</option>
@@ -262,6 +277,7 @@ export function CampaignGoals({
   isAgency,
   clientSlug,
   campaignOptions,
+  adsetOptions = null,
   addAction,
   deleteAction,
 }: {
@@ -269,6 +285,8 @@ export function CampaignGoals({
   isAgency: boolean;
   clientSlug: string;
   campaignOptions: CampaignOption[];
+  /** Recent ad sets / ad groups; null hides the picker (not migrated yet). */
+  adsetOptions?: AdsetOption[] | null;
   addAction: FormAction;
   deleteAction: FormAction;
 }) {
@@ -305,7 +323,12 @@ export function CampaignGoals({
       )}
 
       {isAgency ? (
-        <FlightForm clientSlug={clientSlug} campaignOptions={campaignOptions} addAction={addAction} />
+        <FlightForm
+          clientSlug={clientSlug}
+          campaignOptions={campaignOptions}
+          adsetOptions={adsetOptions}
+          addAction={addAction}
+        />
       ) : null}
     </section>
   );

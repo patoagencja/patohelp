@@ -348,23 +348,23 @@ export function AgencyActivity({
 
   return (
     // No overflow-hidden: the "Dodaj działanie" popover opens out of the header.
-    <section className="rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-          <ClipboardCheck className="h-5 w-5 text-muted-foreground" aria-hidden />
+    <section className="glass rounded-glass">
+      <div className="flex items-center gap-3.5 px-6 pt-6 sm:px-7 sm:pt-7">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-chip">
+          <ClipboardCheck className="h-5 w-5 text-ink-2" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-base font-semibold">Co dla Ciebie zrobiliśmy</h2>
-          <p className="text-xs text-muted-foreground tabular-nums">
+          <p className="kick tabular-nums">
             Ostatnie 30 dni
             {items.length > 0 ? ` · ${actionsCount(items.length)}` : ""}
           </p>
+          <h2 className="mt-1.5 text-[22px] font-medium tracking-[-0.03em]">Co dla Ciebie zrobiliśmy</h2>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
 
       {items.length === 0 ? (
-        <div className="flex items-start gap-3 px-5 py-6 text-sm text-muted-foreground">
+        <div className="flex items-start gap-3 px-6 pb-7 pt-5 text-sm text-ink-2 sm:px-7">
           <Plus className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
             Dodaj pierwsze działanie - klient zobaczy je tutaj. Użyj przycisku
@@ -372,10 +372,10 @@ export function AgencyActivity({
           </p>
         </div>
       ) : (
-        <div className="space-y-5 px-5 py-4">
+        <div className="space-y-5 px-6 pb-6 pt-5 sm:px-7 sm:pb-7">
           {weeks.map((w) => (
             <div key={w.monday}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h3 className="kick mb-2">
                 {weekLabel(w.monday, work.today)}
               </h3>
               <ol className="space-y-1">
@@ -397,7 +397,7 @@ export function AgencyActivity({
               type="button"
               data-print-hide
               onClick={() => setShowAll((v) => !v)}
-              className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex min-h-11 items-center rounded-full bg-chip px-4 text-sm font-medium text-foreground transition-colors hover:bg-[var(--chip-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {showAll
                 ? "Pokaż mniej"
@@ -452,7 +452,7 @@ function ActivityRow({
       )}
     >
       {connector ? (
-        <span aria-hidden className="absolute -bottom-3 left-4 top-11 w-px bg-border" />
+        <span aria-hidden className="absolute -bottom-3 left-4 top-11 w-px bg-line" />
       ) : null}
       <span
         className={cn(
@@ -464,8 +464,8 @@ function ActivityRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-          <p className="text-sm font-medium leading-snug text-foreground">{item.title}</p>
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          <p className="text-[15px] font-medium leading-snug tracking-[-0.01em] text-foreground">{item.title}</p>
+          <span className="shrink-0 font-mono text-[11px] tracking-[0.04em] text-ink-3 tabular-nums">
             {dayLabel(item.date)}
           </span>
         </div>

@@ -103,7 +103,7 @@ function KpiCard({
     <Card
       className={cn(
         // z-index lift keeps an open ⓘ bubble above the neighbouring cards.
-        "group transition-all duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-raised motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "group rounded-card p-[22px] transition-[transform,box-shadow] duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-raised motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         cardFlash === "up" && "ring-2 ring-positive/60",
         cardFlash === "down" && "ring-2 ring-negative/60"
       )}
@@ -122,11 +122,11 @@ function KpiCard({
         ) : null}
       </Flex>
 
-      <Flex justifyContent="between" alignItems="end" className="mt-2 gap-2">
+      <Flex justifyContent="between" alignItems="end" className="mt-3 gap-2">
         <AnimatedNumber
           value={value}
           format={format}
-          className="min-w-0 flex-1 truncate text-[1.625rem] font-medium leading-tight tracking-[-0.03em] tabular-nums text-foreground"
+          className="min-w-0 flex-1 truncate text-[2.25rem] font-light leading-tight tracking-[-0.05em] tabular-nums text-foreground"
         />
         {/* Static on purpose: a sparkline that breathes forever pulls the
             eye from the numbers, which is the wrong signal on a boardroom
@@ -138,7 +138,7 @@ function KpiCard({
         ) : null}
       </Flex>
 
-      <Text className={cn("mt-1 text-xs", (hint || thinBase) && "text-muted-foreground")}>
+      <Text className={cn("mt-1.5 text-xs text-ink-2", (hint || thinBase) && "text-ink-3")}>
         {subtitle}
       </Text>
     </Card>
@@ -245,14 +245,11 @@ export function KpiCards({
         {en ? "Key metrics" : "Najważniejsze wskaźniki"}
       </h2>
     ) : (
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2
-          id={headingId}
-          className="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
-        >
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
+        <h2 id={headingId} className="kick">
           {en ? "Detailed metrics" : "Szczegółowe wskaźniki"}
         </h2>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-ink-3">
           {en
             ? "Every metric with a plain-language ⓘ. Changes vs the previous period of the same length."
             : `Każdy wskaźnik z wyjaśnieniem pod ⓘ. Zmiany w porównaniu ${comparisonPhrase(

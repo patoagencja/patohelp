@@ -7,6 +7,7 @@ import {
 } from "@/components/dashboard/agency-activity";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { LiveGoalTiles } from "@/components/dashboard/goal-tiles-live";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { OverviewDetails } from "@/components/dashboard/overview-details";
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
@@ -257,6 +258,14 @@ export default async function OverviewPage({
           autoEvents={data.autoEvents}
           yoy={yoy}
           forecast
+          // Running campaign goals as tiles under the KPI row (streams in).
+          afterTiles={
+            <SectionBoundary name="overview/goal-tiles">
+              <Suspense fallback={null}>
+                <LiveGoalTiles clientId={client.id} baseHref={`/${params.clientSlug}/alerty`} />
+              </Suspense>
+            </SectionBoundary>
+          }
         />
       </SectionBoundary>
 

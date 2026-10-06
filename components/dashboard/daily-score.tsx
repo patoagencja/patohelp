@@ -15,8 +15,8 @@ type Lang = "pl" | "en";
 
 const TIER: Record<ScoreTier, { stroke: string; text: string }> = {
   high: { stroke: "stroke-lime", text: "text-positive" },
-  mid: { stroke: "stroke-warning-fill", text: "text-warning" },
-  low: { stroke: "stroke-negative", text: "text-negative" },
+  mid: { stroke: "stroke-amber", text: "text-warning" },
+  low: { stroke: "stroke-coral", text: "text-negative" },
 };
 
 // Plain-language meaning of each dial. Wording mirrors lib/dashboard/score.ts:
@@ -176,7 +176,7 @@ function Ring({
             r={R}
             fill="none"
             strokeWidth={STROKE}
-            className="stroke-muted"
+            className="stroke-chip"
           />
           <circle
             cx={VB / 2}
@@ -197,8 +197,8 @@ function Ring({
         <div className="absolute inset-0 flex items-center justify-center">
           <span
             className={cn(
-              "font-semibold tabular-nums tracking-tight",
-              compact ? "text-xl" : primary ? "text-3xl sm:text-4xl" : "text-2xl",
+              "font-light tabular-nums tracking-[-0.05em]",
+              compact ? "text-[22px]" : primary ? "text-4xl sm:text-5xl" : "text-3xl",
               tier.text
             )}
           >
@@ -207,7 +207,7 @@ function Ring({
         </div>
       </div>
       <div className="min-w-0 sm:max-w-[15rem]">
-        <p className="text-sm font-semibold text-foreground">
+        <p className="text-[15px] font-medium tracking-[-0.01em] text-foreground">
           {copy.label}
           {/* Coloured like the ring itself so word and dial never disagree. */}
           <span className={cn("ml-1.5 text-xs font-medium", tier.text)}>
@@ -216,7 +216,7 @@ function Ring({
         </p>
         <p
           className={cn(
-            "mt-0.5 leading-snug text-muted-foreground",
+            "mt-0.5 leading-snug text-ink-2",
             compact ? "text-xs" : "text-sm"
           )}
         >
@@ -244,10 +244,10 @@ export function DailyScoreCard({
   const factors = data.factors.filter((f) => f.deltaPct !== null);
 
   return (
-    <div className="surface p-5 sm:p-6">
+    <div className="glass rounded-glass p-6 sm:p-7">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="text-sm font-medium text-muted-foreground">{t.title}</h2>
+        <h2 className="kick">{t.title}</h2>
         {data.delta !== null && data.delta !== 0 ? (
           <span
             className={cn(
@@ -268,8 +268,8 @@ export function DailyScoreCard({
       </div>
       <p
         className={cn(
-          "mt-2 text-balance font-semibold leading-snug tracking-tight",
-          compact ? "text-lg" : "text-xl sm:text-2xl"
+          "mt-2 text-balance font-medium leading-snug tracking-[-0.03em]",
+          compact ? "text-[22px]" : "text-[22px] sm:text-[28px]"
         )}
       >
         {plainHeadline(data.headline, lang)}
@@ -298,12 +298,12 @@ export function DailyScoreCard({
       {factors.length > 0 || data.streak > 0 ? (
         <div
           className={cn(
-            "border-t border-border/60",
+            "border-t border-line",
             compact ? "mt-5 pt-4" : "mt-6 pt-5 sm:mt-8"
           )}
         >
           {factors.length > 0 ? (
-            <p className="text-sm text-muted-foreground">{t.factorsIntro}</p>
+            <p className="text-sm text-ink-2">{t.factorsIntro}</p>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {factors.map((f) => {
@@ -312,7 +312,7 @@ export function DailyScoreCard({
               return (
                 <span
                   key={f.key}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm"
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-chip px-3.5 py-1.5 text-sm"
                 >
                   <span className="text-foreground">{FACTOR_LABEL[lang][f.key]}</span>
                   <span
@@ -335,7 +335,7 @@ export function DailyScoreCard({
               );
             })}
             {data.streak > 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground">
+              <span className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-chip px-3.5 py-1.5 text-sm text-foreground">
                 <CalendarCheck className="h-4 w-4 text-positive" aria-hidden />
                 {t.streak(data.streak)}
               </span>
@@ -344,7 +344,7 @@ export function DailyScoreCard({
         </div>
       ) : null}
 
-      <p className={cn("text-xs text-muted-foreground", compact ? "mt-3" : "mt-5")}>{t.scale}</p>
+      <p className={cn("text-xs text-ink-3", compact ? "mt-3" : "mt-5")}>{t.scale}</p>
     </div>
   );
 }

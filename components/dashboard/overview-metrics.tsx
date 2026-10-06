@@ -234,6 +234,7 @@ export function OverviewMetrics({
   demo = false,
   aside,
   forecast = false,
+  afterTiles,
 }: {
   facts: StoryFact[];
   periodLabel: string;
@@ -247,6 +248,8 @@ export function OverviewMetrics({
   aside?: React.ReactNode;
   /** 7-day arithmetic projection on the chart (see MainChart). */
   forecast?: boolean;
+  /** Rendered right under the KPI tiles, above the chart (goal tiles). */
+  afterTiles?: React.ReactNode;
 }) {
   const tiles = facts.filter((f) => CHART_METRIC[f.key]);
   const series = useMemo(
@@ -288,6 +291,8 @@ export function OverviewMetrics({
           </div>
         </>
       ) : null}
+
+      {afterTiles ? <div className="pt-4 empty:hidden">{afterTiles}</div> : null}
 
       {/* With an aside (legacy callers) chart + aside sit side by side from
           xl; the 2026 overview renders the plan next to the campaigns. */}

@@ -1,5 +1,4 @@
-import { Card } from "@tremor/react";
-import { Sparkles } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 import type { AiSummary } from "@/lib/dashboard/overview";
 import { formatDateWarsaw } from "@/lib/utils";
@@ -16,22 +15,24 @@ export function AiSummaryCard({
 }) {
   const en = lang === "en";
   return (
-    // v2 AI banner (benchmark 2): lavender -> pink wash and the "Analiza AI"
-    // chip, same as the overview's AI comment. Print drops the wash.
-    <Card className="bg-ai-wash">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
-        <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-xl bg-card/70 px-2.5 py-1.5 text-[13px] font-semibold text-ai shadow-sm dark:bg-card/40 print:shadow-none">
-          <Sparkles className="h-4 w-4" aria-hidden />
-          {en ? "AI analysis" : "Analiza AI"}
+    // 2026 AI card (Przeglad-pastel): glass + the conic orb, a mono kicker
+    // and the comment in body size. Print drops the orb and the blur.
+    <Card className="glass-blur rounded-glass p-6 sm:p-7">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+        <span aria-hidden className="orb size-11 print:hidden">
+          <span className="orb-halo" />
+          <span className="orb-ring" />
+          <span className="orb-core" />
         </span>
-        <div className="min-w-0 sm:border-l sm:border-ai/15 sm:pl-5">
-          <h2 className="text-section-title">{en ? "AI summary" : "Podsumowanie AI"}</h2>
+        <div className="min-w-0">
+          <p className="kick">{en ? "AI analysis · this week" : "Analiza AI · ten tydzień"}</p>
+          <h2 className="mt-2 text-[22px] font-medium tracking-[-0.03em]">{en ? "AI summary" : "Podsumowanie AI"}</h2>
           {summary ? (
             <>
-              <p className="mt-1 max-w-3xl text-[15px] leading-relaxed text-foreground">
+              <p className="mt-2 max-w-3xl text-[17px] leading-relaxed tracking-[-0.01em] text-foreground">
                 {summary.summaryText.replace(/[–—]/g, "-")}
               </p>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-3 font-mono text-[11px] tracking-[0.04em] text-ink-3">
                 {en ? "Generated" : "Wygenerowano"}{" "}
                 {formatDateWarsaw(summary.generatedAt, "d MMM yyyy, HH:mm")}
                 {/* Its own fixed 7-day window, not the range picked above -
@@ -43,7 +44,7 @@ export function AiSummaryCard({
               </p>
             </>
           ) : (
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-ink-2">
               {en
                 ? "The AI summary will be generated after the first data sync."
                 : "Podsumowanie AI zostanie wygenerowane po pierwszej synchronizacji danych."}

@@ -6,7 +6,9 @@ import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { CampaignPositions } from "@/components/dashboard/campaign-positions";
 import { DailyScoreCard } from "@/components/dashboard/daily-score";
+import { GoalTiles } from "@/components/dashboard/goal-tiles";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
+import { demoGoalTiles } from "@/lib/demo/campaign-goals";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { OverviewDetails } from "@/components/dashboard/overview-details";
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
@@ -109,6 +111,9 @@ export default function DemoFullOverview({
         yoy={yoy}
         demo
         forecast
+        afterTiles={
+          <GoalTiles goals={demoGoalTiles()} baseHref="/demo-full/alerty" />
+        }
       />
 
       {/* Plan + where the money goes, side by side (one slide). */}
