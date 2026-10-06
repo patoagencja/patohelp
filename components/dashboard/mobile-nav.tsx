@@ -115,7 +115,7 @@ export function MobileNav({
                               // sidebar and tab bar (fill + weight + dot,
                               // never colour alone; aria-current for AT).
                               isActive
-                                ? "bg-anchor text-anchor-foreground"
+                                ? "bg-anchor text-anchor-foreground focus-visible:ring-anchor-dot"
                                 : "active:bg-muted"
                             )}
                           >

@@ -130,7 +130,7 @@ export function DateRangePicker({
             required
             defaultValue={customFrom ?? ""}
             aria-label="Data od"
-            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm text-foreground focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
+            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm tabular-nums text-foreground transition-[background-color,box-shadow] duration-150 hover:bg-secondary focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <input
@@ -139,11 +139,11 @@ export function DateRangePicker({
             required
             defaultValue={customTo ?? ""}
             aria-label="Data do"
-            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm text-foreground focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
+            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm tabular-nums text-foreground transition-[background-color,box-shadow] duration-150 hover:bg-secondary focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
           />
           <button
             type="submit"
-            className="h-9 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="h-9 rounded-full bg-anchor px-4 text-sm font-medium text-anchor-foreground shadow-sm transition-colors duration-150 hover:bg-anchor/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Pokaż
           </button>

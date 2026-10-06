@@ -288,6 +288,14 @@ function Row({ row }: { row: PlanRow }) {
   );
 }
 
+// The gauge spans as many grid rows as there are goal bars beside it.
+const GAUGE_SPAN: Record<number, string> = {
+  0: "",
+  1: "",
+  2: "md:[&>li:first-child]:row-span-2",
+  3: "md:[&>li:first-child]:row-span-3",
+};
+
 export function PlanCard({
   rows,
   budget,
@@ -328,7 +336,8 @@ export function PlanCard({
             className={cn(
               "mt-4 space-y-6",
               rows.length > 1 &&
-                "md:grid md:grid-cols-2 md:items-start md:gap-x-10 md:gap-y-6 md:space-y-0 md:[&>li:first-child]:row-span-3 xl:block xl:space-y-6"
+                "md:grid md:grid-cols-2 md:items-start md:gap-x-10 md:gap-y-6 md:space-y-0 xl:block xl:space-y-6",
+              GAUGE_SPAN[Math.min(rows.length - 1, 3)]
             )}
           >
             {rows.map((r, i) =>

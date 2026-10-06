@@ -57,14 +57,14 @@ export function ReportActions({
       {/* Narrative - rendered as a deck slide so it's part of the PDF */}
       {summary ? (
         <ContentSlide title="Podsumowanie" subtitle={rangeLabel}>
-          <div className="space-y-4 text-[15px] leading-relaxed text-slate-700">
+          <div className="space-y-4 text-[15px] leading-relaxed text-foreground/85">
             {summary.split(/\n\s*\n/).map((para, i) => (
               <p key={i}>{para}</p>
             ))}
           </div>
         </ContentSlide>
       ) : (
-        <p className="text-center text-sm text-slate-500 print:hidden">
+        <p className="text-center text-sm text-muted-foreground print:hidden">
           Kliknij „Generuj opis AI”, aby dodać slajd z narracją o wynikach, a potem
           „Pobierz PDF”, aby zapisać prezentację i ją wysłać.
         </p>

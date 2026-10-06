@@ -115,7 +115,8 @@ export function InfoTip({
             setPinned(true);
           }
         }}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        // On the dark anchor tile the green ring is too faint; use the lime dot.
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [.surface-anchor_&]:focus-visible:ring-anchor-dot"
       >
         <Info className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -125,7 +126,9 @@ export function InfoTip({
         role="tooltip"
         style={{ transform: `translateX(calc(-50% + ${place.shift}px))` }}
         className={cn(
-          "absolute left-1/2 z-50 w-max max-w-[min(16rem,calc(100vw-1rem))] whitespace-normal break-words rounded-lg border border-border bg-popover px-3 py-2 text-left text-xs font-normal leading-relaxed text-popover-foreground shadow-lg",
+          // v2: the same dark rounded card as the chart tooltip (both themes),
+          // fading in. Normal case/tracking even inside an eyebrow label.
+          "absolute left-1/2 z-50 w-max max-w-[min(16rem,calc(100vw-1rem))] whitespace-normal break-words rounded-xl bg-tooltip px-3 py-2.5 text-left text-xs font-normal normal-case leading-relaxed tracking-normal text-tooltip-foreground shadow-raised animate-in fade-in-0 duration-150 motion-reduce:animate-none",
           place.side === "top" ? "bottom-full mb-1.5" : "top-full mt-1.5",
           // display:none (not just invisible) so a closed bubble near the
           // right edge can't widen the page and cause horizontal scroll.
@@ -161,7 +164,7 @@ export function MetricLabel({
         {name}
       </span>
       {tag ? (
-        <span className="rounded bg-muted px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {tag}
         </span>
       ) : null}

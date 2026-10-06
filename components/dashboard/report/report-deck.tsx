@@ -1,7 +1,7 @@
 "use client";
 
-import { Children, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Sparkles } from "lucide-react";
+import { Children, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, RotateCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { ContentSlide } from "@/components/dashboard/report/deck";
@@ -14,7 +14,14 @@ import { cn } from "@/lib/utils";
  * navigated with arrows / keyboard / dots. The AI summary slide is injected
  * after the cover once generated. Printing ("Pobierz PDF") reveals every slide
  * so the full deck exports, one slide per page.
+ *
+ * Slides are designed at a fixed 16:9 size (max-w-5xl). On narrower screens
+ * they are laid out at that design width and scaled down with CSS `zoom`, so
+ * a phone shows the same slide in miniature instead of clipping the bottom
+ * half of every chart and table. Print resets the zoom.
  */
+const DESIGN_WIDTH = 1024;
+
 export function ReportDeck({
   clientSlug,
   range,
@@ -35,6 +42,19 @@ export function ReportDeck({
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [index, setIndex] = useState(0);
+  const deckRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = deckRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      setScale(w > 0 ? Math.min(1, w / DESIGN_WIDTH) : 1);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Inject the AI summary slide right after the cover once it exists.
   const slides = useMemo(() => {
@@ -44,7 +64,7 @@ export function ReportDeck({
         key="ai-summary"
         title="Podsumowanie"
         subtitle={rangeLabel}
-        section="Executive summary"
+        section="Analiza AI"
         foot={foot}
       >
         <div className="space-y-4 text-[15px] leading-relaxed text-foreground/85">
@@ -65,6 +85,9 @@ export function ReportDeck({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Arrow keys inside a field (month picker, date range) belong to it.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, total - 1));
       if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
     }
@@ -95,7 +118,7 @@ export function ReportDeck({
   return (
     <div>
       {/* Toolbar (not printed) */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
+      <div className="mx-auto mb-4 flex max-w-5xl flex-wrap items-center gap-2 print:hidden">
         {!shareMode ? (
           <Button onClick={generate} disabled={loading} className="gap-1.5">
             <Sparkles className={cn("h-4 w-4", loading && "animate-pulse")} />
@@ -133,7 +156,11 @@ export function ReportDeck({
       </div>
 
       {/* Slides: only the active one on screen; all of them when printing */}
-      <div className="deck relative">
+      <div ref={deckRef}>
+      <div
+        className="deck relative print:![zoom:1]"
+        style={scale < 1 ? { zoom: scale } : undefined}
+      >
         {slides.map((slide, i) => (
           <div
             key={i}
@@ -149,6 +176,7 @@ export function ReportDeck({
           aria-label="Poprzedni slajd"
           onClick={() => setIndex((i) => Math.max(i - 1, 0))}
           disabled={active === 0}
+          tabIndex={-1}
           className="absolute inset-y-0 left-0 w-[8%] cursor-pointer disabled:cursor-default print:hidden"
         />
         <button
@@ -156,9 +184,17 @@ export function ReportDeck({
           aria-label="Następny slajd"
           onClick={() => setIndex((i) => Math.min(i + 1, total - 1))}
           disabled={active === total - 1}
+          tabIndex={-1}
           className="absolute inset-y-0 right-0 w-[8%] cursor-pointer disabled:cursor-default print:hidden"
         />
       </div>
+      </div>
+
+      {/* Portrait phones get the slide in miniature; landscape doubles it. */}
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground sm:hidden landscape:hidden print:hidden">
+        <RotateCw className="h-3.5 w-3.5" aria-hidden />
+        Obróć telefon poziomo, żeby powiększyć slajd.
+      </p>
 
       {/* Dots */}
       <div className="mt-5 flex flex-wrap justify-center gap-1.5 print:hidden">

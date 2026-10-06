@@ -16,7 +16,9 @@ export function segmentedItem(active: boolean, className?: string) {
   return cn(
     "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
     active
-      ? "bg-anchor text-anchor-foreground shadow-[0_1px_2px_rgb(0_0_0/0.12),0_4px_10px_-4px_rgb(0_0_0/0.25)]"
+      ? // The inset brand-green ring all but vanishes on the near-black
+        // pill (~2:1); the lime dot colour keeps focus visible on it.
+        "bg-anchor text-anchor-foreground shadow-[0_1px_2px_rgb(0_0_0/0.12),0_4px_10px_-4px_rgb(0_0_0/0.25)] focus-visible:ring-anchor-dot"
       : "text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground",
     className
   );

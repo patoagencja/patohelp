@@ -892,7 +892,7 @@ export function MainChart({
         {active != null && width > 0 && !isEmpty && trend[active] ? (
           // Dark rounded tooltip card (benchmarks 3 / 4) in both themes.
           <div
-            className="pointer-events-none absolute z-10 rounded-2xl bg-tooltip p-3 text-xs text-tooltip-foreground shadow-raised"
+            className="pointer-events-none absolute z-10 rounded-2xl bg-tooltip p-3 text-xs text-tooltip-foreground shadow-raised animate-in fade-in-0 duration-150 motion-reduce:animate-none"
             style={{ left: tipLeft, top: pad.top, width: tipW }}
           >
             <p className="font-medium tabular-nums text-tooltip-foreground/70">

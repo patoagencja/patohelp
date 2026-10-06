@@ -161,8 +161,10 @@ export function ContentSlide({
   );
 }
 
-/** Coloured delta pill with arrow. */
+/** Delta pill: colour says good/bad (`tone`), the arrow follows the sign of
+ *  the number - a cheaper click is "-6,9%" with a down arrow, in green. */
 function DeltaPill({ text, tone }: { text: string; tone: "up" | "down" | "flat" }) {
+  const arrow = /^[-\u2212]/.test(text) ? "▼" : /^\+/.test(text) ? "▲" : "→";
   return (
     <span
       className={cn(
@@ -172,12 +174,13 @@ function DeltaPill({ text, tone }: { text: string; tone: "up" | "down" | "flat" 
         tone === "flat" && "bg-muted text-muted-foreground"
       )}
     >
-      {tone === "up" ? "▲" : tone === "down" ? "▼" : "→"} {text}
+      <span aria-hidden>{arrow}</span> {text}
     </span>
   );
 }
 
-/** A large stat block with an accent bar and delta pill. */
+/** A large stat block: dot + label, big number, delta pill at the bottom
+ *  (same anatomy as the dashboard's KPI tiles). */
 export function Stat({
   label,
   value,
@@ -192,17 +195,19 @@ export function Stat({
   accent?: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-muted/60 p-5">
-      <span
-        className="absolute inset-y-0 left-0 w-1"
-        style={{ background: accent }}
-      />
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1.5 text-[28px] font-medium leading-none tabular-nums tracking-[-0.03em]">
+    <div className="flex min-w-0 flex-col rounded-2xl bg-muted/60 p-5">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span
+          className="inline-block h-2 w-2 shrink-0 rounded-full"
+          style={{ background: accent }}
+        />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="mt-2 text-[32px] font-medium leading-none tabular-nums tracking-[-0.03em]">
         {value}
       </p>
       {sub ? (
-        <div className="mt-2">
+        <div className="mt-auto pt-3">
           <DeltaPill text={sub} tone={tone} />
         </div>
       ) : null}

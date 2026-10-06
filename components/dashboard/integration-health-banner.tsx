@@ -137,7 +137,9 @@ export async function IntegrationHealthBanner({
   );
 
   const catchingUpNote = catchingUp.length ? (
-    <div className="border-b border-hairline bg-muted/40 px-6 py-2 text-sm text-muted-foreground print:hidden">
+    // v2: soft rounded notes inside the page gutters (same column as the
+    // page), not full-bleed strips.
+    <div className="mx-4 mt-4 rounded-2xl bg-muted/70 px-4 py-3 text-sm text-muted-foreground sm:mx-6 sm:px-5 print:hidden">
       {catchingUp.map((h) => (
         <p key={h.provider} className="flex items-start gap-2">
           <RefreshCw className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -156,10 +158,10 @@ export async function IntegrationHealthBanner({
     return (
       <>
       {catchingUpNote}
-      <div className="border-b border-warning/20 bg-warning-soft/60 px-6 py-2 text-sm text-warning print:hidden">
+      <div className="mx-4 mt-4 rounded-2xl bg-warning-soft px-4 py-3 text-sm text-warning sm:mx-6 sm:px-5 print:hidden">
         {upcoming.map((e) => (
           <p key={e.provider} className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>
               <span className="font-medium">{e.label}</span>: token wygaśnie za{" "}
               {e.daysLeft} {e.daysLeft === 1 ? "dzień" : "dni"} -{" "}
@@ -181,10 +183,12 @@ export async function IntegrationHealthBanner({
   return (
     <>
     {catchingUpNote}
-    <div className="border-b border-warning/20 bg-warning-soft px-6 py-3 print:hidden">
-      <div className="flex items-start gap-2.5">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-        <div className="text-sm">
+    <div role="status" className="mx-4 mt-4 rounded-2xl bg-warning-soft px-4 py-3.5 sm:mx-6 sm:px-5 print:hidden">
+      <div className="flex items-start gap-3">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-card text-warning shadow-card">
+          <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+        </span>
+        <div className="pt-0.5 text-sm">
           <p className="font-medium text-foreground">
             {unhealthy.length === 1
               ? "Jedno źródło danych nie działa"

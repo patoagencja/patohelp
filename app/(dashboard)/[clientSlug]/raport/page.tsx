@@ -17,6 +17,7 @@ import {
   Stat,
 } from "@/components/dashboard/report/deck";
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
+import { ShareCopyButton } from "../settings/share-copy-button";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -130,8 +131,7 @@ async function ShareBox({
     return (
       <div className="rounded-2xl bg-warning-soft px-4 py-3 text-sm text-warning print:hidden">
         Publiczne linki wymagają tabeli <code>share_links</code> w Supabase.
-        Odpal zbiorczy SQL (<code>ALL_RECENT.sql</code> / patrz czat), potem
-        odśwież stronę.
+        Uruchom migrację <code>0026_share_overview.sql</code> i odśwież stronę.
       </div>
     );
   }
@@ -139,33 +139,34 @@ async function ShareBox({
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
   return (
     <div className="surface flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5 print:hidden">
-      <span className="text-sm font-medium">Publiczny link (bez logowania):</span>
+      <span className="text-sm font-medium">Publiczny link do raportu (bez logowania):</span>
       {token ? (
         <>
           <input
             readOnly
             value={`${base}/r/${token}`}
-            className="min-w-0 flex-1 rounded-full border border-transparent bg-muted px-3 py-1.5 font-mono text-xs"
+            aria-label="Publiczny link do raportu"
+            className="h-9 min-w-0 flex-1 basis-56 rounded-full border border-transparent bg-muted px-3 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
+          <ShareCopyButton url={`${base}/r/${token}`} />
           <form action={revokeShareLink}>
             <input type="hidden" name="client" value={clientSlug} />
-            <button
+            <Button
               type="submit"
-              className="rounded-full px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:bg-negative-soft hover:text-destructive"
             >
               Unieważnij
-            </button>
+            </Button>
           </form>
         </>
       ) : (
         <form action={createShareLink}>
           <input type="hidden" name="client" value={clientSlug} />
-          <button
-            type="submit"
-            className="rounded-full bg-anchor px-3.5 py-1.5 text-xs font-medium text-anchor-foreground hover:bg-anchor/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
+          <Button type="submit" size="sm">
             Wygeneruj link
-          </button>
+          </Button>
         </form>
       )}
     </div>
@@ -257,10 +258,10 @@ export default async function RaportPage({
                   name="month"
                   defaultValue={monthParam ?? ""}
                   aria-label="Miesiąc raportu"
-                  className="h-9 rounded-lg border border-hairline bg-card px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  className="h-9 rounded-full border border-transparent bg-card px-3.5 text-sm shadow-card transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-secondary dark:hover:bg-muted"
                 />
                 <Button type="submit" variant="outline" size="sm">
-                  OK
+                  Pokaż
                 </Button>
               </form>
               <Button asChild size="sm">
@@ -397,7 +398,7 @@ export default async function RaportPage({
                       name={client.name}
                       slug={params.clientSlug}
                       logoUrl={uploaded}
-                      className="h-7 max-w-[12rem] text-slate-900"
+                      className="h-7 max-w-[12rem] text-black/85"
                     />
                   </span>
                 ) : Logo ? (
@@ -727,10 +728,11 @@ export default async function RaportPage({
             </ContentSlide>
           </>
         ) : (
-          <ContentSlide title="Ruch na stronie">
-            <p className="text-sm text-muted-foreground">
-              Dane GA4 nie są jeszcze dostępne dla tego okresu. Po pierwszej
-              synchronizacji pojawią się tu źródła ruchu, urządzenia i podstrony.
+          <ContentSlide title="Ruch na stronie" section="Dane Analytics" foot={foot}>
+            <p className="max-w-xl text-base leading-relaxed text-muted-foreground">
+              Dane z Google Analytics nie są jeszcze dostępne dla tego okresu. Po
+              pierwszej synchronizacji pojawią się tu źródła ruchu, urządzenia i
+              podstrony.
             </p>
           </ContentSlide>
         )}

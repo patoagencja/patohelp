@@ -660,17 +660,20 @@ html[data-present="true"] {
     background-position: -50% 0;
   }
 }
-.skeleton {
-  background-color: hsl(var(--muted));
-  background-image: linear-gradient(
-    100deg,
-    transparent 30%,
-    hsl(var(--skeleton-glint)) 50%,
-    transparent 70%
-  );
-  background-size: 200% 100%;
-  background-repeat: no-repeat;
-  animation: skeleton-glint 1.9s ease-in-out infinite;
+/* In the components layer so bg-* / rounded-* utilities can tint a block. */
+@layer components {
+  .skeleton {
+    background-color: hsl(var(--muted));
+    background-image: linear-gradient(
+      100deg,
+      transparent 30%,
+      hsl(var(--skeleton-glint)) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: skeleton-glint 1.9s ease-in-out infinite;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
