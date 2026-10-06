@@ -4,6 +4,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { getAdGroupMetrics } from "@/lib/integrations/google-ads";
+import { hasClicksAllColumn, intOrZero } from "@/lib/integrations/link-clicks";
 import { extractConversions, getAdsetInsights } from "@/lib/integrations/meta-ads";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -46,14 +47,17 @@ export async function hasAdsetTable(admin: AdminClient): Promise<boolean> {
  * days, or since the earliest running/upcoming goal if earlier (max 120) -
  * on the first run, whenever its first week has no rows yet (backfill, or a
  * goal reaching further back), and once a day; otherwise just the last 3
- * days, which keeps the half-hourly cron cheap.
+ * days, which keeps the half-hourly cron cheap. Meta also gets the full
+ * window while it still holds rows from before migration 0034 (clicks_all
+ * NULL = clicks (all), not link clicks), so goals compare like with like.
  */
 export async function adsetSyncWindow(
   admin: AdminClient,
   clientId: string,
   provider: Provider,
   now = new Date(),
-  full = false
+  full = false,
+  withClicksAll = false
 ): Promise<{ since: string; until: string }> {
   const until = day(now);
   let since = day(subDays(now, BASE_DAYS - 1));
@@ -82,6 +86,18 @@ export async function adsetSyncWindow(
     .limit(1);
   if (!head || head.length === 0) return { since, until };
 
+  if (withClicksAll && provider === "meta_ads") {
+    const { data: stale } = await admin
+      .from("ads_adset_daily")
+      .select("date")
+      .eq("client_id", clientId)
+      .eq("provider", provider)
+      .gte("date", since)
+      .is("clicks_all", null)
+      .limit(1);
+    if (stale && stale.length > 0) return { since, until };
+  }
+
   return { since: plusDays(until, -2), until };
 }
 
@@ -104,6 +120,44 @@ export interface AdsetSyncResult {
   errors: string[];
 }
 
+/**
+ * After a clean full pass over [since, until], pre-0034 Meta rows that Meta no
+ * longer returns (deleted ad sets) would keep clicks_all NULL and force the
+ * full window on every run. Close them with clicks_all = their stored clicks.
+ * Upserting only the key columns + clicks_all leaves the rest untouched.
+ */
+async function closeStaleAdsetClickRows(
+  admin: AdminClient,
+  clientId: string,
+  since: string,
+  until: string
+): Promise<void> {
+  const { data, error } = await admin
+    .from("ads_adset_daily")
+    .select("adset_id, date, clicks")
+    .eq("client_id", clientId)
+    .eq("provider", "meta_ads")
+    .gte("date", since)
+    .lte("date", until)
+    .is("clicks_all", null)
+    .limit(1000);
+  if (error || !data || data.length === 0) return;
+  try {
+    await upsertChunks(
+      admin,
+      data.map((r) => ({
+        client_id: clientId,
+        provider: "meta_ads",
+        adset_id: r.adset_id as string,
+        date: r.date as string,
+        clicks_all: Number(r.clicks ?? 0),
+      }))
+    );
+  } catch (err) {
+    console.warn("[adset-sync] closing stale click rows failed", describeError(err));
+  }
+}
+
 /** Meta: ad set insights per selected account. */
 export async function syncMetaAdsets(
   admin: AdminClient,
@@ -111,10 +165,20 @@ export async function syncMetaAdsets(
   accessToken: string,
   accountIds: string[],
   shouldStop: () => boolean,
-  campaignId?: string
+  campaignId?: string,
+  /** Migration 0034 ran (probed when omitted). */
+  withClicksAll?: boolean
 ): Promise<AdsetSyncResult> {
+  const clicksAll = withClicksAll ?? (await hasClicksAllColumn(admin, "ads_adset_daily"));
   // One campaign on demand: always the full window, it is a handful of calls.
-  const { since, until } = await adsetSyncWindow(admin, clientId, "meta_ads", new Date(), !!campaignId);
+  const { since, until } = await adsetSyncWindow(
+    admin,
+    clientId,
+    "meta_ads",
+    new Date(),
+    !!campaignId,
+    clicksAll
+  );
   const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const accountId of accountIds) {
     if (shouldStop()) break;
@@ -134,7 +198,11 @@ export async function syncMetaAdsets(
           date: r.date,
           spend_minor_units: Math.round(parseFloat(r.spend || "0") * 100) || 0,
           impressions: parseInt(r.impressions, 10) || 0,
-          clicks: parseInt(r.clicks, 10) || 0,
+          // Link clicks in `clicks` once 0034 ran; before it, clicks (all)
+          // exactly as always.
+          ...(clicksAll
+            ? { clicks: intOrZero(r.link_clicks), clicks_all: intOrZero(r.clicks) }
+            : { clicks: intOrZero(r.clicks) }),
           reach: r.reach != null ? parseInt(r.reach, 10) || null : null,
           conversions: extractConversions(r.actions),
           updated_at: now,
@@ -144,6 +212,11 @@ export async function syncMetaAdsets(
       // One account failing must not stop the others (or the cron).
       result.errors.push(`Meta ${accountId}: ${describeError(err)}`);
     }
+  }
+  // Only after a complete pass: a single campaign's fetch, a failed account
+  // or a time-budget cut leaves rows that a later run will still re-pull.
+  if (clicksAll && !campaignId && result.errors.length === 0 && !shouldStop()) {
+    await closeStaleAdsetClickRows(admin, clientId, since, until);
   }
   return result;
 }
@@ -155,8 +228,11 @@ export async function syncGoogleAdGroups(
   refreshToken: string,
   accounts: Array<{ id: string; video_only?: boolean }>,
   shouldStop: () => boolean,
-  campaignId?: string
+  campaignId?: string,
+  /** Migration 0034 ran (probed when omitted). */
+  withClicksAll?: boolean
 ): Promise<AdsetSyncResult> {
+  const clicksAll = withClicksAll ?? (await hasClicksAllColumn(admin, "ads_adset_daily"));
   const { since, until } = await adsetSyncWindow(admin, clientId, "google_ads", new Date(), !!campaignId);
   const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const account of accounts) {
@@ -187,6 +263,8 @@ export async function syncGoogleAdGroups(
             spend_minor_units: Math.round(m.cost_micros / 10_000),
             impressions: m.impressions,
             clicks: m.clicks,
+            // Google ad clicks are link-like already: both columns agree.
+            ...(clicksAll ? { clicks_all: m.clicks } : {}),
             reach: null,
             conversions: m.conversions,
             updated_at: now,
@@ -217,6 +295,7 @@ export async function syncAdsetsForClient(
 ): Promise<AdsetSyncResult> {
   const shouldStop = opts.shouldStop ?? (() => false);
   const total: AdsetSyncResult = { written: 0, errors: [] };
+  const withClicksAll = await hasClicksAllColumn(admin, "ads_adset_daily");
   const { data: integrations, error } = await admin
     .from("integrations")
     .select("provider, credentials_encrypted, account_ids")
@@ -242,7 +321,8 @@ export async function syncAdsetsForClient(
               creds.access_token,
               accounts.map((a) => a.id),
               shouldStop,
-              opts.campaignId
+              opts.campaignId,
+              withClicksAll
             )
           : await syncGoogleAdGroups(
               admin,
@@ -250,7 +330,8 @@ export async function syncAdsetsForClient(
               creds.refresh_token,
               accounts,
               shouldStop,
-              opts.campaignId
+              opts.campaignId,
+              withClicksAll
             );
       total.written += r.written;
       total.errors.push(...r.errors);

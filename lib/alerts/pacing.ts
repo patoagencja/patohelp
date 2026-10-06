@@ -2,12 +2,20 @@ import { cache } from "react";
 import { differenceInCalendarDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
+import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
-export type FlightMetric = "clicks" | "impressions" | "spend" | "conversions";
+/**
+ * Goal metrics. `clicks` = "Kliknięcia linku" (Meta link clicks / Google ad
+ * clicks); `clicks_all` = "Wszystkie kliknięcia" (Meta clicks (all), read from
+ * ads_daily.clicks_all - migration 0034 - falling back to `clicks` where it is
+ * NULL: Google rows and anything synced before the migration).
+ */
+export const FLIGHT_METRICS = ["clicks", "clicks_all", "impressions", "spend", "conversions"] as const;
+export type FlightMetric = (typeof FLIGHT_METRICS)[number];
 export type PacingStatus =
   | "behind" // nie dowozi
   | "on_track"
@@ -58,6 +66,7 @@ export interface FlightDef {
 
 const METRIC_COLUMN: Record<FlightMetric, string> = {
   clicks: "clicks",
+  clicks_all: "clicks_all",
   impressions: "impressions",
   spend: "spend_minor_units",
   conversions: "conversions",
@@ -123,13 +132,19 @@ export function computePacing(
 
 type Row = Record<string, unknown>;
 
+/** One row's value of `col`; clicks_all falls back to clicks when NULL. */
+function valueOf(r: Row, col: string): number {
+  if (col === "clicks_all") return Number(r.clicks_all ?? r.clicks ?? 0);
+  return Number(r[col] ?? 0);
+}
+
 /** Sum `col` per date for the rows `match` accepts. */
 function sumByDate(rows: Row[], col: string, match: (r: Row) => boolean): Map<string, number> {
   const out = new Map<string, number>();
   for (const r of rows) {
     if (!match(r)) continue;
     const d = r.date as string;
-    out.set(d, (out.get(d) ?? 0) + Number(r[col] ?? 0));
+    out.set(d, (out.get(d) ?? 0) + valueOf(r, col));
   }
   return out;
 }
@@ -169,6 +184,21 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
 
   const campaignDefs = defs.filter((d) => !d.adsetId);
   const adsetDefs = defs.filter((d) => d.adsetId);
+  // clicks_all arrives with migration 0034: only named in the select when a
+  // goal needs it AND the column exists, so older databases keep reading.
+  const wantsAll = (list: FlightDef[]) => list.some((d) => d.metric === "clicks_all");
+  const [adsAll, adsetAll] = await Promise.all([
+    wantsAll(campaignDefs) ? hasClicksAllColumn(admin, "ads_daily") : false,
+    wantsAll(adsetDefs) ? hasClicksAllColumn(admin, "ads_adset_daily") : false,
+  ]);
+  // A conditional select defeats supabase-js's string parser: rows are
+  // re-typed as plain records below (overrideTypes).
+  const adsSelect = adsAll
+    ? "campaign_id, provider, date, spend_minor_units, clicks, clicks_all, impressions, conversions"
+    : "campaign_id, provider, date, spend_minor_units, clicks, impressions, conversions";
+  const adsetSelect = adsetAll
+    ? "adset_id, provider, date, spend_minor_units, clicks, clicks_all, impressions, conversions"
+    : "adset_id, provider, date, spend_minor_units, clicks, impressions, conversions";
   const earliest = (list: FlightDef[]) =>
     list.reduce((min, f) => (f.startDate < min ? f.startDate : min), list[0].startDate);
 
@@ -180,7 +210,7 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
       ? fetchAll<Row>((from, to) =>
           admin
             .from("ads_daily")
-            .select("provider, campaign_id, date, spend_minor_units, clicks, impressions, conversions")
+            .select(adsSelect)
             .eq("client_id", clientId)
             .in("campaign_id", Array.from(new Set(campaignDefs.map((f) => f.campaignId))))
             .gte("date", earliest(campaignDefs))
@@ -189,6 +219,7 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
             .order("provider", { ascending: true })
             .order("campaign_id", { ascending: true })
             .range(from, to)
+            .overrideTypes<Row[], { merge: false }>()
         )
       : Promise.resolve([] as Row[]);
   // A missing table (migration not run) or a failed read leaves ad set goals
@@ -198,7 +229,7 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
       ? fetchAll<Row>((from, to) =>
           admin
             .from("ads_adset_daily")
-            .select("provider, adset_id, date, spend_minor_units, clicks, impressions, conversions")
+            .select(adsetSelect)
             .eq("client_id", clientId)
             .in("adset_id", Array.from(new Set(adsetDefs.map((f) => f.adsetId as string))))
             .gte("date", earliest(adsetDefs))
@@ -207,6 +238,7 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
             .order("provider", { ascending: true })
             .order("adset_id", { ascending: true })
             .range(from, to)
+            .overrideTypes<Row[], { merge: false }>()
         ).catch((err) => {
           console.error("[pacing] ads_adset_daily read failed", (err as Error).message);
           return [] as Row[];

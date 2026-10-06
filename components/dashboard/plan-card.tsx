@@ -50,7 +50,8 @@ const GOAL_NAME: Record<GoalMetric, string> = {
 };
 
 const FLIGHT_METRIC: Record<PacingFlight["metric"], string> = {
-  clicks: "kliknięcia",
+  clicks: "kliknięcia linku",
+  clicks_all: "wszystkie kliknięcia",
   impressions: "wyświetlenia",
   spend: "wydatki",
   conversions: "działania",

@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
  */
 
 const METRIC_LABEL: Record<FlightMetric, string> = {
-  clicks: "Kliknięcia",
+  clicks: "Kliknięcia linku",
+  clicks_all: "Wszystkie kliknięcia",
   impressions: "Wyświetlenia",
   spend: "Wydatki",
   conversions: "Działania na stronie",

@@ -12,10 +12,11 @@ import {
 } from "@/components/dashboard/campaign-goals";
 import { GoalTiles } from "@/components/dashboard/goal-tiles";
 import { getCurrentAlerts } from "@/lib/alerts/current";
-import { getPacing, type FlightMetric } from "@/lib/alerts/pacing";
+import { FLIGHT_METRICS, getPacing, type FlightMetric } from "@/lib/alerts/pacing";
 import { buildGoalTiles } from "@/lib/dashboard/campaign-goals";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
@@ -33,7 +34,8 @@ const addFlightSchema = z
     campaign: z.string().min(1).max(600), // "id|||name|||provider"
     // Optional ad set (Meta) / ad group (Google) id; "" = whole campaign.
     adset: z.string().max(100).optional(),
-    metric: z.enum(["spend", "clicks", "impressions", "conversions"]),
+    // clicks = link clicks; clicks_all = Meta clicks (all), migration 0034.
+    metric: z.enum(FLIGHT_METRICS),
     target: z.coerce.number().finite().positive().max(1e12),
     start: DATE,
     end: DATE,
@@ -67,10 +69,13 @@ async function addFlight(formData: FormData) {
 
   if (!campaignId) return;
 
+  // "Wszystkie kliknięcia" needs ads_daily.clicks_all (migration 0034); the
+  // form hides it until then, a crafted post must not save an unmeasurable goal.
+  const admin = createAdminClient();
+  if (metric === "clicks_all" && !(await hasClicksAllColumn(admin, "ads_daily"))) return;
+
   // Spend is entered in PLN, stored in grosze.
   const targetValue = metric === "spend" ? Math.round(rawTarget * 100) : Math.round(rawTarget);
-
-  const admin = createAdminClient();
 
   // Ad set level: trust our own synced row, not the posted name, and make
   // sure the ad set really belongs to the chosen campaign (the no-JS list
@@ -187,17 +192,23 @@ export default async function AlertyPage({
   const adsetOptionsPromise = viewerPromise.then((viewer) =>
     viewer.isAgency ? getAdsetOptions(client.id) : null
   );
+  // "Wszystkie kliknięcia" goal option: only once migration 0034 has run.
+  const clicksAllPromise = viewerPromise.then((viewer) =>
+    viewer.isAgency ? hasClicksAllColumn(createAdminClient(), "ads_daily") : false
+  );
 
   // One list, grouped by urgency: the client shouldn't have to know which
   // detector found what. Spend spikes go first within their severity. Shared
   // (per request) with the header bell's count.
-  const [alerts, pacing, viewer, campaignOptions, adsetOptions] = await Promise.all([
-    getCurrentAlerts(client.id),
-    getPacing(client.id),
-    viewerPromise,
-    campaignOptionsPromise,
-    adsetOptionsPromise,
-  ]);
+  const [alerts, pacing, viewer, campaignOptions, adsetOptions, clicksAllAvailable] =
+    await Promise.all([
+      getCurrentAlerts(client.id),
+      getPacing(client.id),
+      viewerPromise,
+      campaignOptionsPromise,
+      adsetOptionsPromise,
+      clicksAllPromise,
+    ]);
   const isAgency = viewer.isAgency;
   const goalTiles = buildGoalTiles(
     pacing,
@@ -222,6 +233,7 @@ export default async function AlertyPage({
           clientSlug={params.clientSlug}
           campaignOptions={campaignOptions}
           adsetOptions={adsetOptions}
+          clicksAllAvailable={clicksAllAvailable}
           addAction={addFlight}
           deleteAction={deleteFlight}
         />

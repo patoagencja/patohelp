@@ -33,6 +33,8 @@ function targetText(metric: FlightMetric, value: number): string {
     case "spend":
       return wholePln(value);
     case "clicks":
+      return `${formatNumberPL(value)} ${plPlural(value, "kliknięcie", "kliknięcia", "kliknięć")} w link`;
+    case "clicks_all":
       return `${formatNumberPL(value)} ${plPlural(value, "kliknięcie", "kliknięcia", "kliknięć")}`;
     case "impressions":
       return `${formatNumberPL(value)} ${plPlural(value, "wyświetlenie", "wyświetlenia", "wyświetleń")}`;
@@ -60,7 +62,8 @@ const shortDate = (iso: string) => `${Number(iso.slice(8, 10))}.${iso.slice(5, 7
 
 const METRIC_KICK: Record<FlightMetric, string> = {
   spend: "Wydatki",
-  clicks: "Kliknięcia",
+  clicks: "Kliknięcia linku",
+  clicks_all: "Wszystkie kliknięcia",
   impressions: "Wyświetlenia",
   conversions: "Działania na stronie",
 };
@@ -220,11 +223,13 @@ function FlightForm({
   clientSlug,
   campaignOptions,
   adsetOptions,
+  clicksAllAvailable,
   addAction,
 }: {
   clientSlug: string;
   campaignOptions: CampaignOption[];
   adsetOptions: AdsetOption[] | null;
+  clicksAllAvailable: boolean;
   addAction: FormAction;
 }) {
   return (
@@ -252,7 +257,13 @@ function FlightForm({
         />
         <Field label="Co mierzymy">
           <select name="metric" required className={FIELD}>
-            <option value="clicks">Kliknięcia</option>
+            {/* Meta link clicks (Ads Manager "Kliknięcia linku"); Google ad clicks. */}
+            <option value="clicks">Kliknięcia linku</option>
+            {/* Meta clicks (all): reactions, profile, "see more" too. Needs
+                migration 0034 (clicks_all), hidden until it has run. */}
+            {clicksAllAvailable ? (
+              <option value="clicks_all">Wszystkie kliknięcia</option>
+            ) : null}
             <option value="impressions">Wyświetlenia</option>
             <option value="spend">Wydatki (zł)</option>
             <option value="conversions">Działania na stronie</option>
@@ -283,6 +294,7 @@ export function CampaignGoals({
   clientSlug,
   campaignOptions,
   adsetOptions = null,
+  clicksAllAvailable = false,
   addAction,
   deleteAction,
 }: {
@@ -292,6 +304,8 @@ export function CampaignGoals({
   campaignOptions: CampaignOption[];
   /** Recent ad sets / ad groups; null hides the picker (not migrated yet). */
   adsetOptions?: AdsetOption[] | null;
+  /** Offer the "Wszystkie kliknięcia" goal (migration 0034 has run). */
+  clicksAllAvailable?: boolean;
   addAction: FormAction;
   deleteAction: FormAction;
 }) {
@@ -332,6 +346,7 @@ export function CampaignGoals({
           clientSlug={clientSlug}
           campaignOptions={campaignOptions}
           adsetOptions={adsetOptions}
+          clicksAllAvailable={clicksAllAvailable}
           addAction={addAction}
         />
       ) : null}

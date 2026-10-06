@@ -15,7 +15,7 @@ import { SettingsHeading } from "./settings-heading";
 
 const LABELS: Record<GoalMetric, { name: string; hint: string }> = {
   sessions: { name: "Wizyty na stronie", hint: "GA4, wszystkie źródła" },
-  clicks: { name: "Kliknięcia w reklamy", hint: "Meta + Google Ads" },
+  clicks: { name: "Kliknięcia w reklamy", hint: "Meta: kliknięcia linku, Google: kliknięcia reklamy" },
   impressions: { name: "Wyświetlenia reklam", hint: "Meta + Google Ads" },
   conversions: { name: "Działania na stronie", hint: "konwersje z reklam" },
 };

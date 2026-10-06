@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
+import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import {
   getCampaignMetrics,
@@ -54,6 +55,10 @@ export async function GET(request: Request) {
     .eq("provider", "google_ads");
   if (onlyClient) q = q.eq("client_id", onlyClient);
   const { data: integrations } = await q;
+
+  // Migration 0034 adds clicks_all; Google ad clicks are link-like, so both
+  // columns carry the same number. Omitted until the column exists.
+  const withClicksAll = await hasClicksAllColumn(admin, "ads_daily");
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
@@ -141,6 +146,7 @@ export async function GET(request: Request) {
               spend_minor_units: Math.round(metric.cost_micros / 10_000),
               impressions: metric.impressions,
               clicks: metric.clicks,
+              ...(withClicksAll ? { clicks_all: metric.clicks } : {}),
               ctr: metric.ctr,
               cpc_minor_units:
                 metric.average_cpc != null

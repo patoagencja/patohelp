@@ -55,12 +55,12 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     name: "Kliknięcia w reklamy",
     short: null,
     explain:
-      "Ile razy ktoś kliknął reklamę i przeszedł dalej, np. na stronę. 500 kliknięć = 500 razy reklama zaciekawiła kogoś na tyle, że w nią kliknął.",
+      "Ile razy ktoś kliknął reklamę i przeszedł dalej na stronę. W Meta liczymy tylko kliknięcia w link prowadzący na stronę (bez polubień, komentarzy czy wejść na profil), w Google - kliknięcia w reklamę. 500 kliknięć = 500 razy ktoś przeszedł z reklamy dalej.",
     goodWhen: "higher",
     en: {
       name: "Ad clicks",
       explain:
-        "How many times someone clicked an ad and moved on, e.g. to the website. 500 clicks = 500 times an ad was interesting enough to click.",
+        "How many times someone clicked an ad and moved on to the website. For Meta only link clicks count (no likes, comments or profile visits); for Google, clicks on the ad. 500 clicks = 500 times someone went on from an ad.",
     },
   },
   sessions: {
@@ -79,24 +79,24 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     name: "Klikalność",
     short: "CTR",
     explain:
-      "Ile osób na 100, które zobaczyły reklamę, w nią kliknęło. 2% = 2 osoby na 100.",
+      "Ile osób na 100, które zobaczyły reklamę, kliknęło i przeszło dalej - w Meta w link prowadzący na stronę, w Google w reklamę. 2% = 2 osoby na 100.",
     goodWhen: "higher",
     en: {
       name: "Click-through rate",
       explain:
-        "How many people out of 100 who saw the ad clicked it. 2% = 2 people out of 100.",
+        "How many people out of 100 who saw the ad clicked through - on Meta the link to the website, on Google the ad. 2% = 2 people out of 100.",
     },
   },
   cpc: {
     name: "Koszt kliknięcia",
     short: "CPC",
     explain:
-      "Ile średnio płacimy za jedno kliknięcie w reklamę. 1,50 zł = za 100 kliknięć płacimy 150 zł. Im taniej, tym lepiej.",
+      "Ile średnio płacimy za jedno kliknięcie - w Meta w link prowadzący na stronę, w Google w reklamę. 1,50 zł = za 100 kliknięć płacimy 150 zł. Im taniej, tym lepiej.",
     goodWhen: "lower",
     en: {
       name: "Cost per click",
       explain:
-        "What one click on an ad costs on average. 1.50 zł = 100 clicks cost 150 zł. Cheaper is better.",
+        "What one click costs on average - on Meta a click on the link to the website, on Google a click on the ad. 1.50 zł = 100 clicks cost 150 zł. Cheaper is better.",
     },
   },
   conversions: {

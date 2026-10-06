@@ -1,6 +1,8 @@
 import { decrypt } from "@/lib/integrations/encryption";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // Client health diagnostic: what's connected, how many accounts are SELECTED,
 // last sync per provider (with errors) and row counts - so we can see exactly
@@ -190,6 +192,43 @@ export async function GET(request: Request) {
     admin.from("creatives").select("ad_id", { count: "exact", head: true }).eq("client_id", cid),
   ]);
 
+  // Meta clicks: link clicks (clicks) vs clicks (all) (clicks_all), last 30
+  // days, plus how much history still waits for the one-time re-pull.
+  let clicksLine: string;
+  if (!(await hasClicksAllColumn(admin, "ads_daily"))) {
+    clicksLine = `kolumna clicks_all: <b>brak</b> (uruchom migrację 0034) - kliknięcia Meta to nadal <b>wszystkie kliknięcia</b>`;
+  } else {
+    const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const since365 = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    try {
+      const [rows, stale] = await Promise.all([
+        fetchAll<{ clicks: number | null; clicks_all: number | null }>((from, to) =>
+          admin
+            .from("ads_daily")
+            .select("clicks, clicks_all, date, campaign_id")
+            .eq("client_id", cid)
+            .eq("provider", "meta_ads")
+            .gte("date", since30)
+            .order("date", { ascending: true })
+            .order("campaign_id", { ascending: true })
+            .range(from, to)
+        ),
+        admin
+          .from("ads_daily")
+          .select("date", { count: "exact", head: true })
+          .eq("client_id", cid)
+          .eq("provider", "meta_ads")
+          .gte("date", since365)
+          .is("clicks_all", null),
+      ]);
+      const link = rows.reduce((a, r) => a + Number(r.clicks ?? 0), 0);
+      const all = rows.reduce((a, r) => a + Number(r.clicks_all ?? r.clicks ?? 0), 0);
+      clicksLine = `Meta, ostatnie 30 dni: kliknięcia linku <b>${link.toLocaleString("pl-PL")}</b> · wszystkie kliknięcia <b>${all.toLocaleString("pl-PL")}</b> · wierszy sprzed migracji 0034 (do ponownego pobrania, 365 dni): <b>${stale.count ?? 0}</b>`;
+    } catch (err) {
+      clicksLine = `błąd odczytu kliknięć: ${esc((err as Error).message)}`;
+    }
+  }
+
   return html(`
     <h1 style="font-size:20px">Diagnostyka klienta: ${esc(slug)}</h1>
     ${ecomReport}
@@ -212,6 +251,7 @@ export async function GET(request: Request) {
       <li>ads_daily: <b>${ads.count ?? 0}</b> wierszy${(ads.data?.[0]?.date) ? `, najnowszy: ${esc(ads.data[0].date)}` : ""}</li>
       <li>ga4_daily: <b>${ga4.count ?? 0}</b> wierszy${(ga4.data?.[0]?.date) ? `, najnowszy: ${esc(ga4.data[0].date)}` : ""}</li>
       <li>creatives: <b>${cre.count ?? 0}</b> wierszy</li>
+      <li>${clicksLine}</li>
     </ul>
 
     <h2 style="font-size:15px;margin-top:20px">Ostatnie synchronizacje</h2>

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
+import { hasClicksAllColumn, metaClickColumns } from "@/lib/integrations/link-clicks";
 import {
   extractConversions,
   getCampaignInsights,
@@ -62,6 +63,84 @@ async function presentDates(
   return present;
 }
 
+/**
+ * The newest days (at most `limit`) since `fromDate` that still hold Meta rows
+ * from before migration 0034 (clicks_all IS NULL: `clicks` there is clicks
+ * (all), not link clicks). They are re-pulled like missing days so charts and
+ * year-over-year compare link clicks with link clicks. Walks back a page at a
+ * time from the newest stale row, so it reads a few pages, not the whole year.
+ */
+async function staleClickDates(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  fromDate: string,
+  beforeDate: string,
+  limit: number
+): Promise<Set<string>> {
+  const stale = new Set<string>();
+  let upper = beforeDate;
+  for (let guard = 0; guard < 400 && stale.size < limit; guard += 1) {
+    const { data, error } = await admin
+      .from("ads_daily")
+      .select("date")
+      .eq("client_id", clientId)
+      .eq("provider", "meta_ads")
+      .is("clicks_all", null)
+      .gte("date", fromDate)
+      .lt("date", upper)
+      .order("date", { ascending: false })
+      .limit(1000);
+    if (error || !data || data.length === 0) break;
+    for (const r of data) stale.add(r.date as string);
+    // Every date of this page is in the set now; continue strictly before
+    // the oldest one so each page yields at least one new day.
+    upper = data[data.length - 1].date as string;
+    if (data.length < 1000) break;
+  }
+  return stale;
+}
+
+/**
+ * After a day was re-pulled from every account, rows Meta no longer reports
+ * for it (e.g. a campaign deleted since) would keep clicks_all NULL and get
+ * that day re-pulled forever. Close them with clicks_all = their stored
+ * clicks - the best we can know for a row Meta won't return any more.
+ * Upsert of key columns + clicks_all only touches clicks_all.
+ */
+async function closeStaleClickRows(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+  days: string[]
+): Promise<void> {
+  if (!days.length) return;
+  const { data, error } = await admin
+    .from("ads_daily")
+    .select("campaign_id, date, clicks")
+    .eq("client_id", clientId)
+    .eq("provider", "meta_ads")
+    .in("date", days)
+    .is("clicks_all", null)
+    // PostgREST caps a page at 1000; any rest is closed on a later run.
+    .limit(1000);
+  if (error || !data || data.length === 0) return;
+  const rows = data.map((r) => ({
+    client_id: clientId,
+    provider: "meta_ads",
+    campaign_id: r.campaign_id as string,
+    date: r.date as string,
+    clicks_all: Number(r.clicks ?? 0),
+  }));
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error: upErr } = await admin
+      .from("ads_daily")
+      .upsert(rows.slice(i, i + 500), { onConflict: "client_id,provider,campaign_id,date" });
+    if (upErr) {
+      console.warn("[cron/refresh-ads-meta] closing stale click rows failed", upErr.message);
+      return;
+    }
+  }
+}
+
 export async function GET(request: Request) {
   if (
     !process.env.CRON_SECRET ||
@@ -87,9 +166,14 @@ export async function GET(request: Request) {
   if (onlyClient) q = q.eq("client_id", onlyClient);
   const { data: integrations } = await q;
 
+  // Migration 0034: with clicks_all, `clicks` holds LINK clicks. Probed once
+  // per run; without it rows are written exactly as before (all clicks).
+  const withClicksAll = await hasClicksAllColumn(admin, "ads_daily");
+
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
   let accountsFailed = 0;
+  let staleDaysQueued = 0;
 
   for (const integration of integrations ?? []) {
     const { data: run } = await admin
@@ -129,13 +213,27 @@ export async function GET(request: Request) {
       // Cap historical work per run so a year-long backfill lands within the
       // 300s budget; successive runs (hourly cron / manual refresh) continue.
       const MAX_BACKFILL_PER_RUN = 150;
-      const dayList: string[] = eachDay(since, until);
-      dayList.push(
-        ...eachDay(windowStart, formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd"))
-          .filter((d) => !present.has(d))
-          .reverse()
-          .slice(0, MAX_BACKFILL_PER_RUN)
-      );
+      // One-time history re-pull after migration 0034: days whose rows still
+      // carry clicks (all) count as missing, newest first, within the same
+      // per-run cap - a year converts over a few runs.
+      const stale = withClicksAll
+        ? await staleClickDates(
+            admin,
+            integration.client_id as string,
+            windowStart,
+            since,
+            MAX_BACKFILL_PER_RUN
+          )
+        : new Set<string>();
+      const backfill = eachDay(
+        windowStart,
+        formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd")
+      )
+        .filter((d) => !present.has(d) || stale.has(d))
+        .reverse()
+        .slice(0, MAX_BACKFILL_PER_RUN);
+      staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
+      const dayList: string[] = [...eachDay(since, until), ...backfill];
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).
@@ -149,7 +247,8 @@ export async function GET(request: Request) {
       let writtenForClient = 0;
 
       // Isolate each ad account so one disabled/error account doesn't sink all.
-      for (const account of accounts) {
+      for (const [accountIndex, account] of accounts.entries()) {
+        const isLastAccount = accountIndex === accounts.length - 1;
         try {
           // Fetch days in small parallel batches (sequential was the wall-clock
           // bottleneck on year-long backfills), upserting per day so progress
@@ -178,12 +277,9 @@ export async function GET(request: Request) {
                 date: insight.date,
                 spend_minor_units: Math.round(parseFloat(insight.spend) * 100),
                 impressions: parseInt(insight.impressions, 10) || 0,
-                clicks: parseInt(insight.clicks, 10) || 0,
-                ctr: insight.ctr != null ? parseFloat(insight.ctr) : null,
-                cpc_minor_units:
-                  insight.cpc != null
-                    ? Math.round(parseFloat(insight.cpc) * 100)
-                    : null,
+                // clicks = link clicks, clicks_all = clicks (all), CTR/CPC
+                // per link click - or the pre-0034 shape without the column.
+                ...metaClickColumns(insight, withClicksAll),
                 reach: insight.reach != null ? parseInt(insight.reach, 10) : null,
                 frequency:
                   insight.frequency != null ? parseFloat(insight.frequency) : null,
@@ -196,6 +292,13 @@ export async function GET(request: Request) {
               if (error) throw new Error(error.message);
               campaignsUpserted += dayRows.length;
               writtenForClient += dayRows.length;
+            }
+            // Every account has now re-pulled these days (accounts run in
+            // order), so leftover pre-0034 rows are ones Meta no longer
+            // reports. Skipped when an account failed - its rows may still be
+            // re-pulled on the next run.
+            if (withClicksAll && isLastAccount && accountErrors.length === 0) {
+              await closeStaleClickRows(admin, integration.client_id as string, batch);
             }
           }
         } catch (accErr) {
@@ -240,5 +343,7 @@ export async function GET(request: Request) {
     integrations_processed: integrationsProcessed,
     campaigns_upserted: campaignsUpserted,
     accounts_failed: accountsFailed,
+    link_clicks: withClicksAll,
+    stale_click_days_queued: staleDaysQueued,
   });
 }

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
+import { hasClicksAllColumn, metaClickColumns } from "@/lib/integrations/link-clicks";
 import { getAdInsights, getAdThumbnails } from "@/lib/integrations/meta-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -61,6 +62,11 @@ export async function GET(request: Request) {
     );
   }
 
+  // Migration 0034: link clicks in `clicks`, clicks (all) in `clicks_all`.
+  // The table holds one rolling 30-day row per ad, rewritten every run, so
+  // no history re-pull is needed - the next run converts every live ad.
+  const withClicksAll = await hasClicksAllColumn(admin, "creatives");
+
   let creativesUpserted = 0;
   let accountsFailed = 0;
 
@@ -98,10 +104,7 @@ export async function GET(request: Request) {
             thumbnail_url: thumbnails.get(ad.ad_id) ?? null,
             spend_minor_units: Math.round(parseFloat(ad.spend) * 100),
             impressions: parseInt(ad.impressions, 10) || 0,
-            clicks: parseInt(ad.clicks, 10) || 0,
-            ctr: ad.ctr != null ? parseFloat(ad.ctr) : null,
-            cpc_minor_units:
-              ad.cpc != null ? Math.round(parseFloat(ad.cpc) * 100) : null,
+            ...metaClickColumns(ad, withClicksAll),
             period_start: since,
             period_end: until,
             updated_at: new Date().toISOString(),
@@ -152,5 +155,6 @@ export async function GET(request: Request) {
     creatives_upserted: creativesUpserted,
     accounts_failed: accountsFailed,
     metric_columns: hasMetricColumns,
+    link_clicks: withClicksAll,
   });
 }

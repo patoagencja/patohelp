@@ -29,13 +29,25 @@ export interface MetaCampaignInsight {
   date: string; // yyyy-MM-dd (from date_start)
   spend: string;
   impressions: string;
+  /** Clicks (all): likes, comments, profile, "see more" AND link clicks. */
   clicks: string;
   ctr?: string;
   cpc?: string;
+  /** inline_link_clicks - Ads Manager's "Kliknięcia linku". */
+  link_clicks?: string;
+  /** inline_link_click_ctr (percent). */
+  link_ctr?: string;
+  /** cost_per_inline_link_click (major units). */
+  link_cpc?: string;
   reach?: string;
   frequency?: string;
   actions?: Array<{ action_type: string; value: string }>;
 }
+
+/** Link-click insight fields, requested next to `clicks` everywhere. */
+const LINK_CLICK_FIELDS = "inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click";
+
+const strOrUndef = (v: unknown): string | undefined => (v != null ? String(v) : undefined);
 
 /** OAuth dialog URL. `state` is a CSRF/one-time token we persist server-side. */
 export function getAuthorizationUrl(state: string): string {
@@ -168,7 +180,8 @@ export async function getCampaignInsights(
       paging?: { next?: string };
     }>(`/${adAccountId}/insights`, {
       fields:
-        "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions",
+        "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions," +
+        LINK_CLICK_FIELDS,
       level: "campaign",
       time_range: JSON.stringify({ since: day, until: day }),
       access_token: accessToken,
@@ -197,6 +210,9 @@ export async function getCampaignInsights(
         clicks: String(row.clicks ?? "0"),
         ctr: row.ctr != null ? String(row.ctr) : undefined,
         cpc: row.cpc != null ? String(row.cpc) : undefined,
+        link_clicks: strOrUndef(row.inline_link_clicks),
+        link_ctr: strOrUndef(row.inline_link_click_ctr),
+        link_cpc: strOrUndef(row.cost_per_inline_link_click),
         reach: row.reach != null ? String(row.reach) : undefined,
         frequency: row.frequency != null ? String(row.frequency) : undefined,
         actions: row.actions as MetaCampaignInsight["actions"],
@@ -215,7 +231,10 @@ export interface MetaAdsetInsight {
   date: string;
   spend: string;
   impressions: string;
+  /** Clicks (all). */
   clicks: string;
+  /** inline_link_clicks. */
+  link_clicks?: string;
   reach?: string;
   actions?: Array<{ action_type: string; value: string }>;
 }
@@ -245,7 +264,7 @@ export async function getAdsetInsights(
       data: Array<Record<string, unknown>>;
       paging?: { next?: string };
     }>(`/${adAccountId}/insights`, {
-      fields: "adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks,reach,actions",
+      fields: "adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks,inline_link_clicks,reach,actions",
       level: "adset",
       time_increment: "1",
       time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
@@ -282,6 +301,7 @@ export async function getAdsetInsights(
         spend: String(row.spend ?? "0"),
         impressions: String(row.impressions ?? "0"),
         clicks: String(row.clicks ?? "0"),
+        link_clicks: strOrUndef(row.inline_link_clicks),
         reach: row.reach != null ? String(row.reach) : undefined,
         actions: row.actions as MetaAdsetInsight["actions"],
       });
@@ -296,9 +316,13 @@ export interface MetaAdInsight {
   campaign_id: string;
   spend: string;
   impressions: string;
+  /** Clicks (all). */
   clicks: string;
   ctr?: string;
   cpc?: string;
+  link_clicks?: string;
+  link_ctr?: string;
+  link_cpc?: string;
   /**
    * Creative diagnostics. All null when Meta omits them (static ads have no
    * video metrics; rankings need 500+ impressions) or when the extended
@@ -324,7 +348,7 @@ export interface MetaAdInsight {
 
 type MetaActionList = Array<{ action_type?: string; value?: string }>;
 
-const AD_BASE_FIELDS = "ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc";
+const AD_BASE_FIELDS = `ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc,${LINK_CLICK_FIELDS}`;
 
 // `video_play_actions` only counts plays *started* (autoplay included), so it
 // cannot measure a "hook". Meta exposes 3-second plays as the `video_view`
@@ -432,6 +456,9 @@ export async function getAdInsights(
     clicks: String(row.clicks ?? "0"),
     ctr: row.ctr != null ? String(row.ctr) : undefined,
     cpc: row.cpc != null ? String(row.cpc) : undefined,
+    link_clicks: strOrUndef(row.inline_link_clicks),
+    link_ctr: strOrUndef(row.inline_link_click_ctr),
+    link_cpc: strOrUndef(row.cost_per_inline_link_click),
     reach: num(row.reach),
     frequency: num(row.frequency),
     quality_ranking: rankingOf(row.quality_ranking),
