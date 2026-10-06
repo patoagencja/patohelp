@@ -116,7 +116,7 @@ export default async function ClientDashboardLayout({
           }
         />
       }
-      live={<LiveStamp initialStamp={lastSyncAt} textClassName="sr-only xl:not-sr-only" />}
+      live={<LiveStamp initialStamp={lastSyncAt} textClassName="sr-only xl:not-sr-only xl:whitespace-nowrap" />}
       phoneLive={<LiveStamp initialStamp={lastSyncAt} className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
       extras={
         <>

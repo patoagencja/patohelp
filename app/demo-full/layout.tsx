@@ -43,7 +43,7 @@ export default function DemoFullLayout({
         />
       }
       phoneBrand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_MARK_URL} className="h-6" />}
-      live={<LiveStamp initialStamp={null} demo="Na żywo · dane przykładowe" textClassName="sr-only xl:not-sr-only" />}
+      live={<LiveStamp initialStamp={null} demo="Na żywo · dane przykładowe" textClassName="sr-only xl:not-sr-only xl:whitespace-nowrap" />}
       phoneLive={<LiveStamp initialStamp={null} demo="dane przykładowe" className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
       extras={
         <>

@@ -984,10 +984,13 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
   }
 }
 
-/* Page sky: drifting pastel blobs (+ a dot grid in dark), fixed behind the
-   content. Rendered by <Sky/> (components/ui/sky.tsx). */
+/* Page sky: drifting pastel blobs (+ a dot grid in dark) behind the
+   content, spanning the whole page and scrolling with it (like the design;
+   a fixed sky would re-composite every glass layer on each scroll frame).
+   Rendered by <Sky/> (components/ui/sky.tsx) inside the `relative isolate`
+   shell. */
 .sky {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: -10;
   overflow: hidden;
