@@ -97,9 +97,10 @@ const STEPS: Step[] = [
   {
     title: "Więcej szczegółów",
     body: "Reklamy, kreacje i ruch na stronie mają własne zakładki ze szczegółami.",
-    // Desktop sidebar or the phone's bottom tab bar, whichever is visible.
-    find: () => firstShown('aside nav, nav[aria-label="Nawigacja"]'),
-    prefer: ["right", "top", "bottom", "left"],
+    // The top bar's section pill (md+) or the phone's floating tab bar,
+    // whichever is visible.
+    find: () => firstShown('nav[aria-label="Sekcje"], nav[aria-label="Nawigacja"]'),
+    prefer: ["bottom", "top", "right", "left"],
   },
 ];
 

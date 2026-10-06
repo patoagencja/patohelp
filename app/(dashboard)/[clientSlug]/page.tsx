@@ -10,7 +10,9 @@ import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { OverviewDetails } from "@/components/dashboard/overview-details";
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
+import { OverviewAiCard } from "@/components/dashboard/overview-ai-card";
 import {
+  aiSummaryForCard,
   AlertLine,
   attentionOf,
   GoodNews,
@@ -25,7 +27,6 @@ import {
 } from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
-import { HeroBackdrop, PageHeader } from "@/components/ui/page-header";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing, type PacingFlight } from "@/lib/alerts/pacing";
@@ -47,6 +48,11 @@ import { getDailyScore } from "@/lib/dashboard/score";
 import { getEngagementGoals } from "@/lib/dashboard/goals";
 import { buildStory, overviewStatus, type Story } from "@/lib/dashboard/story";
 import { getEngagementYoY } from "@/lib/dashboard/yoy";
+import { buildHero, heroKicker } from "@/lib/dashboard/hero";
+import { buildQuickAnswers } from "@/lib/dashboard/quick-answers";
+import type { PlanRow } from "@/components/dashboard/plan-card";
+import type { AiSummary } from "@/lib/dashboard/overview";
+import { formatInTimeZone } from "date-fns-tz";
 import { getMonthPacing } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -173,33 +179,41 @@ export default async function OverviewPage({
     .map((f) => f.key)
     .filter((k): k is GlossaryKey => ["spend", "clicks", "sessions", "cpc"].includes(k));
 
-  // Order (same as app/demo-full/page.tsx - keep in sync): header -> summary
-  // (sentence, status, AI comment, alert line) -> numbers + chart + plan ->
-  // top campaigns -> one "Pokaż szczegóły". Top-level children stay flat
+  const hero = buildHero({ kpis: data.kpis, ecommerce: isEcommerce ? data.ecommerce : null });
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+
+  // Order (same as app/demo-full/page.tsx - keep in sync): hero (number,
+  // sentence, status, range | AI card) -> KPI tiles + chart -> plan |
+  // campaigns -> one "Pokaż szczegóły". Top-level children stay flat
   // siblings: presentation mode turns each into one slide. Each section has
   // its own boundary: one widget choking on odd data must not blank the page.
   return (
-    <div className="space-y-8 px-4 py-6 sm:px-6 md:py-8 lg:px-6">
+    <div className="space-y-8 px-4 py-6 sm:px-6 md:py-8">
       <PrintHeader
         clientName={client.name}
         periodLabel={data.rangeLabel}
         clientSlug={params.clientSlug}
         logoUrl={client.logoUrl}
       />
-      <PageHeader
-        title="Przegląd"
-        description={`Jak idą reklamy i strona ${client.name} - najważniejsze na jednym ekranie.`}
-        actions={
-          <DateRangePicker value={range} customFrom={custom?.start} customTo={custom?.end} />
-        }
-      />
-      <HeroBackdrop />
+      {/* The top bar names the page; the heading stays for screen readers. */}
+      <h1 className="sr-only">Przegląd - {client.name}</h1>
 
       <SectionBoundary name="overview/summary">
         <OverviewSummary
           story={story}
           periodLabel={data.rangeLabel}
           aiSummary={summary}
+          hero={hero}
+          kicker={heroKicker(today, data.rangeLabel)}
+          range={
+            <DateRangePicker
+              value={range}
+              customFrom={custom?.start}
+              customTo={custom?.end}
+              align="start"
+              size="lg"
+            />
+          }
           // Anomaly detection scans weeks of rows - stream the status in.
           status={
             <Suspense fallback={<StatusPill status={null} />}>
@@ -209,6 +223,21 @@ export default async function OverviewPage({
           alert={
             <Suspense fallback={null}>
               <LiveAlertLine alerts={anomaliesPromise} href={`/${params.clientSlug}/alerty`} />
+            </Suspense>
+          }
+          // The "Co jest do sprawdzenia?" chip needs the alerts: the card
+          // streams in with them, without that chip until then.
+          ai={
+            <Suspense
+              fallback={
+                <OverviewAiCard
+                  className="w-full"
+                  summary={aiSummaryForCard(summary)}
+                  questions={buildQuickAnswers({ story, planRows, alerts: null })}
+                />
+              }
+            >
+              <LiveAiCard story={story} planRows={planRows} summary={summary} alerts={anomaliesPromise} />
             </Suspense>
           }
         />
@@ -223,26 +252,31 @@ export default async function OverviewPage({
           events={events}
           autoEvents={data.autoEvents}
           yoy={yoy}
-          aside={
-            showPlan ? (
-              <SectionBoundary name="overview/plan">
-                <PlanCard
-                  rows={planRows}
-                  budget={budget}
-                  clientSlug={params.clientSlug}
-                  isAgency={isAgency}
-                  setBudgetAction={setMonthlyBudget}
-                  showGoalsLink={!isEcommerce}
-                />
-              </SectionBoundary>
-            ) : undefined
-          }
+          forecast
         />
       </SectionBoundary>
 
-      <SectionBoundary name="overview/campaigns">
-        <TopCampaigns campaigns={data.campaigns} allHref={`/${params.clientSlug}/reklamy`} />
-      </SectionBoundary>
+      {/* Plan + where the money goes, side by side (one slide). */}
+      <div className="flex flex-wrap items-stretch gap-6">
+        {showPlan ? (
+          <SectionBoundary name="overview/plan">
+            <PlanCard
+              rows={planRows}
+              budget={budget}
+              clientSlug={params.clientSlug}
+              isAgency={isAgency}
+              setBudgetAction={setMonthlyBudget}
+              showGoalsLink={!isEcommerce}
+              className="min-w-0 flex-[1_1_22rem] animate-rise [--d:.85s]"
+            />
+          </SectionBoundary>
+        ) : null}
+        <div className="flex min-w-0 flex-[1.7_1_34rem] animate-rise [--d:1s] [&>section]:w-full">
+          <SectionBoundary name="overview/campaigns">
+            <TopCampaigns campaigns={data.campaigns} allHref={`/${params.clientSlug}/reklamy`} />
+          </SectionBoundary>
+        </div>
+      </div>
 
       <OverviewDetails summary="Dobre wiadomości, rekordy, pozostałe wskaźniki, ocena dnia i co dla Ciebie zrobiliśmy.">
         <SectionBoundary name="overview/good-news">
@@ -282,6 +316,28 @@ export default async function OverviewPage({
         </div>
       </OverviewDetails>
     </div>
+  );
+}
+
+async function LiveAiCard({
+  story,
+  planRows,
+  summary,
+  alerts,
+}: {
+  story: Story;
+  planRows: PlanRow[];
+  summary: AiSummary | null;
+  alerts: Promise<Anomaly[]>;
+}) {
+  // A failed scan just leaves the alerts chip out.
+  const list = await alerts.catch(() => null);
+  return (
+    <OverviewAiCard
+      className="w-full"
+      summary={aiSummaryForCard(summary)}
+      questions={buildQuickAnswers({ story, planRows, alerts: list })}
+    />
   );
 }
 

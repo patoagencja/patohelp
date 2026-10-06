@@ -47,7 +47,7 @@ export default function DemoFullLayout({
       phoneLive={<LiveStamp initialStamp={null} demo="dane przykładowe" className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
       extras={
         <>
-          <Pill tone="warning" className="hidden shrink-0 xl:inline-flex" title="Dane przykładowe">
+          <Pill tone="warning" className="hidden shrink-0 2xl:inline-flex" title="Dane przykładowe">
             Demo
           </Pill>
           <div className="hidden xl:block">

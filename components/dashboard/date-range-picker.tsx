@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Loader2 } from "lucide-react";
 
 import { RANGE_KEYS, RANGE_LABELS, type RangeKey } from "@/lib/dashboard/ranges";
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { cn } from "@/lib/utils";
 
 const SHORT_LABELS: Record<RangeKey, string> = {
   "7d": "7 dni",
@@ -26,10 +27,16 @@ export function DateRangePicker({
   value,
   customFrom,
   customTo,
+  align = "end",
+  size = "default",
 }: {
   value: RangeKey;
   customFrom?: string;
   customTo?: string;
+  /** "start" in the overview hero (left column), "end" in page headers. */
+  align?: "start" | "end";
+  /** "lg" = the hero's 44px segments (Przeglad-pastel). */
+  size?: "default" | "lg";
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -68,8 +75,9 @@ export function DateRangePicker({
   const active = hasCustom ? "custom" : value;
 
   return (
-    <div className="flex flex-col items-stretch gap-2 sm:items-end">
-      <div
+    <div className={cn("flex flex-col items-stretch gap-2", align === "end" ? "sm:items-end" : "sm:items-start")}>
+      {/* Sliding "sel" pill under the active range (SegmentedTrack). */}
+      <SegmentedTrack
         role="radiogroup"
         aria-label="Zakres dat"
         className={segmentedTrack}
@@ -84,7 +92,7 @@ export function DateRangePicker({
               aria-checked={isActive}
               title={RANGE_LABELS[key]}
               onClick={() => onPreset(key)}
-              className={segmentedItem(isActive)}
+              className={segmentedItem(isActive, size === "lg" ? "min-h-11 px-4" : undefined)}
             >
               {pending && target === key ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -98,12 +106,12 @@ export function DateRangePicker({
           role="radio"
           aria-checked={active === "custom" && !target}
           onClick={() => setCustomOpen((o) => !o)}
-          className={segmentedItem(active === "custom" && !target)}
+          className={segmentedItem(active === "custom" && !target, size === "lg" ? "min-h-11 px-4" : undefined)}
         >
           <CalendarDays className="h-3.5 w-3.5" aria-hidden />
           Własny
         </button>
-      </div>
+      </SegmentedTrack>
 
       {customOpen ? (
         <form
@@ -130,7 +138,7 @@ export function DateRangePicker({
             required
             defaultValue={customFrom ?? ""}
             aria-label="Data od"
-            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm tabular-nums text-foreground transition-[background-color,box-shadow] duration-150 hover:bg-secondary focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
+            className="h-9 rounded-xl border-transparent bg-chip px-3 text-sm tabular-nums text-foreground transition-[background-color,box-shadow] duration-150 hover:bg-secondary focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <input
@@ -139,7 +147,7 @@ export function DateRangePicker({
             required
             defaultValue={customTo ?? ""}
             aria-label="Data do"
-            className="h-9 rounded-xl border-transparent bg-muted px-3 text-sm tabular-nums text-foreground transition-[background-color,box-shadow] duration-150 hover:bg-secondary focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
+            className="h-9 rounded-xl border-transparent bg-chip px-3 text-sm tabular-nums text-foreground transition-[background-color,box-shadow] duration-150 hover:bg-secondary focus:border-hairline focus:bg-card focus:outline-none focus:ring-2 focus:ring-ring dark:focus:bg-muted"
           />
           <button
             type="submit"

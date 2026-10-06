@@ -1,4 +1,5 @@
 import { CalendarDays } from "lucide-react";
+import { formatInTimeZone } from "date-fns-tz";
 
 import { AgencyActivity } from "@/components/dashboard/agency-activity";
 import { AiSummaryCard } from "@/components/dashboard/ai-summary-card";
@@ -9,7 +10,9 @@ import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MainChart } from "@/components/dashboard/main-chart";
 import { OverviewDetails } from "@/components/dashboard/overview-details";
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
+import { OverviewAiCard } from "@/components/dashboard/overview-ai-card";
 import {
+  aiSummaryForCard,
   AlertLine,
   attentionOf,
   GoodNews,
@@ -21,9 +24,11 @@ import { PrintHeader } from "@/components/dashboard/print-button";
 import { RecordsCard } from "@/components/dashboard/records-card";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
 import { TopCreatives } from "@/components/dashboard/top-creatives";
-import { HeroBackdrop, PageHeader } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { demoEngagementGoals } from "@/lib/dashboard/goals";
+import { buildHero, heroKicker } from "@/lib/dashboard/hero";
+import { buildQuickAnswers } from "@/lib/dashboard/quick-answers";
 import type { GlossaryKey } from "@/lib/dashboard/glossary";
 import { buildStory, overviewStatus } from "@/lib/dashboard/story";
 import { demoEngagementYoY } from "@/lib/dashboard/yoy";
@@ -52,7 +57,7 @@ export default function DemoFullOverview({
   const yoy = demoEngagementYoY(d.trend);
   // The demo has one fixed window, so the period is a label, not a picker.
   const period = (
-    <Pill tone="neutral" className="px-3 py-1.5 text-sm [&_svg]:size-4">
+    <Pill tone="neutral" className="min-h-11 gap-2 bg-chip px-4 text-sm text-ink-2 [&_svg]:size-4">
       <CalendarDays aria-hidden />
       {d.rangeLabel}
     </Pill>
@@ -65,23 +70,30 @@ export default function DemoFullOverview({
   const shownMetrics = story.facts
     .map((f) => f.key)
     .filter((k): k is GlossaryKey => ["spend", "clicks", "sessions", "cpc"].includes(k));
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
 
   return (
     <>
       <PrintHeader clientName={CLIENT} periodLabel={d.rangeLabel} logoUrl={DEMO_BRANDING.logoUrl} />
-      <PageHeader
-        title="Przegląd"
-        description={`Jak idą reklamy i strona ${CLIENT} - najważniejsze na jednym ekranie.`}
-        actions={period}
-      />
-      <HeroBackdrop />
+      {/* The top bar names the page; the heading stays for screen readers. */}
+      <h1 className="sr-only">Przegląd - {CLIENT}</h1>
 
       <OverviewSummary
         story={story}
         periodLabel={d.rangeLabel}
         aiSummary={d.summary}
+        hero={buildHero({ kpis: d.kpis })}
+        kicker={heroKicker(today, d.rangeLabel)}
+        range={period}
         status={<StatusPill status={overviewStatus(story, attentionOf(d.alerts))} />}
         alert={<AlertLine alerts={d.alerts} href="/demo-full/alerty" />}
+        ai={
+          <OverviewAiCard
+            className="w-full"
+            summary={aiSummaryForCard(d.summary)}
+            questions={buildQuickAnswers({ story, planRows, alerts: d.alerts })}
+          />
+        }
       />
 
       <OverviewMetrics
@@ -91,14 +103,23 @@ export default function DemoFullOverview({
         events={[]}
         yoy={yoy}
         demo
-        aside={
-          planRows.length > 0 ? (
-            <PlanCard rows={planRows} clientSlug="demo-full" isAgency={false} />
-          ) : undefined
-        }
+        forecast
       />
 
-      <TopCampaigns campaigns={d.campaigns} allHref="/demo-full/reklamy" />
+      {/* Plan + where the money goes, side by side (one slide). */}
+      <div className="flex flex-wrap items-stretch gap-6">
+        {planRows.length > 0 ? (
+          <PlanCard
+            rows={planRows}
+            clientSlug="demo-full"
+            isAgency={false}
+            className="min-w-0 flex-[1_1_22rem] animate-rise [--d:.85s]"
+          />
+        ) : null}
+        <div className="flex min-w-0 flex-[1.7_1_34rem] animate-rise [--d:1s] [&>section]:w-full">
+          <TopCampaigns campaigns={d.campaigns} allHref="/demo-full/reklamy" />
+        </div>
+      </div>
 
       <OverviewDetails summary="Dobre wiadomości, rekordy, pozostałe wskaźniki, ocena dnia, co dla Ciebie zrobiliśmy i najlepsze reklamy.">
         <GoodNews story={story} />
@@ -141,7 +162,6 @@ function EnglishOverview({
         description={`How ${CLIENT}'s ads and website are doing - the essentials on one screen.`}
         actions={period}
       />
-      <HeroBackdrop />
       <AiSummaryCard summary={d.summary} lang="en" />
       <KpiCards kpis={d.kpis} trend={d.trend} lang="en" />
       <div className="grid items-start gap-4 xl:grid-cols-3">

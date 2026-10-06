@@ -32,8 +32,11 @@ const SHARE_FILL: Record<CampaignStatus, string> = {
 
 // Name | share of spend | spend | CTR (Przeglad-pastel `.crow`). Phones keep
 // name + spend; the share bar joins from sm, CTR from md.
+// At lg the card shares the row with the plan, so the share bar steps out
+// until xl rather than squeezing the names.
 const ROW =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(5rem,1fr)_6.5rem] sm:gap-x-[18px] md:grid-cols-[minmax(0,1.4fr)_minmax(7.5rem,1fr)_6.5rem_4.75rem]";
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(5rem,1fr)_6.5rem] sm:gap-x-[18px] md:grid-cols-[minmax(0,1.4fr)_minmax(7.5rem,1fr)_6.5rem_4.75rem] lg:grid-cols-[minmax(0,1fr)_6.5rem_4.75rem] xl:grid-cols-[minmax(0,1.4fr)_minmax(7.5rem,1fr)_6.5rem_4.75rem]";
+const SHARE_COL = "hidden sm:block lg:hidden xl:block";
 
 /**
  * "Gdzie idą pieniądze": the top campaigns by spend - status ping, platform
@@ -83,7 +86,7 @@ export function TopCampaigns({
             <th scope="col" className="kick text-left text-[10.5px] font-normal">
               Kampania
             </th>
-            <th scope="col" className="kick hidden text-left text-[10.5px] font-normal sm:block">
+            <th scope="col" className={cn("kick text-left text-[10.5px] font-normal", SHARE_COL)}>
               Udział w wydatkach
             </th>
             <th scope="col" className="kick text-right text-[10.5px] font-normal">
@@ -115,7 +118,7 @@ export function TopCampaigns({
                     </span>
                   </span>
                 </td>
-                <td className="hidden sm:block">
+                <td className={SHARE_COL}>
                   <span className="sr-only">{Math.round(share)}% wydatków</span>
                   <span aria-hidden className="relative block h-2 overflow-hidden rounded-full bg-chip">
                     <span

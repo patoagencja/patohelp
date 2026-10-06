@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { MainChart, type ChartMetric } from "@/components/dashboard/main-chart";
-import { MetricDelta, MetricTile } from "@/components/dashboard/metric-tile";
-import type { SparklineTone } from "@/components/ui/sparkline";
+import { CountUp } from "@/components/ui/count-up";
 import type { ChartEvent } from "@/lib/dashboard/chart-events";
 import { GLOSSARY, type GlossaryKey } from "@/lib/dashboard/glossary";
 import type { TrendPoint } from "@/lib/dashboard/metrics";
@@ -41,18 +42,11 @@ const SHORT_NAME: Record<string, string> = {
   spend: "Wydatki",
   impressions: "Wyświetlenia",
   clicks: "Kliknięcia",
-  sessions: "Wizyty na stronie",
+  sessions: "Wizyty",
   cpc: "Koszt kliknięcia",
   revenue: "Sprzedaż",
   orders: "Zamówienia",
   roas: "Zwrot z reklam",
-};
-
-// Sparkline colour = the delta's judgement (spend is a decision, not news).
-const SPARK_TONE: Record<Tone, SparklineTone> = {
-  good: "positive",
-  bad: "negative",
-  flat: "neutral",
 };
 
 /** Daily series behind a tile, from the chart's own trend (no new query). */
@@ -82,26 +76,42 @@ function dailySeries(trend: TrendPoint[], key: string): number[] {
   }
 }
 
-// Full class strings so Tailwind keeps them; no empty column with 3 tiles.
-// Four tiles stay 2x2 until xl: beside the sidebar at 1024 a quarter of the
-// column is too narrow for "43 885 zł" at metric size (it truncated).
-const COLS: Record<number, string> = {
-  1: "lg:grid-cols-1",
-  2: "lg:grid-cols-2",
-  3: "md:grid-cols-3",
-  4: "xl:grid-cols-4",
+// Delta colour = the judgement (spend is a decision: neutral ink).
+const DELTA_TONE: Record<Tone, string> = {
+  good: "text-positive",
+  bad: "text-negative",
+  flat: "text-ink-2",
 };
 
+/** Sparkline path in a 200x44 box (Przeglad-pastel tile). */
+function sparkPath(v: number[]): string | null {
+  if (v.length < 2) return null;
+  const mn = Math.min(...v);
+  const mx = Math.max(...v);
+  const span = mx - mn || 1;
+  return v
+    .map((p, j) => `${j ? "L" : "M"}${((j * 200) / (v.length - 1)).toFixed(1)} ${(mx === mn ? 22 : 40 - ((p - mn) / span) * 36).toFixed(1)}`)
+    .join(" ");
+}
+
+/**
+ * One 2026 KPI tile (Przeglad-pastel `.k`): mono label + ⓘ, delta on the
+ * right, a 46px light number counting up, a drawn sparkline and one quiet
+ * line ("więcej niż wcześniej · rok temu …"). The whole tile is the chart
+ * tab (overlay button, aria-pressed); selected = lime ring + glow.
+ */
 function Tile({
   fact,
   series,
   selected,
   onSelect,
+  index,
 }: {
   fact: StoryFact;
   series: number[];
   selected: boolean;
   onSelect: () => void;
+  index: number;
 }) {
   const g = GLOSSARY[GLOSSARY_KEY[fact.key] ?? "spend"];
   const name = g.name;
@@ -119,44 +129,89 @@ function Tile({
         : change && /mniej|taniej/.test(change.text)
           ? false
           : null;
+  const m = change ? /^o (\d+(?:[.,]\d+)?\s?%)\s+(.*)$/.exec(change.text) : null;
+  const pct = m ? m[1] : null;
+  const words = m ? m[2] : change?.text;
+  const yoy = fact.yoy?.replace(/^rok temu: /, "rok temu ");
+  const unit = /^(.*?)\s?(zł)$/.exec(fact.value);
+  const spark = sparkPath(series);
 
   return (
-    <MetricTile
-      selected={selected}
-      // Hover: a small lift + deeper shadow says "this is clickable".
-      className={cn(!selected && "hover:shadow-raised motion-safe:hover:-translate-y-0.5")}
-      // The whole tile is the button; the ⓘ sits above it (no nested
-      // interactive elements).
-      overlay={
-        <button
-          type="button"
-          aria-pressed={selected}
-          aria-label={`${name}: ${fact.value}. Pokaż na wykresie`}
-          onClick={onSelect}
-          className="absolute inset-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        />
-      }
-      label={
-        <div className="flex items-start gap-1">
-          <span className="min-w-0 text-sm font-medium leading-5 text-muted-foreground">{label}</span>
-          <InfoTip label={name} text={explain} className="shrink-0" />
-        </div>
-      }
-      value={fact.value}
-      delta={
-        change ? (
-          <MetricDelta
-            text={change.text}
-            tone={change.tone}
-            direction={up === null ? null : up ? "up" : "down"}
-          />
-        ) : undefined
-      }
-      sparkline={series}
-      sparkTone={change ? SPARK_TONE[change.tone] : "neutral"}
+    <div
+      className={cn(
+        "glass glass-blur relative flex w-[15rem] shrink-0 snap-start flex-col gap-3.5 rounded-tile p-5 pb-[18px] transition-[transform,box-shadow] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[5px] sm:w-auto sm:gap-4 sm:p-[22px] sm:pb-5",
+        selected && "shadow-lime-ring print:shadow-none"
+      )}
+      style={{ "--d": `${0.45 + index * 0.08}s` } as React.CSSProperties}
     >
-      {fact.yoy ? <p className="text-xs tabular-nums text-muted-foreground">{fact.yoy}</p> : null}
-    </MetricTile>
+      {/* Selected: a soft lime light from the top-left corner. */}
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(120%_80%_at_0%_0%,hsl(var(--lime)/0.2),transparent_60%)] opacity-0 transition-opacity duration-500",
+          selected && "opacity-100"
+        )}
+      />
+      {/* The whole tile is the button; the ⓘ sits above it. */}
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-label={`${name}: ${fact.value}${change ? `, ${change.text}` : ""}. Pokaż na wykresie`}
+        onClick={onSelect}
+        className="absolute inset-0 z-[1] rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      />
+      <div className="pointer-events-none relative z-[2] flex items-center justify-between gap-2 [&_button]:pointer-events-auto">
+        <span className="flex min-w-0 items-center gap-1">
+          <span className="kick truncate text-[11px] tracking-[0.08em] xl:text-[11.5px] xl:tracking-[0.12em]">{label}</span>
+          <InfoTip label={name} text={explain} className="shrink-0" />
+        </span>
+        {change ? (
+          <span className={cn("inline-flex shrink-0 items-center gap-1 text-[13.5px] font-semibold tabular-nums", DELTA_TONE[change.tone])}>
+            {up === true ? <ArrowUpRight className="h-[13px] w-[13px]" strokeWidth={2.4} aria-hidden /> : null}
+            {up === false ? <ArrowDownRight className="h-[13px] w-[13px]" strokeWidth={2.4} aria-hidden /> : null}
+            {pct ?? (change.tone === "flat" ? "≈" : "")}
+          </span>
+        ) : null}
+      </div>
+      <p className="pointer-events-none relative text-[2.25rem] font-light leading-none tracking-[-0.055em] tabular-nums sm:text-[2.5rem] xl:text-[2.875rem]">
+        {unit ? (
+          <>
+            <CountUp text={unit[1]} delayMs={250 + index * 80} />
+            <small className="ml-[3px] text-[0.48em] tracking-[-0.02em]">{unit[2]}</small>
+          </>
+        ) : (
+          <CountUp text={fact.value} delayMs={250 + index * 80} />
+        )}
+      </p>
+      {spark ? (
+        <svg
+          aria-hidden
+          width="100%"
+          height="44"
+          viewBox="0 0 200 44"
+          preserveAspectRatio="none"
+          className="pointer-events-none relative overflow-visible"
+        >
+          <path
+            key={selected ? "on" : "off"}
+            d={spark}
+            pathLength={1}
+            fill="none"
+            stroke={selected ? "hsl(var(--lime-line))" : "var(--ink-3)"}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="draw-path animate-draw"
+            style={{ "--d": `${0.9 + index * 0.12}s` } as React.CSSProperties}
+          />
+        </svg>
+      ) : null}
+      {words || yoy ? (
+        <p className="pointer-events-none relative text-[13px] leading-snug text-ink-3">
+          {[words, yoy].filter(Boolean).join(" · ")}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -178,6 +233,7 @@ export function OverviewMetrics({
   yoy,
   demo = false,
   aside,
+  forecast = false,
 }: {
   facts: StoryFact[];
   periodLabel: string;
@@ -189,6 +245,8 @@ export function OverviewMetrics({
   demo?: boolean;
   /** Shown to the right of the chart on desktop, under it on phones. */
   aside?: React.ReactNode;
+  /** 7-day arithmetic projection on the chart (see MainChart). */
+  forecast?: boolean;
 }) {
   const tiles = facts.filter((f) => CHART_METRIC[f.key]);
   const series = useMemo(
@@ -204,19 +262,24 @@ export function OverviewMetrics({
     <div className="space-y-4">
       {tiles.length > 0 ? (
         <>
-          <p className="text-sm text-muted-foreground">
-            Zmiany w porównaniu {comparisonPhrase(periodLabel)}. Kliknij liczbę, aby zobaczyć ją
+          <p className="text-[13px] text-ink-3">
+            Zmiany w porównaniu {comparisonPhrase(periodLabel)}. Kliknij kafelek, aby zobaczyć go
             na wykresie.
           </p>
+          {/* Phones: a swipeable carousel (Telefon-2030); sm+: a grid. */}
           <div
             role="group"
             aria-label="Najważniejsze liczby"
-            className={cn("grid grid-cols-2 gap-3 sm:gap-4", COLS[tiles.length])}
+            className={cn(
+              "-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:snap-none sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0",
+              tiles.length >= 4 ? "sm:grid-cols-2 lg:grid-cols-4" : tiles.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
+            )}
           >
-            {tiles.map((f) => (
+            {tiles.map((f, i) => (
               <Tile
                 key={f.key}
                 fact={f}
+                index={i}
                 series={series[f.key] ?? []}
                 selected={selected === f.key}
                 onSelect={() => setSelected(f.key)}
@@ -226,10 +289,10 @@ export function OverviewMetrics({
         </>
       ) : null}
 
-      {/* Chart + plan side by side only from xl: at 1024 the plan column was
-          ~240px and clipped its goal names. */}
-      <div className={cn(aside ? "grid items-start gap-4 xl:grid-cols-3" : undefined)}>
-        <div className="min-w-0 xl:col-span-2">
+      {/* With an aside (legacy callers) chart + aside sit side by side from
+          xl; the 2026 overview renders the plan next to the campaigns. */}
+      <div className={cn("pt-3", aside ? "grid items-start gap-6 xl:grid-cols-3" : undefined)}>
+        <div className="min-w-0 animate-rise xl:col-span-2" style={{ "--d": ".7s" } as React.CSSProperties}>
           <MainChart
             trend={trend}
             prevTrend={prevTrend}
@@ -241,6 +304,7 @@ export function OverviewMetrics({
             metric={metric}
             hidePicker={Boolean(metric)}
             hideCompare
+            forecast={forecast}
           />
         </div>
         {aside}

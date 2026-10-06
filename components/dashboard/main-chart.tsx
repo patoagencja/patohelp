@@ -23,7 +23,7 @@ import type { TrendPoint } from "@/lib/dashboard/metrics";
 import type { ClientEvent } from "@/lib/dashboard/overview";
 import type { EngagementYoY, YoYPoint } from "@/lib/dashboard/yoy";
 import { Card } from "@/components/ui/card";
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { SegmentedTrack, segmentedItem } from "@/components/ui/segmented";
 import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 /** Metrics the chart can draw. The picker only offers the first four; the
@@ -46,8 +46,31 @@ type CompareMode = "prev" | "yoy" | "none";
 const METRIC_KEYS: MetricKey[] = ["spend", "sessions", "clicks", "conversions"];
 // Drawn and summed in złoty (valueOf divides minor units by 100).
 const MONEY_METRICS: ReadonlySet<MetricKey> = new Set(["spend", "cpc", "revenue", "roas"]);
-const LIST_VISIBLE = 5;
-const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1";
+// Metrics where "more" is good news (tooltip diff green), less is good
+// (cost per click) or neither (spend is a decision: neutral grey).
+const BETTER: Record<MetricKey, 1 | -1 | 0> = {
+  spend: 0,
+  sessions: 1,
+  clicks: 1,
+  conversions: 1,
+  impressions: 1,
+  revenue: 1,
+  orders: 1,
+  roas: 1,
+  cpc: -1,
+};
+// Additive daily metrics can be projected; ratios can't (avg of CPCs lies).
+const FORECASTABLE: ReadonlySet<MetricKey> = new Set([
+  "spend",
+  "sessions",
+  "clicks",
+  "conversions",
+  "impressions",
+  "revenue",
+  "orders",
+]);
+const FORECAST_DAYS = 7;
+const EASE = "cubic-bezier(.2,.8,.2,1)";
 // Stable fallbacks so memoised marker building doesn't rerun every render.
 const NO_POINTS: TrendPoint[] = [];
 const NO_EVENTS: ChartEvent[] = [];
@@ -93,6 +116,18 @@ const COPY = {
       roas: "Zwrot z reklam pojawi się, gdy będą i wydatki, i sprzedaż.",
     },
     emptyTail: "brak danych w tym okresie",
+    dayByDay: "dzień po dniu",
+    forecast: "Prognoza · 7 dni",
+    forecastKick: "+ prognoza",
+    forecastTip: (pm: number) => `prognoza · ±${pm}%`,
+    forecastDay: "PROGNOZA",
+    forecastNote: (v: string) => `Prognoza (średnia z 7 dni + trend): ok. ${v} dziennie.`,
+    today: "DZIŚ",
+    vs: (d: number, phrase: string) => `${d > 0 ? "+" : ""}${d}% vs ${phrase}`,
+    vsPrev: "poprzedni okres",
+    vsYoy: "rok temu",
+    monthsShort: ["STY", "LUT", "MAR", "KWI", "MAJ", "CZE", "LIP", "SIE", "WRZ", "PAŹ", "LIS", "GRU"],
+    eventAt: (d: string, txt: string) => `Zdarzenie ${d}: ${txt}`,
   },
   en: {
     tab: { spend: "Spend", sessions: "Sessions", clicks: "Clicks", conversions: "Conversions", cpc: "Cost per click", impressions: "Impressions", revenue: "Revenue", orders: "Orders", roas: "Return on ad spend" },
@@ -133,6 +168,18 @@ const COPY = {
       roas: "Return on ad spend appears once there is both spend and revenue.",
     },
     emptyTail: "no data in this period",
+    dayByDay: "day by day",
+    forecast: "Forecast · 7 days",
+    forecastKick: "+ forecast",
+    forecastTip: (pm: number) => `forecast · ±${pm}%`,
+    forecastDay: "FORECAST",
+    forecastNote: (v: string) => `Forecast (7-day average + trend): about ${v} a day.`,
+    today: "TODAY",
+    vs: (d: number, phrase: string) => `${d > 0 ? "+" : ""}${d}% vs ${phrase}`,
+    vsPrev: "previous period",
+    vsYoy: "a year ago",
+    monthsShort: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"],
+    eventAt: (d: string, txt: string) => `Event ${d}: ${txt}`,
   },
 } as const;
 
@@ -298,6 +345,8 @@ export function MainChart({
   metric: metricProp,
   hidePicker = false,
   hideCompare = false,
+  forecast: forecastProp = false,
+  className,
 }: {
   trend: TrendPoint[];
   /** Comparison period, aligned to `trend` by day index. */
@@ -321,6 +370,14 @@ export function MainChart({
   hidePicker?: boolean;
   /** Hide "Porównaj z:" - the chart then always shows the previous period. */
   hideCompare?: boolean;
+  /**
+   * 7-day projection after the last day (dotted line + band + hatched
+   * future zone): the last 7 complete days' average plus their trend vs the
+   * 7 before. Plain arithmetic, no model; only for additive metrics, ranges
+   * that end today/yesterday and with 14+ days of data.
+   */
+  forecast?: boolean;
+  className?: string;
 }) {
   const t = COPY[lang];
   // Open on a tab that has something to show: a GA4-only client (no ads
@@ -334,7 +391,6 @@ export function MainChart({
   const metric: MetricKey = metricProp ?? ownMetric;
   const [compare, setCompare] = useState<CompareMode>("prev");
   const [active, setActive] = useState<number | null>(null);
-  const [showAll, setShowAll] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const width = size.w;
   // Resolved after mount: server and browser can disagree around midnight,
@@ -342,6 +398,7 @@ export function MainChart({
   const [today, setToday] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const gradId = useId();
+  const bandId = useId();
 
   useEffect(() => {
     setToday(formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd"));
@@ -430,7 +487,6 @@ export function MainChart({
   const showYoy = mode === "yoy";
   const cmp: (number | null)[] = showPrev ? prv : showYoy ? yoyVals : [];
   const cmpLabel = showYoy ? t.yearAgo : t.previous;
-  const cmpDate = (i: number) => (showYoy ? yoyPts[i]?.date : prev[i]?.date);
   const compareModes: CompareMode[] = hasYoy ? ["prev", "yoy", "none"] : ["prev", "none"];
   const partialIdx = today && trend[n - 1]?.date === today ? n - 1 : -1;
   const isEmpty = n === 0 || total <= 0;
@@ -470,28 +526,64 @@ export function MainChart({
     const abs = Math.round(Math.abs(pct));
     takeawayTail = abs < 1 ? t.same(prevPhrase) : t.delta(abs, pct > 0, prevPhrase);
   }
-  const takeaway = `${t.long[metric]}: ${full(total, isMoney, lang)}${
-    takeawayTail ? ` - ${takeawayTail}` : ""
-  }`;
+
+  // --- Forecast (7 days, arithmetic) ---
+  // Today's point is incomplete: project from the last complete day.
+  const solidTo = partialIdx > 0 ? n - 2 : n - 1;
+  const lastIsRecent =
+    !!today &&
+    n > 0 &&
+    differenceInCalendarDays(new Date(`${today}T00:00:00`), new Date(`${rangeEnd}T00:00:00`)) <= 1;
+  const fc = useMemo(() => {
+    if (!forecastProp || !lastIsRecent || !FORECASTABLE.has(metric) || solidTo < 13 || isEmpty)
+      return null;
+    const avg = (from: number, to: number) => {
+      let sum = 0;
+      for (let i = from; i <= to; i++) sum += cur[i];
+      return sum / (to - from + 1);
+    };
+    const last7 = avg(solidTo - 6, solidTo);
+    const prev7 = avg(solidTo - 13, solidTo - 7);
+    // Half the weekly drift per day: a gentle trend, not an extrapolated spike.
+    const slope = ((last7 - prev7) / 7) * 0.5;
+    const days = n - 1 - solidTo + FORECAST_DAYS;
+    const vals = Array.from({ length: days }, (_, k) => Math.max(0, last7 + slope * (k + 1)));
+    return { vals, from: solidTo, avg: vals.reduce((a, v) => a + v, 0) / vals.length };
+    // cur is derived from trend + metric.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forecastProp, lastIsRecent, metric, solidTo, isEmpty, trend]);
+  const N = fc ? fc.from + 1 + fc.vals.length : n;
+  const fcAt = (i: number) => (fc && i > fc.from ? fc.vals[i - fc.from - 1] : null);
+  const bandPm = (i: number) => (fc ? 0.03 + 0.012 * (i - fc.from) : 0);
 
   // --- Geometry ---
   const compactW = width > 0 && width < 480;
-  // Height comes from CSS (h-60 / sm:h-72) so the SSR placeholder doesn't jump.
-  const H = size.h || 288;
-  const yMaxRaw = Math.max(0, ...cur, ...cmp.map((v) => v ?? 0));
+  // Height comes from CSS (h-64 / sm:h-[300px]) so the SSR placeholder doesn't jump.
+  const H = size.h || 300;
+  const fcMax = fc ? Math.max(...fc.vals.map((v, k) => v * (1 + bandPm(fc.from + 1 + k)))) : 0;
+  const yMaxRaw = Math.max(0, ...cur, ...cmp.map((v) => v ?? 0), fcMax);
   const { max: yMax, step: yStep } = niceScale(yMaxRaw);
   const yTicks: number[] = [];
   for (let v = 0; v <= yMax + yStep / 2; v += yStep) yTicks.push(v);
   const yLabelW = Math.max(
     28,
-    ...yTicks.map((v) => compact(v, isMoney).length * (compactW ? 6 : 6.5))
+    ...yTicks.map((v) => compact(v, isMoney).length * (compactW ? 6.4 : 7))
   );
-  const pad = { left: yLabelW + 8, right: 16, top: markers.length > 0 ? 28 : 12, bottom: 24 };
+  const showToday = partialIdx >= 0 || !!fc;
+  // Where "today" sits on the axis: the partial last day, or the first
+  // forecast day when the range ends yesterday.
+  const todayIdx =
+    partialIdx >= 0
+      ? partialIdx
+      : today && rangeEnd
+        ? Math.min(N - 1, n - 1 + differenceInCalendarDays(new Date(`${today}T00:00:00`), new Date(`${rangeEnd}T00:00:00`)))
+        : n - 1;
+  const pad = { left: yLabelW + 10, right: 8, top: showToday ? 26 : 10, bottom: 28 };
   const plotW = Math.max(1, width - pad.left - pad.right);
   const plotH = H - pad.top - pad.bottom;
-  const x = (i: number) => pad.left + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
+  const x = (i: number) => pad.left + (N <= 1 ? plotW / 2 : (i * plotW) / (N - 1));
   const y = (v: number) => pad.top + plotH - (v / yMax) * plotH;
-  const stepX = n <= 1 ? plotW : plotW / (n - 1);
+  const stepX = N <= 1 ? plotW : plotW / (N - 1);
 
   const linePath = (vals: number[], from = 0, to = vals.length - 1) =>
     vals
@@ -513,21 +605,38 @@ export function MainChart({
     });
     return d;
   };
-  // Today's incomplete point gets a dashed connector instead of the solid line,
-  // so a "drop" on the last day reads as unfinished, not as a collapse.
-  const solidTo = partialIdx > 0 ? n - 2 : n - 1;
   const areaPath =
     n > 0
       ? `${linePath(cur, 0, solidTo)}L${x(solidTo).toFixed(1)},${(pad.top + plotH).toFixed(1)}L${x(0).toFixed(1)},${(pad.top + plotH).toFixed(1)}Z`
       : "";
+  const fcLine = fc
+    ? `M${x(fc.from).toFixed(1)},${y(cur[fc.from]).toFixed(1)}` +
+      fc.vals.map((v, k) => `L${x(fc.from + 1 + k).toFixed(1)},${y(v).toFixed(1)}`).join("")
+    : "";
+  const fcBand = fc
+    ? (() => {
+        const idx = fc.vals.map((_, k) => fc.from + 1 + k);
+        const up = idx.map((i, k) => `${k === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(fc.vals[k] * (1 + bandPm(i))).toFixed(1)}`);
+        const lo = idx
+          .map((i, k) => `L${x(i).toFixed(1)},${y(fc.vals[k] * (1 - bandPm(i))).toFixed(1)}`)
+          .reverse();
+        return `M${x(fc.from).toFixed(1)},${y(cur[fc.from]).toFixed(1)}${up.join("").replace(/^M/, "L")}${lo.join("")}Z`;
+      })()
+    : "";
 
-  const maxLabels = Math.max(2, Math.floor(plotW / 52));
-  const labelStep = Math.max(1, Math.ceil(n / maxLabels));
+  const maxLabels = Math.max(2, Math.floor(plotW / (compactW ? 48 : 60)));
+  const labelStep = Math.max(1, Math.ceil(N / maxLabels));
+  const dateAt = (i: number): string => {
+    if (i < n) return trend[i].date;
+    const d = new Date(`${rangeEnd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + (i - (n - 1)));
+    return d.toISOString().slice(0, 10);
+  };
 
   const pick = (clientX: number, rect: DOMRect) => {
     if (n === 0) return;
     const i = Math.round((clientX - rect.left - pad.left) / stepX);
-    setActive(Math.min(n - 1, Math.max(0, i)));
+    setActive(Math.min(N - 1, Math.max(0, i)));
   };
   const onPointer = (e: PointerEvent<SVGRectElement>) =>
     pick(e.clientX, (e.currentTarget.ownerSVGElement ?? e.currentTarget).getBoundingClientRect());
@@ -536,148 +645,185 @@ export function MainChart({
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
       const d = e.key === "ArrowRight" ? 1 : -1;
-      setActive((a) => Math.min(n - 1, Math.max(0, (a ?? (d > 0 ? -1 : n)) + d)));
+      setActive((a) => Math.min(N - 1, Math.max(0, (a ?? (d > 0 ? -1 : N)) + d)));
     } else if (e.key === "Escape") {
       setActive(null);
     }
   };
 
-  const flatEvents = markers.flatMap((m) =>
-    m.events.map((ev) => ({ marker: m, ev }))
-  );
-  const visibleEvents = showAll ? flatEvents : flatEvents.slice(0, LIST_VISIBLE);
-
-  const tipW = 224;
+  // Value + comparison at the hovered day (or forecast day).
+  const isFc = active != null && active >= n;
+  const activeVal = active == null ? null : isFc ? fcAt(active) : cur[active];
   const activeX = active != null ? x(active) : 0;
-  const tipLeft =
-    active == null
-      ? 0
-      : Math.min(
-          Math.max(0, activeX > width / 2 ? activeX - tipW - 12 : activeX + 12),
-          Math.max(0, width - tipW)
-        );
-  const weekday = (date: string) =>
-    t.weekdays[new Date(`${date}T12:00:00`).getDay()];
+  const activeY = activeVal != null ? y(activeVal) : 0;
+  let tipDiff = "";
+  let tipTone: "good" | "bad" | "flat" | "fc" = "flat";
+  if (active != null && activeVal != null) {
+    if (isFc) {
+      tipDiff = t.forecastTip(Math.round(bandPm(active) * 100));
+      tipTone = "fc";
+    } else {
+      const c = cmp[active];
+      if (c != null && c > 0) {
+        const d = Math.round((activeVal / c - 1) * 100);
+        tipDiff = t.vs(d, showYoy ? t.vsYoy : t.vsPrev);
+        const better = BETTER[metric];
+        tipTone = better === 0 || d === 0 ? "flat" : (better > 0) === d > 0 ? "good" : "bad";
+      }
+    }
+  }
+  const tipDate = (i: number) => {
+    const iso = dateAt(i);
+    const [, m, d] = iso.split("-").map(Number);
+    const wd = t.weekdays[new Date(`${iso}T12:00:00`).getDay()].replace(".", "").toUpperCase();
+    return `${d} ${t.monthsShort[m - 1]} · ${wd}${i === partialIdx ? ` · ${t.partialShort.toUpperCase()}` : ""}${i >= n ? ` · ${t.forecastDay}` : ""}`;
+  };
+  const xPct = active != null && width > 0 ? activeX / width : 0.5;
+  const tipTransform =
+    xPct > 0.78
+      ? "translate(calc(-100% - 18px), -50%)"
+      : xPct < 0.12
+        ? "translate(18px, -50%)"
+        : activeY < 110
+          ? "translate(-50%, 22px)"
+          : "translate(-50%, calc(-100% - 22px))";
+  const activeMarker = active != null && active < n ? markerByIndex.get(active) : undefined;
+
+  // Event chips under the axis: full text where there is room, the number
+  // alone where chips would collide (the tooltip carries the text).
+  const chips = useMemo(() => {
+    if (width <= 0) return [];
+    const list = Array.from(markerByIndex.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([i, m]) => ({
+        i,
+        m,
+        text: m.events[0].text + (m.events.length > 1 ? ` +${m.events.length - 1}` : ""),
+        cx: x(i),
+      }));
+    // Greedy: a chip keeps its text when it clears the previous chip and
+    // still leaves room for the next one's number; otherwise number only,
+    // nudged right so neighbours never overlap.
+    let lastRight = -Infinity;
+    return list.map((c, k) => {
+      const next = list[k + 1];
+      const wFull = Math.min(220, 40 + c.text.length * 6.4);
+      const lFull = Math.min(Math.max(0, c.cx - wFull / 2), width - wFull);
+      const fits =
+        lFull >= lastRight + 8 && (!next || lFull + wFull + 8 <= next.cx - 15);
+      const w = fits ? wFull : 30;
+      let left = fits ? lFull : Math.min(Math.max(0, c.cx - 15), width - 30);
+      if (!fits) left = Math.min(Math.max(left, lastRight + 4), width - w);
+      lastRight = left + w;
+      return { ...c, left, w, short: !fits };
+    });
+    // x() depends on the measured geometry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markerByIndex, width, N, pad.left]);
+
+  const tone = {
+    good: "text-positive",
+    bad: "text-negative",
+    flat: "text-ink-3",
+    fc: "text-ai",
+  }[tipTone];
+  const move = { transition: `left .25s ${EASE}, top .25s ${EASE}` };
 
   return (
-    <Card className="p-5 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-section-title">
-          {t.long[metric]}
-          {label ? ` - ${label}` : ""}
-        </h2>
-        {/* Toggle buttons, not ARIA tabs: there is one shared chart, no
-            separate tab panels, and tabs would promise arrow-key roving. */}
-        {hidePicker ? null : (
-        <div
-          role="group"
-          aria-label={t.long[metric]}
-          className={cn(segmentedTrack, "grid grid-cols-2 rounded-2xl sm:inline-flex sm:rounded-full")}
-        >
-          {METRIC_KEYS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              aria-pressed={metric === k}
-              onClick={() => setMetric(k)}
-              className={segmentedItem(metric === k, "justify-center px-3 py-1.5 text-xs sm:py-1")}
-            >
-              {t.tab[k]}
-            </button>
-          ))}
+    <Card className={cn("rounded-glass p-6 sm:p-[28px_30px]", className)}>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-10">
+        <div className="min-w-0">
+          <p className="kick">
+            {t.long[metric]}
+            {label ? ` · ${label}` : ""}
+            {fc ? ` ${t.forecastKick}` : ""}
+          </p>
+          <h2 className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
+            {t.long[metric]} {t.dayByDay}
+          </h2>
+          <p className="mt-1.5 text-sm text-ink-3 tabular-nums">
+            {/* "0,00 zł" next to "no data" contradicts itself - a dash says it. */}
+            <span className="font-medium text-foreground">{isEmpty ? "-" : full(total, isMoney, lang)}</span>
+            {takeawayTail ? ` · ${takeawayTail}.` : ""}
+            {fc ? ` ${t.forecastNote(full(fc.avg, isMoney, lang))}` : ""}
+          </p>
         </div>
-        )}
-      </div>
-
-      <p className="mt-2 text-sm text-foreground tabular-nums">
-        <span className="font-semibold">
-          {/* "0,00 zł" next to "no data" contradicts itself - a dash says it. */}
-          {t.long[metric]}: {isEmpty ? "-" : full(total, isMoney, lang)}
-        </span>
-        {takeawayTail ? (
-          <span className="text-muted-foreground"> - {takeawayTail}</span>
-        ) : null}
-      </p>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        {/* Legend as small dot chips; the glyph repeats the line style so
-            the series are told apart without colour too. */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span className={cn(LEGEND_CHIP, isEmpty && "invisible")}>
-            <svg width="14" height="8" aria-hidden className="text-chart-1">
-              <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
+        {/* Legend: the glyph repeats the line style, so series are told
+            apart without colour too. */}
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-ink-2">
+          <span className={cn("inline-flex items-center gap-2", isEmpty && "invisible")}>
+            <i aria-hidden className="h-[3px] w-[18px] rounded-sm bg-[hsl(var(--lime-line))] shadow-[0_0_8px_var(--lime-glow)]" />
             {t.current}
           </span>
           {showPrev || showYoy ? (
-            <span className={LEGEND_CHIP}>
-              <svg width="14" height="8" aria-hidden className="text-chart-muted">
-                <line x1="1" y1="4" x2="13" y2="4" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2.5" />
-              </svg>
+            <span className="inline-flex items-center gap-2">
+              <i aria-hidden className="w-[18px] border-t-2 border-dashed border-[color:var(--prev)]" />
               {cmpLabel}
             </span>
           ) : null}
-          {partialIdx >= 0 ? (
-            <span className={LEGEND_CHIP}>
-              <svg width="10" height="10" aria-hidden className="text-chart-1">
-                <circle cx="5" cy="5" r="3.5" className="fill-card" stroke="currentColor" strokeWidth="1.75" />
-              </svg>
-              {t.partial}
+          {fc ? (
+            <span className="inline-flex items-center gap-2">
+              <i aria-hidden className="w-[18px] border-t-2 border-dotted border-[hsl(var(--lime-line))]" />
+              {t.forecast}
             </span>
           ) : null}
         </div>
-        {!hideCompare && (hasPrev || hasYoy) ? (
-          // Toggle buttons (one shared chart, no panels), like the metric picker.
-          <div
-            role="group"
-            aria-label={t.compareWith}
-            className="flex w-full flex-col gap-1.5 text-xs sm:w-auto sm:flex-row sm:items-center"
-          >
-            <span aria-hidden className="text-muted-foreground">
-              {t.compareWith}
-            </span>
-            {/* Even columns on phones: long labels wrapped unevenly in a flex row. */}
-            <div
-              className={cn(
-                segmentedTrack,
-                "grid rounded-2xl p-0.5 sm:inline-flex sm:rounded-full",
-                compareModes.length === 3 ? "grid-cols-3" : "grid-cols-2"
-              )}
-            >
-              {compareModes.map((k) => (
+      </div>
+
+      {hidePicker && (hideCompare || !(hasPrev || hasYoy)) ? null : (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          {hidePicker ? (
+            <span />
+          ) : (
+            // Toggle buttons, not ARIA tabs: one shared chart, no panels.
+            <SegmentedTrack role="group" aria-label={t.long[metric]} className="inline-flex max-w-full overflow-x-auto rounded-full bg-chip p-1 [scrollbar-width:none]">
+              {METRIC_KEYS.map((k) => (
                 <button
                   key={k}
                   type="button"
-                  aria-pressed={mode === k}
-                  onClick={() => setCompare(k)}
-                  className={segmentedItem(
-                    mode === k,
-                    "justify-center whitespace-normal px-2.5 py-1 text-center text-xs leading-tight sm:whitespace-nowrap"
-                  )}
+                  aria-pressed={metric === k}
+                  onClick={() => setMetric(k)}
+                  className={segmentedItem(metric === k, "min-h-9 justify-center px-3 text-xs")}
                 >
-                  {t.compareOpts[k]}
+                  {t.tab[k]}
                 </button>
               ))}
+            </SegmentedTrack>
+          )}
+          {!hideCompare && (hasPrev || hasYoy) ? (
+            <div role="group" aria-label={t.compareWith} className="flex flex-wrap items-center gap-2 text-xs">
+              <span aria-hidden className="text-ink-3">
+                {t.compareWith}
+              </span>
+              <SegmentedTrack className="inline-flex max-w-full overflow-x-auto rounded-full bg-chip p-1 [scrollbar-width:none]">
+                {compareModes.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={mode === k}
+                    onClick={() => setCompare(k)}
+                    className={segmentedItem(mode === k, "min-h-9 justify-center px-3 text-xs")}
+                  >
+                    {t.compareOpts[k]}
+                  </button>
+                ))}
+              </SegmentedTrack>
             </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      )}
 
       {trimFrom > 0 && !isEmpty ? (
-        <p className="mt-2 text-xs text-muted-foreground">
-          {t.collectingSince(ddmm(trend[0].date))}
-        </p>
+        <p className="mb-2 text-xs text-ink-3">{t.collectingSince(ddmm(trend[0].date))}</p>
       ) : null}
 
-      <div ref={boxRef} className="relative mt-2 h-60 w-full sm:h-72">
+      <div ref={boxRef} className="relative h-64 w-full cursor-crosshair sm:h-[300px]">
         {isEmpty ? (
           // Same box height as the chart so the page doesn't jump between tabs.
-          // v2 empty state: the chart's own dashed guides stay, with an icon
-          // chip and one plain sentence in the middle.
-          <div className="relative flex h-full flex-col items-center justify-center gap-3 rounded-2xl bg-muted/50 px-4 text-center">
+          <div className="relative flex h-full cursor-default flex-col items-center justify-center gap-3 rounded-[22px] bg-chip px-4 text-center">
             <div aria-hidden className="absolute inset-x-5 inset-y-6 flex flex-col justify-between">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="border-t border-dashed border-border" />
+                <div key={i} className="border-t border-dashed border-line" />
               ))}
             </div>
             <span
@@ -691,311 +837,270 @@ export function MainChart({
             </p>
           </div>
         ) : width > 0 && n > 0 ? (
-          <svg
-            width={width}
-            height={H}
-            role="img"
-            aria-label={`${t.chartAria}. ${takeaway}`}
-            tabIndex={0}
-            onKeyDown={onKey}
-            onBlur={() => setActive(null)}
-            className="block touch-pan-y select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-          >
-            <defs>
-              <linearGradient
-                id={gradId}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-                // currentColor in a gradient resolves where the gradient is
-                // defined, not where it is used - colour it here. The vivid
-                // lime fills; the deeper chart-1 draws the line on top.
-                className="text-lime"
-              >
-                <stop offset="0%" stopColor="currentColor" stopOpacity={0.42} />
-                <stop offset="70%" stopColor="currentColor" stopOpacity={0.08} />
-                <stop offset="100%" stopColor="currentColor" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-
-            {/* Recessive grid + y labels */}
-            {yTicks.map((v) => (
-              <g key={v}>
-                <line
-                  x1={pad.left}
-                  x2={width - pad.right}
-                  y1={y(v)}
-                  y2={y(v)}
-                  className="stroke-border"
-                  strokeWidth={1}
-                  // Only the zero line is solid; the rest are faint guides.
-                  strokeDasharray={v === 0 ? undefined : "2 5"}
-                />
-                <text
-                  x={pad.left - 8}
-                  y={y(v)}
-                  dy="0.32em"
-                  textAnchor="end"
-                  className="fill-muted-foreground text-[11px] tabular-nums"
-                >
-                  {compact(v, isMoney)}
-                </text>
-              </g>
-            ))}
-
-            {/* X labels */}
-            {trend.map((p, i) =>
-              i % labelStep === 0 ? (
-                <text
-                  key={p.date}
-                  x={x(i)}
-                  y={H - 6}
-                  textAnchor={x(i) + 18 > width ? "end" : x(i) - 18 < pad.left - 8 ? "start" : "middle"}
-                  className="fill-muted-foreground text-[11px] tabular-nums"
-                >
-                  {ddmm(p.date)}
-                </text>
-              ) : null
-            )}
-
-            {/* Event markers: dashed rule + numbered flag */}
-            {Array.from(markerByIndex.entries()).map(([i, m]) => (
-              <g key={m.date} className={active === i ? "text-foreground" : "text-muted-foreground"}>
-                <line
-                  x1={x(i)}
-                  x2={x(i)}
-                  y1={pad.top - 6}
-                  y2={pad.top + plotH}
-                  stroke="currentColor"
-                  strokeOpacity={active === i ? 0.7 : 0.3}
-                  strokeDasharray="2 4"
-                />
-                {/* Flag: small anchor chip, like the benchmark's floating
-                    "+16%" marker above the highlighted bar. */}
-                <circle
-                  cx={x(i)}
-                  cy={pad.top - 15}
-                  r={active === i ? 10 : 9}
-                  className="fill-anchor stroke-card"
-                  strokeWidth={2}
-                />
-                <text
-                  x={x(i)}
-                  y={pad.top - 15}
-                  dy="0.35em"
-                  textAnchor="middle"
-                  className="fill-anchor-foreground text-[10px] font-semibold tabular-nums"
-                >
-                  {m.number}
-                </text>
-              </g>
-            ))}
-
-            {/* Comparison (previous period or a year earlier): dashed, muted,
-                behind the current line */}
-            {cmp.length > 0 ? (
-              <path
-                d={gapPath(cmp)}
-                fill="none"
-                strokeWidth={1.75}
-                strokeDasharray="4 4"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                className="stroke-chart-muted"
+          <>
+            {/* Hatched future zone (forecast). */}
+            {fc ? (
+              <span
+                aria-hidden
+                className="hatch absolute rounded-r-2xl"
+                style={{ left: x(todayIdx), right: pad.right, top: pad.top, bottom: pad.bottom }}
               />
             ) : null}
+            <svg
+              width={width}
+              height={H}
+              role="img"
+              aria-label={`${t.chartAria}. ${t.long[metric]}: ${full(total, isMoney, lang)}${takeawayTail ? ` - ${takeawayTail}` : ""}`}
+              tabIndex={0}
+              onKeyDown={onKey}
+              onBlur={() => setActive(null)}
+              className="relative block touch-pan-y select-none overflow-visible outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-card"
+            >
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="var(--lime-hex)" stopOpacity={0.34} />
+                  <stop offset="0.6" stopColor="var(--lime-hex)" stopOpacity={0.06} />
+                  <stop offset="1" stopColor="var(--lime-hex)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id={bandId} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stopColor="var(--violet-hex)" stopOpacity={0.1} />
+                  <stop offset="1" stopColor="var(--violet-hex)" stopOpacity={0.32} />
+                </linearGradient>
+              </defs>
 
-            {/* Current period */}
-            <g className="text-chart-1">
-              <path d={areaPath} fill={`url(#${gradId})`} />
+              {/* Recessive grid + y labels */}
+              {yTicks.map((v) => (
+                <g key={v}>
+                  <line
+                    x1={pad.left}
+                    x2={width - pad.right}
+                    y1={y(v)}
+                    y2={y(v)}
+                    stroke="var(--line)"
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={pad.left - 10}
+                    y={y(v)}
+                    dy="0.32em"
+                    textAnchor="end"
+                    className="fill-[var(--ink-3)] font-mono text-[11px] tabular-nums"
+                  >
+                    {compact(v, isMoney)}
+                  </text>
+                </g>
+              ))}
+
+              {/* X labels */}
+              {Array.from({ length: N }, (_, i) =>
+                i % labelStep === 0 || i === N - 1 ? (
+                  i !== N - 1 && x(N - 1) - x(i) < (compactW ? 40 : 48) ? null : (
+                    <text
+                      key={i}
+                      x={x(i)}
+                      y={H - 6}
+                      textAnchor={x(i) + 20 > width ? "end" : x(i) - 20 < pad.left - 8 ? "start" : "middle"}
+                      className="fill-[var(--ink-3)] font-mono text-[11px] tabular-nums"
+                    >
+                      {ddmm(dateAt(i))}
+                    </text>
+                  )
+                ) : null
+              )}
+
+              {/* Event rules (chips sit under the axis) */}
+              {Array.from(markerByIndex.keys()).map((i) => (
+                <line
+                  key={`ev-${i}`}
+                  x1={x(i)}
+                  x2={x(i)}
+                  y1={pad.top}
+                  y2={pad.top + plotH}
+                  stroke={active === i ? "var(--ink-3)" : "var(--line)"}
+                  strokeWidth={1}
+                />
+              ))}
+
+              {fc ? (
+                <path d={fcBand} fill={`url(#${bandId})`} className="animate-fade" style={{ "--d": "1.6s" } as React.CSSProperties} />
+              ) : null}
+              <path d={areaPath} fill={`url(#${gradId})`} className="animate-fade" style={{ "--d": ".9s" } as React.CSSProperties} />
+
+              {/* Comparison (previous period or a year earlier): dashed, muted */}
+              {cmp.length > 0 ? (
+                <path
+                  d={gapPath(cmp)}
+                  fill="none"
+                  stroke="var(--prev)"
+                  strokeWidth={1.5}
+                  strokeDasharray="3 5"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  className="animate-fade"
+                  style={{ "--d": "1.2s" } as React.CSSProperties}
+                />
+              ) : null}
+
+              {/* Current period: lime with a soft glow, drawn in. */}
               <path
+                key={`line-${metric}`}
                 d={linePath(cur, 0, solidTo)}
+                pathLength={1}
                 fill="none"
-                stroke="currentColor"
-                strokeWidth={2.5}
+                stroke="hsl(var(--lime-line))"
+                strokeWidth={2.6}
                 strokeLinejoin="round"
                 strokeLinecap="round"
+                className="draw-path animate-draw"
+                style={{ "--d": ".4s", filter: "drop-shadow(0 4px 10px var(--lime-glow))" } as React.CSSProperties}
               />
-              {/* With 1-3 days a bare line is easy to miss (one day draws
-                  nothing at all) - mark every point. */}
+              {/* With 1-3 days a bare line is easy to miss - mark every point. */}
               {n <= 3
                 ? cur.map((v, i) =>
                     i === partialIdx && i > 0 ? null : (
-                      <circle key={i} cx={x(i)} cy={y(v)} r={3.5} fill="currentColor" />
+                      <circle key={i} cx={x(i)} cy={y(v)} r={3.5} fill="hsl(var(--lime-line))" />
                     )
                   )
                 : null}
               {partialIdx > 0 ? (
+                // Today's incomplete point: dashed connector + hollow dot, so a
+                // "drop" on the last day reads as unfinished, not a collapse.
                 <>
                   <path
                     d={linePath(cur, n - 2, n - 1)}
                     fill="none"
-                    stroke="currentColor"
+                    stroke="hsl(var(--lime-line))"
                     strokeWidth={2}
                     strokeDasharray="2 3"
                   />
-                  <circle
-                    cx={x(n - 1)}
-                    cy={y(cur[n - 1])}
-                    r={4}
-                    className="fill-card"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  />
+                  <circle cx={x(n - 1)} cy={y(cur[n - 1])} r={4} className="fill-card" stroke="hsl(var(--lime-line))" strokeWidth={2} />
                 </>
               ) : null}
-            </g>
+              {fc ? (
+                <path
+                  d={fcLine}
+                  fill="none"
+                  stroke="hsl(var(--lime-line))"
+                  strokeWidth={2.2}
+                  strokeDasharray="2 7"
+                  strokeLinecap="round"
+                  opacity={0.9}
+                  className="animate-fade"
+                  style={{ "--d": "1.8s" } as React.CSSProperties}
+                />
+              ) : null}
 
-            {/* Crosshair */}
-            {active != null ? (
-              <g pointerEvents="none">
-                <line
-                  x1={activeX}
-                  x2={activeX}
-                  y1={pad.top}
-                  y2={pad.top + plotH}
-                  className="stroke-foreground"
-                  strokeOpacity={0.25}
-                  strokeDasharray="2 3"
-                />
-                {cmp[active] != null ? (
-                  <circle
-                    cx={activeX}
-                    cy={y(cmp[active] as number)}
-                    r={4}
-                    className="fill-chart-muted stroke-card"
-                    strokeWidth={2}
-                  />
-                ) : null}
-                {/* Soft halo, then the point. */}
-                <circle cx={activeX} cy={y(cur[active])} r={11} className="fill-lime/30" />
-                <circle
-                  cx={activeX}
-                  cy={y(cur[active])}
-                  r={5.5}
-                  className={cn(
-                    active === partialIdx ? "fill-card stroke-chart-1" : "fill-chart-1 stroke-card"
-                  )}
-                  strokeWidth={2.5}
-                />
-              </g>
+              {/* Hit area: whole chart, so taps near a day all work */}
+              <rect
+                x={0}
+                y={0}
+                width={width}
+                height={H}
+                fill="transparent"
+                onPointerMove={onPointer}
+                onPointerDown={onPointer}
+                onPointerLeave={(e) => {
+                  if (e.pointerType === "mouse") setActive(null);
+                }}
+              />
+            </svg>
+
+            {/* Today marker */}
+            {showToday ? (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute border-l border-dashed border-[color:var(--ink-3)]"
+                style={{ left: x(todayIdx), top: pad.top - 4, bottom: pad.bottom }}
+              >
+                <span className="absolute -top-5 left-0 -translate-x-1/2 font-mono text-[10.5px] tracking-[0.12em] text-ink-3">
+                  {t.today}
+                </span>
+              </div>
             ) : null}
 
-            {/* Hit area: whole chart, so taps on flags or near a day all work */}
-            <rect
-              x={0}
-              y={0}
-              width={width}
-              height={H}
-              fill="transparent"
-              onPointerMove={onPointer}
-              onPointerDown={onPointer}
-              onPointerLeave={(e) => {
-                if (e.pointerType === "mouse") setActive(null);
-              }}
-            />
-          </svg>
+            {/* Crosshair, lime dot, glass tooltip */}
+            {active != null && activeVal != null ? (
+              <>
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute w-px bg-[linear-gradient(180deg,transparent,var(--ink-3)_30%,var(--ink-3)_70%,transparent)] motion-reduce:!transition-none"
+                  style={{ left: activeX, top: pad.top, bottom: pad.bottom, ...move }}
+                />
+                <span
+                  aria-hidden
+                  className={cn(
+                    "pointer-events-none absolute -ml-2 -mt-2 h-4 w-4 rounded-full shadow-[0_0_0_5px_var(--lime-glow),0_6px_16px_-4px_rgb(40_36_28/0.25)] motion-reduce:!transition-none",
+                    isFc || active === partialIdx ? "border-2 border-[hsl(var(--lime-line))] bg-card" : "bg-[hsl(var(--lime-line))]"
+                  )}
+                  style={{ left: activeX, top: activeY, ...move }}
+                />
+                <div
+                  aria-hidden
+                  className="glass-tip pointer-events-none absolute z-10 flex max-w-[16rem] flex-col gap-1 rounded-[18px] px-3.5 py-3 text-[12.5px] motion-reduce:!transition-none"
+                  style={{ left: activeX, top: activeY, transform: tipTransform, ...move }}
+                >
+                  <span className="whitespace-nowrap font-mono text-[11px] tracking-[0.08em] text-ink-3">
+                    {tipDate(active)}
+                  </span>
+                  <b className="text-lg font-medium tracking-[-0.02em] tabular-nums">
+                    {full(activeVal, isMoney, lang)}
+                  </b>
+                  {tipDiff ? <span className={cn("whitespace-nowrap font-medium", tone)}>{tipDiff}</span> : null}
+                  {activeMarker ? (
+                    <ul className="mt-1 space-y-1 border-t border-line pt-1.5">
+                      {activeMarker.events.map((ev) => (
+                        <li key={ev.id} className="flex gap-1.5">
+                          <span className="mt-px inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-anchor px-1 text-[10px] font-semibold text-anchor-foreground tabular-nums">
+                            {activeMarker.number}
+                          </span>
+                          <span>{ev.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </>
         ) : null}
 
         {/* Keyboard users step days with the arrow keys; announce the
             point the visual tooltip shows. */}
         <p className="sr-only" aria-live="polite">
-          {active != null && !isEmpty && trend[active]
-            ? `${weekday(trend[active].date)} ${ddmm(trend[active].date)}: ${full(cur[active], isMoney, lang)}`
+          {active != null && activeVal != null && !isEmpty
+            ? `${tipDate(active).toLowerCase()}: ${full(activeVal, isMoney, lang)}${tipDiff ? `, ${tipDiff}` : ""}`
             : ""}
         </p>
-        {active != null && width > 0 && !isEmpty && trend[active] ? (
-          // Dark rounded tooltip card (benchmarks 3 / 4) in both themes.
-          <div
-            className="pointer-events-none absolute z-10 rounded-2xl bg-tooltip p-3 text-xs text-tooltip-foreground shadow-raised animate-in fade-in-0 duration-150 motion-reduce:animate-none"
-            style={{ left: tipLeft, top: pad.top, width: tipW }}
-          >
-            <p className="font-medium tabular-nums text-tooltip-foreground/70">
-              {weekday(trend[active].date)} {ddmm(trend[active].date)}
-              {active === partialIdx ? <span className="font-normal"> · {t.partialShort}</span> : null}
-            </p>
-            <div className="mt-1.5 space-y-1 tabular-nums">
-              <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
-                  <span className="h-2 w-2 rounded-full bg-lime" />
-                  {t.current}
-                </span>
-                <span className="text-sm font-semibold">{full(cur[active], isMoney, lang)}</span>
-              </div>
-              {active < cmp.length && cmpDate(active) ? (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-tooltip-foreground/70">
-                    <span className="h-2 w-2 rounded-full border border-current" />
-                    {cmpLabel} ({ddmm(cmpDate(active)!)})
-                  </span>
-                  <span>
-                    {cmp[active] != null ? full(cmp[active] as number, isMoney, lang) : t.noData}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-            {markerByIndex.get(active) ? (
-              <ul className="mt-2 space-y-1 border-t border-tooltip-foreground/15 pt-2">
-                {markerByIndex.get(active)!.events.map((ev) => (
-                  <li key={ev.id} className="flex gap-1.5">
-                    <span className="mt-px inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-lime px-1 text-[10px] font-semibold text-lime-foreground tabular-nums">
-                      {markerByIndex.get(active)!.number}
-                    </span>
-                    <span>{ev.text}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
       </div>
 
-      {flatEvents.length > 0 ? (
-        <div className="mt-4 border-t border-border pt-4">
-          <p className="mb-2 text-sm font-medium text-muted-foreground">{t.whatHappened}</p>
-          <ul className="space-y-1">
-            {visibleEvents.map(({ marker, ev }) => {
-              const i = trend.findIndex((p) => p.date === marker.date);
-              return (
-                <li key={ev.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActive(i >= 0 ? i : null)}
-                    className={cn(
-                      "flex w-full items-start gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      active === i && "bg-muted"
-                    )}
-                  >
-                    <span className="mt-px inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-anchor px-1 text-[11px] font-semibold text-anchor-foreground tabular-nums">
-                      {marker.number}
-                    </span>
-                    <span className="w-11 shrink-0 font-medium tabular-nums">
-                      {ddmm(marker.date)}
-                    </span>
-                    <span className="min-w-0 flex-1 break-words">
-                      {ev.text}
-                      {ev.tag ? (
-                        <span className="ml-2 whitespace-nowrap rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
-                          {ev.tag}
-                        </span>
-                      ) : null}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          {flatEvents.length > LIST_VISIBLE ? (
-            <button
-              type="button"
-              onClick={() => setShowAll((s) => !s)}
-              className="mt-2 rounded-sm px-2 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      {/* Event chips under the axis (Przeglad-pastel `.evc`). */}
+      {chips.length > 0 && !isEmpty ? (
+        <ul className="relative mt-1 h-[46px]" aria-label={t.whatHappened}>
+          {chips.map((c, k) => (
+            <li
+              key={c.m.date}
+              className="absolute top-2 animate-fade"
+              style={{ left: c.left, width: c.w, "--d": `${2 + k * 0.12}s` } as React.CSSProperties}
             >
-              {showAll ? t.showLess : t.showMore(flatEvents.length - LIST_VISIBLE)}
-            </button>
-          ) : null}
-        </div>
+              <button
+                type="button"
+                onClick={() => setActive((a) => (a === c.i ? null : c.i))}
+                aria-label={t.eventAt(ddmm(c.m.date), c.m.events.map((e) => e.text).join("; "))}
+                title={c.m.events.map((e) => e.text).join("\n")}
+                className={cn(
+                  "flex h-[30px] w-full items-center gap-1.5 rounded-full bg-chip text-xs text-ink-2 backdrop-blur-[10px] transition-colors hover:bg-[var(--chip-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  c.short ? "justify-center px-[5px]" : "pl-1.5 pr-[11px]",
+                  active === c.i && "bg-[var(--chip-hover)] text-foreground"
+                )}
+              >
+                <b className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-anchor text-[10.5px] font-semibold text-anchor-foreground">
+                  {c.m.number}
+                </b>
+                {c.short ? null : <span className="min-w-0 truncate">{c.text}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : null}
     </Card>
   );
