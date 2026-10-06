@@ -44,7 +44,7 @@ function seasonTakeaway(plan: SeasonPlan): string | null {
   } else if (ly?.novRevenue) {
     fact = `rok temu listopad przyniósł ok. ${aboutPln(ly.novRevenue)} sprzedaży`;
   } else if (!ly) {
-    fact = "po roku zbierania danych pokażemy tu Waszą historię sezonu";
+    fact = "po roku zbierania danych pokażemy tu Twoją historię sezonu";
   }
 
   if (countdown && fact) return `${countdown} - ${fact}.`;
@@ -87,7 +87,7 @@ export function SeasonPlanner({
           <div className="min-w-0">
             <h3 className="text-base font-semibold">Black Friday i Święta - plan</h3>
             <p className="text-xs text-muted-foreground">
-              Na podstawie Waszych własnych wyników z {ly?.year ?? "zeszłego roku"}
+              Na podstawie Twoich własnych wyników z {ly?.year ?? "zeszłego roku"}
             </p>
           </div>
         </div>
@@ -164,8 +164,8 @@ export function SeasonPlanner({
             </dl>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Nie mamy jeszcze Waszych danych z zeszłorocznego sezonu - po roku
-              zbierania danych pokażemy tu Waszą historię Black Friday i Świąt.
+              Nie mamy jeszcze Twoich danych z zeszłorocznego sezonu - po roku
+              zbierania danych pokażemy tu Twoją historię Black Friday i Świąt.
             </p>
           )}
         </div>

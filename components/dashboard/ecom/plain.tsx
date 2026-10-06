@@ -68,7 +68,7 @@ export const ECOM_TERMS = {
     name: "Próg opłacalności",
     tag: null,
     explain:
-      "Najniższy zwrot z reklam, przy którym przy Waszej marży reklamy jeszcze się opłacają. Próg 3,10 zł = każda 1 zł na reklamy musi przynieść min. 3,10 zł sprzedaży, żeby wyjść na zero.",
+      "Najniższy zwrot z reklam, przy którym przy Twojej marży reklamy jeszcze się opłacają. Próg 3,10 zł = każda 1 zł na reklamy musi przynieść min. 3,10 zł sprzedaży, żeby wyjść na zero.",
   },
   aov: {
     name: "Średni koszyk",

@@ -306,7 +306,7 @@ export default async function SprzedazPage({
               Analiza AI: co się dzieje i co dalej
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Wasze dane sprzedażowe zestawione z sezonowością branży i trendami na
+              Twoje dane sprzedażowe zestawione z sezonowością branży i trendami na
               rynku.
             </p>
           </div>
@@ -323,7 +323,7 @@ export default async function SprzedazPage({
             {analysis.peaks.length ? (
               <div>
                 <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <TrendingUp className="h-3.5 w-3.5" /> Najmocniejsze momenty w Waszych danych
+                  <TrendingUp className="h-3.5 w-3.5" /> Najmocniejsze momenty w Twoich danych
                 </p>
                 <ul className="space-y-1.5">
                   {analysis.peaks.map((p, i) => (
@@ -376,8 +376,8 @@ export default async function SprzedazPage({
           </div>
         ) : (
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            Kliknij „Przygotuj analizę” - AI przejrzy Waszą sprzedaż, wskaże
-            najmocniejsze dni, opisze, jak zwykle wygląda sezon w Waszej branży i co
+            Kliknij „Przygotuj analizę” - AI przejrzy Twoją sprzedaż, wskaże
+            najmocniejsze dni, opisze, jak zwykle wygląda sezon w Twojej branży i co
             dzieje się na rynku (sprawdzając aktualne informacje w internecie), a na
             koniec podpowie, jak przygotować się na nadchodzące szczyty.
           </p>

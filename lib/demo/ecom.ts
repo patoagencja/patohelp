@@ -330,7 +330,7 @@ function demoAnalysis(warmupLabel: string): EcomAnalysis {
     headline:
       "Sprzedaż rośnie szybciej niż rok temu, a reklamy zarabiają z zapasem - to dobry moment, żeby przygotować budżet na Black Week.",
     performance:
-      "W ostatnich 30 dniach sklep sprzedawał średnio za ok. 9 tys. zł dziennie, czyli wyraźnie więcej niż w tym samym okresie rok temu. Na każdą złotówkę wydaną na reklamy wraca ok. 5 zł przychodu, a to prawie dwa razy więcej niż próg opłacalności przy Waszej marży. Najlepiej sprzedają się ciepłe swetry i płaszcze z nowej kolekcji jesiennej.",
+      "W ostatnich 30 dniach sklep sprzedawał średnio za ok. 9 tys. zł dziennie, czyli wyraźnie więcej niż w tym samym okresie rok temu. Na każdą złotówkę wydaną na reklamy wraca ok. 5 zł przychodu, a to prawie dwa razy więcej niż próg opłacalności przy Twojej marży. Najlepiej sprzedają się ciepłe swetry i płaszcze z nowej kolekcji jesiennej.",
     peaks: [
       { label: "Niedziele i poniedziałki", note: "regularnie o 10-15% wyższa sprzedaż niż w soboty" },
       { label: "Premiera kolekcji jesiennej", note: "najmocniejszy tydzień od początku września" },

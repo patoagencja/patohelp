@@ -48,7 +48,7 @@ export function ProfitCard({
         </CardEyebrow>
         <Takeaway className="mt-3">
           Wiemy, ile sprzedaży przyniosły reklamy - ale żeby powiedzieć, czy na
-          nich zarabiacie, potrzebujemy Waszej marży.
+          nich zarabiasz, potrzebujemy Twojej marży.
         </Takeaway>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Po jej podaniu pokażemy tu zysk po odjęciu kosztu towaru i reklam, próg

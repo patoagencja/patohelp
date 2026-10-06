@@ -84,7 +84,7 @@ export function getDemoRecords(
       icon: "flag",
       title: `Przekroczyliśmy 20 mln wyświetleń reklam w ${year} roku`,
       detail:
-        "Od 1 stycznia Wasze reklamy zebrały 20 184 300 wyświetleń - próg 20 mln padł kilka dni temu.",
+        "Od 1 stycznia Twoje reklamy zebrały 20 184 300 wyświetleń - próg 20 mln padł kilka dni temu.",
       achievedOn: day(5),
     },
   ];

@@ -141,7 +141,7 @@ export default function DemoSprzedazPage({
             Analiza AI: co się dzieje i co dalej
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Wasze dane sprzedażowe zestawione z sezonowością branży i trendami na rynku.
+            Twoje dane sprzedażowe zestawione z sezonowością branży i trendami na rynku.
           </p>
         </div>
 
@@ -151,7 +151,7 @@ export default function DemoSprzedazPage({
 
           <div>
             <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <TrendingUp className="h-3.5 w-3.5" /> Najmocniejsze momenty w Waszych danych
+              <TrendingUp className="h-3.5 w-3.5" /> Najmocniejsze momenty w Twoich danych
             </p>
             <ul className="space-y-1.5">
               {analysis.peaks.map((p, i) => (
