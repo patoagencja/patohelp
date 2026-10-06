@@ -11,6 +11,7 @@ import { SessionsTrend } from "@/components/dashboard/website/sessions-trend";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import { getActivityHeatmap } from "@/lib/dashboard/activity";
+import { getViewer } from "@/lib/dashboard/context";
 import { getDemographics } from "@/lib/dashboard/demographics";
 import { getGa4Status, getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import { createClient } from "@/lib/supabase/server";
@@ -41,7 +42,10 @@ export default async function WebsitePage({
   ]);
 
   if (!data.hasData) {
-    const status = await getGa4Status(client.id);
+    const [status, { isAgency }] = await Promise.all([
+      getGa4Status(client.id),
+      getViewer(),
+    ]);
 
     // Turn the raw reason into a concrete, actionable message + CTA.
     const guidance: Record<
@@ -70,8 +74,10 @@ export default async function WebsitePage({
       },
       sync_failed: {
         title: "Synchronizacja GA4 się nie powiodła",
+        // The raw provider error is agency diagnostics (property ids, API
+        // internals); client users get the generic explanation instead.
         body:
-          status.lastError ??
+          (isAgency ? status.lastError : null) ??
           `Ostatnia synchronizacja GA4 zwróciła błąd. Najczęściej: niewłączone „Analytics Data API” w projekcie Google Cloud albo property należy do innego konta niż użyte przy logowaniu.`,
         href: `/${params.clientSlug}/settings`,
         cta: "Sprawdź integrację",

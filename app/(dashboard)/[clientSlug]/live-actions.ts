@@ -8,6 +8,8 @@ import { getClientBySlug, getLastSyncAt } from "@/lib/dashboard/context";
  * client lookup, so a slug the user can't see just returns null.
  */
 export async function getSyncStamp(clientSlug: string): Promise<string | null> {
+  // Callable as a raw POST with any payload; TS types don't hold at runtime.
+  if (typeof clientSlug !== "string" || clientSlug.length > 64) return null;
   const client = await getClientBySlug(clientSlug);
   if (!client) return null;
   return getLastSyncAt(client.id);

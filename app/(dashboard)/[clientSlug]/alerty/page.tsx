@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BellRing, Target, Trash2 } from "lucide-react";
+import { z } from "zod";
 
 import {
   AlertGroups,
@@ -92,6 +93,19 @@ function pacingSentence(f: PacingFlight): string {
   }
 }
 
+// Server actions are public POST endpoints: the form's <select>/<input type=
+// date> constraints don't bind a crafted request, so validate here.
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const addFlightSchema = z
+  .object({
+    campaign: z.string().min(1).max(600), // "id|||name"
+    metric: z.enum(["spend", "clicks", "impressions", "conversions"]),
+    target: z.coerce.number().finite().positive().max(1e12),
+    start: DATE,
+    end: DATE,
+  })
+  .refine((v) => v.start <= v.end);
+
 // Server action: add a campaign flight target (agency only).
 async function addFlight(formData: FormData) {
   "use server";
@@ -99,14 +113,22 @@ async function addFlight(formData: FormData) {
   const access = await requireAgencyClientAccess(clientSlug);
   if (!access.ok) return;
 
-  const campaignValue = String(formData.get("campaign")); // "id|||name"
-  const [campaignId, campaignName] = campaignValue.split("|||");
-  const metric = String(formData.get("metric")) as FlightMetric;
-  const rawTarget = Number(formData.get("target"));
-  const startDate = String(formData.get("start"));
-  const endDate = String(formData.get("end"));
+  const parsed = addFlightSchema.safeParse({
+    campaign: formData.get("campaign"),
+    metric: formData.get("metric"),
+    target: formData.get("target"),
+    start: formData.get("start"),
+    end: formData.get("end"),
+  });
+  if (!parsed.success) return;
 
-  if (!campaignId || !metric || !rawTarget || !startDate || !endDate) return;
+  const [campaignId, campaignName] = parsed.data.campaign.split("|||");
+  const metric: FlightMetric = parsed.data.metric;
+  const rawTarget = parsed.data.target;
+  const startDate = parsed.data.start;
+  const endDate = parsed.data.end;
+
+  if (!campaignId) return;
 
   // Spend is entered in PLN, stored in grosze.
   const targetValue = metric === "spend" ? Math.round(rawTarget * 100) : Math.round(rawTarget);
@@ -129,7 +151,8 @@ async function addFlight(formData: FormData) {
 async function deleteFlight(formData: FormData) {
   "use server";
   const clientSlug = String(formData.get("client"));
-  const flightId = String(formData.get("flight"));
+  const flightId = z.string().uuid().safeParse(formData.get("flight"));
+  if (!flightId.success) return;
   const access = await requireAgencyClientAccess(clientSlug);
   if (!access.ok) return;
 
@@ -137,7 +160,7 @@ async function deleteFlight(formData: FormData) {
   await admin
     .from("campaign_flights")
     .delete()
-    .eq("id", flightId)
+    .eq("id", flightId.data)
     .eq("client_id", access.clientId);
 
   revalidatePath(`/${clientSlug}/alerty`);

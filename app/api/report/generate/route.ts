@@ -6,6 +6,7 @@ import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import { getDashboardData, normalizeRange } from "@/lib/dashboard/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isAgencyUser, type UserRole } from "@/lib/types";
 
 // On-demand AI report for a client + date range. Both agency and client users
 // may generate one; tenant isolation is enforced by RLS on the client lookup
@@ -53,7 +54,17 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
   const cacheKey = `period-report:${range}:${today}`;
-  const force = searchParams.get("force") === "1";
+  // Only agency users may bypass the cache: a client user looping ?force=1
+  // would otherwise run up a paid model call per request.
+  let force = false;
+  if (searchParams.get("force") === "1") {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    force = profile ? isAgencyUser(profile.role as UserRole) : false;
+  }
 
   if (!force) {
     const { data: cached } = await admin

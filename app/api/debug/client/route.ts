@@ -24,10 +24,13 @@ export async function GET(request: Request) {
   if (!slug) return html("Podaj ?client=&lt;slug&gt;");
   const access = await requireAgencyClientAccess(slug);
   if (!access.ok) {
-    const { data: cs } = await admin
-      .from("clients")
-      .select("slug, name")
-      .order("name", { ascending: true });
+    // The slug list is a service-role read of EVERY client, and /api is outside
+    // the middleware - so only an agency user who mistyped a slug (404) may see
+    // it. Anonymous (401) and client users (403) must not enumerate tenants.
+    const { data: cs } =
+      access.status === 404
+        ? await admin.from("clients").select("slug, name").order("name", { ascending: true })
+        : { data: null };
     const reason =
       access.status === 401
         ? "Niezalogowany (401) - wejdz najpierw na /clients (zaloguj sie), potem otworz ten link w tej samej karcie."
@@ -38,7 +41,11 @@ export async function GET(request: Request) {
       .map((c) => `<code>${esc(c.slug)}</code> (${esc(c.name)})`)
       .join(" · ");
     return html(
-      `<h2>Brak dostępu</h2><p>${reason}</p><p style="margin-top:12px">Dostępni klienci (slug): ${list || "brak"}</p><p style="color:#64748b">Otwórz: <code>/api/debug/client?client=&lt;slug&gt;</code></p>`
+      `<h2>Brak dostępu</h2><p>${reason}</p>${
+        access.status === 404
+          ? `<p style="margin-top:12px">Dostępni klienci (slug): ${list || "brak"}</p>`
+          : ""
+      }<p style="color:#64748b">Otwórz: <code>/api/debug/client?client=&lt;slug&gt;</code></p>`
     );
   }
 

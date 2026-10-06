@@ -14,7 +14,14 @@ const AGENCY_DOMAINS = ["patoagencja.com"];
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  // `${origin}${next}` with next="@evil.com" or ".evil.com" lands on another
+  // host (open redirect straight after login). Only same-origin absolute
+  // paths are allowed; "//" and "/\" are protocol-relative in browsers.
+  const rawNext = searchParams.get("next") ?? "/";
+  const next =
+    rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/\\")
+      ? rawNext
+      : "/";
 
   if (code) {
     const supabase = createClient();
@@ -25,7 +32,14 @@ export async function GET(request: Request) {
       // partner/employee can log in with just the login link.
       const user = data?.user;
       const domain = user?.email?.split("@")[1]?.toLowerCase();
-      if (user?.email && domain && AGENCY_DOMAINS.includes(domain)) {
+      // Agency role grants every client's data, so only on a verified address
+      // (magic link sets email_confirmed_at; another provider might not).
+      if (
+        user?.email &&
+        user.email_confirmed_at &&
+        domain &&
+        AGENCY_DOMAINS.includes(domain)
+      ) {
         const admin = createAdminClient();
         const { data: existing } = await admin
           .from("users")

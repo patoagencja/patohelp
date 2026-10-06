@@ -160,7 +160,13 @@ export async function IntegrationHealthBanner({
             {unhealthy.map((h) => (
               <li key={h.provider}>
                 <span className="font-medium">{h.label}</span>: {since(h)}
-                {attempt(h) ? ` (${attempt(h)})` : ""}, {advice(h, clientSlug)}
+                {attempt(h) ? ` (${attempt(h)})` : ""}, {isAgency ? (
+                  advice(h, clientSlug)
+                ) : (
+                  // Clients can't reconnect integrations (agency-only routes);
+                  // tell them it's handled instead of showing dead links.
+                  <>agencja widzi ten problem w swoim panelu.</>
+                )}
               </li>
             ))}
           </ul>
