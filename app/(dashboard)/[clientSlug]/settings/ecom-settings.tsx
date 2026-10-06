@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeader } from "@/components/ui/page-header";
+import { SettingsHeading } from "./settings-heading";
 import {
   getEcomSettings,
   getRevenueGoals,
@@ -40,7 +40,8 @@ export async function EcomSettingsSection({
 
   return (
     <div id="ecommerce" className="scroll-mt-32 space-y-4">
-      <SectionHeader
+      <SettingsHeading
+        kicker="Ustawienia · Sklep"
         title="E-commerce: marża i cele sprzedaży"
         description="Marża zamienia ROAS w realny zysk po reklamie. Cele pokazują klientowi postęp miesiąca i prognozę, a na Q4 - budżet potrzebny do ich osiągnięcia."
       />
@@ -67,7 +68,7 @@ export async function EcomSettingsSection({
                     inputMode="decimal"
                     placeholder="np. 55"
                     defaultValue={settings.marginPct ?? ""}
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   />
                   <span className="text-xs text-muted-foreground">
                     Średnia marża na sprzedaży netto (po kosztach towaru).
@@ -105,14 +106,14 @@ export async function EcomSettingsSection({
                         defaultValue={
                           goals.has(m) ? Math.round(goals.get(m)! / 100) : ""
                         }
-                        className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                        className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                       />
                     </label>
                   ))}
                 </div>
               </div>
 
-              <Button type="submit" size="sm" className="w-fit">
+              <Button type="submit" size="pill" className="w-fit">
                 Zapisz e-commerce
               </Button>
             </form>

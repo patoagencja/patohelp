@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeader } from "@/components/ui/page-header";
+import { SettingsHeading } from "./settings-heading";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -44,7 +44,8 @@ export async function ShareOverviewSection({
 
   return (
     <div id="udostepnianie" className="scroll-mt-32 space-y-4">
-      <SectionHeader
+      <SettingsHeading
+        kicker="Ustawienia · Udostępnianie"
         title="Link dla zarządu"
         description="Podgląd przeglądu tylko do odczytu, bez logowania - do wysłania np. zarządowi klienta. Bez ustawień, alertów i budżetów; każdy link można w każdej chwili unieważnić."
       />
@@ -69,14 +70,14 @@ export async function ShareOverviewSection({
                   <select
                     name="expiry"
                     defaultValue="30"
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   >
                     <option value="7">7 dni</option>
                     <option value="30">30 dni</option>
                     <option value="none">Bez limitu</option>
                   </select>
                 </label>
-                <Button type="submit" size="sm">
+                <Button type="submit" size="pill">
                   Utwórz link
                 </Button>
               </form>
@@ -95,7 +96,7 @@ export async function ShareOverviewSection({
                           readOnly
                           value={url}
                           aria-label="Link dla zarządu"
-                          className="h-9 min-w-0 rounded-full border border-transparent bg-card px-3 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-secondary"
+                          className="h-11 min-w-0 rounded-full border border-transparent bg-chip px-4 font-mono text-xs text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         />
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
                           <span>
@@ -119,7 +120,7 @@ export async function ShareOverviewSection({
                             <Button
                               type="submit"
                               variant="ghost"
-                              size="sm"
+                              size="pill"
                               className="text-destructive hover:bg-negative-soft hover:text-destructive"
                             >
                               Unieważnij

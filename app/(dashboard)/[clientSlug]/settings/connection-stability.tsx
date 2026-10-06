@@ -2,7 +2,7 @@ import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeader } from "@/components/ui/page-header";
+import { SettingsHeading } from "./settings-heading";
 import { decrypt } from "@/lib/integrations/encryption";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -52,7 +52,8 @@ export async function ConnectionStability({
 
   return (
     <div id="polaczenia" className="scroll-mt-32 space-y-4">
-      <SectionHeader
+      <SettingsHeading
+        kicker="Ustawienia · Tokeny"
         title="Połączenia bez rozłączeń"
         description="Integracje rozłączają się, bo wygasają tokeny dostępu - to ustawienie po stronie Google i Mety, nie błąd panelu. Każde da się naprawić raz, na stałe."
       />
@@ -109,9 +110,9 @@ export async function ConnectionStability({
                     type="password"
                     autoComplete="off"
                     placeholder="Token System User (EAA...)"
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   />
-                  <Button type="submit" size="sm" className="w-fit">
+                  <Button type="submit" size="pill" className="w-fit">
                     Zapisz token na stałe
                   </Button>
                 </form>

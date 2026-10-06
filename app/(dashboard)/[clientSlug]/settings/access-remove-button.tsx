@@ -25,7 +25,7 @@ export function AccessRemoveButton({ label }: { label: string }) {
       key="confirm"
       type="submit"
       variant="destructive"
-      size="sm"
+      size="pill"
       autoFocus
     >
       Na pewno?
@@ -35,7 +35,7 @@ export function AccessRemoveButton({ label }: { label: string }) {
       key="arm"
       type="button"
       variant="ghost"
-      size="sm"
+      size="pill"
       className="text-destructive hover:bg-negative-soft hover:text-destructive"
       onClick={() => setArmed(true)}
     >

@@ -403,6 +403,9 @@ export function TrendLineChart({
               className="pointer-events-none absolute -ml-2 -mt-2 h-4 w-4 rounded-full bg-[hsl(var(--lime-line))] shadow-[0_0_0_5px_var(--lime-glow),0_6px_16px_-4px_rgb(40_36_28/0.25)] motion-reduce:!transition-none"
               style={{ left: spX, top: spY, ...move }}
             />
+            {/* Narrow plots keep only the pinned dot: a resting card would
+                hide most of the line on a phone. */}
+            {active !== null || width >= 560 ? (
             <div
               aria-hidden
               className="glass-tip pointer-events-none absolute z-10 flex max-w-[16rem] flex-col gap-1 rounded-[18px] px-3.5 py-3 text-[12.5px] motion-reduce:!transition-none print:hidden"
@@ -421,6 +424,7 @@ export function TrendLineChart({
                 </span>
               ) : null}
             </div>
+            ) : null}
           </>
         ) : null}
 

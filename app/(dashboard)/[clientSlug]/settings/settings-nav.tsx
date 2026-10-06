@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils";
  */
 export function SettingsNav({ links }: { links: Array<{ id: string; label: string }> }) {
   const [active, setActive] = useState(links[0]?.id ?? "");
-  const trackRef = useRef<HTMLElement>(null);
+  // SegmentedTrack owns its element; the wrapper finds the <nav> in it.
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let frame = 0;
@@ -49,7 +50,7 @@ export function SettingsNav({ links }: { links: Array<{ id: string; label: strin
   // Phones: keep the highlighted pill inside the horizontally scrolling
   // track (scrolls only the track, never the page).
   useEffect(() => {
-    const track = trackRef.current;
+    const track = wrapRef.current?.querySelector("nav");
     const pill = track?.querySelector<HTMLElement>(`[data-id="${active}"]`);
     if (!track || !pill) return;
     // The track is `relative`, so offsetLeft is measured from its edge.
@@ -61,11 +62,18 @@ export function SettingsNav({ links }: { links: Array<{ id: string; label: strin
 
   return (
     <div
+      ref={wrapRef}
       data-print-hide
       data-present-hide
-      className="sticky top-14 z-20 -mx-4 bg-chrome/75 px-4 py-2 backdrop-blur-xl backdrop-saturate-150 sm:-mx-6 sm:px-6 md:top-16"
+      // Floats under the glass chrome bar (phones: 72px, md+: 80px; the
+      // md-lg two-row bar is taller, hence the larger offset there).
+      className="pointer-events-none sticky top-[4.75rem] z-20 md:top-[8.5rem] lg:top-[5.5rem]"
     >
-      <nav ref={trackRef} aria-label="Sekcje ustawień" className={cn(segmentedTrack, "relative")}>
+      <SegmentedTrack
+        as="nav"
+        aria-label="Sekcje ustawień"
+        className={cn(segmentedTrack, "glass glass-blur pointer-events-auto relative p-1.5")}
+      >
         {links.map((l) => (
           <a
             key={l.id}
@@ -73,12 +81,12 @@ export function SettingsNav({ links }: { links: Array<{ id: string; label: strin
             data-id={l.id}
             aria-current={active === l.id ? "location" : undefined}
             onClick={() => setActive(l.id)}
-            className={segmentedItem(active === l.id)}
+            className={segmentedItem(active === l.id, "min-h-10")}
           >
             {l.label}
           </a>
         ))}
-      </nav>
+      </SegmentedTrack>
     </div>
   );
 }

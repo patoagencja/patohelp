@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeader } from "@/components/ui/page-header";
+import { SettingsHeading } from "./settings-heading";
 import {
   BRAND_COLOR_PICKER_START,
   BRAND_COLOR_RE,
@@ -79,7 +79,8 @@ export function BrandingSettingsSection({
 
   return (
     <div id="wyglad" className="scroll-mt-32 space-y-4">
-      <SectionHeader
+      <SettingsHeading
+        kicker="Ustawienia · Marka"
         title="Wygląd panelu"
         description="Logo i kolor klienta w panelu, w PDF-ie dla zarządu, w linku dla zarządu i w cotygodniowym e-mailu - żeby raport wyglądał jak jego własny. Kolor pojawia się tylko jako delikatny akcent."
       />
@@ -126,12 +127,12 @@ export function BrandingSettingsSection({
                       onChange={(e) => setLogoUrl(e.target.value)}
                       aria-invalid={logoError ? true : undefined}
                       aria-describedby="brand-logo-hint"
-                      className="h-9 min-w-0 flex-1 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                      className="h-11 min-w-0 flex-1 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
+                      size="pill"
                       className="gap-1.5"
                       disabled={pending || !initialLogoUrl}
                       onClick={() =>
@@ -198,7 +199,7 @@ export function BrandingSettingsSection({
                       aria-label="Wybierz kolor akcentu"
                       value={colorValid ? trimmedColor.toLowerCase() : BRAND_COLOR_PICKER_START}
                       onChange={(e) => setColor(e.target.value)}
-                      className="h-9 w-12 cursor-pointer rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-1"
+                      className="h-11 w-12 cursor-pointer rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] p-1"
                     />
                     <input
                       id="brand-color-text"
@@ -207,12 +208,12 @@ export function BrandingSettingsSection({
                       value={color}
                       onChange={(e) => setColor(e.target.value)}
                       aria-invalid={colorError ? true : undefined}
-                      className="h-9 w-40 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 font-mono text-sm uppercase"
+                      className="h-11 w-40 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 font-mono text-sm uppercase"
                     />
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
+                      size="pill"
                       className="gap-1.5"
                       disabled={pending || !initialBrandColor}
                       onClick={() =>
@@ -250,7 +251,7 @@ export function BrandingSettingsSection({
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     type="submit"
-                    size="sm"
+                    size="pill"
                     className="w-fit"
                     disabled={pending || !dirty || Boolean(logoError || colorError)}
                   >

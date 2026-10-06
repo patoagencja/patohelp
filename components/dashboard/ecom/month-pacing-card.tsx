@@ -201,7 +201,7 @@ export function MonthPacingCard({
               <div
                 className={cn(
                   "absolute inset-y-0 left-0 rounded-full",
-                  behind ? "bg-amber/25" : "bg-lime/30"
+                  behind ? "bg-amber/20" : "bg-lime/25"
                 )}
                 style={{ width: pct(p.forecast) }}
               />

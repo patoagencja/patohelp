@@ -34,7 +34,7 @@ export function TestAlertButton({ clientSlug }: { clientSlug: string }) {
     <Button
       type="button"
       variant="outline"
-      size="sm"
+      size="pill"
       onClick={send}
       disabled={loading}
       className="gap-1.5"

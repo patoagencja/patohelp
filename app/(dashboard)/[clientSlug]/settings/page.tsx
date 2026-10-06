@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { PageHeader, SectionHeader } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/ui/page-header";
+
+import { SettingsHeading } from "./settings-heading";
 import {
   Card,
   CardContent,
@@ -316,7 +318,8 @@ export default async function SettingsPage({
       </div>
 
       <section id="integracje" aria-label="Integracje" className="scroll-mt-32 space-y-4">
-        <SectionHeader
+        <SettingsHeading
+          kicker="Ustawienia · Integracje"
           title="Integracje"
           description="Połącz konta reklamowe i zaznacz, które należą do tego klienta."
         />
@@ -402,7 +405,7 @@ export default async function SettingsPage({
                             </span>
                           </label>
                         ) : null}
-                        <Button type="submit" size="sm" className="w-fit">
+                        <Button type="submit" size="pill" className="w-fit">
                           Zapisz wybór kont
                         </Button>
                       </form>
@@ -426,7 +429,7 @@ export default async function SettingsPage({
                           <Button
                             type="submit"
                             variant="ghost"
-                            size="sm"
+                            size="pill"
                             className="text-destructive hover:bg-negative-soft hover:text-destructive"
                           >
                             Rozłącz
@@ -497,7 +500,7 @@ export default async function SettingsPage({
                           clientSlug={params.clientSlug}
                         />
                         {multi ? (
-                          <Button asChild variant="outline" size="sm">
+                          <Button asChild variant="outline" size="pill">
                             <a href={`/${params.clientSlug}/settings/ga4-select`}>
                               Zmień usługę GA4
                             </a>
@@ -513,7 +516,7 @@ export default async function SettingsPage({
                           <Button
                             type="submit"
                             variant="ghost"
-                            size="sm"
+                            size="pill"
                             className="text-destructive hover:bg-negative-soft hover:text-destructive"
                           >
                             Rozłącz
@@ -547,7 +550,8 @@ export default async function SettingsPage({
 
       {/* Alert notifications */}
       <div id="powiadomienia" className="scroll-mt-32 space-y-4">
-        <SectionHeader
+        <SettingsHeading
+          kicker="Ustawienia · Alerty"
           title="Powiadomienia o alertach"
           description="Wysyłamy alerty (anomalie + „cel zagrożony”) na wskazane kanały, tylko w wybranych godzinach. Jeden alert = maks. raz dziennie."
         />
@@ -573,7 +577,7 @@ export default async function SettingsPage({
                   rows={2}
                   placeholder="adresy oddzielone przecinkiem lub nową linią"
                   defaultValue={(notif?.emails ?? []).join(", ")}
-                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
+                  className="rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] p-3 text-sm"
                 />
               </div>
 
@@ -593,7 +597,7 @@ export default async function SettingsPage({
                   rows={2}
                   placeholder="numery z kierunkowym, np. +48600100200"
                   defaultValue={(notif?.whatsapp_numbers ?? []).join(", ")}
-                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
+                  className="rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] p-3 text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   Wymaga skonfigurowania WhatsApp Business API (token + numer).
@@ -616,7 +620,7 @@ export default async function SettingsPage({
                   rows={2}
                   placeholder="chat ID, np. 123456789 lub -1001234567890 (grupa)"
                   defaultValue={(notif?.telegram_chat_ids ?? []).join(", ")}
-                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
+                  className="rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] p-3 text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   Napisz do bota{" "}
@@ -655,7 +659,7 @@ export default async function SettingsPage({
                   disabled={!digestAvailable}
                   placeholder="odbiorcy podsumowania (puste = adresy z pola E-mail powyżej)"
                   defaultValue={(digest?.weekly_digest_emails ?? []).join(", ")}
-                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
+                  className="rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] p-3 text-sm"
                 />
                 {!digestAvailable ? (
                   <p className="text-xs text-warning">
@@ -674,7 +678,7 @@ export default async function SettingsPage({
                     min="0"
                     max="23"
                     defaultValue={notif?.hour_start ?? 8}
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs">
@@ -685,7 +689,7 @@ export default async function SettingsPage({
                     min="0"
                     max="23"
                     defaultValue={notif?.hour_end ?? 20}
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs">
@@ -693,7 +697,7 @@ export default async function SettingsPage({
                   <select
                     name="min_severity"
                     defaultValue={notif?.min_severity ?? "high"}
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   >
                     <option value="high">Pilne i ważne</option>
                     <option value="medium">Wszystkie (także informacje)</option>
@@ -728,7 +732,7 @@ export default async function SettingsPage({
                           ? Number(notif.daily_spend_cap_minor_units) / 100
                           : ""
                       }
-                      className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                      className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs">
@@ -747,7 +751,7 @@ export default async function SettingsPage({
                             100
                           : ""
                       }
-                      className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                      className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs">
@@ -761,14 +765,14 @@ export default async function SettingsPage({
                       step="0.5"
                       placeholder="3"
                       defaultValue={notif?.spike_multiplier ?? 3}
-                      className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                      className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                     />
                   </label>
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" size="sm" className="w-fit">
+                <Button type="submit" size="pill" className="w-fit">
                   Zapisz powiadomienia
                 </Button>
                 <TestAlertButton clientSlug={params.clientSlug} />

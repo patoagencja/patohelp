@@ -125,11 +125,11 @@ export function BrandingWebsiteFetch({
             }}
             aria-invalid={inputError ? true : undefined}
             aria-describedby="brand-website-hint"
-            className="h-9 min-w-0 flex-1 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+            className="h-11 min-w-0 flex-1 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
           />
           <Button
             type="button"
-            size="sm"
+            size="pill"
             variant="secondary"
             className="gap-1.5"
             disabled={fetching || !parsed?.ok}
@@ -310,10 +310,10 @@ export function BrandingWebsiteFetch({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" disabled={saving || nothingChosen} onClick={apply}>
+            <Button type="button" size="pill" disabled={saving || nothingChosen} onClick={apply}>
               {saving ? "Zapisuję…" : "Zapisz"}
             </Button>
-            <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => setPreview(null)}>
+            <Button type="button" size="pill" variant="ghost" disabled={saving} onClick={() => setPreview(null)}>
               Anuluj
             </Button>
             {currentLogoUrl && logoChoice !== KEEP && logoChoice !== currentLogoUrl ? (

@@ -1,5 +1,9 @@
 // TEMPORARY scratch route for d26 state screenshots - delete before finishing.
-import { CalendarX2, Hourglass } from "lucide-react";
+import { AlertTriangle, CalendarX2, Hourglass, RefreshCw } from "lucide-react";
+
+import { AlertsDigest } from "@/components/dashboard/alerts-digest";
+import { HealthNote } from "@/components/dashboard/integration-health-banner";
+import { getDemoDashboard } from "@/lib/demo/data";
 
 import { CampaignGoals } from "@/components/dashboard/campaign-goals";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -37,6 +41,27 @@ export default function Scratch({ searchParams }: { searchParams: { v?: string; 
         addAction={noop}
         deleteAction={noop}
       />
+    );
+  if (v === "digest")
+    return (
+      <>
+        <AlertsDigest alerts={getDemoDashboard().alerts} clientSlug="demo-full" />
+        <AlertsDigest alerts={[]} clientSlug="demo-full" linkless />
+      </>
+    );
+  if (v === "health")
+    return (
+      <div className="-mx-4 space-y-0 sm:-mx-6">
+        <HealthNote role="status" tone="warning" icon={AlertTriangle} title="Jedno źródło danych nie działa - liczby poniżej są niepełne.">
+          <ul><li><span className="font-medium text-foreground">Google Ads</span>: brak danych od 2 dni (ostatnia próba przed chwilą), agencja widzi ten problem w swoim panelu.</li></ul>
+        </HealthNote>
+        <HealthNote tone="warning" icon={AlertTriangle} title="Token wkrótce wygaśnie" chip="Widzi tylko agencja">
+          <p><span className="font-medium text-foreground">Meta</span>: token wygaśnie za 5 dni - <a className="font-medium text-foreground underline underline-offset-2" href="#">wklej token, który nie wygasa</a>, żeby dane się nie urwały.</p>
+        </HealthNote>
+        <HealthNote tone="neutral" icon={RefreshCw}>
+          <p><span className="font-medium text-foreground">GA4</span>: połączone ponownie - brakujące dane dociągniemy przy najbliższej synchronizacji (zwykle do 30 min).</p>
+        </HealthNote>
+      </div>
     );
   return (
     <>

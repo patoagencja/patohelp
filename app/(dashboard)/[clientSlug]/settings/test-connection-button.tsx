@@ -38,7 +38,7 @@ export function TestConnectionButton({
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleTest} disabled={loading}>
+    <Button variant="outline" size="pill" onClick={handleTest} disabled={loading}>
       {loading ? "Sprawdzam…" : "Sprawdź połączenie"}
     </Button>
   );

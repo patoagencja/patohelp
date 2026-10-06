@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeader } from "@/components/ui/page-header";
+import { SettingsHeading } from "./settings-heading";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -78,7 +78,8 @@ export async function AccessSettingsSection({
 
   return (
     <div id="dostep" className="scroll-mt-32 space-y-4">
-      <SectionHeader
+      <SettingsHeading
+        kicker="Ustawienia · Dostęp"
         title="Dostęp do panelu"
         description="Klient loguje się linkiem z e-maila - bez hasła. Widzi tylko swój panel."
       />
@@ -104,10 +105,10 @@ export async function AccessSettingsSection({
                     maxLength={254}
                     autoComplete="off"
                     placeholder="np. marketing@firma.pl"
-                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
+                    className="h-11 rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm"
                   />
                 </label>
-                <Button type="submit" size="sm">
+                <Button type="submit" size="pill">
                   Nadaj dostęp
                 </Button>
               </div>

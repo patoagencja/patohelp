@@ -129,7 +129,7 @@ async function ShareBox({
   // user exactly what to do instead of failing silently.
   if (error || status === "error") {
     return (
-      <div className="rounded-2xl bg-warning-soft px-4 py-3 text-sm text-warning print:hidden">
+      <div className="rounded-[22px] bg-warning-soft px-5 py-4 text-sm text-warning print:hidden">
         Publiczne linki wymagają tabeli <code>share_links</code> w Supabase.
         Uruchom migrację <code>0026_share_overview.sql</code> i odśwież stronę.
       </div>
@@ -138,15 +138,18 @@ async function ShareBox({
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
   return (
-    <div className="surface flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5 print:hidden">
-      <span className="text-sm font-medium">Publiczny link do raportu (bez logowania):</span>
+    <div className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card px-5 py-4 sm:px-6 print:hidden">
+      <span className="flex min-w-0 flex-col">
+        <span className="kick">Udostępnij</span>
+        <span className="text-sm font-medium">Publiczny link do raportu (bez logowania)</span>
+      </span>
       {token ? (
         <>
           <input
             readOnly
             value={`${base}/r/${token}`}
             aria-label="Publiczny link do raportu"
-            className="h-9 min-w-0 flex-1 basis-56 rounded-full border border-transparent bg-muted px-3 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-11 min-w-0 flex-1 basis-56 rounded-full border border-transparent bg-chip px-4 font-mono text-xs text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <ShareCopyButton url={`${base}/r/${token}`} />
           <form action={revokeShareLink}>
@@ -154,8 +157,8 @@ async function ShareBox({
             <Button
               type="submit"
               variant="ghost"
-              size="sm"
-              className="text-destructive hover:bg-negative-soft hover:text-destructive"
+              size="pill"
+              className="text-negative hover:bg-negative-soft hover:text-negative"
             >
               Unieważnij
             </Button>
@@ -164,7 +167,7 @@ async function ShareBox({
       ) : (
         <form action={createShareLink}>
           <input type="hidden" name="client" value={clientSlug} />
-          <Button type="submit" size="sm">
+          <Button type="submit" size="pill">
             Wygeneruj link
           </Button>
         </form>
@@ -248,6 +251,7 @@ export default async function RaportPage({
       <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
         <PageHeader
           className="print:hidden"
+          eyebrow={<span className="kick">Raport · {sm.monthLabel}</span>}
           title="Raporty"
           description={`Raport social media ${client.name} za wybrany miesiąc, do pobrania jako PPTX.`}
           actions={
@@ -258,13 +262,13 @@ export default async function RaportPage({
                   name="month"
                   defaultValue={monthParam ?? ""}
                   aria-label="Miesiąc raportu"
-                  className="h-9 rounded-full border border-transparent bg-card px-3.5 text-sm shadow-card transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-secondary dark:hover:bg-muted"
+                  className="h-11 rounded-full border border-transparent bg-chip px-4 text-[15px] text-foreground transition-colors hover:bg-[var(--chip-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                <Button type="submit" variant="outline" size="sm">
+                <Button type="submit" variant="chip" size="pill">
                   Pokaż
                 </Button>
               </form>
-              <Button asChild size="sm">
+              <Button asChild size="pill">
                 <a
                   href={`/api/report/pptx?client=${params.clientSlug}${
                     monthParam ? `&month=${monthParam}` : ""
@@ -352,11 +356,12 @@ export default async function RaportPage({
       {/* Controls (not printed) */}
       <PageHeader
         className="print:hidden"
+        eyebrow={<span className="kick">Raport · {data.rangeLabel}</span>}
         title="Raporty"
         description="Wyniki za wybrany okres w formie slajdów - do pokazania na spotkaniu albo pobrania."
         actions={
           <>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="chip" size="pill">
               <a href={`/api/report/pptx?client=${params.clientSlug}`}>
                 Pobierz PPTX (poprz. miesiąc)
               </a>
@@ -480,7 +485,7 @@ export default async function RaportPage({
         >
           <div className="grid h-full grid-cols-2 gap-10">
             <div className="flex flex-col">
-              <p className="mb-3 text-sm font-medium text-muted-foreground">
+              <p className="kick mb-3">
                 Udział w wydatkach
               </p>
               <div className="min-h-0 flex-1">
@@ -499,7 +504,7 @@ export default async function RaportPage({
               </div>
             </div>
             <div>
-              <p className="mb-3 text-sm font-medium text-muted-foreground">Kliknięcia</p>
+              <p className="kick mb-3">Kliknięcia</p>
               <BarList
                 items={activePlatforms.map((p) => ({
                   label: AD_PROVIDER_LABEL[p],
@@ -522,7 +527,7 @@ export default async function RaportPage({
           >
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b border-line text-left font-mono text-[11px] uppercase tracking-[0.12em] text-ink-3">
                   <th className="py-2 pr-3 font-medium">Platforma</th>
                   <th className="py-2 pr-3 font-medium">Kampania</th>
                   <th className="py-2 pr-3 text-right font-medium">Wydatki</th>
@@ -534,7 +539,7 @@ export default async function RaportPage({
                 {topCampaigns.map((c) => (
                   <tr
                     key={`${c.provider}:${c.campaignId}`}
-                    className="border-b border-border last:border-0"
+                    className="border-b border-line last:border-0"
                   >
                     <td className="py-2 pr-3 text-muted-foreground">
                       {AD_PROVIDER_LABEL[c.provider]}
@@ -648,7 +653,7 @@ export default async function RaportPage({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <p className="mb-2 text-sm font-medium text-muted-foreground">
+                  <p className="kick mb-2">
                     Wizyty na stronie dzień po dniu
                   </p>
                   <div className="min-h-0 flex-1">
@@ -694,7 +699,7 @@ export default async function RaportPage({
             >
               <div className="grid h-full grid-cols-2 gap-10">
                 <div>
-                  <p className="mb-3 text-sm font-medium text-muted-foreground">Urządzenia</p>
+                  <p className="kick mb-3">Urządzenia</p>
                   <BarList
                     items={website.devices
                       .slice()
@@ -707,7 +712,7 @@ export default async function RaportPage({
                   />
                 </div>
                 <div>
-                  <p className="mb-3 text-sm font-medium text-muted-foreground">
+                  <p className="kick mb-3">
                     Najczęściej odwiedzane
                   </p>
                   <ol className="space-y-1.5 text-sm">

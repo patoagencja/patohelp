@@ -213,7 +213,7 @@ export function ReportDeck({
             <span
               className={cn(
                 "block h-1 w-full rounded-full transition-colors",
-                i <= active ? "bg-lime-line" : "bg-chip group-hover:bg-[var(--chip-hover)]",
+                i <= active ? "bg-lime" : "bg-chip group-hover:bg-[var(--chip-hover)]",
                 i === active && "shadow-lime-glow"
               )}
             />

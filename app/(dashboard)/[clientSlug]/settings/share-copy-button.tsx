@@ -24,7 +24,7 @@ export function ShareCopyButton({ url }: { url: string }) {
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={copy} className="gap-1.5">
+    <Button type="button" variant="outline" size="pill" onClick={copy} className="gap-1.5">
       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? "Skopiowano" : "Kopiuj"}
     </Button>

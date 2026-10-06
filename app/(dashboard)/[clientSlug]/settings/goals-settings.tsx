@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { SectionHeader } from "@/components/ui/page-header";
+import { SettingsHeading } from "./settings-heading";
 import {
   GOAL_METRICS,
   getGoalTargets,
@@ -43,7 +43,8 @@ export async function GoalsSettingsSection({
 
   return (
     <div id="cele" className="scroll-mt-32 space-y-4">
-      <SectionHeader
+      <SettingsHeading
+        kicker="Ustawienia · Plan"
         title="Cele miesięczne"
         description="Klient zobaczy na przeglądzie postęp każdego celu, prognozę na koniec miesiąca i ile trzeba dziennie, żeby go osiągnąć. Puste pole = brak celu."
       />
@@ -107,7 +108,7 @@ export async function GoalsSettingsSection({
                                   aria-label={`${LABELS[metric].name} - ${monthLabelPl(m)}`}
                                   placeholder="brak celu"
                                   defaultValue={v !== undefined ? formatNumberPL(v) : ""}
-                                  className="h-9 w-full rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm tabular-nums"
+                                  className="h-11 w-full rounded-[14px] border border-transparent bg-chip transition-[background-color,box-shadow] hover:bg-[var(--chip-hover)] focus-visible:border-line focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-[var(--chip-hover)] px-3 text-sm tabular-nums"
                                 />
                               </td>
                             );
@@ -120,7 +121,7 @@ export async function GoalsSettingsSection({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <Button type="submit" size="sm" className="w-fit">
+                <Button type="submit" size="pill" className="w-fit">
                   Zapisz cele
                 </Button>
                 {targets.updatedAt ? (
