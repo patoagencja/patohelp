@@ -5,7 +5,9 @@ import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
-import { ThemeToggle } from "@/components/dashboard/theme-toggle";
+import { HeaderMenu } from "@/components/dashboard/header-menu";
+import { HeaderTitle } from "@/components/dashboard/header-title";
+import { Pill } from "@/components/ui/pill";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
 import { DEMO_BRANDING } from "@/lib/demo/branding";
 
@@ -20,53 +22,64 @@ export default function DemoFullLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const brand = (
+    <ClientBrandMark
+      name="lokalnepomidorki"
+      logoUrl={DEMO_BRANDING.logoUrl}
+      className="h-8 max-w-[11rem]"
+    />
+  );
+
   return (
     // Same branding path as a real client (logo + --client-accent), demo data.
+    // Shell mirrors app/(dashboard)/[clientSlug]/layout.tsx.
     <div
-      className="flex min-h-screen bg-muted/20"
+      className="flex min-h-screen bg-background"
       style={clientAccentStyle(DEMO_BRANDING.brandColor)}
     >
       <aside
         data-present-hide
-        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex"
+        className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto md:flex print:hidden"
       >
-        <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
-          <ClientBrandMark
-            name="lokalnepomidorki"
-            logoUrl={DEMO_BRANDING.logoUrl}
-            className="h-8 max-w-[11rem]"
-          />
-        </div>
+        <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">{brand}</div>
         <DemoSidebar />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header
           data-present-hide
-          className="flex h-14 items-center gap-2 border-b border-border bg-card px-4 sm:gap-3 sm:px-6"
+          data-chrome-header
+          className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-transparent bg-chrome/75 px-4 backdrop-blur-xl backdrop-saturate-150 sm:gap-3 sm:px-6 md:h-16 lg:px-8 print:hidden"
         >
-          <span className="whitespace-nowrap rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-400">
-            DEMO<span className="hidden sm:inline"> · dane przykładowe</span>
-          </span>
-          <span className="flex-1" />
-          <LangToggle />
-          <CommandPalette
-            clientSlug="demo-full"
-            isAgency={false}
+          <HeaderTitle
+            clientName="lokalnepomidorki"
+            base="/demo-full"
             isEcommerce
-            omit={["/demo-full/raport"]}
-          />
-          <GuidedTour isAgency={false} overviewPath="/demo-full" />
-          <PresentationMode
+            isAgency={false}
             brand={
               <ClientBrandMark
                 name="lokalnepomidorki"
                 logoUrl={DEMO_BRANDING.logoUrl}
-                className="h-8"
+                className="h-6 max-w-[2rem] object-cover object-left"
               />
             }
           />
-          <ThemeToggle />
+          <Pill tone="warning" className="shrink-0" title="Dane przykładowe">
+            Demo
+          </Pill>
+          <span className="flex-1" />
+          <div className="hidden">
+            <CommandPalette
+              clientSlug="demo-full"
+              isAgency={false}
+              isEcommerce
+              omit={["/demo-full/raport"]}
+            />
+            <GuidedTour isAgency={false} overviewPath="/demo-full" />
+          </div>
+          <LangToggle />
+          <PresentationMode brand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-8" />} />
+          <HeaderMenu overviewPath="/demo-full" />
         </header>
 
         <div data-present-hide>
@@ -78,7 +91,9 @@ export default function DemoFullLayout({
           />
         </div>
 
-        <main className="mx-auto w-full max-w-6xl space-y-6 p-6 pb-24 md:pb-6">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 space-y-8 px-4 pb-28 pt-6 sm:px-6 md:pb-12 md:pt-8 lg:px-8">
+          {children}
+        </main>
       </div>
     </div>
   );

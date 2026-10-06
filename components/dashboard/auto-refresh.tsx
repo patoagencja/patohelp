@@ -91,24 +91,28 @@ export function AutoRefresh({
   }, [check, pollSeconds]);
 
   return (
-    <span className="flex items-center gap-2 text-xs text-muted-foreground">
-      <span className="flex items-center gap-1.5" title="Dane odświeżają się same, gdy przyjdzie nowa synchronizacja">
-        <span className="relative flex h-1.5 w-1.5">
-          <span
-            className={cn(
-              "absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75",
-              pulse ? "motion-safe:animate-ping" : "motion-safe:animate-pulse"
-            )}
-          />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-        </span>
-        LIVE
+    // Quiet freshness cue: a green dot and "X min temu". The dot alone on
+    // phones; the full sentence is in the title and for screen readers.
+    <span
+      className="flex items-center gap-2 text-xs text-muted-foreground"
+      title="Dane odświeżają się same, gdy przyjdzie nowa synchronizacja"
+    >
+      <span className="relative flex h-2 w-2" aria-hidden>
+        <span
+          className={cn(
+            "absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60",
+            pulse ? "motion-safe:animate-ping" : "motion-safe:animate-pulse"
+          )}
+        />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
       </span>
       {stamp ? (
-        <span className="hidden sm:inline" suppressHydrationWarning>
+        <span className="sr-only sm:not-sr-only" suppressHydrationWarning>
           {relativeLabel(stamp, now)}
         </span>
-      ) : null}
+      ) : (
+        <span className="sr-only">Dane na żywo</span>
+      )}
     </span>
   );
 }

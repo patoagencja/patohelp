@@ -2,32 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  BellRing,
-  BookOpen,
-  FileText,
-  Globe,
-  Image as ImageIcon,
-  LayoutDashboard,
-  LayoutGrid,
-  Megaphone,
-  MoreHorizontal,
-  Newspaper,
-  Settings,
-  ShoppingBag,
-  X,
-} from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { ChevronRight, MoreHorizontal, X } from "lucide-react";
 
+import { buildNav, findActive, TONE_TILE, type NavItem } from "@/components/dashboard/nav-items";
 import { useModalFocus } from "@/components/dashboard/use-modal-focus";
 import { cn } from "@/lib/utils";
 
-type Item = { href: string; label: string; icon: typeof LayoutDashboard };
-
 /**
- * Phone navigation as a bottom tab bar (thumb reach, like native apps): the
- * four most used tabs plus "Więcej" opening a sheet with the rest. The old
- * top strip of 8+ chips had to be swiped to find anything.
+ * Phone navigation as an iOS-style bottom tab bar: the main places (at most
+ * four) plus "Więcej" opening a sheet with everything else. Same model as the
+ * desktop sidebar (nav-items.ts), so both always list the same pages.
  */
 export function MobileNav({
   clientSlug,
@@ -42,6 +27,9 @@ export function MobileNav({
   omit?: string[];
 }) {
   const pathname = usePathname();
+  const sp = useSearchParams();
+  // Keep the demo's language switch when hopping between tabs.
+  const suffix = sp.get("lang") === "en" ? "?lang=en" : "";
   const [open, setOpen] = useState(false);
   const base = `/${clientSlug}`;
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -52,29 +40,24 @@ export function MobileNav({
   // Close the sheet whenever navigation happens.
   useEffect(() => setOpen(false), [pathname]);
 
-  const primary: Item[] = [
-    { href: base, label: "Przegląd", icon: LayoutDashboard },
-    isEcommerce
-      ? { href: `${base}/sprzedaz`, label: "Sprzedaż", icon: ShoppingBag }
-      : { href: `${base}/reklamy`, label: "Reklamy", icon: Megaphone },
-    { href: `${base}/kreacje`, label: "Kreacje", icon: ImageIcon },
-    { href: `${base}/witryna`, label: "Strona", icon: Globe },
-  ];
-  const more: Item[] = [
-    ...(isEcommerce ? [{ href: `${base}/reklamy`, label: "Reklamy", icon: Megaphone }] : []),
-    { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
-    { href: `${base}/raport`, label: "Raport", icon: FileText },
-    { href: `${base}/newsy`, label: "Newsy", icon: Newspaper },
-    { href: `${base}/slowniczek`, label: "Słowniczek", icon: BookOpen },
-    ...(isAgency
-      ? [
-          { href: `${base}/settings`, label: "Ustawienia", icon: Settings },
-          { href: `/clients`, label: "Wszyscy klienci", icon: LayoutGrid },
-        ]
-      : []),
-  ];
-  const moreItems = more.filter((i) => !omit.includes(i.href));
-  const moreActive = moreItems.some((i) => i.href === pathname);
+  const groups = buildNav({ base, isEcommerce, isAgency, omit });
+  const active = findActive(groups, pathname, base);
+  const mainItems = groups.find((g) => g.id === "main")?.items ?? [];
+  const primary = mainItems.slice(0, 4);
+  // Sub-pages (Kreacje) and any overflow go to the sheet, ahead of "Więcej".
+  const sheetSections: { label?: string; items: NavItem[] }[] = [
+    {
+      items: [
+        ...mainItems.slice(4),
+        ...mainItems.flatMap((i) => i.children ?? []),
+      ],
+    },
+    ...groups
+      .filter((g) => g.id !== "main")
+      .map((g) => ({ label: g.label, items: g.items })),
+  ].filter((s) => s.items.length > 0);
+  const moreActive =
+    !!active && !primary.some((i) => i.href === active.href);
 
   return (
     <>
@@ -86,41 +69,62 @@ export function MobileNav({
             aria-hidden
             tabIndex={-1}
             onClick={close}
-            className="absolute inset-0 bg-background/60 backdrop-blur-sm animate-in fade-in motion-reduce:animate-none"
+            className="absolute inset-0 bg-black/25 backdrop-blur-[2px] animate-in fade-in motion-reduce:animate-none dark:bg-black/50"
           />
           <div
             ref={sheetRef}
-            className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-border bg-card p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
+            className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[1.75rem] bg-background p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] shadow-raised animate-in slide-in-from-bottom-8 motion-reduce:animate-none"
           >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted" aria-hidden />
-            <div className="flex items-center justify-between px-1 pb-2">
-              <h2 className="text-sm font-semibold">Więcej</h2>
+            <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-foreground/15" aria-hidden />
+            <div className="flex items-center justify-between px-1 pb-3">
+              <h2 className="text-lg font-semibold">Więcej</h2>
               <button
                 ref={closeRef}
                 type="button"
                 onClick={close}
-                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Zamknij"
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {moreItems.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={pathname === href ? "page" : undefined}
-                  className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    pathname === href
-                      ? "bg-accent text-accent-foreground"
-                      : "bg-muted/50 text-foreground hover:bg-muted"
-                  )}
-                >
-                  <Icon className="h-5 w-5" aria-hidden />
-                  {label}
-                </Link>
+            <div className="space-y-5">
+              {sheetSections.map((section, si) => (
+                <div key={section.label ?? `s${si}`}>
+                  {section.label && section.label !== "Więcej" ? (
+                    <p className="px-4 pb-1.5 text-xs font-medium text-muted-foreground">{section.label}</p>
+                  ) : null}
+                  {/* Inset grouped list: one white surface, hairline rows. */}
+                  <ul className="divide-y divide-border overflow-hidden rounded-2xl bg-card shadow-card">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = active?.href === item.href;
+                      return (
+                        <li key={item.href}>
+                          <Link
+                            href={`${item.href}${suffix}`}
+                            aria-current={isActive ? "page" : undefined}
+                            className="flex items-center gap-3 px-4 py-3 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:bg-muted"
+                          >
+                            <span
+                              className={cn(
+                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.6rem]",
+                                TONE_TILE[item.tone]
+                              )}
+                              aria-hidden
+                            >
+                              <Icon className="h-[17px] w-[17px]" />
+                            </span>
+                            <span className={cn("flex-1", isActive ? "font-semibold" : "font-medium")}>
+                              {item.label}
+                            </span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               ))}
             </div>
           </div>
@@ -129,30 +133,28 @@ export function MobileNav({
 
       <nav
         aria-label="Nawigacja"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg md:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-hairline bg-chrome/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl backdrop-saturate-150 md:hidden print:hidden"
       >
-        <div className="grid grid-cols-5">
-          {primary.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
+        <div
+          className={cn(
+            "grid",
+            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4", "grid-cols-5"][primary.length]
+          )}
+        >
+          {primary.map(({ href, label, short, icon: Icon }) => {
+            const isActive = active?.href === href;
             return (
               <Link
                 key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
+                href={`${href}${suffix}`}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  active ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
+                  "flex flex-col items-center gap-0.5 pb-1.5 pt-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  isActive ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
                 )}
               >
-                <span
-                  className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                    active && "bg-primary/10"
-                  )}
-                >
-                  <Icon className="h-[19px] w-[19px]" aria-hidden />
-                </span>
-                {label}
+                <Icon className="h-[22px] w-[22px]" strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
+                {short ?? label}
               </Link>
             );
           })}
@@ -162,18 +164,11 @@ export function MobileNav({
             aria-expanded={open}
             aria-haspopup="dialog"
             className={cn(
-              "flex flex-col items-center gap-1 rounded-lg py-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              "flex flex-col items-center gap-0.5 pb-1.5 pt-2 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
               open || moreActive ? "text-primary dark:text-indigo-300" : "text-muted-foreground"
             )}
           >
-            <span
-              className={cn(
-                "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                (open || moreActive) && "bg-primary/10"
-              )}
-            >
-              <MoreHorizontal className="h-[19px] w-[19px]" aria-hidden />
-            </span>
+            <MoreHorizontal className="h-[22px] w-[22px]" strokeWidth={open || moreActive ? 2.25 : 1.75} aria-hidden />
             Więcej
           </button>
         </div>

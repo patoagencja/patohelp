@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import { Toaster } from "sonner";
 
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
@@ -13,12 +13,12 @@ import {
 import { ClientSwitcher } from "@/components/dashboard/client-switcher";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { GuidedTour } from "@/components/dashboard/guided-tour";
+import { HeaderMenu } from "@/components/dashboard/header-menu";
+import { HeaderTitle } from "@/components/dashboard/header-title";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
-import { ThemeToggle } from "@/components/dashboard/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
 import {
   getClientBySlug,
@@ -75,36 +75,40 @@ export default async function ClientDashboardLayout({
   const allClients = isAgency ? clientList : null;
   const checkStamp = getSyncStamp.bind(null, params.clientSlug);
 
+  const clientName = client?.name ?? "Pato";
+  const fallbackMark = (
+    <>
+      <span className="flex h-8 w-8 items-center justify-center rounded-[0.6rem] bg-primary text-primary-foreground">
+        <LayoutDashboard className="h-4 w-4" />
+      </span>
+      <span className="font-semibold">{clientName}</span>
+    </>
+  );
+
   return (
     // --client-accent scopes the client's brand colour to their dashboard.
+    // Shell: grey page, borderless sticky sidebar, translucent sticky header.
     <div
-      className="flex min-h-screen bg-muted/20"
+      className="flex min-h-screen bg-background"
       style={clientAccentStyle(client?.brandColor)}
     >
       <aside
         data-present-hide
-        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex print:hidden"
+        className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto md:flex print:hidden"
       >
-        <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
+        <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
           <ClientBrandMark
-            name={client?.name ?? "Pato"}
+            name={clientName}
             slug={params.clientSlug}
             logoUrl={client?.logoUrl}
             // Built-in SVG wordmarks keep their h-6; uploaded logos get a bit more
             // room since they often carry padding or a symbol.
             className="h-6 max-w-[11rem] text-foreground [&:is(img)]:h-8"
-            fallback={
-              <>
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <LayoutDashboard className="h-4 w-4" />
-                </span>
-                <span className="font-semibold">{client?.name ?? "Pato"}</span>
-              </>
-            }
+            fallback={fallbackMark}
           />
         </div>
         {isAgency && allClients && allClients.length > 1 ? (
-          <div className="border-b border-border p-3">
+          <div className="px-3 pb-2">
             <ClientSwitcher clients={allClients} current={params.clientSlug} />
           </div>
         ) : null}
@@ -118,20 +122,47 @@ export default async function ClientDashboardLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {isAgency ? <AutoSync clientSlug={params.clientSlug} /> : null}
         {/* Presentation mode hides the whole header; its own floating bar
-            (portaled to <body>) takes over the controls. */}
+            (portaled to <body>) takes over the controls. At most three
+            visible controls: (agency: Odśwież) Prezentuj and one "…" menu
+            holding search, the guide, PDF, theme and sign-out. */}
         <header
           data-present-hide
-          className="flex h-14 items-center gap-2 border-b border-border bg-card px-4 sm:gap-3 sm:px-6 print:hidden"
+          data-chrome-header
+          className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-transparent bg-chrome/75 px-4 backdrop-blur-xl backdrop-saturate-150 sm:gap-3 sm:px-6 md:h-16 lg:px-8 print:hidden"
         >
+          <HeaderTitle
+            clientName={clientName}
+            base={`/${params.clientSlug}`}
+            isEcommerce={isEcommerce}
+            isAgency={isAgency}
+            brand={
+              <ClientBrandMark
+                name={clientName}
+                slug={params.clientSlug}
+                logoUrl={client?.logoUrl}
+                className="h-5 max-w-[6rem] text-foreground [&:is(img)]:h-7"
+                fallback={
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                  </span>
+                }
+              />
+            }
+          />
           <AutoRefresh initialStamp={lastSyncAt} checkStamp={checkStamp} />
           <span className="flex-1" />
-          <CommandPalette
-            clientSlug={params.clientSlug}
-            isAgency={isAgency}
-            isEcommerce={isEcommerce}
-            clients={allClients}
-          />
-          <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
+          {/* Overlays and shortcuts stay live (⌘K, "/", first-visit tour);
+              their header triggers moved into the "…" menu. */}
+          <div className="hidden">
+            <CommandPalette
+              clientSlug={params.clientSlug}
+              isAgency={isAgency}
+              isEcommerce={isEcommerce}
+              clients={allClients}
+            />
+            <GuidedTour isAgency={isAgency} overviewPath={`/${params.clientSlug}`} />
+          </div>
+          {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
           <PresentationMode
             brand={
               client ? (
@@ -145,24 +176,11 @@ export default async function ClientDashboardLayout({
               ) : null
             }
           />
-          <ThemeToggle />
-          {isAgency ? <RefreshButton clientSlug={params.clientSlug} /> : null}
-          {user?.email ? (
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-sm font-medium text-accent-foreground">
-                {user.email.charAt(0).toUpperCase()}
-              </span>
-              <span className="hidden text-sm text-muted-foreground sm:inline">
-                {user.email}
-              </span>
-            </div>
-          ) : null}
-          <form action={signOut}>
-            <Button type="submit" variant="outline" size="sm" className="gap-1.5" title="Wyloguj">
-              <LogOut className="h-3.5 w-3.5 sm:hidden" />
-              <span className="hidden sm:inline">Wyloguj</span>
-            </Button>
-          </form>
+          <HeaderMenu
+            overviewPath={`/${params.clientSlug}`}
+            email={user?.email}
+            signOut={signOut}
+          />
         </header>
 
         <div data-present-hide>
@@ -173,7 +191,9 @@ export default async function ClientDashboardLayout({
           />
         </div>
 
-        <main className="flex-1 pb-24 md:pb-0">
+        {/* Pages pad themselves (p-6); the shell caps the reading width so
+            cards don't stretch edge to edge on wide screens. */}
+        <main className="mx-auto w-full max-w-6xl flex-1 pb-24 md:pb-8 lg:px-2">
           {client ? (
             // Health checks take a few queries per provider; never hold the
             // page back for them. Hidden on the TV: it's connection
