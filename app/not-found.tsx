@@ -1,7 +1,7 @@
 import { NotFoundCard } from "@/components/dashboard/not-found-card";
 import { Sky } from "@/components/ui/sky";
 
-export const metadata = { title: "Nie znaleziono strony - Pato Dashboard" };
+export const metadata = { title: "Nie znaleziono strony - Kalejdo" };
 
 // Unknown URLs and expired/invalid share links (/s, /r) land here: the
 // pastel sky with one card, no dashboard chrome (the visitor may be logged

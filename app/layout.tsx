@@ -42,8 +42,8 @@ const geistMonoExt = localFont({
 const fontVars = [geist, geistExt, geistMono, geistMonoExt].map((f) => f.variable).join(" ");
 
 export const metadata: Metadata = {
-  title: "Pato Dashboard",
-  description: "Client dashboard for Pato agency - live Meta Ads, Google Ads & GA4 data.",
+  title: "Kalejdo",
+  description: "Kalejdo by patoagencja - live Meta Ads, Google Ads & GA4 results for clients.",
 };
 
 // Apply the saved theme before first paint to avoid a light→dark flash.

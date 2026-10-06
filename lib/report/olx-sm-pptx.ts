@@ -178,7 +178,7 @@ export async function buildOlxSmDeck(data: OlxSmReportData): Promise<Buffer> {
     });
 
     s.addText(
-      "Raport wygenerowany automatycznie z danych Meta / TikTok / Google Ads (Pato Dashboard).",
+      "Raport wygenerowany automatycznie z danych Meta / TikTok / Google Ads (Kalejdo).",
       { x: 0.7, y: 6.7, w: 12, h: 0.3, fontFace: "Arial", fontSize: 9, color: C.slateLight }
     );
   }
@@ -444,7 +444,7 @@ export async function buildOlxSmDeck(data: OlxSmReportData): Promise<Buffer> {
       fontFace: "Arial", fontSize: 22, bold: true, color: C.dark,
       fill: { color: C.tealLight },
     });
-    s.addText("Machine-readable - generowane automatycznie z Pato Dashboard.", {
+    s.addText("Machine-readable - generowane automatycznie z Kalejdo.", {
       x: 0.5, y: 0.95, w: 11, h: 0.3,
       fontFace: "Arial", fontSize: 10, color: C.slateLight,
     });
