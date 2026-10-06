@@ -24,6 +24,8 @@ const WARSAW_TZ = "Europe/Warsaw";
 // Don't START a snapshot step after this much of maxDuration (60s) is used -
 // leaves ~25s for the step itself so the function isn't killed mid-run.
 const SNAPSHOT_START_BUDGET_MS = 35_000;
+// Don't start another client's full-year re-fetch after this much time.
+const FULL_WINDOW_BUDGET_MS = 20_000;
 
 interface GoogleAccount {
   id: string;
@@ -115,7 +117,14 @@ export async function GET(request: Request) {
       ) {
         if (!present.has(d.toISOString().slice(0, 10))) hasGap = true;
       }
-      const effectiveSince = hasGap ? backfillStart : since;
+      // A day with no Google delivery at all (paused over Christmas, an
+      // account younger than a year) is a permanent "gap", so the whole year
+      // is re-fetched on every run. Fine for one client, but done for every
+      // client in one 60s function it got the function killed (sync_runs
+      // stuck "running", later clients skipped). Past the budget, later
+      // clients get yesterday+today and the year on a quieter tick.
+      const effectiveSince =
+        hasGap && Date.now() - startedAt < FULL_WINDOW_BUDGET_MS ? backfillStart : since;
 
       // Only accounts explicitly selected for this client.
       const accounts = (
@@ -171,12 +180,15 @@ export async function GET(request: Request) {
         }
       }
 
-      if (rows.length) {
+      // Chunked: a full-year re-fetch is tens of thousands of rows, too big
+      // for one PostgREST request.
+      for (let i = 0; i < rows.length; i += 1000) {
+        const chunk = rows.slice(i, i + 1000);
         const { error } = await admin
           .from("ads_daily")
-          .upsert(rows, { onConflict: "client_id,provider,campaign_id,date" });
+          .upsert(chunk, { onConflict: "client_id,provider,campaign_id,date" });
         if (error) throw new Error(error.message);
-        campaignsUpserted += rows.length;
+        campaignsUpserted += chunk.length;
       }
 
       await admin

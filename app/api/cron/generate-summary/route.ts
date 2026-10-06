@@ -1,4 +1,4 @@
-import { formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { generateWeeklySummary } from "@/lib/ai/summary";
@@ -20,7 +20,12 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const todayStart = `${formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd")}T00:00:00+02:00`;
+  // Warsaw midnight as a UTC instant. A hard-coded "+02:00" is only right in
+  // summer: in winter (CET, +01:00) it put "today" an hour early.
+  const todayStart = fromZonedTime(
+    `${formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd")}T00:00:00`,
+    "Europe/Warsaw"
+  ).toISOString();
 
   const { data: clients } = await admin.from("clients").select("id, slug");
 

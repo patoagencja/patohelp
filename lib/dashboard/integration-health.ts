@@ -1,4 +1,5 @@
 import { decrypt } from "@/lib/integrations/encryption";
+import { isTokenError } from "@/lib/integrations/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Per-provider sync health. The header's "Zaktualizowano X temu" label takes the
@@ -41,19 +42,8 @@ export interface ProviderHealth {
 /** Stale threshold: crons run every 30 min, so 12h means genuinely broken. */
 const STALE_HOURS = 12;
 
-function isTokenError(message: string | null): boolean {
-  if (!message) return false;
-  const m = message.toLowerCase();
-  return (
-    m.includes("invalid_grant") ||
-    m.includes("invalid grant") ||
-    m.includes("token has been expired") ||
-    m.includes("revoked") ||
-    // Meta: "Error validating access token: Session has expired on ..."
-    m.includes("session has expired") ||
-    m.includes("error validating access token")
-  );
-}
+/** A "running" row older than this was killed (maxDuration is 300s at most). */
+const STUCK_RUN_MINUTES = 15;
 
 /**
  * Providers that are configured for this client but whose data is not arriving:
@@ -138,7 +128,17 @@ export async function getUnhealthyIntegrations(
           hoursSinceSuccess === null || hoursSinceSuccess > STALE_HOURS;
         if (!failing && !stale) return null;
 
-        const lastError = (newest.error_message as string | null) ?? null;
+        // A run whose function was killed (timeout) stays "running" forever
+        // with no message; name that instead of showing nothing.
+        const stuck =
+          newest.status === "running" &&
+          hoursSinceAttempt !== null &&
+          hoursSinceAttempt * 60 > STUCK_RUN_MINUTES;
+        const lastError =
+          (newest.error_message as string | null) ??
+          (stuck
+            ? "Ostatnia synchronizacja nie została dokończona (funkcja przerwana, np. przekroczony limit czasu)."
+            : null);
         const tokenExpired = failing && isTokenError(lastError);
 
         // Testing-mode tokens die 7 days after consent. If the last success

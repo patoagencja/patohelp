@@ -25,6 +25,32 @@ export async function hasClicksAllColumn(
   return !error;
 }
 
+/**
+ * Probe for writers. hasClicksAllColumn reads ANY error as "no column", so a
+ * transient blip (timeout, 503) made a Meta sync after 0034 write all clicks
+ * into `clicks` while the row kept its old link-click clicks_all - a row the
+ * re-pull never revisits (clicks_all is set), so a backfilled day stayed
+ * wrong for good. Here only a genuine missing-column error means false; a
+ * second failure of any other kind throws so nothing is written in the wrong
+ * shape (the next tick retries).
+ */
+export async function hasClicksAllColumnStrict(
+  admin: AdminClient,
+  table: ClicksAllTable
+): Promise<boolean> {
+  let lastMessage = "";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { error } = await admin.from(table).select("clicks_all").limit(1);
+    if (!error) return true;
+    const code = (error as { code?: string }).code ?? "";
+    lastMessage = error.message ?? "";
+    if (code === "42703" || code === "PGRST204" || /clicks_all/i.test(lastMessage)) {
+      return false;
+    }
+  }
+  throw new Error(`clicks_all probe failed on ${table}: ${lastMessage}`);
+}
+
 /** Meta numeric strings -> integer counts; missing/garbage -> 0. */
 export function intOrZero(v: string | null | undefined): number {
   if (v == null || v === "") return 0;

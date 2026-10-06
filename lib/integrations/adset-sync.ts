@@ -4,7 +4,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { getAdGroupMetrics } from "@/lib/integrations/google-ads";
-import { hasClicksAllColumn, intOrZero } from "@/lib/integrations/link-clicks";
+import { hasClicksAllColumnStrict, intOrZero } from "@/lib/integrations/link-clicks";
 import { extractConversions, getAdsetInsights } from "@/lib/integrations/meta-ads";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
@@ -169,7 +169,7 @@ export async function syncMetaAdsets(
   /** Migration 0034 ran (probed when omitted). */
   withClicksAll?: boolean
 ): Promise<AdsetSyncResult> {
-  const clicksAll = withClicksAll ?? (await hasClicksAllColumn(admin, "ads_adset_daily"));
+  const clicksAll = withClicksAll ?? (await hasClicksAllColumnStrict(admin, "ads_adset_daily"));
   // One campaign on demand: always the full window, it is a handful of calls.
   const { since, until } = await adsetSyncWindow(
     admin,
@@ -232,7 +232,7 @@ export async function syncGoogleAdGroups(
   /** Migration 0034 ran (probed when omitted). */
   withClicksAll?: boolean
 ): Promise<AdsetSyncResult> {
-  const clicksAll = withClicksAll ?? (await hasClicksAllColumn(admin, "ads_adset_daily"));
+  const clicksAll = withClicksAll ?? (await hasClicksAllColumnStrict(admin, "ads_adset_daily"));
   const { since, until } = await adsetSyncWindow(admin, clientId, "google_ads", new Date(), !!campaignId);
   const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const account of accounts) {
@@ -295,7 +295,14 @@ export async function syncAdsetsForClient(
 ): Promise<AdsetSyncResult> {
   const shouldStop = opts.shouldStop ?? (() => false);
   const total: AdsetSyncResult = { written: 0, errors: [] };
-  const withClicksAll = await hasClicksAllColumn(admin, "ads_adset_daily");
+  let withClicksAll: boolean;
+  try {
+    withClicksAll = await hasClicksAllColumnStrict(admin, "ads_adset_daily");
+  } catch (probeErr) {
+    // Unknown write shape: write nothing this time, the next run retries.
+    total.errors.push(describeError(probeErr));
+    return total;
+  }
   const { data: integrations, error } = await admin
     .from("integrations")
     .select("provider, credentials_encrypted, account_ids")

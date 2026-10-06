@@ -4,6 +4,7 @@ import {
   loadIntegration,
   type TikTokCredentials,
 } from "@/lib/integrations/credentials";
+import { connectionTestError } from "@/lib/integrations/errors";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { listAdvertisers } from "@/lib/integrations/tiktok";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -26,11 +27,18 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const integration = await loadIntegration<TikTokCredentials>(
-    admin,
-    access.clientId,
-    "tiktok_ads"
-  );
+  let integration;
+  try {
+    integration = await loadIntegration<TikTokCredentials>(
+      admin,
+      access.clientId,
+      "tiktok_ads"
+    );
+  } catch (err) {
+    // Decrypt failures (ENCRYPTION_KEY mismatch) used to escape as a bare
+    // 500, which the button showed as a network error.
+    return NextResponse.json({ ok: false, error: connectionTestError(err) });
+  }
   if (!integration) {
     return NextResponse.json({ ok: false, error: "Brak integracji TikTok Ads" });
   }
@@ -46,10 +54,9 @@ export async function POST(request: Request) {
       accounts_count: advertisers.length,
       sample: advertisers.slice(0, 5).map((a) => a.name),
     });
-  } catch {
-    return NextResponse.json({
-      ok: false,
-      error: "Token wygasł lub został odwołany - połącz ponownie",
-    });
+  } catch (err) {
+    // Only a dead token is "token wygasł"; anything else (rate limit,
+    // missing env, network) shows its real message.
+    return NextResponse.json({ ok: false, error: connectionTestError(err) });
   }
 }

@@ -44,6 +44,12 @@ export interface MetaCampaignInsight {
   actions?: Array<{ action_type: string; value: string }>;
 }
 
+/** Paging URLs are fetched raw (not via graphGet): surface their errors too. */
+function throwOnPageError(body: unknown): void {
+  const err = (body as { error?: { message?: string } } | null)?.error;
+  if (err) throw new Error(err.message ?? "Meta Graph API paging error");
+}
+
 /** Link-click insight fields, requested next to `clicks` everywhere. */
 const LINK_CLICK_FIELDS = "inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click";
 
@@ -196,6 +202,10 @@ export async function getCampaignInsights(
       guard += 1;
       const res = await fetch(body.paging.next, { cache: "no-store" });
       body = await res.json();
+      // A failed page (rate limit mid-pagination) used to end the loop with a
+      // partial day that was upserted as if complete - and a backfilled day
+      // with rows is never re-pulled, so its spend stayed too low for good.
+      throwOnPageError(body);
       if (body?.data?.length) dayRows.push(...body.data);
       else break;
     }
@@ -221,6 +231,50 @@ export async function getCampaignInsights(
   }
 
   return rows;
+}
+
+/**
+ * Days in [since, until] on which the ad account delivered anything (Meta
+ * only returns insight rows for days with activity). Account level gives at
+ * most one row per day, so this is a few cheap requests; the range goes out
+ * in 92-day slices to stay well clear of wide-query truncation.
+ */
+export async function getActiveDays(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string
+): Promise<Set<string>> {
+  const days = eachDay(since, until);
+  const active = new Set<string>();
+  for (let i = 0; i < days.length; i += 92) {
+    const slice = days.slice(i, i + 92);
+    let body = await graphGet<{
+      data: Array<Record<string, unknown>>;
+      paging?: { next?: string };
+    }>(`/${adAccountId}/insights`, {
+      fields: "impressions,spend",
+      level: "account",
+      time_increment: "1",
+      time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
+      access_token: accessToken,
+      limit: "500",
+    });
+    const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
+    let guard = 0;
+    while (body.paging?.next && guard < 10) {
+      guard += 1;
+      const res = await fetch(body.paging.next, { cache: "no-store" });
+      body = await res.json();
+      throwOnPageError(body);
+      if (body?.data?.length) raw.push(...body.data);
+      else break;
+    }
+    for (const row of raw) {
+      if (row.date_start) active.add(String(row.date_start));
+    }
+  }
+  return active;
 }
 
 export interface MetaAdsetInsight {
@@ -285,8 +339,7 @@ export async function getAdsetInsights(
       const res = await fetch(body.paging.next, { cache: "no-store" });
       body = await res.json();
       // A failed page used to end the loop silently with partial data.
-      const pageErr = (body as { error?: { message?: string } })?.error;
-      if (pageErr) throw new Error(pageErr.message ?? "Meta Graph API paging error");
+      throwOnPageError(body);
       if (body?.data?.length) raw.push(...body.data);
       else break;
     }
@@ -421,6 +474,7 @@ async function fetchAdInsightRows(
     guard += 1;
     const res = await fetch(body.paging.next, { cache: "no-store" });
     body = await res.json();
+    throwOnPageError(body);
     if (body?.data?.length) rows.push(...body.data);
     else break;
   }

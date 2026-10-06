@@ -381,7 +381,7 @@ export default async function ClientsPage({
                           <li key={h.provider} className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-1.5 text-warning">
                               <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              <span className="truncate">
+                              <span className="truncate" title={h.lastError ?? undefined}>
                                 {h.label}:{" "}
                                 {h.tokenExpired ? "token wygasł" : "brak danych"}
                               </span>

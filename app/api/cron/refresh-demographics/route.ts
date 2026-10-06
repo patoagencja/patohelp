@@ -164,11 +164,29 @@ export async function GET(request: Request) {
   for (const clientId of clientIds) {
     const rows = rowsByClient.get(clientId) ?? [];
     if (rows.length === 0) continue;
-    await admin.from("demographics").delete().eq("client_id", clientId);
-    const { error } = await admin.from("demographics").insert(rows);
+    // Insert first, then drop everything older than the new rows. The old
+    // delete-then-insert left the client with NO demographics when the insert
+    // failed or the run died in between, and two overlapping runs (no unique
+    // key on this table) both inserted after both deleted - doubled values.
+    // One insert = one created_at, so the last run to insert wins.
+    const { data: inserted, error } = await admin
+      .from("demographics")
+      .insert(rows)
+      .select("created_at");
     if (error) {
       console.error("[cron/refresh-demographics] insert failed", error.message);
       continue;
+    }
+    const cutoff = inserted?.[0]?.created_at as string | undefined;
+    if (cutoff) {
+      const { error: delError } = await admin
+        .from("demographics")
+        .delete()
+        .eq("client_id", clientId)
+        .lt("created_at", cutoff);
+      if (delError) {
+        console.error("[cron/refresh-demographics] cleanup failed", delError.message);
+      }
     }
     processed += 1;
   }

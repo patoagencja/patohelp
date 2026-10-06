@@ -259,6 +259,14 @@ export async function IntegrationHealthBanner({
                 // tell them it's handled instead of showing dead links.
                 <>agencja widzi ten problem w swoim panelu.</>
               )}
+              {/* The raw provider error, for us only: "token wygasł" is a
+                  guess from keywords, and the actual message is what tells
+                  an expired token apart from a key/env/rate-limit problem. */}
+              {isAgency && h.lastError ? (
+                <span className="mt-0.5 block break-words text-xs text-muted-foreground">
+                  Błąd: {h.lastError.length > 300 ? `${h.lastError.slice(0, 300)}…` : h.lastError}
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>

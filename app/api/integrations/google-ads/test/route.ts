@@ -4,6 +4,7 @@ import {
   loadIntegration,
   type GoogleAdsCredentials,
 } from "@/lib/integrations/credentials";
+import { connectionTestError } from "@/lib/integrations/errors";
 import { listAccessibleCustomers } from "@/lib/integrations/google-ads";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -22,11 +23,18 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const integration = await loadIntegration<GoogleAdsCredentials>(
-    admin,
-    access.clientId,
-    "google_ads"
-  );
+  let integration;
+  try {
+    integration = await loadIntegration<GoogleAdsCredentials>(
+      admin,
+      access.clientId,
+      "google_ads"
+    );
+  } catch (err) {
+    // Decrypt failures (ENCRYPTION_KEY mismatch) used to escape as a bare
+    // 500, which the button showed as a network error.
+    return NextResponse.json({ ok: false, error: connectionTestError(err) });
+  }
   if (!integration) {
     return NextResponse.json({ ok: false, error: "Brak integracji Google Ads" });
   }
@@ -40,10 +48,9 @@ export async function POST(request: Request) {
       accounts_count: accounts.length,
       sample: accounts.slice(0, 5).map((a) => a.name),
     });
-  } catch {
-    return NextResponse.json({
-      ok: false,
-      error: "Token wygasł lub został odwołany - połącz ponownie",
-    });
+  } catch (err) {
+    // Only a dead token is "token wygasł"; anything else (rate limit,
+    // missing env, network) shows its real message.
+    return NextResponse.json({ ok: false, error: connectionTestError(err) });
   }
 }

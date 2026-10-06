@@ -268,15 +268,6 @@ export async function GET(request: Request) {
         });
       }
 
-      // Replace this window's rows so refreshes stay idempotent (covers the
-      // 30-day backfill window on first sync).
-      await admin
-        .from("ga4_daily")
-        .delete()
-        .eq("client_id", integration.client_id)
-        .gte("date", dailyRange.startDate)
-        .lte("date", until);
-
       // Homogenize the batch: a PostgREST bulk insert unions the keys across
       // all objects and fills any a row is missing with an explicit NULL (not
       // the column default), so the revenue/transactions NOT NULL columns must
@@ -288,11 +279,33 @@ export async function GET(request: Request) {
         }
       }
 
+      // Replace this window's rows: INSERT the fresh rows first, then delete
+      // everything in the window written before them. ga4_daily has no
+      // unique key, so the old delete-then-insert (a) lost the whole window
+      // (up to a year) when a run died or the insert failed in between, and
+      // (b) doubled every number when two runs overlapped (cron + Odśwież:
+      // A deletes, B deletes, A inserts, B inserts). A single insert stamps
+      // all its rows with one created_at (transaction time), so "older than
+      // my rows" removes the previous data and any overlapping run's copy -
+      // whichever run inserted last wins.
+      let cutoff = new Date().toISOString();
       if (rows.length) {
-        const { error } = await admin.from("ga4_daily").insert(rows);
+        const { data: inserted, error } = await admin
+          .from("ga4_daily")
+          .insert(rows)
+          .select("created_at");
         if (error) throw new Error(error.message);
+        if (inserted?.[0]?.created_at) cutoff = inserted[0].created_at as string;
         rowsUpserted += rows.length;
       }
+      const { error: delError } = await admin
+        .from("ga4_daily")
+        .delete()
+        .eq("client_id", integration.client_id)
+        .gte("date", dailyRange.startDate)
+        .lte("date", until)
+        .lt("created_at", cutoff);
+      if (delError) throw new Error(delError.message);
 
       // Per-SKU sales for the same window (e-commerce properties only return
       // rows here; engagement properties yield nothing). Failures are logged

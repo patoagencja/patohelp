@@ -5,9 +5,10 @@ import { NextResponse } from "next/server";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
-import { hasClicksAllColumn, metaClickColumns } from "@/lib/integrations/link-clicks";
+import { hasClicksAllColumnStrict, metaClickColumns } from "@/lib/integrations/link-clicks";
 import {
   extractConversions,
+  getActiveDays,
   getCampaignInsights,
 } from "@/lib/integrations/meta-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,6 +22,13 @@ export const maxDuration = 300;
 
 const WARSAW_TZ = "Europe/Warsaw";
 
+// No new BACKFILL batch starts after this much wall time. Fresh days
+// (yesterday+today) always run for every client. Without a budget a long
+// backfill ran into maxDuration: the function was killed, its sync_runs row
+// stayed "running" forever and the clients after it in the loop got nothing.
+// It also stays under the scheduler's 90s curl timeout, which otherwise
+// counted the run as failed and fired a second, overlapping one.
+const BACKFILL_BUDGET_MS = 60_000;
 
 interface MetaAccount {
   id: string;
@@ -168,7 +176,16 @@ export async function GET(request: Request) {
 
   // Migration 0034: with clicks_all, `clicks` holds LINK clicks. Probed once
   // per run; without it rows are written exactly as before (all clicks).
-  const withClicksAll = await hasClicksAllColumn(admin, "ads_daily");
+  // Strict: a transient probe error must not flip the write shape mid-history.
+  let withClicksAll: boolean;
+  try {
+    withClicksAll = await hasClicksAllColumnStrict(admin, "ads_daily");
+  } catch (probeErr) {
+    return NextResponse.json(
+      { ok: false, error: describeError(probeErr) },
+      { status: 503 }
+    );
+  }
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
@@ -210,8 +227,8 @@ export async function GET(request: Request) {
         "meta_ads",
         windowStart
       );
-      // Cap historical work per run so a year-long backfill lands within the
-      // 300s budget; successive runs (hourly cron / manual refresh) continue.
+      // Cap historical work per run (BACKFILL_BUDGET_MS cuts it shorter on big
+      // accounts); successive runs (cron / manual refresh) continue.
       const MAX_BACKFILL_PER_RUN = 150;
       // One-time history re-pull after migration 0034: days whose rows still
       // carry clicks (all) count as missing, newest first, within the same
@@ -225,21 +242,52 @@ export async function GET(request: Request) {
             MAX_BACKFILL_PER_RUN
           )
         : new Set<string>();
-      const backfill = eachDay(
-        windowStart,
-        formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd")
-      )
-        .filter((d) => !present.has(d) || stale.has(d))
-        .reverse()
-        .slice(0, MAX_BACKFILL_PER_RUN);
-      staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
-      const dayList: string[] = [...eachDay(since, until), ...backfill];
+      const backfillEnd = formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd");
+      let candidates = eachDay(windowStart, backfillEnd).filter(
+        (d) => !present.has(d) || stale.has(d)
+      );
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).
       const accounts = (
         (integration.account_ids ?? []) as MetaAccount[]
       ).filter((a) => a.selected === true);
+
+      // A day with no rows is either a hole or a day with no delivery at all
+      // (history shorter than a year, a paused month). The latter used to be
+      // re-pulled on EVERY run, forever - up to 150 empty requests per
+      // account per run, starving real backfill. Ask Meta once which days had
+      // any delivery and only treat those as missing. Unknown (call failed)
+      // -> keep the old behaviour.
+      if (
+        candidates.some((d) => !stale.has(d)) &&
+        accounts.length &&
+        Date.now() - startedAt <= BACKFILL_BUDGET_MS
+      ) {
+        try {
+          const active = new Set<string>();
+          for (const account of accounts) {
+            const days = await getActiveDays(
+              access_token,
+              account.id,
+              candidates[0],
+              backfillEnd
+            );
+            days.forEach((d) => active.add(d));
+          }
+          candidates = candidates.filter((d) => stale.has(d) || active.has(d));
+        } catch (activeErr) {
+          console.warn(
+            "[cron/refresh-ads-meta] active-day probe failed, backfilling every missing day",
+            describeError(activeErr)
+          );
+        }
+      }
+
+      const backfill = candidates.reverse().slice(0, MAX_BACKFILL_PER_RUN);
+      staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
+      const freshDays = eachDay(since, until);
+      const dayList: string[] = [...freshDays, ...backfill];
 
       const accountErrors: string[] = [];
       // Per-integration count: campaignsUpserted spans every client, so it
@@ -255,6 +303,11 @@ export async function GET(request: Request) {
           // persists even if the function is killed mid-backfill.
           const CONCURRENCY = 4;
           for (let i = 0; i < dayList.length; i += CONCURRENCY) {
+            // Past the budget only the fresh days (first batch) still run;
+            // the remaining backfill continues on the next tick.
+            if (i >= freshDays.length && Date.now() - startedAt > BACKFILL_BUDGET_MS) {
+              break;
+            }
             const batch = dayList.slice(i, i + CONCURRENCY);
             const results = await Promise.all(
               batch.map(async (day) => ({

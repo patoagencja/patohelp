@@ -108,8 +108,35 @@ export async function listAdvertisers(
   return ids.map((id) => ({ id, name: named.get(id) ?? id }));
 }
 
-/** Daily campaign metrics for [since, until] via the integrated report. */
+/** yyyy-MM-dd plus n days (UTC date arithmetic on a calendar date). */
+function addDays(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Daily campaign metrics for [since, until] via the integrated report.
+ * TikTok caps a stat_time_day report at 30 days, so the cron's 92-day
+ * backfill would be rejected as one request - and since nothing was ever
+ * written, every run retried the same backfill and failed again. Query in
+ * 30-day slices instead.
+ */
 export async function getCampaignMetrics(
+  accessToken: string,
+  advertiserId: string,
+  since: string,
+  until: string
+): Promise<TikTokCampaignMetric[]> {
+  const rows: TikTokCampaignMetric[] = [];
+  for (let start = since; start <= until; start = addDays(start, 30)) {
+    const end = addDays(start, 29) < until ? addDays(start, 29) : until;
+    rows.push(...(await getCampaignMetricsSlice(accessToken, advertiserId, start, end)));
+  }
+  return rows;
+}
+
+async function getCampaignMetricsSlice(
   accessToken: string,
   advertiserId: string,
   since: string,

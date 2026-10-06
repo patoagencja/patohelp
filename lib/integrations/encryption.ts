@@ -60,8 +60,21 @@ export function decrypt(payload: string): string {
   const decipher = createDecipheriv(ALGORITHM, getKey(), iv);
   decipher.setAuthTag(authTag);
 
-  return Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]).toString("utf8");
+  try {
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    // Node's own message ("Unsupported state or unable to authenticate data")
+    // lands in sync_runs and reads like an API/token failure on EVERY
+    // provider at once. The real cause is almost always an ENCRYPTION_KEY that
+    // differs from the one the credentials were saved with (rotated key,
+    // another environment writing to the same DB) - say so.
+    throw new Error(
+      "Nie można odszyfrować zapisanych danych logowania - ENCRYPTION_KEY " +
+        "różni się od klucza, którym je zapisano (połącz integrację ponownie " +
+        "albo przywróć poprzedni klucz)."
+    );
+  }
 }

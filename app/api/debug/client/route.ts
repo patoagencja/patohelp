@@ -53,9 +53,20 @@ export async function GET(request: Request) {
 
   const cid = access.clientId;
 
+  // ?ecom=1 / ?run=1 mutate on a GET, and Lax session cookies ride along on a
+  // top-level navigation from another site - so a link sent to an agency user
+  // could flip an engagement client to e-commerce (revenue/ROAS shown to a
+  // client that must never see it). Only honour them when typed/bookmarked
+  // ("none") or clicked inside the app ("same-origin").
+  const fetchSite = request.headers.get("sec-fetch-site");
+  const mutationsAllowed = !fetchSite || fetchSite === "none" || fetchSite === "same-origin";
+  const blockedNote = mutationsAllowed
+    ? ""
+    : `<div style="background:#fee;padding:10px;border-radius:8px;margin:12px 0">Zmiany (ecom=1 / run=1) działają tylko po wklejeniu adresu w pasek przeglądarki, nie z linku z innej strony.</div>`;
+
   // Optional: flag this client as e-commerce (needs migration 0016 columns).
   let ecomReport = "";
-  if (new URL(request.url).searchParams.get("ecom") === "1") {
+  if (mutationsAllowed && new URL(request.url).searchParams.get("ecom") === "1") {
     const { error } = await admin
       .from("clients")
       .update({ client_type: "ecommerce" })
@@ -95,7 +106,7 @@ export async function GET(request: Request) {
   // Optional: actually TRIGGER the sync for this client (server-side, with the
   // CRON_SECRET, using this request's own origin) - bypasses the UI button.
   let runReport = "";
-  if (new URL(request.url).searchParams.get("run") === "1") {
+  if (mutationsAllowed && new URL(request.url).searchParams.get("run") === "1") {
     const origin = new URL(request.url).origin;
     const secret = process.env.CRON_SECRET;
     if (!secret) {
@@ -231,7 +242,7 @@ export async function GET(request: Request) {
 
   return html(`
     <h1 style="font-size:20px">Diagnostyka klienta: ${esc(slug)}</h1>
-    ${ecomReport}
+    ${blockedNote}${ecomReport}
     <h2 style="font-size:15px;margin-top:20px">E-commerce</h2>
     <ul>
       <li>client_type: <b>${esc(clientType)}</b></li>
