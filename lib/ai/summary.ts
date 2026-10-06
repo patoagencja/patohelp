@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
@@ -45,11 +46,18 @@ export async function generateWeeklySummary(
   admin: SupabaseClient,
   clientId: string
 ): Promise<string> {
-  const now = new Date();
-  const end = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
-  const start = formatInTimeZone(subDays(now, 6), WARSAW_TZ, "yyyy-MM-dd");
-  const prevEnd = formatInTimeZone(subDays(now, 7), WARSAW_TZ, "yyyy-MM-dd");
-  const prevStart = formatInTimeZone(subDays(now, 13), WARSAW_TZ, "yyyy-MM-dd");
+  // The last 7 COMPLETE Warsaw days vs the 7 before. The cron runs at
+  // ~6-7am Warsaw, so a window ending "today" held 6 full days plus an almost
+  // empty one against 7 full days: every summary opened with a ~14% "drop"
+  // in clicks/spend/visits that the panel didn't show. Date-string maths so
+  // DST days can't shift a boundary.
+  const today = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
+  const shift = (d: string, n: number) =>
+    new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const end = shift(today, -1);
+  const start = shift(end, -6);
+  const prevEnd = shift(end, -7);
+  const prevStart = shift(end, -13);
 
   const { data: clientRow } = await admin
     .from("clients")
@@ -60,15 +68,24 @@ export async function generateWeeklySummary(
   const isShop =
     (clientRow as { client_type?: string } | null)?.client_type === "ecommerce";
 
-  const [adsRes, ga4Res, eventsRes] = await Promise.all([
-    admin
-      .from("ads_daily")
-      .select(
-        "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions"
-      )
-      .eq("client_id", clientId)
-      .gte("date", prevStart)
-      .lte("date", end),
+  const [adsRows, ga4Res, eventsRes] = await Promise.all([
+    // Paginated: 14 days x every campaign of 3 Google accounts + Meta passes
+    // PostgREST's silent 1000-row cap, and the summary then quoted truncated
+    // totals that contradicted the KPI cards.
+    fetchAll<Record<string, unknown>>((from, to) =>
+      admin
+        .from("ads_daily")
+        .select(
+          "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions"
+        )
+        .eq("client_id", clientId)
+        .gte("date", prevStart)
+        .lte("date", end)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ),
     admin
       .from("ga4_daily")
       .select(isShop ? "date, sessions, revenue_minor_units, transactions" : "date, sessions")
@@ -94,7 +111,7 @@ export async function generateWeeklySummary(
     })(),
   ]);
 
-  const rows = adsRes.data ?? [];
+  const rows = adsRows;
   const inCur = (d: string) => d >= start && d <= end;
   const inPrev = (d: string) => d >= prevStart && d <= prevEnd;
 

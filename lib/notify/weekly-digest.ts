@@ -178,7 +178,10 @@ export async function loadWeeklyDigest(
     records,
     spendMinorUnits: kpis.spendMinorUnits.value,
     prevSpendMinorUnits: kpis.spendMinorUnits.previous,
-    dashboardUrl: `${appUrl.replace(/\/+$/, "")}/${client.slug}`,
+    // Open the panel on the very week the e-mail describes (same custom range,
+    // same previous-week baseline). The default "last 30 days" view showed
+    // different totals, so the e-mail looked wrong next to the panel.
+    dashboardUrl: `${appUrl.replace(/\/+$/, "")}/${client.slug}?from=${week.start}&to=${week.end}`,
     agencyWork,
   };
 }

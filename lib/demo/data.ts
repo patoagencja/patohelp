@@ -302,7 +302,14 @@ export function getDemoDashboard(
   const dayOfMonth = today.getDate();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const budgetMinor = 5000000;
-  const spentMinor = Math.round(budgetMinor * (dayOfMonth / daysInMonth) * 0.94);
+  // Month-to-date spend from the same trend the KPI cards and chart use (the
+  // real card sums ads_daily the same way); an invented figure didn't match
+  // the chart's own daily spend for this month. Pace stays "ok": the demo
+  // trend runs ~48k zł/month against this 50k zł budget.
+  const monthStart = format(today, "yyyy-MM-01");
+  const spentMinor = trend
+    .filter((p) => p.date >= monthStart)
+    .reduce((a, p) => a + p.spendMinorUnits, 0);
   const budget: BudgetStatus = {
     hasBudget: true,
     budgetMinorUnits: budgetMinor,
@@ -322,8 +329,9 @@ export function getDemoDashboard(
       ? "Campaign traffic is growing this week - clicks are up 16% versus the previous period and CTR stays above average. The best performers are the video campaign „Install guide” and retargeting. GA4 sessions grow mainly from paid and organic Google traffic. Recommendation: shift some budget to the top video creatives and keep retargeting running."
       : "W tym tygodniu ruch z kampanii rośnie - liczba kliknięć wzrosła o 16% względem poprzedniego okresu, a klikalność reklam utrzymuje się powyżej średniej. Najlepiej działa film „Poradnik montażu” oraz reklamy przypominające ofertę osobom, które już były na stronie. Wizyt na stronie przybywa głównie z reklam i z bezpłatnych wyników Google. Warto omówić przesunięcie części budżetu na najlepsze filmy.",
     generatedAt: today.toISOString(),
-    periodStart: format(subDays(today, 6), "yyyy-MM-dd"),
-    periodEnd: format(today, "yyyy-MM-dd"),
+    // Same window as the real cron: the last 7 complete days.
+    periodStart: format(subDays(today, 7), "yyyy-MM-dd"),
+    periodEnd: format(subDays(today, 1), "yyyy-MM-dd"),
   };
 
   return {

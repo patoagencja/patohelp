@@ -2,6 +2,8 @@ import { format, getDaysInMonth, startOfMonth, subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { fetchAll } from "@/lib/supabase/fetch-all";
+
 const WARSAW_TZ = "Europe/Warsaw";
 
 export interface AlertCandidate {
@@ -32,14 +34,23 @@ export async function evaluateAlerts(
   const baselineEnd = format(subDays(today, 3), "yyyy-MM-dd");
   const monthStart = format(startOfMonth(today), "yyyy-MM-dd");
 
-  const [adsRes, budgetRes, monthSpendRes] = await Promise.all([
-    admin
-      .from("ads_daily")
-      .select(
-        "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, frequency"
-      )
-      .eq("client_id", clientId)
-      .gte("date", start21),
+  // Both ads_daily reads paginated (stable order): unpaged they stop at
+  // PostgREST's silent 1000-row cap, so the "Wydano X z Y" budget text
+  // disagreed with the budget card for large accounts.
+  const [rows, budgetRes, monthSpendRows] = await Promise.all([
+    fetchAll<Record<string, unknown>>((from, to) =>
+      admin
+        .from("ads_daily")
+        .select(
+          "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, frequency"
+        )
+        .eq("client_id", clientId)
+        .gte("date", start21)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ),
     admin
       .from("client_budgets")
       .select("budget_minor_units")
@@ -47,14 +58,19 @@ export async function evaluateAlerts(
       .eq("month", monthStart)
       .eq("platform", "total")
       .maybeSingle(),
-    admin
-      .from("ads_daily")
-      .select("spend_minor_units")
-      .eq("client_id", clientId)
-      .gte("date", monthStart),
+    fetchAll<Record<string, unknown>>((from, to) =>
+      admin
+        .from("ads_daily")
+        .select("spend_minor_units")
+        .eq("client_id", clientId)
+        .gte("date", monthStart)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ),
   ]);
 
-  const rows = adsRes.data ?? [];
   const alerts: AlertCandidate[] = [];
 
   interface Camp {
@@ -200,7 +216,7 @@ export async function evaluateAlerts(
   // Budget pace.
   const budget = Number(budgetRes.data?.budget_minor_units ?? 0);
   if (budget > 0) {
-    const spent = (monthSpendRes.data ?? []).reduce(
+    const spent = monthSpendRows.reduce(
       (sum, r) => sum + Number(r.spend_minor_units),
       0
     );

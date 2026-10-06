@@ -21,7 +21,7 @@ import {
 } from "@/lib/dashboard/chart-events";
 import type { TrendPoint } from "@/lib/dashboard/metrics";
 import type { ClientEvent } from "@/lib/dashboard/overview";
-import { cn } from "@/lib/utils";
+import { cn, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 type MetricKey = "spend" | "sessions" | "clicks" | "conversions";
 type Lang = "pl" | "en";
@@ -131,7 +131,14 @@ function compact(v: number, money: boolean): string {
 }
 
 function full(v: number, money: boolean, lang: Lang): string {
-  const locale = lang === "en" ? "en-GB" : "pl-PL";
+  // Polish goes through the shared formatters: Intl pl-PL leaves 4-digit
+  // numbers ungrouped, so the takeaway read "Kliknięcia: 9868" while the KPI
+  // card above showed "9 868" for the same total.
+  if (lang === "pl") {
+    if (!money) return formatNumberPL(v);
+    return Math.abs(v) < 100 ? formatMoneyPLN(v * 100) : formatPlnWhole(v * 100);
+  }
+  const locale = "en-GB";
   if (money)
     return v.toLocaleString(locale, {
       style: "currency",

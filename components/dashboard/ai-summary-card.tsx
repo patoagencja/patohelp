@@ -4,6 +4,9 @@ import { Sparkles } from "lucide-react";
 import type { AiSummary } from "@/lib/dashboard/overview";
 import { formatDateWarsaw } from "@/lib/utils";
 
+/** "2026-09-29" -> "29.09" (period dates are already Warsaw days). */
+const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+
 export function AiSummaryCard({
   summary,
   lang = "pl",
@@ -28,6 +31,12 @@ export function AiSummaryCard({
               <p className="mt-2 text-xs text-muted-foreground">
                 {en ? "Generated" : "Wygenerowano"}{" "}
                 {formatDateWarsaw(summary.generatedAt, "d MMM yyyy, HH:mm")}
+                {/* Its own fixed 7-day window, not the range picked above -
+                    say which days, or its numbers look like they contradict
+                    the cards. */}
+                {summary.periodStart && summary.periodEnd
+                  ? ` · ${en ? "data" : "dane"} ${ddmm(summary.periodStart)}–${ddmm(summary.periodEnd)}`
+                  : null}
               </p>
             </>
           ) : (

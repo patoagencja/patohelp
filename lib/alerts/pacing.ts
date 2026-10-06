@@ -2,6 +2,7 @@ import { differenceInCalendarDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
@@ -59,14 +60,23 @@ export async function getPacing(clientId: string): Promise<PacingFlight[]> {
     (min, f) => ((f.start_date as string) < min ? (f.start_date as string) : min),
     flights[0].start_date as string
   );
-  const { data: rows } = await admin
-    .from("ads_daily")
-    .select("campaign_id, date, spend_minor_units, clicks, impressions, conversions")
-    .eq("client_id", clientId)
-    .gte("date", earliestStart)
-    .lte("date", todayStr);
-
-  const ads = rows ?? [];
+  // Only the flights' campaigns, paginated: every campaign since the earliest
+  // flight start passes PostgREST's silent 1000-row cap within weeks, which
+  // undercounted "realized" and painted on-track rings as "behind".
+  const campaignIds = Array.from(new Set(flights.map((f) => f.campaign_id as string)));
+  const ads = await fetchAll<Record<string, unknown>>((from, to) =>
+    admin
+      .from("ads_daily")
+      .select("provider, campaign_id, date, spend_minor_units, clicks, impressions, conversions")
+      .eq("client_id", clientId)
+      .in("campaign_id", campaignIds)
+      .gte("date", earliestStart)
+      .lte("date", todayStr)
+      .order("date", { ascending: true })
+      .order("provider", { ascending: true })
+      .order("campaign_id", { ascending: true })
+      .range(from, to)
+  );
 
   return flights.map((f) => {
     const metric = f.target_metric as FlightMetric;
