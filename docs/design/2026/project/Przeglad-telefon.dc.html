@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Przegląd – telefon</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+.ph{--bg:#F3F2EE;--surface:#FFFFFF;--surface-2:#F7F6F2;--sunken:#ECEBE6;--ink:#16171A;--ink-2:#4B4D53;--ink-3:#6A6C72;--line:#E7E5DF;--line-2:#CFCDC6;--sel:#16171A;--sel-ink:#FFFFFF;--lime:#9FD545;--lime-soft:#E9F5D6;--green-ink:#2B6B1F;--red-soft:#FBE4DF;--red-ink:#B2321E;--amber:#E39B2E;--amber-soft:#FCEFD9;--amber-ink:#875309;--ai-a:#EFEBFB;--ai-b:#FBEDF3;--ai-ink:#5B41AD;--c-line:#4F8A2E;--c-prev:#A9AAA3;--shadow:0 1px 2px rgba(30,28,20,.04),0 10px 28px -14px rgba(30,28,20,.12);--shadow-float:0 1px 1px rgba(30,28,20,.04),0 18px 40px -16px rgba(30,28,20,.28);--stripe:repeating-linear-gradient(-45deg,#9FD545 0 5px,#BCE476 5px 10px);--stripe-amber:repeating-linear-gradient(-45deg,#E39B2E 0 5px,#EEB862 5px 10px);position:relative;width:390px;height:2140px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.ph *{box-sizing:border-box}
+.aur{position:absolute;left:0;right:0;top:0;height:460px;background:radial-gradient(90% 70% at 10% 0%,rgba(159,213,69,.42),transparent 70%),radial-gradient(70% 60% at 95% 0%,rgba(229,72,47,.18),transparent 70%)}
+.glass{background:rgba(255,255,255,.66);border:1px solid rgba(255,255,255,.85);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);box-shadow:var(--shadow-float)}
+.ib{width:44px;height:44px;flex:none;border-radius:50%;border:0;background:var(--surface);color:var(--ink);display:grid;place-items:center;position:relative;box-shadow:var(--shadow)}
+.ib.ghost{background:transparent;box-shadow:none}
+.ib.dark{background:var(--sel);color:var(--sel-ink)}
+.badge{position:absolute;top:2px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#D23B26;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid var(--surface)}
+.card{background:var(--surface);border-radius:26px;box-shadow:var(--shadow);padding:20px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;font-size:13px;font-weight:600}
+.h2{margin:0;font-size:18px;font-weight:600;letter-spacing:-.015em}
+.cap{margin:0;font-size:13px;color:var(--ink-3)}
+.seg{display:flex;gap:2px;padding:4px;border-radius:999px;background:var(--sunken);overflow-x:auto;scrollbar-width:none}
+.seg button{flex:none;min-height:44px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font:inherit;font-size:14px;font-weight:500}
+.seg button.on{background:var(--sel);color:var(--sel-ink)}
+.kpi{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:22px;background:var(--surface);box-shadow:var(--shadow)}
+.kpi.on{background:var(--sel);color:var(--sel-ink)}
+.kpi.on .lbl,.kpi.on .cmp{color:inherit;opacity:.72}
+.kpi.on .pill{background:rgba(255,255,255,.14);color:inherit}
+.lbl{font-size:13px;color:var(--ink-3)}
+.num{font-size:28px;line-height:1;font-weight:500;letter-spacing:-.04em}
+.pill{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 7px 0 5px;border-radius:999px;font-size:12px;font-weight:600;align-self:flex-start}
+.pill.good{background:var(--lime-soft);color:var(--green-ink)}
+.pill.flat{background:var(--sunken);color:var(--ink-2)}
+.cmp{font-size:12px;color:var(--ink-3)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.st i{width:8px;height:8px;border-radius:50%;background:var(--lime)}
+.st.warn i{background:var(--amber)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--sunken);font-size:12px;font-weight:600;color:var(--ink-2)}
+.bar{position:relative;height:10px;border-radius:999px;background:var(--sunken)}
+.bar .f{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--stripe)}
+.bar .f.am{background:var(--stripe-amber)}
+.bar .t{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
+.row{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:56px;min-height:52px;border-radius:999px;font-size:11px;font-weight:500;color:var(--ink-2);text-decoration:none}
+.tab.on{background:var(--sel);color:var(--sel-ink);min-width:72px}
+</style>
+</helmet>
+<div class="ph">
+<div class="aur"></div>
+<header class="glass" style="position: absolute; top: 10px; left: 12px; right: 12px; z-index: 5; height: 60px; border-radius: 999px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 16px">
+<svg width="24" height="24" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="16" r="10" fill="#E5482F"></circle><path d="M14 7c-2-3-5-2.5-6.5-.5 2.2 0 4.3.8 6.5 2 2.2-1.2 4.3-2 6.5-2C19 4.5 16 4 14 7z" fill="#4C9A2A"></path></svg>
+<div style="display: flex; flex-direction: column; line-height: 1.15"><b style="font-size: 15px; font-weight: 600">Przegląd</b><span style="font-size: 11.5px; color: var(--ink-3); display: flex; align-items: center; gap: 5px"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3FA94D"></span>5 min temu</span></div>
+<span style="flex: 1"></span>
+<button class="ib" type="button" aria-label="Alerty: 3 nowe"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg><span class="badge">3</span></button>
+<button class="ib dark" type="button" aria-label="Prezentuj"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path><path d="M10.5 8l3.5 2-3.5 2z"></path></svg></button>
+</header>
+
+<div style="position: relative; padding: 96px 16px 140px; display: flex; flex-direction: column; gap: 16px">
+<div style="padding: 8px 4px 0">
+<h1 style="margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -.035em">Przegląd</h1>
+<p style="margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--ink-2)">Jak idą reklamy i strona – najważniejsze na jednym ekranie.</p>
+</div>
+<div class="seg" role="group" aria-label="Zakres dat"><button type="button">7 dni</button><button class="on" type="button">30 dni</button><button type="button">90 dni</button><button type="button">Ten miesiąc</button><button type="button">Poprzedni</button><button type="button">Własny</button></div>
+
+<section class="card" style="display: flex; flex-direction: column; gap: 16px">
+<span class="chip" style="align-self: flex-start; background: var(--red-soft); color: var(--red-ink)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg>Pilne: 2 rzeczy do sprawdzenia</span>
+<p style="margin: 0; font-size: 25px; line-height: 1.22; font-weight: 500; letter-spacing: -.03em; color: var(--ink-3)">Za <span style="color: var(--ink)">43 885 zł</span> reklamy przyciągnęły <span style="color: var(--ink)">46 320 kliknięć</span>, a strona miała <span style="color: var(--ink)">36 586 wizyt</span>.</p>
+<div style="border-radius: 18px; padding: 16px; background: linear-gradient(115deg, var(--ai-a), var(--ai-b)); display: flex; flex-direction: column; gap: 8px">
+<span style="display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 999px; background: var(--surface); color: var(--ai-ink); font-size: 13px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>Analiza AI</span>
+<span style="font-size: 12px; color: var(--ink-3)">Komentarz tygodnia · 29.09–05.10</span>
+<p style="margin: 0; font-size: 15px; line-height: 1.55">W tym tygodniu ruch z kampanii rośnie – liczba kliknięć wzrosła o <span style="padding: 0 5px; border-radius: 6px; background: var(--surface); color: var(--ai-ink); font-weight: 600">16%</span> względem poprzedniego okresu…</p>
+<a href="#" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; font-weight: 600; color: var(--ai-ink); text-decoration: none">Czytaj dalej</a>
+</div>
+<a href="Alerty.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 10px 10px 12px; border-radius: 18px; background: var(--red-soft); text-decoration: none">
+<span style="width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--red-ink)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg></span>
+<span style="flex: 1; font-size: 14px; line-height: 1.35"><b>Skok wydatków dziś: 1 809 zł</b><br><span style="color: var(--ink-2)">PMAX | Ruch · Google · i jeszcze 1</span></span>
+<span style="width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--surface)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></span>
+</a>
+</section>
+
+<p class="cap" style="padding: 4px 4px 0">Zmiany vs poprzednie 30 dni. Dotknij kafelka, by zobaczyć go na wykresie.</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<button class="kpi on" type="button" aria-pressed="true"><span class="lbl">Wydatki</span><span class="num">43 885 zł</span><span class="pill flat"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>11%</span><span class="cmp">więcej niż wcześniej</span></button>
+<button class="kpi" type="button" aria-pressed="false"><span class="lbl">Kliknięcia</span><span class="num">46 320</span><span class="pill good"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>16%</span><span class="cmp">więcej niż wcześniej</span></button>
+<button class="kpi" type="button" aria-pressed="false"><span class="lbl">Wizyty na stronie</span><span class="num">36 586</span><span class="pill good"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>20%</span><span class="cmp">więcej niż wcześniej</span></button>
+<button class="kpi" type="button" aria-pressed="false"><span class="lbl">Koszt kliknięcia</span><span class="num">0,95 zł</span><span class="pill good"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10M17 9v8H9"></path></svg>7%</span><span class="cmp">taniej niż wcześniej</span></button>
+</div>
+
+<section class="card">
+<h2 class="h2">Wydatki – 30 dni</h2>
+<p class="cap" style="margin-top: 4px; color: var(--ink-2)"><b style="color: var(--ink)">43 885 zł</b> – o 11% więcej niż wcześniej</p>
+<div style="position: relative; height: 170px; margin-top: 18px">
+<svg width="100%" height="100%" viewBox="0 0 350 170" preserveAspectRatio="none" style="position: absolute; inset: 0; overflow: visible" aria-hidden="true">
+<defs><linearGradient id="pga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4F8A2E" stop-opacity=".26"></stop><stop offset="1" stop-color="#4F8A2E" stop-opacity="0"></stop></linearGradient></defs>
+<line x1="0" y1="0.5" x2="350" y2="0.5" stroke="#E7E5DF"></line><line x1="0" y1="85" x2="350" y2="85" stroke="#E7E5DF"></line><line x1="0" y1="169.5" x2="350" y2="169.5" stroke="#E7E5DF"></line>
+<path d="{{area}}" fill="url(#pga)"></path>
+<path d="{{prev}}" fill="none" stroke="#A9AAA3" stroke-width="1.5" stroke-dasharray="4 4"></path>
+<path d="{{line}}" fill="none" stroke="#4F8A2E" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></path>
+</svg>
+<span style="position: absolute; left: 0; top: -8px; font-size: 11px; color: var(--ink-3); background: var(--surface); padding-right: 4px">2 tys. zł</span>
+<span style="position: absolute; left: 0; top: 77px; font-size: 11px; color: var(--ink-3); background: var(--surface); padding-right: 4px">1 tys. zł</span>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-3); margin-top: 8px"><span>07.09</span><span>17.09</span><span>27.09</span><span>dziś</span></div>
+</section>
+
+<section class="card" style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 class="h2">Plan miesiąca</h2><span class="cap">dzień 6 z 31</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between; font-size: 14px"><b style="font-weight: 600">Budżet</b><span style="color: var(--green-ink); font-weight: 600">18%</span></div><div class="bar"><span class="f" style="width: 18%"></span><span class="t" style="left: 18%"></span></div><div style="display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-3)"><span>9 216 z 50 000 zł</span><span class="st"><i></i>zgodnie z planem</span></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between; font-size: 14px"><b style="font-weight: 600">Wizyty na stronie</b><span style="color: var(--green-ink); font-weight: 600">17%</span></div><div class="bar"><span class="f" style="width: 17%"></span><span class="t" style="left: 18%"></span></div><div style="display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-3)"><span>7 253 z 42 500</span><span class="st"><i></i>zgodnie z planem</span></div></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><div style="display: flex; justify-content: space-between; font-size: 14px"><b style="font-weight: 600">Kliknięcia w reklamy</b><span style="color: var(--amber-ink); font-weight: 600">14%</span></div><div class="bar"><span class="f am" style="width: 14%"></span><span class="t" style="left: 18%"></span></div><div style="display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink-3)"><span>8 093 z 56 500</span><span class="st warn"><i></i>poniżej tempa</span></div></div>
+</section>
+
+<section class="card" style="padding-bottom: 8px">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px"><h2 class="h2">Najważniejsze kampanie</h2><a href="Reklamy.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; font-weight: 600; text-decoration: none">Wszystkie</a></div>
+<div class="row"><div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 500">BRAND | Świadomość | Reach</div><div style="display: flex; gap: 8px; margin-top: 6px"><span class="tag">Meta</span><span class="st"><i></i>Działa dobrze</span></div></div><div style="text-align: right"><b style="font-size: 15px">8 777 zł</b><div class="cap" style="font-size: 12px">9 705 klik.</div></div></div>
+<div class="row"><div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 500">TRAFFIC | Ruch na stronę</div><div style="display: flex; gap: 8px; margin-top: 6px"><span class="tag">Meta</span><span class="st"><i></i>Działa dobrze</span></div></div><div style="text-align: right"><b style="font-size: 15px">7 460 zł</b><div class="cap" style="font-size: 12px">7 973 klik.</div></div></div>
+<div class="row"><div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 500">SEARCH | Generyczne</div><div style="display: flex; gap: 8px; margin-top: 6px"><span class="tag">Google</span><span class="st"><i></i>Działa dobrze</span></div></div><div style="text-align: right"><b style="font-size: 15px">7 022 zł</b><div class="cap" style="font-size: 12px">7 882 klik.</div></div></div>
+<div class="row"><div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 500">PMAX | Ruch</div><div style="display: flex; gap: 8px; margin-top: 6px"><span class="tag">Google</span><span class="st warn"><i></i>Do obejrzenia</span></div></div><div style="text-align: right"><b style="font-size: 15px">5 705 zł</b><div class="cap" style="font-size: 12px">6 533 klik.</div></div></div>
+<div class="row"><div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 500">ENGAGEMENT | Instagram</div><div style="display: flex; gap: 8px; margin-top: 6px"><span class="tag">Meta</span><span class="st"><i></i>Działa dobrze</span></div></div><div style="text-align: right"><b style="font-size: 15px">4 827 zł</b><div class="cap" style="font-size: 12px">5 114 klik.</div></div></div>
+</section>
+
+<button type="button" style="all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 18px 16px 18px 20px; border-radius: 24px; background: var(--surface); box-shadow: var(--shadow)">
+<span style="flex: 1"><b style="display: block; font-size: 16px; font-weight: 600">Pokaż szczegóły</b><span style="font-size: 13px; color: var(--ink-3)">Dobre wiadomości, rekordy, co zrobiliśmy</span></span>
+<span style="width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--sunken)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+</button>
+</div>
+
+<nav class="glass" aria-label="Zakładki" style="position: absolute; left: 14px; right: 14px; bottom: 24px; z-index: 6; height: 68px; border-radius: 999px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px">
+<a class="tab on" href="Main.dc.html" aria-current="page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect></svg>Przegląd</a>
+<a class="tab" href="Sprzedaz.dc.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6L5 8z"></path><path d="M9 8V6a3 3 0 0 1 6 0v2"></path></svg>Sprzedaż</a>
+<a class="tab" href="Reklamy.dc.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l7 4V6l-7 4H3z"></path><path d="M17 9a4 4 0 0 1 0 6"></path></svg>Reklamy</a>
+<a class="tab" href="Strona-www.dc.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg>Strona</a>
+<a class="tab" href="Alerty.dc.html"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg>Więcej</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2140}}'>
+class Component extends DCLogic {
+  path(vals, max, W, H) { const n = vals.length - 1; return vals.map((v, i) => (i ? 'L' : 'M') + (i * W / n).toFixed(1) + ' ' + (H - v / max * H).toFixed(1)).join(' '); }
+  renderVals() {
+    const s = [1290,1420,1310,1380,1450,1220,1230,1590,1460,1480,1400,1310,1180,1520,1640,1490,1700,1630,1250,1260,1560,1610,1790,1590,1660,1230,1240,1840,1700,1809];
+    const pv = s.map((v, i) => Math.round(v * 0.89 + Math.sin(i * 1.7) * 85));
+    const line = this.path(s, 2000, 350, 170);
+    return { line, area: line + ' L350 170 L0 170 Z', prev: this.path(pv, 2000, 350, 170) };
+  }
+}
+</script>
+</body>
+</html>

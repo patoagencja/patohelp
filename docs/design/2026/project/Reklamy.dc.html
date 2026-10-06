@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Reklamy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F2EE}
+a{color:inherit}a:hover{color:inherit}
+.pd{--bg:#F3F2EE;--surface:#FFFFFF;--surface-2:#F7F6F2;--sunken:#ECEBE6;--hover:rgba(22,23,26,.05);--ink:#16171A;--ink-2:#4B4D53;--ink-3:#6A6C72;--line:#E7E5DF;--line-2:#CFCDC6;--sel:#16171A;--sel-ink:#FFFFFF;--on-sel-chip:rgba(255,255,255,.14);--on-sel-line:rgba(255,255,255,.14);--lime:#9FD545;--lime-soft:#E9F5D6;--green-ink:#2B6B1F;--red-soft:#FBE4DF;--red-ink:#B2321E;--danger:#C7381F;--amber:#E39B2E;--amber-soft:#FCEFD9;--amber-ink:#875309;--ai-a:#EFEBFB;--ai-b:#FBEDF3;--ai-ink:#5B41AD;--glass:rgba(255,255,255,.66);--glass-strong:rgba(255,255,255,.82);--glass-line:rgba(255,255,255,.85);--shadow:0 1px 2px rgba(30,28,20,.04),0 10px 28px -14px rgba(30,28,20,.12);--shadow-float:0 1px 1px rgba(30,28,20,.04),0 18px 40px -18px rgba(30,28,20,.22);--c-line:#4F8A2E;--c-prev:#A9AAA3;--c-google:#3D4C52;--stripe:repeating-linear-gradient(-45deg,#9FD545 0 5px,#BCE476 5px 10px);--stripe-amber:repeating-linear-gradient(-45deg,#E39B2E 0 5px,#EEB862 5px 10px);--aurora:radial-gradient(55% 90% at 12% -10%,rgba(159,213,69,.40),transparent 70%),radial-gradient(40% 70% at 78% -20%,rgba(229,72,47,.16),transparent 70%),radial-gradient(30% 60% at 48% -20%,rgba(214,226,120,.25),transparent 70%);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);background:var(--bg);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;min-height:100vh;position:relative;overflow-x:clip}
+.pd[data-theme=dark]{--bg:#0F100E;--surface:#1A1B18;--surface-2:#222320;--sunken:#2A2B27;--hover:rgba(255,255,255,.06);--ink:#F3F2EC;--ink-2:#C4C5BE;--ink-3:#9C9D96;--line:#2D2E2A;--line-2:#45463F;--sel:#F3F2EC;--sel-ink:#141513;--on-sel-chip:rgba(0,0,0,.07);--on-sel-line:rgba(0,0,0,.1);--lime:#A6DD4E;--lime-soft:rgba(166,221,78,.15);--green-ink:#B6E777;--red-soft:rgba(242,112,90,.15);--red-ink:#FF9B86;--danger:#E5543A;--amber:#E9A845;--amber-soft:rgba(233,168,69,.15);--amber-ink:#F3C373;--ai-a:#211D33;--ai-b:#2A1D29;--ai-ink:#C2B2F7;--glass:rgba(28,29,26,.62);--glass-strong:rgba(34,35,32,.85);--glass-line:rgba(255,255,255,.08);--shadow:inset 0 1px 0 rgba(255,255,255,.04),0 12px 30px -16px rgba(0,0,0,.7);--shadow-float:inset 0 1px 0 rgba(255,255,255,.06),0 20px 44px -18px rgba(0,0,0,.8);--c-line:#A6DD4E;--c-prev:#6E6F68;--c-google:#9DB0B6;--aurora:radial-gradient(55% 90% at 12% -10%,rgba(166,221,78,.20),transparent 70%),radial-gradient(40% 70% at 78% -20%,rgba(229,72,47,.14),transparent 70%)}
+.pd *{box-sizing:border-box}
+.aur{position:absolute;left:0;right:0;top:0;height:620px;pointer-events:none;background:var(--aurora)}
+.shell{position:relative;display:flex;flex-wrap:wrap;align-items:flex-start}
+.side{flex:1 1 248px;max-width:264px;padding:20px 14px;display:flex;flex-direction:column;gap:4px}
+.brand{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;margin-bottom:24px;font-weight:700;font-size:15px;letter-spacing:-.02em;text-decoration:none}
+.brand em{font-style:normal;color:#D63E25}
+.nav{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-radius:999px;font-size:15px;color:var(--ink-2);text-decoration:none;transition:background .2s}
+.nav:hover{background:var(--hover);color:var(--ink)}
+.nav.on{background:var(--sel);color:var(--sel-ink);font-weight:500}
+.nav.on:hover{color:var(--sel-ink)}
+.nav.subn{padding-left:46px;font-size:14px;min-height:40px}
+.nav .ld{margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--lime)}
+.main{flex:999 1 560px;min-width:0;padding:12px 32px 80px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.top{position:sticky;top:12px;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-height:60px;padding:8px 8px 8px 20px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);box-shadow:var(--shadow-float)}
+.crumb{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink-3)}
+.crumb b{color:var(--ink);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600}
+.chip.demo{background:var(--amber-soft);color:var(--amber-ink)}
+.upd{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3);margin-left:auto;padding-right:6px}
+.live{width:8px;height:8px;border-radius:50%;background:#3FA94D;box-shadow:0 0 0 4px rgba(63,169,77,.18)}
+.ib{width:44px;height:44px;flex:none;border-radius:50%;border:0;background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;position:relative;box-shadow:var(--shadow)}
+.ib.ghost{background:transparent;box-shadow:none}
+.badge{position:absolute;top:2px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#D23B26;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid var(--surface)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;border:0;font:inherit;font-size:15px;font-weight:500;cursor:pointer;text-decoration:none;white-space:nowrap;transition:transform .15s,background .2s}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--sel);color:var(--sel-ink)}
+.btn.sec{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.txt{background:transparent;color:var(--ink);padding:0 12px}
+.btn.dan{background:var(--danger);color:#fff}
+.btn.sm{min-height:36px;padding:0 14px;font-size:14px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:4px;border-radius:999px;background:var(--sunken)}
+.seg button{min-height:44px;padding:0 15px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font:inherit;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:var(--sel);color:var(--sel-ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg.xs button{min-height:36px;padding:0 11px;font-size:13px}
+.hdr{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-top:32px}
+.h1{margin:0;font-size:44px;line-height:1.05;font-weight:600;letter-spacing:-.035em}
+.lead{margin:8px 0 0;font-size:16px;color:var(--ink-2)}
+.card{background:var(--surface);border-radius:28px;box-shadow:var(--shadow);padding:28px}
+.h2{margin:0;font-size:19px;font-weight:600;letter-spacing:-.015em}
+.sub{margin:4px 0 0;font-size:14px;color:var(--ink-3);line-height:1.5;text-wrap:pretty}
+.cap{margin:0;font-size:14px;color:var(--ink-3)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:16px}
+.kpi{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:12px;padding:20px 22px;border-radius:24px;background:var(--surface);box-shadow:var(--shadow);color:var(--ink);transition:background .35s cubic-bezier(.2,.8,.2,1),color .35s,transform .2s cubic-bezier(.2,.8,.2,1)}
+.kpi:hover{transform:translateY(-2px)}
+.kpi:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.kpi.on{background:var(--sel);color:var(--sel-ink)}
+.kpi.on .lbl,.kpi.on .cmp,.kpi.on .yoy{color:inherit;opacity:.72}
+.kpi.on .yoy{border-color:var(--on-sel-line)}
+.kpi.on .pill.flat{background:var(--on-sel-chip);color:inherit}
+.kpi.on .sp-l{stroke:var(--lime)}
+.kpi.on .sp-d{fill:var(--lime)}
+.lbl{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-3)}
+.num{font-size:42px;line-height:1;font-weight:500;letter-spacing:-.045em}
+.num small{font-size:.5em;letter-spacing:-.01em;margin-left:3px}
+.pill{display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 8px 0 6px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+.pill.good{background:var(--lime-soft);color:var(--green-ink)}
+.pill.bad{background:var(--red-soft);color:var(--red-ink)}
+.pill.flat{background:var(--sunken);color:var(--ink-2)}
+.cmp{font-size:13px;color:var(--ink-3)}
+.yoy{font-size:12.5px;color:var(--ink-3);padding-top:12px;border-top:1px solid var(--line)}
+.sp-l{fill:none;stroke:var(--c-line);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.sp-d{fill:var(--c-line)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--sunken);font-size:12px;font-weight:600;color:var(--ink-2)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.st i{width:8px;height:8px;border-radius:50%;background:var(--lime)}
+.st.warn i{background:var(--amber)}
+.st.bad i{background:#E0533B}
+.tbl{overflow-x:auto;margin:0 -8px}
+.tr{display:grid;grid-template-columns:minmax(240px,1fr) 120px 110px 100px;align-items:center;gap:16px;padding:16px 8px;border-top:1px solid var(--line);min-width:600px}
+.tr.th{font-size:13px;color:var(--ink-3);padding:14px 8px 12px;border-top:0}
+.r{text-align:right}
+.cn{font-size:15px;font-weight:500}
+.cm{display:flex;gap:10px;margin-top:6px;align-items:center}
+.vb{font-weight:600;font-size:15px}
+.vm{color:var(--ink-2);font-size:15px}
+.ai{border-radius:20px;padding:20px 22px;background:linear-gradient(115deg,var(--ai-a),var(--ai-b));display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-start}
+.aichip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--surface);color:var(--ai-ink);font-size:13px;font-weight:600;box-shadow:var(--shadow);flex:none}
+.nchip{display:inline-block;padding:0 6px;border-radius:6px;background:var(--surface);color:var(--ai-ink);font-weight:600}
+.al{display:flex;flex-wrap:wrap;align-items:center;gap:12px;min-height:56px;padding:8px 8px 8px 12px;border-radius:18px;background:var(--red-soft);font-size:14px}
+.al .ic{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--red-ink)}
+.bar{position:relative;height:12px;border-radius:999px;background:var(--sunken)}
+.bar .f{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--stripe)}
+.bar .f.am{background:var(--stripe-amber)}
+.bar .t{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
+.lg{display:flex;flex-wrap:wrap;gap:8px}
+.lg span{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:999px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
+.lg i{width:14px;height:2px;border-radius:2px;background:var(--c-line)}
+.lg i.dash{background:repeating-linear-gradient(90deg,var(--c-prev) 0 3px,transparent 3px 5px)}
+.lg i.ring{width:9px;height:9px;border-radius:50%;background:transparent;border:2px solid var(--c-line)}
+.ch{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:10px;padding-top:40px}
+.yl{position:relative;height:250px}
+.yl span{position:absolute;right:0;transform:translateY(-50%);font-size:12px;color:var(--ink-3);white-space:nowrap}
+.pa{position:relative;height:250px}
+.pa svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+.gl{stroke:var(--line);stroke-width:1}
+.cl{fill:none;stroke:var(--c-line);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.cp{fill:none;stroke:var(--c-prev);stroke-width:1.6;stroke-dasharray:4 4;transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.ca{transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.ct{fill:none;stroke:var(--c-line);stroke-width:2;stroke-dasharray:2 4;transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.xl{grid-column:2;position:relative;height:28px}
+.xl span{position:absolute;top:10px;transform:translateX(-50%);font-size:12px;color:var(--ink-3)}
+.ev{position:absolute;top:-38px;bottom:0;border-left:1.5px dashed var(--line-2)}
+.evn{position:absolute;top:0;left:0;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:var(--sel);color:var(--sel-ink);font-size:11px;font-weight:700;display:grid;place-items:center}
+.dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;transition:top .6s cubic-bezier(.2,.8,.2,1)}
+.dot.hol{background:var(--surface);border:2.5px solid var(--c-line)}
+.dot.sol{background:var(--c-line);box-shadow:0 0 0 4px var(--surface)}
+.tip{position:absolute;transform:translate(-50%,calc(-100% - 16px));padding:10px 12px;border-radius:14px;background:var(--glass-strong);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-line);box-shadow:var(--shadow-float);font-size:12.5px;white-space:nowrap;display:flex;flex-direction:column;gap:4px;transition:top .6s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.evl{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.evl li{display:flex;align-items:center;gap:12px;font-size:14px}
+.evl .evn{position:static;transform:none;flex:none}
+.det{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:16px;width:100%;padding:22px 24px 22px 28px;border-radius:28px;background:var(--surface);box-shadow:var(--shadow)}
+.det:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.chev{width:44px;height:44px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--sunken);margin-left:auto;transition:transform .3s}
+.chev.op{transform:rotate(180deg)}
+.mini{border-radius:20px;background:var(--surface-2);padding:18px 20px;display:flex;flex-direction:column;gap:8px}
+@media print{.aur,.top,.side,.det{display:none}.pd{background:#fff}.card,.kpi{box-shadow:none;border:1px solid #DDD}}
+.hb{position:relative;height:10px;border-radius:999px;background:var(--sunken);overflow:hidden}
+.hb .f{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--line-2)}
+.hb .f.top{background:var(--stripe)}
+.rk{width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;background:var(--sunken);color:var(--ink-2)}
+.rk.one{background:var(--lime);color:#1E3A0E}
+.prow{display:flex;gap:16px;align-items:flex-start;padding:16px 0;border-top:1px solid var(--line)}
+.prow:first-child{border-top:0}
+.thumb{position:relative;border-radius:18px;overflow:hidden;background:var(--sunken);display:grid;place-items:center;color:var(--ink-3);font-size:12px;letter-spacing:.02em}
+.thumb::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 14px,rgba(0,0,0,.025) 14px 15px)}
+.play{position:absolute;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--glass-strong);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--ink);z-index:1}
+.medal{position:absolute;top:12px;left:12px;z-index:1;height:28px;padding:0 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;background:var(--glass-strong);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:12.5px;font-weight:600}
+.grp{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);margin:8px 0 2px}
+.alc{border-radius:24px;background:var(--surface);box-shadow:var(--shadow);padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.ali{width:40px;height:40px;flex:none;border-radius:14px;display:grid;place-items:center}
+.ali.p{background:var(--red-soft);color:var(--red-ink)}
+.ali.w{background:var(--amber-soft);color:var(--amber-ink)}
+.ali.i{background:var(--sunken);color:var(--ink-2)}
+.where{font-size:12.5px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.xp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:12px;margin-top:4px}
+.xp>div{border-radius:16px;background:var(--surface-2);padding:14px 16px;font-size:14px;line-height:1.55}
+.xp b{display:block;font-size:12.5px;color:var(--ink-3);font-weight:600;margin-bottom:4px}
+.fld{display:flex;flex-direction:column;gap:8px}
+.fld label{font-size:14px;font-weight:500}
+.inp{height:52px;border-radius:16px;border:1px solid var(--line-2);background:var(--surface);padding:0 16px;font:inherit;font-size:16px;color:var(--ink);outline:none}
+.inp:focus{border-color:var(--ink);box-shadow:0 0 0 4px rgba(159,213,69,.35)}
+.inp.err{border-color:var(--danger);box-shadow:0 0 0 4px var(--red-soft)}
+.sk{border-radius:10px;background:linear-gradient(90deg,var(--sunken) 0%,var(--surface-2) 50%,var(--sunken) 100%);background-size:200% 100%;animation:skm 1.4s ease-in-out infinite}
+@keyframes skm{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sw{border-radius:18px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
+.sw .c{height:72px}
+.sw .t{padding:10px 12px;font-size:12px;line-height:1.5}
+.sw .t b{display:block;font-size:13px}
+.mono{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--ink-3)}
+.dsg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:12px}
+.spec{display:grid;grid-template-columns:160px minmax(0,1fr) 220px;gap:16px;align-items:baseline;padding:14px 0;border-top:1px solid var(--line)}
+.toast{display:inline-flex;align-items:center;gap:12px;min-height:52px;padding:0 8px 0 16px;border-radius:999px;background:var(--sel);color:var(--sel-ink);font-size:14px;box-shadow:var(--shadow-float)}
+</style>
+</helmet>
+<div class="pd" data-theme="{{theme}}">
+<div class="aur" style="opacity: .55"></div>
+<div class="shell">
+<nav class="side" aria-label="Menu główne">
+<a class="brand" href="Main.dc.html"><svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="16" r="10" fill="#E5482F"></circle><path d="M14 7c-2-3-5-2.5-6.5-.5 2.2 0 4.3.8 6.5 2 2.2-1.2 4.3-2 6.5-2C19 4.5 16 4 14 7z" fill="#4C9A2A"></path></svg><span>lokalne<em>pomidorki</em></span></a>
+<a class="nav" href="Main.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"></rect><rect x="14" y="3" width="7" height="7" rx="2"></rect><rect x="3" y="14" width="7" height="7" rx="2"></rect><rect x="14" y="14" width="7" height="7" rx="2"></rect></svg>Przegląd</a>
+<a class="nav" href="Sprzedaz.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6L5 8z"></path><path d="M9 8V6a3 3 0 0 1 6 0v2"></path></svg>Sprzedaż</a>
+<a class="nav on" href="Reklamy.dc.html" aria-current="page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l7 4V6l-7 4H3z"></path><path d="M17 9a4 4 0 0 1 0 6"></path></svg>Reklamy<span class="ld"></span></a>
+<a class="nav subn" href="Kreacje.dc.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg>Kreacje</a>
+<a class="nav" href="Strona-www.dc.html"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg>Strona www</a>
+<div class="nav" style="cursor: default"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>Więcej</div>
+<a class="nav subn" href="Alerty.dc.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>Alerty</a>
+<a class="nav subn" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h11v14H6a1 1 0 0 1-1-1V5z"></path><path d="M16 9h3v9a1 1 0 0 1-1 1h-2"></path><path d="M8 9h5M8 13h5"></path></svg>Newsy</a>
+<a class="nav subn" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4z"></path><path d="M5 17a3 3 0 0 1 3-3h10"></path></svg>Słowniczek pojęć</a>
+<a class="nav subn" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17v.5"></path></svg>Jak czytać panel</a>
+</nav>
+<main class="main">
+<div class="wrap">
+<header class="top">
+<div class="crumb">lokalnepomidorki<span aria-hidden="true">/</span><b>Reklamy</b><span class="chip demo">Demo</span></div>
+<div class="upd"><span class="live"></span>Zaktualizowano 5 min temu</div>
+<div class="seg xs" role="group" aria-label="Język"><button class="on" type="button">PL</button><button type="button">EN</button></div>
+<button class="ib" type="button" aria-label="Alerty: 3 nowe"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg><span class="badge">3</span></button>
+<button class="btn pri" type="button"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path><path d="M10.5 8l3.5 2-3.5 2z"></path></svg>Prezentuj</button>
+<button class="ib ghost" type="button" aria-label="Więcej opcji"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg></button>
+</header>
+<section class="hdr">
+<div><h1 class="h1">Reklamy</h1><p class="lead">Na co idą pieniądze i co z tego mamy.</p></div>
+<div class="seg" role="group" aria-label="Zakres dat"><button type="button">7 dni</button><button class="on" type="button">30 dni</button><button type="button">90 dni</button><button type="button">Ten miesiąc</button><button type="button">Poprzedni</button><button type="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Własny</button></div>
+</section>
+<div class="seg" role="tablist" aria-label="Widok" style="align-self: flex-start"><button class="on" type="button" role="tab" aria-selected="true">Kampanie</button><a href="Kreacje.dc.html" role="tab" aria-selected="false" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 15px; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none">Kreacje</a></div>
+
+<div class="kpis">
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+<button class="{{t.cls}}" type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}">
+<span class="lbl">{{t.label}}<sc-if value="{{t.abbr}}" hint-placeholder-val="{{false}}"><span class="tag" style="height: 18px; font-size: 10.5px; letter-spacing: .06em; padding: 0 6px">{{t.abbr}}</span></sc-if><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.5"></path></svg></span>
+<span class="num">{{t.value}}</span>
+<span style="display: flex; align-items: flex-end; justify-content: space-between; gap: 10px">
+<span style="display: flex; flex-direction: column; gap: 6px"><span class="{{t.pillCls}}"><sc-if value="{{t.up}}" hint-placeholder-val="{{true}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg></sc-if><sc-if value="{{t.down}}" hint-placeholder-val="{{false}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10M17 9v8H9"></path></svg></sc-if>{{t.pct}}</span><span class="cmp">{{t.cmp}}</span></span>
+<svg width="100" height="32" viewBox="0 0 100 32" style="overflow: visible; flex: none" aria-hidden="true"><path class="sp-l" d="{{t.spark}}"></path><circle class="sp-d" cx="100" cy="{{t.sparkEnd}}" r="2.6"></circle></svg>
+</span>
+</button>
+</sc-for>
+</div>
+
+<section class="card">
+<h2 class="h2">Ile kosztuje jedno kliknięcie</h2>
+<p class="sub" style="color: var(--ink-2); max-width: 760px">Kliknięcie w Meta jest ok. <b style="color: var(--ink)">2,2× tańsze</b> niż w Google (0,65 zł vs 1,42 zł). Pod koniec okresu: Meta o 6% taniej niż wcześniej; Google podobnie jak wcześniej.</p>
+<div class="lg" style="margin-top: 14px"><span><i></i>Meta</span><span><i style="background: var(--c-google)"></i>Google</span></div>
+<div class="ch" style="grid-template-columns: 64px minmax(0, 1fr) 76px; padding-top: 24px">
+<div class="yl"><span style="top: 0%">1,60 zł</span><span style="top: 25%">1,20 zł</span><span style="top: 50%">0,80 zł</span><span style="top: 75%">0,40 zł</span><span style="top: 100%">0 zł</span></div>
+<div class="pa">
+<svg viewBox="0 0 1000 250" preserveAspectRatio="none" aria-hidden="true">
+<defs><linearGradient id="rga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--c-line); stop-opacity: .22"></stop><stop offset="1" style="stop-color: var(--c-line); stop-opacity: 0"></stop></linearGradient></defs>
+<line class="gl" x1="0" y1="0.5" x2="1000" y2="0.5" vector-effect="non-scaling-stroke"></line><line class="gl" x1="0" y1="62.5" x2="1000" y2="62.5" vector-effect="non-scaling-stroke"></line><line class="gl" x1="0" y1="125" x2="1000" y2="125" vector-effect="non-scaling-stroke"></line><line class="gl" x1="0" y1="187.5" x2="1000" y2="187.5" vector-effect="non-scaling-stroke"></line><line class="gl" x1="0" y1="249.5" x2="1000" y2="249.5" vector-effect="non-scaling-stroke"></line>
+<path d="{{metaArea}}" fill="url(#rga)"></path>
+<path d="{{google}}" fill="none" style="stroke: var(--c-google)" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>
+<path class="cl" d="{{meta}}" vector-effect="non-scaling-stroke"></path>
+</svg>
+<span class="dot sol" style="left: 100%; top: {{gTop}}; background: var(--c-google)"></span>
+<span class="dot sol" style="left: 100%; top: {{mTop}}"></span>
+</div>
+<div style="position: relative">
+<span style="position: absolute; left: 10px; top: {{gTop}}; transform: translateY(-50%); font-size: 12.5px; font-weight: 600; line-height: 1.2">Google<br><span style="font-weight: 400; color: var(--ink-3)">1,42 zł</span></span>
+<span style="position: absolute; left: 10px; top: {{mTop}}; transform: translateY(-50%); font-size: 12.5px; font-weight: 600; line-height: 1.2">Meta<br><span style="font-weight: 400; color: var(--ink-3)">0,65 zł</span></span>
+</div>
+<div class="xl"><span style="left: 0%">07.09</span><span style="left: 17.24%">12.09</span><span style="left: 34.48%">17.09</span><span style="left: 51.72%">22.09</span><span style="left: 68.97%">27.09</span><span style="left: 86.21%">02.10</span></div>
+</div>
+</section>
+
+<section class="card">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-end; margin-bottom: 8px">
+<div><h2 class="h2">Kampanie</h2><p class="sub">8 kampanii · <b style="color: var(--ink)">43 885 zł</b> wydane</p></div>
+<div class="seg xs" role="group" aria-label="Filtr platformy"><button class="on" type="button">Wszystkie</button><button type="button">Meta</button><button type="button">Google</button></div>
+</div>
+<div class="tbl">
+<div class="tr th" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span>Status</span><span>Kampania</span><span class="r">Wydatki</span><span class="r">Kliknięcia</span><span class="r">Klikalność</span></div>
+<div class="tr" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span class="st"><i></i>Działa dobrze</span><div><div class="cn">BRAND | Świadomość | Reach</div><div class="cm"><span class="tag">Meta</span></div></div><span class="r vb">8 777 zł</span><span class="r vm">9 705</span><span class="r vm">0,90%</span></div>
+<div class="tr" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span class="st"><i></i>Działa dobrze</span><div><div class="cn">TRAFFIC | Ruch na stronę</div><div class="cm"><span class="tag">Meta</span></div></div><span class="r vb">7 460 zł</span><span class="r vm">7 973</span><span class="r vm">2,10%</span></div>
+<div class="tr" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span class="st"><i></i>Działa dobrze</span><div><div class="cn">SEARCH | Generyczne</div><div class="cm"><span class="tag">Google</span></div></div><span class="r vb">7 022 zł</span><span class="r vm">7 882</span><span class="r vm">4,50%</span></div>
+<div class="tr" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span class="st warn"><i></i>Do obejrzenia</span><div><div class="cn">PMAX | Ruch</div><div class="cm"><span class="tag">Google</span></div></div><span class="r vb">5 705 zł</span><span class="r vm">6 533</span><span class="r vm">1,80%</span></div>
+<div class="tr" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span class="st"><i></i>Działa dobrze</span><div><div class="cn">ENGAGEMENT | Instagram</div><div class="cm"><span class="tag">Meta</span></div></div><span class="r vb">4 827 zł</span><span class="r vm">5 114</span><span class="r vm">2,80%</span></div>
+<div class="tr" style="grid-template-columns: 150px minmax(220px, 1fr) 120px 110px 100px"><span class="st warn"><i></i>Do obejrzenia</span><div><div class="cn">RETARGETING | Odwiedzający</div><div class="cm"><span class="tag">Meta</span></div></div><span class="r vb">3 511 zł</span><span class="r vm">3 396</span><span class="r vm">2,40%</span></div>
+</div>
+<div style="display: flex; justify-content: center; border-top: 1px solid var(--line); padding-top: 18px; margin-top: 2px"><button class="btn sec sm" type="button">Pokaż wszystkie (jeszcze 2)</button></div>
+</section>
+
+<button class="det" type="button" aria-expanded="false">
+<span style="display: flex; flex-direction: column; gap: 4px"><b style="font-size: 17px; font-weight: 600">Pokaż szczegóły</b><span style="font-size: 14px; color: var(--ink-3)">Podział budżetu na Meta i Google, czego szukają Twoi klienci, widoczność w Google i pełna tabela kampanii.</span></span>
+<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+</button>
+
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark": {"editor": "boolean", "default": false, "section": "Wygląd"}, "$preview": {"width": 1440, "height": 1960}}'>
+class Component extends DCLogic {
+  state = { metric: 'cpc' };
+  pts(v, max, W, H) { const n = v.length - 1; return v.map((y, i) => [i * W / n, H - y / max * H]); }
+  line(p) { return p.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' '); }
+  renderVals() {
+    const meta = [0.68,0.67,0.67,0.70,0.71,0.72,0.72,0.71,0.70,0.72,0.69,0.70,0.69,0.66,0.64,0.62,0.63,0.63,0.59,0.60,0.59,0.61,0.65,0.63,0.65,0.65,0.70,0.67,0.69,0.65];
+    const goog = [1.50,1.55,1.48,1.50,1.46,1.44,1.48,1.41,1.40,1.37,1.38,1.31,1.28,1.29,1.32,1.24,1.28,1.26,1.31,1.28,1.32,1.37,1.39,1.37,1.42,1.41,1.48,1.48,1.46,1.42];
+    const W = 1000, H = 250;
+    const mp = this.pts(meta, 1.6, W, H), gp = this.pts(goog, 1.6, W, H);
+    const ml = this.line(mp);
+    const spend = [1290,1420,1310,1380,1450,1220,1230,1590,1460,1480,1400,1310,1180,1520,1640,1490,1700,1630,1250,1260,1560,1610,1790,1590,1660,1230,1240,1840,1700,1809];
+    const ctr = spend.map((v, i) => 2.0 + Math.sin(i * 0.8) * 0.12 + i * 0.006);
+    const cpc = meta.map((v, i) => (v + goog[i]) / 2.2);
+    const clicks = spend.map((v, i) => v / cpc[i]);
+    const T = [
+      { k: 'spend', label: 'Wydatki', abbr: '', value: '43 885 zł', pill: 'flat', up: true, pct: '11%', cmp: 'więcej niż wcześniej', data: spend },
+      { k: 'clicks', label: 'Kliknięcia', abbr: '', value: '46 320', pill: 'good', up: true, pct: '16%', cmp: 'więcej niż wcześniej', data: clicks },
+      { k: 'cpc', label: 'Koszt kliknięcia', abbr: 'CPC', value: '0,95 zł', pill: 'good', up: false, pct: '7%', cmp: 'taniej niż wcześniej', data: cpc },
+      { k: 'ctr', label: 'Klikalność', abbr: 'CTR', value: '2,12%', pill: 'good', up: true, pct: '6%', cmp: 'wyżej niż wcześniej', data: ctr }
+    ];
+    const tiles = T.map((t) => {
+      const mn = Math.min(...t.data), mx = Math.max(...t.data);
+      const sp = t.data.map((v, i) => [i * 100 / (t.data.length - 1), 30 - (v - mn) / (mx - mn) * 28]);
+      return { label: t.label, abbr: t.abbr, value: t.value, pct: t.pct, cmp: t.cmp, up: t.up, down: !t.up, pillCls: 'pill ' + t.pill, cls: 'kpi' + (t.k === this.state.metric ? ' on' : ''), pressed: String(t.k === this.state.metric), spark: this.line(sp), sparkEnd: sp[sp.length - 1][1].toFixed(1), pick: () => this.setState({ metric: t.k }) };
+    });
+    return {
+      theme: (this.props.dark ?? false) ? 'dark' : 'light',
+      tiles, meta: ml, metaArea: ml + ' L1000 250 L0 250 Z', google: this.line(gp),
+      mTop: (mp[29][1] / H * 100).toFixed(2) + '%', gTop: (gp[29][1] / H * 100).toFixed(2) + '%'
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Design system</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F2EE}
+a{color:inherit}a:hover{color:inherit}
+.pd{--bg:#F3F2EE;--surface:#FFFFFF;--surface-2:#F7F6F2;--sunken:#ECEBE6;--hover:rgba(22,23,26,.05);--ink:#16171A;--ink-2:#4B4D53;--ink-3:#6A6C72;--line:#E7E5DF;--line-2:#CFCDC6;--sel:#16171A;--sel-ink:#FFFFFF;--on-sel-chip:rgba(255,255,255,.14);--on-sel-line:rgba(255,255,255,.14);--lime:#9FD545;--lime-soft:#E9F5D6;--green-ink:#2B6B1F;--red-soft:#FBE4DF;--red-ink:#B2321E;--danger:#C7381F;--amber:#E39B2E;--amber-soft:#FCEFD9;--amber-ink:#875309;--ai-a:#EFEBFB;--ai-b:#FBEDF3;--ai-ink:#5B41AD;--glass:rgba(255,255,255,.66);--glass-strong:rgba(255,255,255,.82);--glass-line:rgba(255,255,255,.85);--shadow:0 1px 2px rgba(30,28,20,.04),0 10px 28px -14px rgba(30,28,20,.12);--shadow-float:0 1px 1px rgba(30,28,20,.04),0 18px 40px -18px rgba(30,28,20,.22);--c-line:#4F8A2E;--c-prev:#A9AAA3;--c-google:#3D4C52;--stripe:repeating-linear-gradient(-45deg,#9FD545 0 5px,#BCE476 5px 10px);--stripe-amber:repeating-linear-gradient(-45deg,#E39B2E 0 5px,#EEB862 5px 10px);--aurora:radial-gradient(55% 90% at 12% -10%,rgba(159,213,69,.40),transparent 70%),radial-gradient(40% 70% at 78% -20%,rgba(229,72,47,.16),transparent 70%),radial-gradient(30% 60% at 48% -20%,rgba(214,226,120,.25),transparent 70%);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);background:var(--bg);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;min-height:100vh;position:relative;overflow-x:clip}
+.pd[data-theme=dark]{--bg:#0F100E;--surface:#1A1B18;--surface-2:#222320;--sunken:#2A2B27;--hover:rgba(255,255,255,.06);--ink:#F3F2EC;--ink-2:#C4C5BE;--ink-3:#9C9D96;--line:#2D2E2A;--line-2:#45463F;--sel:#F3F2EC;--sel-ink:#141513;--on-sel-chip:rgba(0,0,0,.07);--on-sel-line:rgba(0,0,0,.1);--lime:#A6DD4E;--lime-soft:rgba(166,221,78,.15);--green-ink:#B6E777;--red-soft:rgba(242,112,90,.15);--red-ink:#FF9B86;--danger:#E5543A;--amber:#E9A845;--amber-soft:rgba(233,168,69,.15);--amber-ink:#F3C373;--ai-a:#211D33;--ai-b:#2A1D29;--ai-ink:#C2B2F7;--glass:rgba(28,29,26,.62);--glass-strong:rgba(34,35,32,.85);--glass-line:rgba(255,255,255,.08);--shadow:inset 0 1px 0 rgba(255,255,255,.04),0 12px 30px -16px rgba(0,0,0,.7);--shadow-float:inset 0 1px 0 rgba(255,255,255,.06),0 20px 44px -18px rgba(0,0,0,.8);--c-line:#A6DD4E;--c-prev:#6E6F68;--c-google:#9DB0B6;--aurora:radial-gradient(55% 90% at 12% -10%,rgba(166,221,78,.20),transparent 70%),radial-gradient(40% 70% at 78% -20%,rgba(229,72,47,.14),transparent 70%)}
+.pd *{box-sizing:border-box}
+.aur{position:absolute;left:0;right:0;top:0;height:620px;pointer-events:none;background:var(--aurora)}
+.shell{position:relative;display:flex;flex-wrap:wrap;align-items:flex-start}
+.side{flex:1 1 248px;max-width:264px;padding:20px 14px;display:flex;flex-direction:column;gap:4px}
+.brand{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;margin-bottom:24px;font-weight:700;font-size:15px;letter-spacing:-.02em;text-decoration:none}
+.brand em{font-style:normal;color:#D63E25}
+.nav{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-radius:999px;font-size:15px;color:var(--ink-2);text-decoration:none;transition:background .2s}
+.nav:hover{background:var(--hover);color:var(--ink)}
+.nav.on{background:var(--sel);color:var(--sel-ink);font-weight:500}
+.nav.on:hover{color:var(--sel-ink)}
+.nav.subn{padding-left:46px;font-size:14px;min-height:40px}
+.nav .ld{margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--lime)}
+.main{flex:999 1 560px;min-width:0;padding:12px 32px 80px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.top{position:sticky;top:12px;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-height:60px;padding:8px 8px 8px 20px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);box-shadow:var(--shadow-float)}
+.crumb{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink-3)}
+.crumb b{color:var(--ink);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:600}
+.chip.demo{background:var(--amber-soft);color:var(--amber-ink)}
+.upd{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3);margin-left:auto;padding-right:6px}
+.live{width:8px;height:8px;border-radius:50%;background:#3FA94D;box-shadow:0 0 0 4px rgba(63,169,77,.18)}
+.ib{width:44px;height:44px;flex:none;border-radius:50%;border:0;background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;position:relative;box-shadow:var(--shadow)}
+.ib.ghost{background:transparent;box-shadow:none}
+.badge{position:absolute;top:2px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#D23B26;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid var(--surface)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;border:0;font:inherit;font-size:15px;font-weight:500;cursor:pointer;text-decoration:none;white-space:nowrap;transition:transform .15s,background .2s}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--sel);color:var(--sel-ink)}
+.btn.sec{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.txt{background:transparent;color:var(--ink);padding:0 12px}
+.btn.dan{background:var(--danger);color:#fff}
+.btn.sm{min-height:36px;padding:0 14px;font-size:14px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;padding:4px;border-radius:999px;background:var(--sunken)}
+.seg button{min-height:44px;padding:0 15px;border:0;border-radius:999px;background:transparent;color:var(--ink-2);font:inherit;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:var(--sel);color:var(--sel-ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg.xs button{min-height:36px;padding:0 11px;font-size:13px}
+.hdr{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding-top:32px}
+.h1{margin:0;font-size:44px;line-height:1.05;font-weight:600;letter-spacing:-.035em}
+.lead{margin:8px 0 0;font-size:16px;color:var(--ink-2)}
+.card{background:var(--surface);border-radius:28px;box-shadow:var(--shadow);padding:28px}
+.h2{margin:0;font-size:19px;font-weight:600;letter-spacing:-.015em}
+.sub{margin:4px 0 0;font-size:14px;color:var(--ink-3);line-height:1.5;text-wrap:pretty}
+.cap{margin:0;font-size:14px;color:var(--ink-3)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:16px}
+.kpi{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:12px;padding:20px 22px;border-radius:24px;background:var(--surface);box-shadow:var(--shadow);color:var(--ink);transition:background .35s cubic-bezier(.2,.8,.2,1),color .35s,transform .2s cubic-bezier(.2,.8,.2,1)}
+.kpi:hover{transform:translateY(-2px)}
+.kpi:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.kpi.on{background:var(--sel);color:var(--sel-ink)}
+.kpi.on .lbl,.kpi.on .cmp,.kpi.on .yoy{color:inherit;opacity:.72}
+.kpi.on .yoy{border-color:var(--on-sel-line)}
+.kpi.on .pill.flat{background:var(--on-sel-chip);color:inherit}
+.kpi.on .sp-l{stroke:var(--lime)}
+.kpi.on .sp-d{fill:var(--lime)}
+.lbl{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink-3)}
+.num{font-size:42px;line-height:1;font-weight:500;letter-spacing:-.045em}
+.num small{font-size:.5em;letter-spacing:-.01em;margin-left:3px}
+.pill{display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 8px 0 6px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+.pill.good{background:var(--lime-soft);color:var(--green-ink)}
+.pill.bad{background:var(--red-soft);color:var(--red-ink)}
+.pill.flat{background:var(--sunken);color:var(--ink-2)}
+.cmp{font-size:13px;color:var(--ink-3)}
+.yoy{font-size:12.5px;color:var(--ink-3);padding-top:12px;border-top:1px solid var(--line)}
+.sp-l{fill:none;stroke:var(--c-line);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.sp-d{fill:var(--c-line)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--sunken);font-size:12px;font-weight:600;color:var(--ink-2)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.st i{width:8px;height:8px;border-radius:50%;background:var(--lime)}
+.st.warn i{background:var(--amber)}
+.st.bad i{background:#E0533B}
+.tbl{overflow-x:auto;margin:0 -8px}
+.tr{display:grid;grid-template-columns:minmax(240px,1fr) 120px 110px 100px;align-items:center;gap:16px;padding:16px 8px;border-top:1px solid var(--line);min-width:600px}
+.tr.th{font-size:13px;color:var(--ink-3);padding:14px 8px 12px;border-top:0}
+.r{text-align:right}
+.cn{font-size:15px;font-weight:500}
+.cm{display:flex;gap:10px;margin-top:6px;align-items:center}
+.vb{font-weight:600;font-size:15px}
+.vm{color:var(--ink-2);font-size:15px}
+.ai{border-radius:20px;padding:20px 22px;background:linear-gradient(115deg,var(--ai-a),var(--ai-b));display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-start}
+.aichip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--surface);color:var(--ai-ink);font-size:13px;font-weight:600;box-shadow:var(--shadow);flex:none}
+.nchip{display:inline-block;padding:0 6px;border-radius:6px;background:var(--surface);color:var(--ai-ink);font-weight:600}
+.al{display:flex;flex-wrap:wrap;align-items:center;gap:12px;min-height:56px;padding:8px 8px 8px 12px;border-radius:18px;background:var(--red-soft);font-size:14px}
+.al .ic{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--red-ink)}
+.bar{position:relative;height:12px;border-radius:999px;background:var(--sunken)}
+.bar .f{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--stripe)}
+.bar .f.am{background:var(--stripe-amber)}
+.bar .t{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
+.lg{display:flex;flex-wrap:wrap;gap:8px}
+.lg span{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:999px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
+.lg i{width:14px;height:2px;border-radius:2px;background:var(--c-line)}
+.lg i.dash{background:repeating-linear-gradient(90deg,var(--c-prev) 0 3px,transparent 3px 5px)}
+.lg i.ring{width:9px;height:9px;border-radius:50%;background:transparent;border:2px solid var(--c-line)}
+.ch{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:10px;padding-top:40px}
+.yl{position:relative;height:250px}
+.yl span{position:absolute;right:0;transform:translateY(-50%);font-size:12px;color:var(--ink-3);white-space:nowrap}
+.pa{position:relative;height:250px}
+.pa svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+.gl{stroke:var(--line);stroke-width:1}
+.cl{fill:none;stroke:var(--c-line);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.cp{fill:none;stroke:var(--c-prev);stroke-width:1.6;stroke-dasharray:4 4;transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.ca{transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.ct{fill:none;stroke:var(--c-line);stroke-width:2;stroke-dasharray:2 4;transition:d .6s cubic-bezier(.2,.8,.2,1)}
+.xl{grid-column:2;position:relative;height:28px}
+.xl span{position:absolute;top:10px;transform:translateX(-50%);font-size:12px;color:var(--ink-3)}
+.ev{position:absolute;top:-38px;bottom:0;border-left:1.5px dashed var(--line-2)}
+.evn{position:absolute;top:0;left:0;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:var(--sel);color:var(--sel-ink);font-size:11px;font-weight:700;display:grid;place-items:center}
+.dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;transition:top .6s cubic-bezier(.2,.8,.2,1)}
+.dot.hol{background:var(--surface);border:2.5px solid var(--c-line)}
+.dot.sol{background:var(--c-line);box-shadow:0 0 0 4px var(--surface)}
+.tip{position:absolute;transform:translate(-50%,calc(-100% - 16px));padding:10px 12px;border-radius:14px;background:var(--glass-strong);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-line);box-shadow:var(--shadow-float);font-size:12.5px;white-space:nowrap;display:flex;flex-direction:column;gap:4px;transition:top .6s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.evl{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.evl li{display:flex;align-items:center;gap:12px;font-size:14px}
+.evl .evn{position:static;transform:none;flex:none}
+.det{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:16px;width:100%;padding:22px 24px 22px 28px;border-radius:28px;background:var(--surface);box-shadow:var(--shadow)}
+.det:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.chev{width:44px;height:44px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--sunken);margin-left:auto;transition:transform .3s}
+.chev.op{transform:rotate(180deg)}
+.mini{border-radius:20px;background:var(--surface-2);padding:18px 20px;display:flex;flex-direction:column;gap:8px}
+@media print{.aur,.top,.side,.det{display:none}.pd{background:#fff}.card,.kpi{box-shadow:none;border:1px solid #DDD}}
+.hb{position:relative;height:10px;border-radius:999px;background:var(--sunken);overflow:hidden}
+.hb .f{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--line-2)}
+.hb .f.top{background:var(--stripe)}
+.rk{width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;background:var(--sunken);color:var(--ink-2)}
+.rk.one{background:var(--lime);color:#1E3A0E}
+.prow{display:flex;gap:16px;align-items:flex-start;padding:16px 0;border-top:1px solid var(--line)}
+.prow:first-child{border-top:0}
+.thumb{position:relative;border-radius:18px;overflow:hidden;background:var(--sunken);display:grid;place-items:center;color:var(--ink-3);font-size:12px;letter-spacing:.02em}
+.thumb::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 14px,rgba(0,0,0,.025) 14px 15px)}
+.play{position:absolute;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--glass-strong);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--ink);z-index:1}
+.medal{position:absolute;top:12px;left:12px;z-index:1;height:28px;padding:0 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;background:var(--glass-strong);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:12.5px;font-weight:600}
+.grp{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);margin:8px 0 2px}
+.alc{border-radius:24px;background:var(--surface);box-shadow:var(--shadow);padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.ali{width:40px;height:40px;flex:none;border-radius:14px;display:grid;place-items:center}
+.ali.p{background:var(--red-soft);color:var(--red-ink)}
+.ali.w{background:var(--amber-soft);color:var(--amber-ink)}
+.ali.i{background:var(--sunken);color:var(--ink-2)}
+.where{font-size:12.5px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.xp{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:12px;margin-top:4px}
+.xp>div{border-radius:16px;background:var(--surface-2);padding:14px 16px;font-size:14px;line-height:1.55}
+.xp b{display:block;font-size:12.5px;color:var(--ink-3);font-weight:600;margin-bottom:4px}
+.fld{display:flex;flex-direction:column;gap:8px}
+.fld label{font-size:14px;font-weight:500}
+.inp{height:52px;border-radius:16px;border:1px solid var(--line-2);background:var(--surface);padding:0 16px;font:inherit;font-size:16px;color:var(--ink);outline:none}
+.inp:focus{border-color:var(--ink);box-shadow:0 0 0 4px rgba(159,213,69,.35)}
+.inp.err{border-color:var(--danger);box-shadow:0 0 0 4px var(--red-soft)}
+.sk{border-radius:10px;background:linear-gradient(90deg,var(--sunken) 0%,var(--surface-2) 50%,var(--sunken) 100%);background-size:200% 100%;animation:skm 1.4s ease-in-out infinite}
+@keyframes skm{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sw{border-radius:18px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow)}
+.sw .c{height:72px}
+.sw .t{padding:10px 12px;font-size:12px;line-height:1.5}
+.sw .t b{display:block;font-size:13px}
+.mono{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12px;color:var(--ink-3)}
+.dsg{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:12px}
+.spec{display:grid;grid-template-columns:160px minmax(0,1fr) 220px;gap:16px;align-items:baseline;padding:14px 0;border-top:1px solid var(--line)}
+.toast{display:inline-flex;align-items:center;gap:12px;min-height:52px;padding:0 8px 0 16px;border-radius:999px;background:var(--sel);color:var(--sel-ink);font-size:14px;box-shadow:var(--shadow-float)}
+</style>
+</helmet>
+<div class="pd" data-theme="{{theme}}">
+<div class="aur" style="opacity: .5; height: 420px"></div>
+<div style="position: relative; max-width: 1240px; margin: 0 auto; padding: 64px 32px 80px; display: flex; flex-direction: column; gap: 32px">
+<header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+<div><span class="chip" style="background: var(--sel); color: var(--sel-ink)">v2026.1</span><h1 class="h1" style="margin-top: 14px">Design system</h1><p class="lead">Tokeny i komponenty Pato Client Dashboard – do przeniesienia 1:1 do Tailwind (zmienne CSS w <span class="mono" style="font-size: 14px">:root</span> i <span class="mono" style="font-size: 14px">.dark</span>).</p></div>
+<div class="mono" style="font-size: 13px; text-align: right; line-height: 1.6">Font: Geist 400/500/600/700<br>Liczby: font-variant-numeric: tabular-nums</div>
+</header>
+
+<section class="card" style="display: flex; flex-direction: column; gap: 24px">
+<div><h2 class="h2">Kolory</h2><p class="sub">Jeden kolor przewodni (limonka) dla postępu i dobrych wiadomości. Wszystko, co nie jest najważniejsze – szare. Kolor nigdy nie jest jedynym sygnałem: zawsze strzałka lub słowo.</p></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(520px, 100%), 1fr)); gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 12px"><b style="font-size: 14px">Jasny · :root</b>
+<div class="dsg">
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #F3F2EE"></div><div class="t"><b>--bg</b><span class="mono">#F3F2EE</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #FFFFFF"></div><div class="t"><b>--surface</b><span class="mono">#FFFFFF</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #ECEBE6"></div><div class="t"><b>--sunken</b><span class="mono">#ECEBE6</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #E7E5DF"></div><div class="t"><b>--line</b><span class="mono">#E7E5DF</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #16171A"></div><div class="t"><b>--ink / --sel</b><span class="mono">#16171A</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #4B4D53"></div><div class="t"><b>--ink-2</b><span class="mono">#4B4D53 · 8,3:1</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #6A6C72"></div><div class="t"><b>--ink-3</b><span class="mono">#6A6C72 · 5,2:1</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #9FD545"></div><div class="t"><b>--lime</b><span class="mono">#9FD545 · tylko tła</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #E9F5D6"></div><div class="t"><b>--lime-soft</b><span class="mono">#E9F5D6</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #2B6B1F"></div><div class="t"><b>--green-ink</b><span class="mono">#2B6B1F · 6,4:1</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #6F7B34"></div><div class="t"><b>--olive</b><span class="mono">#6F7B34</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #B2321E"></div><div class="t"><b>--red-ink</b><span class="mono">#B2321E · 5,9:1</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #E39B2E"></div><div class="t"><b>--amber</b><span class="mono">#E39B2E · tylko tła</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #875309"></div><div class="t"><b>--amber-ink</b><span class="mono">#875309 · 6,1:1</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: linear-gradient(115deg, #EFEBFB, #FBEDF3)"></div><div class="t"><b>--ai-a → --ai-b</b><span class="mono">#EFEBFB → #FBEDF3</span></div></div>
+<div class="sw" style="box-shadow: inset 0 0 0 1px var(--line)"><div class="c" style="background: #5B41AD"></div><div class="t"><b>--ai-ink</b><span class="mono">#5B41AD</span></div></div>
+</div></div>
+<div class="pd" data-theme="dark" style="min-height: 0; border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 12px"><b style="font-size: 14px">Ciemny · .dark</b>
+<div class="dsg">
+<div class="sw"><div class="c" style="background: #0F100E"></div><div class="t"><b>--bg</b><span class="mono">#0F100E</span></div></div>
+<div class="sw"><div class="c" style="background: #1A1B18"></div><div class="t"><b>--surface</b><span class="mono">#1A1B18</span></div></div>
+<div class="sw"><div class="c" style="background: #2A2B27"></div><div class="t"><b>--sunken</b><span class="mono">#2A2B27</span></div></div>
+<div class="sw"><div class="c" style="background: #2D2E2A"></div><div class="t"><b>--line</b><span class="mono">#2D2E2A</span></div></div>
+<div class="sw"><div class="c" style="background: #F3F2EC"></div><div class="t"><b>--ink / --sel</b><span class="mono">#F3F2EC</span></div></div>
+<div class="sw"><div class="c" style="background: #C4C5BE"></div><div class="t"><b>--ink-2</b><span class="mono">#C4C5BE</span></div></div>
+<div class="sw"><div class="c" style="background: #9C9D96"></div><div class="t"><b>--ink-3</b><span class="mono">#9C9D96 · 6,6:1</span></div></div>
+<div class="sw"><div class="c" style="background: #A6DD4E"></div><div class="t"><b>--lime</b><span class="mono">#A6DD4E</span></div></div>
+<div class="sw"><div class="c" style="background: rgba(166,221,78,.15)"></div><div class="t"><b>--lime-soft</b><span class="mono">#A6DD4E / 15%</span></div></div>
+<div class="sw"><div class="c" style="background: #B6E777"></div><div class="t"><b>--green-ink</b><span class="mono">#B6E777</span></div></div>
+<div class="sw"><div class="c" style="background: #FF9B86"></div><div class="t"><b>--red-ink</b><span class="mono">#FF9B86</span></div></div>
+<div class="sw"><div class="c" style="background: #F3C373"></div><div class="t"><b>--amber-ink</b><span class="mono">#F3C373</span></div></div>
+<div class="sw"><div class="c" style="background: linear-gradient(115deg, #211D33, #2A1D29)"></div><div class="t"><b>--ai-a → --ai-b</b><span class="mono">#211D33 → #2A1D29</span></div></div>
+<div class="sw"><div class="c" style="background: #C2B2F7"></div><div class="t"><b>--ai-ink</b><span class="mono">#C2B2F7</span></div></div>
+</div></div>
+</div>
+<div><b style="font-size: 14px">Wykresy · stonowana paleta, w tej kolejności</b>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px">
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #4F8A2E"></i>główna seria #4F8A2E</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #8FA98A"></i>szałwia #8FA98A</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #3D4C52"></i>łupek #3D4C52</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #C47A5A"></i>terakota #C47A5A</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #A99CD0"></i>lawenda #A99CD0</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #B8AE84"></i>khaki #B8AE84</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: #A9AAA3"></i>poprzedni okres #A9AAA3 (przerywana)</span>
+<span class="tag" style="height: 34px; padding: 0 14px 0 8px; gap: 8px"><i style="width: 18px; height: 18px; border-radius: 6px; background: var(--stripe)"></i>wyróżnienie: ukośne paski 45°, 5/5 px</span>
+</div></div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap: 24px">
+<section class="card">
+<h2 class="h2">Typografia · Geist</h2>
+<div style="margin-top: 12px">
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Liczba hero</span><span style="font-size: 42px; font-weight: 500; letter-spacing: -.045em; line-height: 1">43 885 zł</span><span class="mono">42/1.0 · 500 · −4,5%</span></div>
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Tytuł strony</span><span style="font-size: 44px; font-weight: 600; letter-spacing: -.035em; line-height: 1.05">Przegląd</span><span class="mono">44/1.05 · 600 · −3,5%</span></div>
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Zdanie podsumowania</span><span style="font-size: 28px; font-weight: 500; letter-spacing: -.03em; line-height: 1.18; color: var(--ink-3)">Za <span style="color: var(--ink)">43 885 zł</span> reklamy…</span><span class="mono">34/1.18 · 500 · −3%</span></div>
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Tytuł sekcji</span><span style="font-size: 19px; font-weight: 600; letter-spacing: -.015em">Plan miesiąca</span><span class="mono">19/1.3 · 600 · −1,5%</span></div>
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Treść</span><span style="font-size: 15px; line-height: 1.55">Kliknięcie w Meta jest ok. 2,2× tańsze niż w Google.</span><span class="mono">15/1.55 · 400</span></div>
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Etykieta</span><span style="font-size: 14px; color: var(--ink-3)">Koszt kliknięcia</span><span class="mono">14/1.4 · 400 · ink-3</span></div>
+<div class="spec" style="grid-template-columns: 130px minmax(0, 1fr) 150px"><span class="cap">Drobna</span><span style="font-size: 12.5px; color: var(--ink-3)">rok temu: 34 297 zł (+28%)</span><span class="mono">12,5/1.4 · 400</span></div>
+</div>
+</section>
+
+<section class="card" style="display: flex; flex-direction: column; gap: 22px">
+<h2 class="h2">Kształt, cień, odstępy</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end">
+<div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><span style="width: 88px; height: 72px; border-radius: 28px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line)"></span><span class="mono">karta 28</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><span style="width: 80px; height: 64px; border-radius: 24px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line)"></span><span class="mono">kafelek 24</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><span style="width: 72px; height: 56px; border-radius: 20px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line)"></span><span class="mono">panel 20</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><span style="width: 64px; height: 48px; border-radius: 16px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line)"></span><span class="mono">pole 16</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><span style="width: 88px; height: 40px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line)"></span><span class="mono">pigułka 999</span></div>
+</div>
+<p class="sub" style="margin: 0">Zaokrąglenia koncentryczne: wewnętrzny promień = zewnętrzny − odstęp (np. karta 28 z paddingiem 8 → element 20).</p>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+<div style="height: 84px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); display: grid; place-items: center"><span class="mono">--shadow</span></div>
+<div style="height: 84px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-float); display: grid; place-items: center"><span class="mono">--shadow-float</span></div>
+<div style="height: 84px; border-radius: 20px; background: linear-gradient(120deg, rgba(159,213,69,.5), rgba(229,72,47,.3)); display: grid; place-items: center; padding: 10px"><span style="width: 100%; height: 100%; border-radius: 12px; display: grid; place-items: center; background: var(--glass); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--glass-line)"><span class="mono" style="color: var(--ink)">glass</span></span></div>
+</div>
+<div class="mono" style="line-height: 1.8">--shadow: 0 1px 2px rgb(30 28 20/.04), 0 10px 28px -14px rgb(30 28 20/.12)<br>--shadow-float: 0 1px 1px rgb(30 28 20/.04), 0 18px 40px -18px rgb(30 28 20/.22)<br>glass: bg white/66% · blur 24px · saturate 1.6 · border white/85% – tylko elementy pływające</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end">
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 4px; height: 24px; background: var(--lime)"></span><span class="mono">4</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 8px; height: 24px; background: var(--lime)"></span><span class="mono">8</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 12px; height: 24px; background: var(--lime)"></span><span class="mono">12</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 16px; height: 24px; background: var(--lime)"></span><span class="mono">16</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 24px; height: 24px; background: var(--lime)"></span><span class="mono">24</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 32px; height: 24px; background: var(--lime)"></span><span class="mono">32</span></span>
+<span style="display: flex; flex-direction: column; gap: 4px; align-items: center"><span style="width: 40px; height: 24px; background: var(--lime)"></span><span class="mono">40</span></span>
+<span class="cap" style="font-size: 13px; margin-left: 8px">siatka 4 px · odstęp między kartami 24 · między kafelkami 16 · margines strony 32 (telefon 16) · treść max 1120</span>
+</div>
+</section>
+</div>
+
+<section class="card">
+<h2 class="h2">Ruch</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-top: 16px">
+<div class="mini"><b style="font-size: 14px">Naciśnięcie</b><span class="mono">150 ms · scale(.97) · ease-out</span></div>
+<div class="mini"><b style="font-size: 14px">Hover kafelka</b><span class="mono">200 ms · translateY(−2px)</span></div>
+<div class="mini"><b style="font-size: 14px">Wybór kafelka</b><span class="mono">350 ms · tło i kolor · cubic-bezier(.2,.8,.2,1)</span></div>
+<div class="mini"><b style="font-size: 14px">Morfing wykresu</b><span class="mono">600 ms · transition: d · cubic-bezier(.2,.8,.2,1)</span></div>
+<div class="mini"><b style="font-size: 14px">Liczby dobiegające</b><span class="mono">800 ms · ease-out-expo · tylko przy pierwszym wczytaniu</span></div>
+<div class="mini"><b style="font-size: 14px">Arkusz / popover</b><span class="mono">420 ms · spring(1, 0.9) · fade 160 ms</span></div>
+</div>
+<p class="sub" style="margin-top: 12px">prefers-reduced-motion: wszystko poza zmianą koloru – 0 ms, liczby od razu w wartości końcowej.</p>
+</section>
+
+<section class="card" style="display: flex; flex-direction: column; gap: 28px">
+<h2 class="h2">Komponenty</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 16px">
+<div class="kpi" style="cursor: default; box-shadow: var(--shadow), inset 0 0 0 1px var(--line)"><span class="lbl">Kliknięcia · zwykły</span><span class="num">46 320</span><span class="pill good" style="align-self: flex-start"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>16%</span><span class="yoy">rok temu: 38 112 (+22%)</span></div>
+<div class="kpi on" style="cursor: default"><span class="lbl">Wydatki · wybrany</span><span class="num">43 885 zł</span><span class="pill flat" style="align-self: flex-start"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>11%</span><span class="yoy">rok temu: 34 297 zł (+28%)</span></div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span class="cap" style="font-size: 13px">Pigułka zmiany</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pill good"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>16%</span><span class="cap" style="font-size: 12.5px">wzrost dobry</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pill good"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10M17 9v8H9"></path></svg>7%</span><span class="cap" style="font-size: 12.5px">spadek dobry („taniej”)</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pill bad"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg>24%</span><span class="cap" style="font-size: 12.5px">wzrost zły (np. koszt)</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="pill flat"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"></path></svg>0,6%</span><span class="cap" style="font-size: 12.5px">bez zmian / neutralne (wydatki)</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span class="cap" style="font-size: 13px">Status kampanii · kropka + słowo</span>
+<span class="st"><i></i>Działa dobrze</span><span class="st warn"><i></i>Do obejrzenia</span><span class="st bad"><i></i>Wymaga działania</span><span class="st" style="color: var(--ink-3)"><i style="background: var(--line-2)"></i>Wstrzymana</span>
+<span class="cap" style="font-size: 13px; margin-top: 6px">Platforma</span>
+<div style="display: flex; gap: 8px"><span class="tag">Meta</span><span class="tag">Google</span></div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="cap" style="font-size: 13px">Przełącznik segmentowy</span><div class="seg" style="align-self: flex-start"><button type="button">7 dni</button><button class="on" type="button">30 dni</button><button type="button">90 dni</button></div>
+<span class="cap" style="font-size: 13px; margin-top: 8px">Przyciski</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="btn pri" type="button">Prezentuj</button><button class="btn sec" type="button">Pobierz PDF</button><button class="btn txt" type="button">Anuluj</button><button class="btn dan" type="button">Odłącz konto</button></div></div>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="cap" style="font-size: 13px">Pasek postępu z kreską celu</span>
+<div class="bar"><span class="f" style="width: 17%"></span><span class="t" style="left: 18%"></span></div>
+<div class="bar"><span class="f am" style="width: 14%"></span><span class="t" style="left: 18%"></span></div>
+<span class="cap" style="font-size: 13px; margin-top: 8px">Legenda</span>
+<div class="lg"><span><i></i>Ten okres</span><span><i class="dash"></i>Poprzedni okres</span><span><i class="ring"></i>dziś – niepełne</span></div></div>
+<div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap"><div style="display: flex; flex-direction: column; gap: 8px"><span class="cap" style="font-size: 13px">Półokrągły wskaźnik</span>
+<svg width="180" height="102" viewBox="0 0 200 112" role="img" aria-label="18%"><defs><pattern id="dgst" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)"><rect width="5" height="10" fill="#9FD545"></rect><rect x="5" width="5" height="10" fill="#BCE476"></rect></pattern></defs><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--sunken)" stroke-width="18" stroke-linecap="round"></path><path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="url(#dgst)" stroke-width="18" stroke-linecap="round" stroke-dasharray="45.2 400"></path><line x1="44.3" y1="64.6" x2="20.6" y2="49.6" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"></line><text x="100" y="88" text-anchor="middle" style="font-size: 36px; font-weight: 500; fill: var(--ink)">18%</text></svg></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span class="cap" style="font-size: 13px">Tooltip wykresu</span><div class="tip" style="position: static; transform: none"><span style="color: var(--ink-3)">pon. 29 wrz</span><b style="font-size: 14px">1 790 zł</b><span style="color: var(--ink-3)">poprzednio 1 540 zł</span></div></div></div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(460px, 100%), 1fr)); gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="cap" style="font-size: 13px">Karta „Analiza AI”</span>
+<div class="ai"><span class="aichip"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>Analiza AI</span><p style="margin: 0; flex: 1 1 240px; font-size: 15px; line-height: 1.6">Kliknięć jest o <span class="nchip">16%</span> więcej, a koszt kliknięcia spadł o <span class="nchip">7%</span>.</p></div>
+<span class="cap" style="font-size: 13px; margin-top: 6px">Baner alertu</span>
+<div class="al"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg></span><span style="flex: 1 1 200px"><b>Skok wydatków dziś: 1 809 zł</b><span style="color: var(--ink-2)"> · PMAX | Ruch</span></span><button class="btn sec sm" type="button">Zobacz</button></div></div>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="cap" style="font-size: 13px">Pozycja menu · aktywna / nieaktywna / podstrona</span>
+<div style="display: flex; flex-direction: column; gap: 4px; max-width: 260px"><a class="nav on" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l7 4V6l-7 4H3z"></path><path d="M17 9a4 4 0 0 1 0 6"></path></svg>Reklamy<span class="ld"></span></a><a class="nav subn" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg>Kreacje</a><a class="nav" href="#"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg>Strona www</a></div>
+<span class="cap" style="font-size: 13px; margin-top: 6px">Dolny pasek zakładek · pływający, szkło</span>
+<div style="padding: 16px; border-radius: 24px; background: linear-gradient(120deg, rgba(159,213,69,.35), rgba(229,72,47,.18))"><nav style="height: 64px; border-radius: 999px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: var(--glass); border: 1px solid var(--glass-line); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: var(--shadow-float)" aria-label="Przykład zakładek"><a href="#" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 68px; min-height: 50px; border-radius: 999px; background: var(--sel); color: var(--sel-ink); font-size: 11px; text-decoration: none">Przegląd</a><a href="#" style="display: grid; place-items: center; min-width: 56px; min-height: 50px; font-size: 11px; color: var(--ink-2); text-decoration: none">Sprzedaż</a><a href="#" style="display: grid; place-items: center; min-width: 56px; min-height: 50px; font-size: 11px; color: var(--ink-2); text-decoration: none">Reklamy</a><a href="#" style="display: grid; place-items: center; min-width: 56px; min-height: 50px; font-size: 11px; color: var(--ink-2); text-decoration: none">Strona</a><a href="#" style="display: grid; place-items: center; min-width: 56px; min-height: 50px; font-size: 11px; color: var(--ink-2); text-decoration: none">Więcej</a></nav></div></div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 24px; align-items: end">
+<div class="fld"><label for="f1">E-mail · zwykłe</label><input class="inp" id="f1" type="email" placeholder="anna@firma.pl"></div>
+<div class="fld"><label for="f2">E-mail · aktywne</label><input class="inp" id="f2" type="email" value="anna@lokalnepomidorki.pl" style="border-color: var(--ink); box-shadow: 0 0 0 4px rgba(159,213,69,.35)"></div>
+<div class="fld"><label for="f3">E-mail · błąd</label><input class="inp err" id="f3" type="email" value="anna@" aria-invalid="true" aria-describedby="f3e"><span id="f3e" style="font-size: 13px; color: var(--red-ink)">Wpisz pełny adres, np. anna@firma.pl</span></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="cap" style="font-size: 13px">Toast</span><div class="toast" style="align-self: flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"></path></svg>PDF jest gotowy do pobrania<button class="btn sm" type="button" style="background: rgba(255,255,255,.14); color: inherit">Pobierz</button></div></div>
+</section>
+
+<section class="card">
+<h2 class="h2">Do Tailwind – fragment</h2>
+<pre class="mono" style="margin: 14px 0 0; padding: 20px; border-radius: 18px; background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; line-height: 1.7; white-space: pre-wrap">:root { --bg:#F3F2EE; --surface:#FFFFFF; --sunken:#ECEBE6; --line:#E7E5DF; --ink:#16171A; --ink-2:#4B4D53; --ink-3:#6A6C72;
+  --sel:#16171A; --lime:#9FD545; --lime-soft:#E9F5D6; --green-ink:#2B6B1F; --red-soft:#FBE4DF; --red-ink:#B2321E;
+  --amber:#E39B2E; --amber-soft:#FCEFD9; --amber-ink:#875309; --ai-a:#EFEBFB; --ai-b:#FBEDF3; --ai-ink:#5B41AD;
+  --radius-card:28px; --radius-tile:24px; --radius-panel:20px; --radius-field:16px; --ease:cubic-bezier(.2,.8,.2,1); }
+.dark { --bg:#0F100E; --surface:#1A1B18; --sunken:#2A2B27; --line:#2D2E2A; --ink:#F3F2EC; --ink-2:#C4C5BE; --ink-3:#9C9D96;
+  --sel:#F3F2EC; --lime:#A6DD4E; --green-ink:#B6E777; --red-ink:#FF9B86; --amber-ink:#F3C373; --ai-a:#211D33; --ai-b:#2A1D29; --ai-ink:#C2B2F7; }
+@media print { .glass, .aurora, nav { display:none } .card { box-shadow:none; border:1px solid #DDD } body { background:#fff } }</pre>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark": {"editor": "boolean", "default": false, "section": "Wygląd"}, "$preview": {"width": 1440, "height": 3600}}'>
+class Component extends DCLogic {
+  renderVals() { return { theme: (this.props.dark ?? false) ? 'dark' : 'light' }; }
+}
+</script>
+</body>
+</html>

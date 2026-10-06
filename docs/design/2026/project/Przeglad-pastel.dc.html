@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Przegląd pastel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F3EE}
+a{color:inherit}a:hover{color:inherit}
+.x{--bg:#18191C;--ink:#F4F3EE;--ink-2:rgba(244,243,238,.74);--ink-3:rgba(244,243,238,.56);--line:rgba(255,255,255,.08);--g1:rgba(255,255,255,.075);--g2:rgba(255,255,255,.022);--edge-a:rgba(255,255,255,.32);--edge-b:rgba(255,255,255,.04);--lime:#B9E08F;--lime-ink:#CBEBA6;--lime-glow:rgba(185,224,143,.25);--mint:#A8DCC8;--violet:#C4B8F2;--coral:#F0A08A;--amber:#F2CC8F;--prev:rgba(244,243,238,.32);--chip:rgba(255,255,255,.07);--sel:#F4F3EE;--sel-ink:#0B0C0E;--spot:rgba(255,255,255,.08);--shadow:0 30px 60px -30px rgba(0,0,0,.6);--num-grad:linear-gradient(180deg,#FFFFFF 25%,rgba(255,255,255,.45));--blob1:rgba(185,224,143,.28);--blob2:rgba(240,170,150,.22);--blob3:rgba(183,168,240,.24);--dots:rgba(255,255,255,.07);--tip:rgba(20,21,24,.72);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;position:relative;overflow-x:clip;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.x[data-theme=light]{--bg:#F5F3EE;--ink:#1D1E21;--ink-2:rgba(29,30,33,.74);--ink-3:rgba(29,30,33,.6);--line:rgba(29,30,33,.07);--g1:rgba(255,255,255,.86);--g2:rgba(255,255,255,.62);--edge-a:rgba(255,255,255,1);--edge-b:rgba(255,255,255,.5);--lime:#A9D97A;--lime-ink:#3F7A28;--lime-glow:rgba(169,217,122,.35);--mint:#9ED9C3;--violet:#B7A8F0;--coral:#E9876F;--amber:#F2C27A;--prev:rgba(29,30,33,.26);--chip:rgba(29,30,33,.045);--sel:#1D1E21;--sel-ink:#FFFFFF;--spot:rgba(255,255,255,.75);--shadow:0 1px 2px rgba(40,36,28,.04),0 22px 50px -30px rgba(40,36,28,.22);--num-grad:linear-gradient(180deg,#1D1E21 35%,rgba(29,30,33,.62));--blob1:rgba(200,232,160,.75);--blob2:rgba(251,213,197,.70);--blob3:rgba(217,208,250,.70);--dots:transparent;--tip:rgba(255,255,255,.88)}
+.x *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace}
+.sky{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.blob{position:absolute;border-radius:50%;filter:blur(110px);animation:drift 40s ease-in-out infinite alternate}
+.b1{width:760px;height:540px;left:-180px;top:-240px;background:var(--blob1)}
+.b2{width:580px;height:480px;right:-140px;top:-200px;background:var(--blob2);animation-duration:32s;animation-delay:-8s}
+.b3{width:640px;height:520px;left:36%;top:420px;background:var(--blob3);opacity:.55;animation-duration:38s;animation-delay:-14s}
+.b4{width:700px;height:500px;left:-200px;top:1500px;background:var(--blob1);opacity:.25;animation-duration:44s}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(90px,40px) scale(1.12)}100%{transform:translate(-40px,100px) scale(.94)}}
+.dotgrid{position:absolute;inset:0;background-image:radial-gradient(var(--dots) 1px,transparent 1.3px);background-size:26px 26px;-webkit-mask-image:linear-gradient(180deg,#000 0,transparent 1000px);mask-image:linear-gradient(180deg,#000 0,transparent 1000px)}
+.gl{position:relative;border-radius:32px;background:linear-gradient(180deg,var(--g1),var(--g2));backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);box-shadow:var(--shadow)}
+.gl::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(150deg,var(--edge-a),var(--edge-b) 35%,var(--edge-b) 65%,rgba(169,217,122,.35));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.gl::after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(480px circle at var(--mx,-999px) var(--my,-999px),var(--spot),transparent 45%);pointer-events:none}
+.rise{animation:rise 1.1s cubic-bezier(.16,1,.3,1) backwards;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(18px);filter:blur(6px)}}
+.page{position:relative;max-width:1280px;margin:0 auto;padding:16px 32px 96px;display:flex;flex-direction:column;gap:28px}
+.bar{position:sticky;top:14px;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-height:64px;padding:8px 8px 8px 18px;border-radius:999px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.02em;margin-right:6px}
+.slide{position:relative;display:grid;padding:4px;border-radius:999px;background:var(--chip)}
+.slide .ind{position:absolute;top:4px;bottom:4px;left:4px;border-radius:999px;background:var(--sel);transition:transform .55s cubic-bezier(.34,1.56,.64,1);box-shadow:0 4px 14px -6px rgba(40,36,28,.35)}
+.slide button{all:unset;position:relative;z-index:1;min-height:44px;padding:0 16px;display:grid;place-items:center;font-size:14px;font-weight:500;color:var(--ink-2);cursor:pointer;border-radius:999px;transition:color .35s;white-space:nowrap}
+.slide button:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+.slide button.on{color:var(--sel-ink)}
+.live{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-3);margin-left:auto;padding:0 6px}
+.ping{position:relative;width:8px;height:8px;flex:none;border-radius:50%;background:var(--c,#6CC489)}
+.ping::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;animation:ping 1.8s cubic-bezier(0,0,.2,1) infinite}
+@keyframes ping{75%,100%{transform:scale(3.2);opacity:0}}
+.ib{all:unset;box-sizing:border-box;width:44px;height:44px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--chip);cursor:pointer;position:relative;transition:transform .2s}
+.ib:active,.btn:active,.qc:active{transform:scale(.95)}
+.ib:focus-visible,.btn:focus-visible,.qc:focus-visible,.k:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.badge{position:absolute;top:2px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--coral);color:#140705;font-size:11px;font-weight:700;display:grid;place-items:center}
+.btn{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;font-size:15px;font-weight:500;cursor:pointer;white-space:nowrap;transition:transform .2s,box-shadow .3s;text-decoration:none}
+.btn.pri{background:var(--sel);color:var(--sel-ink)}
+.btn.lime{background:var(--lime);color:#1D2A12;box-shadow:0 10px 30px -10px var(--lime-glow)}
+.btn.lime:hover{box-shadow:0 14px 40px -8px var(--lime-glow)}
+.kick{font-family:'Geist Mono',ui-monospace,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.hero{font-size:clamp(60px,8.4vw,128px);font-weight:300;letter-spacing:-.055em;line-height:.88;background:var(--num-grad);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
+.hero small{font-size:.36em;letter-spacing:-.03em;margin-left:.12em}
+.pill{display:inline-flex;align-items:center;gap:10px;min-height:38px;padding:0 16px 0 14px;border-radius:999px;background:var(--chip);font-size:14px;font-weight:500}
+.hl{color:var(--ink);font-weight:500}
+.orbw{position:relative;width:60px;height:60px;flex:none}
+.halo{position:absolute;inset:-16px;border-radius:50%;background:conic-gradient(from 0deg,#CDEAA8,#BFE8D6,#D9D0FA,#FBD5C5,#CDEAA8);filter:blur(22px);opacity:.45;animation:spin 9s linear infinite reverse}
+.orb{position:absolute;inset:0;border-radius:50%}
+.orb::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,#CDEAA8,#BFE8D6,#D9D0FA,#FBD5C5,#CDEAA8);animation:spin 5s linear infinite}
+.orb::after{content:"";position:absolute;inset:4px;border-radius:50%;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,1),rgba(255,255,255,.4) 40%,transparent 62%),radial-gradient(circle at 60% 80%,rgba(169,217,122,.35),transparent 55%),#FFFFFF;box-shadow:inset 0 0 16px rgba(169,217,122,.35)}
+.orbw.think .orb,.orbw.think .halo{animation-duration:1.4s}
+.orbw.think{animation:breath 1.2s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes breath{50%{transform:scale(1.09)}}
+.caret{display:inline-block;width:2px;height:1.05em;background:var(--lime);vertical-align:-3px;margin-left:3px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.dots i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ink-3);margin-right:4px;animation:bob 1s ease-in-out infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes bob{50%{transform:translateY(-5px);opacity:.4}}
+.qc{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 15px;border-radius:999px;background:var(--chip);font-size:13.5px;color:var(--ink-2);cursor:pointer;transition:background .25s,color .25s,transform .2s}
+.qc:hover{background:var(--sel);color:var(--sel-ink)}
+.qc.on{background:var(--sel);color:var(--sel-ink)}
+.ask{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:6px 6px 6px 20px;border-radius:999px;background:var(--chip);cursor:text;font-size:15px;color:var(--ink-3)}
+.kbd{font-family:'Geist Mono',monospace;font-size:12px;padding:3px 7px;border-radius:7px;background:var(--chip);color:var(--ink-3)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr));gap:16px}
+.k{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:16px;padding:22px 22px 20px;border-radius:30px;transition:transform .5s cubic-bezier(.34,1.56,.64,1),box-shadow .5s}
+.k:hover{transform:translateY(-5px)}
+.k.on{box-shadow:0 0 0 1.5px var(--lime),0 22px 50px -24px var(--lime-glow)}
+.k .glow{position:absolute;inset:0;border-radius:inherit;background:radial-gradient(120% 80% at 0% 0%,rgba(169,217,122,.20),transparent 60%);opacity:0;transition:opacity .5s;pointer-events:none}
+.k.on .glow{opacity:1}
+.kl{font-family:'Geist Mono',monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);display:flex;justify-content:space-between;align-items:center}
+.kn{font-size:46px;font-weight:300;letter-spacing:-.055em;line-height:1}
+.kn small{font-size:.48em;margin-left:3px;letter-spacing:-.02em}
+.dl{display:inline-flex;align-items:center;gap:4px;font-size:13.5px;font-weight:600}
+.dl.good{color:var(--lime-ink)}
+.dl.flat{color:var(--ink-2)}
+.sub{font-size:13px;color:var(--ink-3)}
+.draw{stroke-dasharray:1;stroke-dashoffset:0;animation:draw 2.2s cubic-bezier(.65,0,.35,1) backwards;animation-delay:var(--d,.4s)}
+@keyframes draw{from{stroke-dashoffset:1}}
+.fade{animation:fade 1.4s ease backwards;animation-delay:var(--d,1s)}
+@keyframes fade{from{opacity:0}}
+.ttl{margin:0;font-size:22px;font-weight:500;letter-spacing:-.03em}
+.cv{padding:28px 30px}
+.pa{position:relative;height:300px;cursor:crosshair}
+.pa svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+.ml{fill:none;stroke:var(--lime);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 4px 10px var(--lime-glow));transition:d .8s cubic-bezier(.65,0,.35,1)}
+.pl{fill:none;stroke:var(--prev);stroke-width:1.5;stroke-dasharray:3 5;transition:d .8s cubic-bezier(.65,0,.35,1)}
+.fl{fill:none;stroke:var(--lime);stroke-width:2.2;stroke-dasharray:2 7;stroke-linecap:round;opacity:.9;transition:d .8s cubic-bezier(.65,0,.35,1)}
+.tr8{transition:d .8s cubic-bezier(.65,0,.35,1)}
+.cross{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg,transparent,var(--ink-3) 30%,var(--ink-3) 70%,transparent);transition:left .25s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.cdot{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 5px var(--lime-glow),0 6px 16px -4px rgba(40,36,28,.25);transition:left .25s cubic-bezier(.2,.8,.2,1),top .25s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.tip{position:absolute;z-index:3;padding:12px 14px;border-radius:18px;background:var(--tip);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border:1px solid var(--line);box-shadow:var(--shadow);white-space:nowrap;display:flex;flex-direction:column;gap:4px;font-size:12.5px;transition:left .25s cubic-bezier(.2,.8,.2,1),top .25s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.today{position:absolute;top:-6px;bottom:0;border-left:1px dashed var(--ink-3)}
+.today span{position:absolute;top:-22px;left:0;transform:translateX(-50%);font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.12em;color:var(--ink-3)}
+.fz{position:absolute;top:0;bottom:0;right:0;background:repeating-linear-gradient(135deg,transparent 0 8px,var(--chip) 8px 9px);border-radius:0 16px 16px 0}
+.ev{position:absolute;top:0;bottom:0;border-left:1px solid var(--line)}
+.evc{position:absolute;top:10px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px 0 6px;border-radius:999px;background:var(--chip);font-size:12px;color:var(--ink-2);white-space:nowrap;backdrop-filter:blur(10px)}
+.evc b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--sel);color:var(--sel-ink);font-size:10.5px}
+.xl{position:relative;height:30px}
+.xl span{position:absolute;top:12px;transform:translateX(-50%);font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink-3)}
+.yl{position:absolute;left:0;font-family:'Geist Mono',monospace;font-size:11px;color:var(--ink-3);transform:translateY(-50%);background:transparent}
+.lg{display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--ink-2)}
+.lg span{display:inline-flex;align-items:center;gap:8px}
+.ring{fill:none;stroke-linecap:round;animation:ring 2.4s cubic-bezier(.65,0,.35,1) backwards;animation-delay:var(--d,.6s)}
+@keyframes ring{from{stroke-dashoffset:100}}
+.crow{display:grid;grid-template-columns:minmax(220px,1.4fr) minmax(120px,1fr) 100px 76px;align-items:center;gap:18px;padding:15px 0;border-top:1px solid var(--line);min-width:600px}
+.share{position:relative;height:8px;border-radius:999px;background:var(--chip);overflow:hidden}
+.share i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(90deg,rgba(169,217,122,.35),var(--lime));transform-origin:left;animation:grow 1.6s cubic-bezier(.16,1,.3,1) backwards;animation-delay:var(--d,.8s)}
+.share i.w{background:linear-gradient(90deg,rgba(255,197,107,.35),var(--amber))}
+@keyframes grow{from{transform:scaleX(0)}}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--chip);font-size:11.5px;font-weight:500;color:var(--ink-2)}
+.st{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2)}
+.det{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:16px;width:100%;padding:22px 22px 22px 28px;border-radius:30px;cursor:pointer}
+@media (prefers-reduced-motion: reduce){.x *,.x *::before,.x *::after{animation:none!important;transition:none!important}}
+.x[data-motion=off] *,.x[data-motion=off] *::before,.x[data-motion=off] *::after{animation:none!important;transition:none!important}
+@media print{.sky,.bar{display:none}.x{background:#fff;color:#111}.gl{box-shadow:none;border:1px solid #DDD;backdrop-filter:none}}
+</style>
+</helmet>
+<div class="x" data-theme="{{theme}}" data-motion="{{motionStr}}" ref="{{setRoot}}" onMouseMove="{{move}}">
+<div class="sky"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span><span class="dotgrid"></span></div>
+<div class="page">
+
+<header class="gl bar rise" style="--d: 0s">
+<div class="brand"><svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="16" r="10" fill="#E5482F"></circle><path d="M14 7c-2-3-5-2.5-6.5-.5 2.2 0 4.3.8 6.5 2 2.2-1.2 4.3-2 6.5-2C19 4.5 16 4 14 7z" fill="#4C9A2A"></path></svg>lokalnepomidorki</div>
+<nav class="slide" aria-label="Sekcje" style="grid-template-columns: repeat(5, minmax(0, 1fr))">
+<span class="ind" style="width: calc((100% - 8px) / 5); transform: translateX({{navX}})"></span>
+<sc-for list="{{nav}}" as="n" hint-placeholder-count="5"><button class="{{n.cls}}" type="button" onClick="{{n.pick}}" aria-current="{{n.cur}}">{{n.label}}</button></sc-for>
+</nav>
+<div class="live"><span class="ping"></span>Na żywo · 5 min temu</div>
+<button class="ib" type="button" aria-label="Zapytaj Claude"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg></button>
+<button class="ib" type="button" aria-label="Alerty: 3 nowe"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg><span class="badge">3</span></button>
+<a class="btn pri" href="Prezentacja-2030.dc.html"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path><path d="M10.5 8l3.5 2-3.5 2z"></path></svg>Prezentuj</a>
+</header>
+
+<section style="display: flex; flex-wrap: wrap; gap: 28px; align-items: stretch; padding-top: 36px">
+<div style="flex: 1.25 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 22px; justify-content: space-between">
+<div style="display: flex; flex-direction: column; gap: 20px">
+<div class="rise" style="--d: .1s; display: flex; flex-wrap: wrap; align-items: center; gap: 12px"><span class="kick">Październik 2026 · ostatnie 30 dni</span><span class="pill" style="--c: var(--coral)"><span class="ping" style="--c: var(--coral)"></span>2 rzeczy do sprawdzenia</span></div>
+<div class="hero rise" style="--d: .2s">{{heroNum}}<small>zł</small></div>
+<p class="rise" style="--d: .35s; margin: 0; font-size: 30px; line-height: 1.25; font-weight: 400; letter-spacing: -.03em; color: var(--ink-3); max-width: 640px; text-wrap: balance">wydanych na reklamy zamieniło się w <span class="hl">{{heroClicks}} kliknięć</span> i <span class="hl">{{heroVisits}} wizyt</span> na stronie.</p>
+</div>
+<nav class="slide rise" aria-label="Zakres dat" style="--d: .5s; align-self: flex-start; grid-template-columns: repeat(5, minmax(0, 1fr))">
+<span class="ind" style="width: calc((100% - 8px) / 5); transform: translateX({{rangeX}})"></span>
+<sc-for list="{{ranges}}" as="r" hint-placeholder-count="5"><button class="{{r.cls}}" type="button" onClick="{{r.pick}}">{{r.label}}</button></sc-for>
+</nav>
+</div>
+
+<aside class="gl rise" style="--d: .3s; flex: 1 1 400px; min-width: 0; padding: 26px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; align-items: center; gap: 16px">
+<div class="{{orbCls}}"><span class="halo"></span><span class="orb"></span></div>
+<div style="flex: 1"><b style="display: block; font-size: 16px; font-weight: 600">Claude</b><span class="sub">{{aiMeta}}</span></div>
+<span class="kick" style="font-size: 10.5px">AI</span>
+</div>
+<sc-if value="{{hasQ}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: 18px 18px 6px 18px; background: var(--sel); color: var(--sel-ink); font-size: 14px">{{qText}}</div></sc-if>
+<sc-if value="{{thinking}}" hint-placeholder-val="{{false}}"><div class="dots" style="padding: 6px 0" aria-label="Claude analizuje"><i></i><i></i><i></i></div></sc-if>
+<p style="margin: 0; font-size: 17px; line-height: 1.55; letter-spacing: -.01em; min-height: 132px; text-wrap: pretty" aria-live="polite">{{typed}}<sc-if value="{{typing}}" hint-placeholder-val="{{false}}"><span class="caret"></span></sc-if></p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{questions}}" as="q" hint-placeholder-count="3"><button class="{{q.cls}}" type="button" onClick="{{q.pick}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>{{q.label}}</button></sc-for>
+</div>
+<button class="ask" type="button" style="margin-top: auto">Zapytaj o swoje dane…<span style="flex: 1"></span><span class="kbd">⌘K</span><span style="width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--lime); color: #1D2A12"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></span></button>
+</aside>
+</section>
+
+<div class="kpis">
+<sc-for list="{{tiles}}" as="t" hint-placeholder-count="4">
+<button class="{{t.cls}}" type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="--d: {{t.d}}">
+<span class="glow"></span>
+<span class="kl">{{t.label}}<span class="{{t.dlCls}}" style="letter-spacing: 0; text-transform: none; font-family: 'Geist', sans-serif"><sc-if value="{{t.up}}" hint-placeholder-val="{{true}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg></sc-if><sc-if value="{{t.down}}" hint-placeholder-val="{{false}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10M17 9v8H9"></path></svg></sc-if>{{t.pct}}</span></span>
+<span class="kn">{{t.num}}<small>{{t.unit}}</small></span>
+<svg width="100%" height="44" viewBox="0 0 200 44" preserveAspectRatio="none" aria-hidden="true" style="overflow: visible"><path d="{{t.spark}}" pathLength="1" class="draw" fill="none" stroke="{{t.sparkColor}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="--d: {{t.d2}}"></path></svg>
+<span class="sub">{{t.cmp}} · {{t.yoy}}</span>
+</button>
+</sc-for>
+</div>
+
+<section class="gl cv rise" style="--d: .7s">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 44px">
+<div><span class="kick">{{chartKick}}</span><h2 class="ttl" style="margin-top: 8px">{{chartTitle}}</h2><p class="sub" style="font-size: 14px; margin: 6px 0 0">{{chartNote}}</p></div>
+<div class="lg"><span><i style="width: 18px; height: 3px; border-radius: 2px; background: var(--lime); box-shadow: 0 0 8px var(--lime-glow)"></i>Ten okres</span><span><i style="width: 18px; height: 0; border-top: 2px dashed var(--prev)"></i>Poprzedni okres</span><span><i style="width: 18px; height: 0; border-top: 2px dotted var(--lime)"></i>Prognoza Claude · 7 dni</span></div>
+</div>
+<div class="pa" onMouseMove="{{chartMove}}" onMouseLeave="{{chartLeave}}">
+<span class="fz" style="left: 80.56%"></span>
+<span class="ev" style="left: 19.44%"></span><span class="ev" style="left: 44.44%"></span><span class="ev" style="left: 63.89%"></span>
+<svg viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true">
+<defs>
+<linearGradient id="xa" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A9D97A" stop-opacity=".34"></stop><stop offset=".6" stop-color="#A9D97A" stop-opacity=".06"></stop><stop offset="1" stop-color="#A9D97A" stop-opacity="0"></stop></linearGradient>
+<linearGradient id="xb" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#B7A8F0" stop-opacity=".10"></stop><stop offset="1" stop-color="#B7A8F0" stop-opacity=".32"></stop></linearGradient>
+</defs>
+<line x1="0" y1="0.5" x2="1000" y2="0.5" stroke="var(--line)" vector-effect="non-scaling-stroke"></line><line x1="0" y1="150" x2="1000" y2="150" stroke="var(--line)" vector-effect="non-scaling-stroke"></line><line x1="0" y1="299.5" x2="1000" y2="299.5" stroke="var(--line)" vector-effect="non-scaling-stroke"></line>
+<path class="tr8 fade" d="{{band}}" fill="url(#xb)" style="--d: 2.2s"></path>
+<path class="tr8 fade" d="{{area}}" fill="url(#xa)" style="--d: 1.2s"></path>
+<path class="pl fade" d="{{prevLine}}" vector-effect="non-scaling-stroke" style="--d: 1.6s"></path>
+<path class="ml draw" d="{{mainLine}}" pathLength="1" style="--d: .6s"></path>
+<path class="fl fade" d="{{fcLine}}" vector-effect="non-scaling-stroke" style="--d: 2.4s"></path>
+</svg>
+<span class="yl" style="top: 0%">{{y0}}</span><span class="yl" style="top: 50%">{{y1}}</span>
+<div class="today" style="left: 80.56%"><span>DZIŚ</span></div>
+<span class="cross" style="left: {{cx}}"></span>
+<span class="cdot" style="left: {{cx}}; top: {{cy}}"></span>
+<div class="tip" style="left: {{cx}}; top: {{cy}}; transform: {{tipT}}"><span class="mono" style="font-size: 11px; letter-spacing: .08em; color: var(--ink-3)">{{tipDate}}</span><b style="font-size: 18px; font-weight: 500; letter-spacing: -.02em">{{tipVal}}</b><span style="{{tipDiffStyle}}">{{tipDiff}}</span></div>
+</div>
+<div class="xl"><span style="left: 0%">07.09</span><span style="left: 19.44%">14.09</span><span style="left: 38.89%">21.09</span><span style="left: 58.33%">28.09</span><span style="left: 80.56%">06.10</span><span style="left: 100%">13.10</span></div>
+<div style="position: relative; height: 52px">
+<span class="evc fade" style="left: 19.44%; --d: 2.6s"><b>1</b>Start PMAX</span>
+<span class="evc fade" style="left: 44.44%; --d: 2.75s"><b>2</b>TRAFFIC +60% budżetu</span>
+<span class="evc fade" style="left: 63.89%; --d: 2.9s"><b>3</b>Wstrzymano retargeting</span>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: stretch">
+<section class="gl cv rise" style="--d: .85s; flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 22px">
+<div><span class="kick">Plan miesiąca</span><h2 class="ttl" style="margin-top: 8px">Dzień 6 z 31</h2></div>
+<div style="display: flex; flex-wrap: wrap; gap: 26px; align-items: center">
+<svg width="232" height="232" viewBox="0 0 260 260" role="img" aria-label="Budżet 18%, wizyty 17%, kliknięcia 14% celu" style="flex: none">
+<g transform="rotate(-90 130 130)">
+<circle cx="130" cy="130" r="110" fill="none" stroke="var(--chip)" stroke-width="22"></circle>
+<circle cx="130" cy="130" r="84" fill="none" stroke="var(--chip)" stroke-width="22"></circle>
+<circle cx="130" cy="130" r="58" fill="none" stroke="var(--chip)" stroke-width="22"></circle>
+<circle class="ring" cx="130" cy="130" r="110" stroke="var(--lime)" stroke-width="22" pathLength="100" stroke-dasharray="100 100" style="stroke-dashoffset: 82; --d: .9s; filter: drop-shadow(0 0 6px var(--lime-glow))"></circle>
+<circle class="ring" cx="130" cy="130" r="84" stroke="var(--mint)" stroke-width="22" pathLength="100" stroke-dasharray="100 100" style="stroke-dashoffset: 83; --d: 1.05s"></circle>
+<circle class="ring" cx="130" cy="130" r="58" stroke="var(--amber)" stroke-width="22" pathLength="100" stroke-dasharray="100 100" style="stroke-dashoffset: 86; --d: 1.2s"></circle>
+</g>
+<circle cx="229.5" cy="83.2" r="3.5" fill="var(--ink)"></circle><circle cx="206" cy="94.2" r="3.5" fill="var(--ink)"></circle><circle cx="182.5" cy="105.3" r="3.5" fill="var(--ink)"></circle>
+<text x="130" y="128" text-anchor="middle" style="font-size: 30px; font-weight: 300; letter-spacing: -.04em; fill: var(--ink)">{{ringDay}}</text>
+<text x="130" y="150" text-anchor="middle" style="font-size: 11px; letter-spacing: .14em; fill: var(--ink-3); font-family: 'Geist Mono', monospace">MIESIĄCA</text>
+</svg>
+<div style="flex: 1 1 200px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; gap: 12px; align-items: flex-start"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--lime); margin-top: 6px; box-shadow: 0 0 10px var(--lime-glow)"></span><div style="flex: 1"><div style="display: flex; justify-content: space-between"><b style="font-weight: 500">Budżet</b><b style="font-weight: 500">{{r1}}%</b></div><span class="sub">9 216 z 50 000 zł · w planie</span></div></div>
+<div style="display: flex; gap: 12px; align-items: flex-start"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--mint); margin-top: 6px"></span><div style="flex: 1"><div style="display: flex; justify-content: space-between"><b style="font-weight: 500">Wizyty</b><b style="font-weight: 500">{{r2}}%</b></div><span class="sub">7 253 z 42 500 · w planie</span></div></div>
+<div style="display: flex; gap: 12px; align-items: flex-start"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--amber); margin-top: 6px"></span><div style="flex: 1"><div style="display: flex; justify-content: space-between"><b style="font-weight: 500">Kliknięcia</b><b style="font-weight: 500; color: var(--amber)">{{r3}}%</b></div><span class="sub">8 093 z 56 500 · poniżej tempa</span></div></div>
+<div style="display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--ink-3); padding-top: 12px; border-top: 1px solid var(--line)"><span style="width: 7px; height: 7px; border-radius: 50%; background: var(--ink)"></span>kropka = gdzie powinniśmy być dziś</div>
+</div>
+</div>
+</section>
+
+<section class="gl cv rise" style="--d: 1s; flex: 1.7 1 560px; min-width: 0">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 10px">
+<div><span class="kick">Kampanie na żywo</span><h2 class="ttl" style="margin-top: 8px">Gdzie idą pieniądze</h2></div>
+<button class="btn" type="button" style="background: var(--chip); font-size: 14px">Wszystkie 8<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg></button>
+</div>
+<div style="overflow-x: auto">
+<div class="crow" style="border-top: 0; padding: 8px 0"><span class="kick" style="font-size: 10.5px">Kampania</span><span class="kick" style="font-size: 10.5px">Udział w wydatkach</span><span class="kick" style="font-size: 10.5px; text-align: right">Wydatki</span><span class="kick" style="font-size: 10.5px; text-align: right">Klikalność</span></div>
+<sc-for list="{{camps}}" as="c" hint-placeholder-count="5">
+<div class="crow">
+<div style="display: flex; gap: 12px; align-items: center; min-width: 0"><span class="ping" style="--c: {{c.dot}}"></span><div style="min-width: 0"><div style="font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.name}}</div><div style="display: flex; gap: 8px; margin-top: 5px; align-items: center"><span class="tag">{{c.pl}}</span><span class="st">{{c.status}}</span></div></div></div>
+<div class="share"><i class="{{c.barCls}}" style="width: {{c.w}}; --d: {{c.d}}"></i></div>
+<span style="text-align: right; font-size: 15px; font-weight: 500">{{c.spend}} zł</span>
+<span style="text-align: right; font-size: 15px; color: var(--ink-2)">{{c.ctr}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+</div>
+
+<button class="gl det rise" type="button" style="--d: 1.1s" aria-expanded="false">
+<span style="flex: 1; display: flex; flex-direction: column; gap: 4px"><b style="font-size: 17px; font-weight: 500">Pokaż szczegóły</b><span class="sub" style="font-size: 14px">Dobre wiadomości, rekordy i co dla Ciebie zrobiliśmy.</span></span>
+<span class="ib"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"Wygląd"},"motion":{"editor":"boolean","default":true,"section":"Wygląd"},"$preview":{"width":1440,"height":2280}}'>
+class Component extends DCLogic {
+  state = { tick: 0, metric: 'spend', hover: null, q: -1, qStart: 0, nav: 0, range: 1 };
+  componentDidMount() { this.iv = setInterval(() => this.setState((s) => ({ tick: s.tick + 1 })), 50); }
+  componentWillUnmount() { clearInterval(this.iv); }
+  sp(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  ease(t) { const c = Math.min(1, Math.max(0, t)); return 1 - Math.pow(1 - c, 4); }
+  line(p) { return p.map((q, i) => (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' '); }
+  date(i) { const d = 7 + i; return d <= 30 ? d + ' WRZ' : (d - 30) + ' PAŹ'; }
+  renderVals() {
+    const motion = this.props.motion ?? true;
+    const theme = this.props.theme ?? 'light';
+    const tick = motion ? this.state.tick : 9999;
+    const p = this.ease(tick / 32);
+    const spend = [1290,1420,1310,1380,1450,1220,1230,1590,1460,1480,1400,1310,1180,1520,1640,1490,1700,1630,1250,1260,1560,1610,1790,1590,1660,1230,1240,1840,1700,1809];
+    const cpc = [0.99,1.01,0.98,1.0,0.97,0.99,1.02,0.96,0.97,0.95,0.96,0.98,1.0,0.94,0.92,0.93,0.91,0.92,0.95,0.96,0.93,0.91,0.86,0.9,0.89,0.93,0.94,0.88,0.9,0.92];
+    const prevSpend = spend.map((v, i) => Math.round(v * 0.89 + Math.sin(i * 1.7) * 85));
+    const prevCpc = cpc.map((v, i) => +(v * 1.07 + Math.cos(i * 1.3) * 0.025).toFixed(3));
+    const clicks = spend.map((v, i) => Math.round(v / cpc[i]));
+    const prevClicks = prevSpend.map((v, i) => Math.round(v / prevCpc[i]));
+    const visits = clicks.map((v, i) => Math.round(v * (0.78 + 0.04 * Math.sin(i * 2.3))));
+    const prevVisits = prevClicks.map((v, i) => Math.round(v * (0.76 + 0.03 * Math.cos(i * 1.9))));
+    const zl = (v) => this.sp(Math.round(v)) + ' zł';
+    const M = {
+      spend: { label: 'Wydatki', data: spend, prev: prevSpend, max: 2000, y: ['2 tys. zł', '1 tys. zł'], target: 43885, unit: 'zł', dec: 0, fmt: zl, up: true, dl: 'flat', pct: '11%', cmp: 'więcej niż wcześniej', yoy: 'rok temu 34 297 zł', note: '43 885 zł · o 11% więcej niż w poprzednich 30 dniach. Do końca miesiąca prognozujemy równe tempo.', slope: 0.006, better: 0 },
+      clicks: { label: 'Kliknięcia', data: clicks, prev: prevClicks, max: 2400, y: ['2,4 tys.', '1,2 tys.'], target: 46320, unit: '', dec: 0, fmt: (v) => this.sp(Math.round(v)), up: true, dl: 'good', pct: '16%', cmp: 'więcej niż wcześniej', yoy: 'rok temu 38 112', note: '46 320 · o 16% więcej niż w poprzednich 30 dniach. Prognoza: ok. 2 000 kliknięć dziennie.', slope: 0.012, better: 1 },
+      visits: { label: 'Wizyty', data: visits, prev: prevVisits, max: 2000, y: ['2 tys.', '1 tys.'], target: 36586, unit: '', dec: 0, fmt: (v) => this.sp(Math.round(v)), up: true, dl: 'good', pct: '20%', cmp: 'więcej niż wcześniej', yoy: 'rok temu 30 118', note: '36 586 · o 20% więcej niż w poprzednich 30 dniach. Strona rośnie szybciej niż reklamy.', slope: 0.01, better: 1 },
+      cpc: { label: 'Koszt kliknięcia', data: cpc, prev: prevCpc, max: 1.2, y: ['1,20 zł', '0,60 zł'], target: 0.95, unit: 'zł', dec: 2, fmt: (v) => v.toFixed(2).replace('.', ',') + ' zł', up: false, dl: 'good', pct: '7%', cmp: 'taniej niż wcześniej', yoy: 'rok temu 0,90 zł', note: 'Średnio 0,95 zł · o 7% taniej niż w poprzednich 30 dniach – to dobra zmiana.', slope: -0.004, better: -1 }
+    };
+    const key = this.state.metric, m = M[key];
+    const W = 1000, H = 300, N = 36;
+    const last7 = m.data.slice(23, 30).reduce((a, b) => a + b, 0) / 7;
+    const fc = [m.data[29]];
+    for (let k = 1; k <= 7; k++) fc.push(last7 * (1 + m.slope * k) * (1 + 0.025 * Math.sin(k * 1.3)));
+    const X = (i) => i * W / N, Y = (v) => H - Math.min(v, m.max) / m.max * H;
+    const mainP = m.data.map((v, i) => [X(i), Y(v)]);
+    const mainLine = this.line(mainP);
+    const area = mainLine + ' L' + X(29).toFixed(1) + ' ' + H + ' L0 ' + H + ' Z';
+    const fcP = fc.map((v, k) => [X(29 + k), Y(v)]);
+    const up = fc.map((v, k) => [X(29 + k), Y(v * (1 + 0.03 + 0.012 * k))]);
+    const lo = fc.map((v, k) => [X(29 + k), Y(v * (1 - 0.03 - 0.012 * k))]).reverse();
+    const band = this.line(up) + ' ' + lo.map((q) => 'L' + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ') + ' Z';
+    const auto = tick > 80 ? Math.floor((tick - 80) / 8) % 37 : 29;
+    const idx = this.state.hover ?? auto;
+    const val = idx <= 29 ? m.data[idx] : fc[idx - 29];
+    const cxN = idx / N * 100;
+    let tipDiff = '', tipDiffStyle = 'color: var(--ink-3)';
+    if (idx <= 29) {
+      const d = Math.round((val / m.prev[idx] - 1) * 100);
+      tipDiff = (d > 0 ? '+' : '') + d + '% vs poprzedni okres';
+      const good = m.better === 0 ? null : (m.better > 0 ? d > 0 : d < 0);
+      if (good === true) tipDiffStyle = 'color: var(--lime-ink)';
+      if (good === false) tipDiffStyle = 'color: var(--coral)';
+    } else { tipDiff = 'prognoza · ±' + Math.round(3 + 1.2 * (idx - 29)) + '%'; tipDiffStyle = 'color: var(--violet)'; }
+    const tipT = cxN > 78 ? 'translate(calc(-100% - 18px), -50%)' : (cxN < 10 ? 'translate(18px, -50%)' : 'translate(-50%, calc(-100% - 22px))');
+    const tipDate = this.date(idx) + (idx === 29 ? ' · DZIŚ, NIEPEŁNY' : '') + (idx > 29 ? ' · PROGNOZA' : '');
+    const num = (t) => { const v = t.target * p; return t.dec ? v.toFixed(t.dec).replace('.', ',') : this.sp(Math.round(v)); };
+    const tiles = ['spend', 'clicks', 'visits', 'cpc'].map((k, i) => {
+      const t = M[k]; const s = t.data; const mn = Math.min(...s), mx = Math.max(...s);
+      const sp = s.map((v, j) => [j * 200 / 29, 40 - (v - mn) / (mx - mn) * 36]);
+      const on = k === key;
+      return { label: t.label, num: num(t), unit: t.unit, pct: t.pct, cmp: t.cmp, yoy: t.yoy, up: t.up, down: !t.up, dlCls: 'dl ' + t.dl, cls: 'gl k rise' + (on ? ' on' : ''), pressed: String(on), spark: this.line(sp), sparkColor: on ? 'var(--lime)' : 'var(--ink-3)', d: (0.45 + i * 0.08) + 's', d2: (0.9 + i * 0.12) + 's', pick: () => this.setState({ metric: k, hover: null }) };
+    });
+    const QS = [
+      { label: 'Dlaczego PMAX wydaje dziś więcej?', a: 'PMAX wydał dziś 1 809 zł – o 62% więcej niż zwykle. Kampania ruszyła 14.09 i wciąż się uczy, więc testuje droższe miejsca. Do 14:00 ustawimy dzienny limit, żeby budżet starczył do końca miesiąca.' },
+      { label: 'Czy dowieziemy cel kliknięć?', a: 'W obecnym tempie skończymy październik ok. 6 000 kliknięć pod celem 56 500. Przesuwamy budżet do kampanii TRAFFIC, gdzie kliknięcie kosztuje poniżej 1 zł – to powinno domknąć różnicę w ok. 10 dni.' },
+      { label: 'Co pokazać zarządowi?', a: 'Trzy liczby: kliknięć +16%, wizyt na stronie +20%, a koszt kliknięcia spadł o 7%. Za podobne pieniądze przychodzi wyraźnie więcej ludzi. Włącz „Prezentuj” – przygotowałem z tego 4 slajdy.' }
+    ];
+    const weekly = 'W tym tygodniu ruch z kampanii rośnie – kliknięć jest o 16% więcej, a jedno kliknięcie kosztuje 7% mniej. Najmocniej ciągnie film „Poradnik montażu”. Do sprawdzenia: PMAX wydał dziś 1 809 zł, ustawiamy limit do 14:00.';
+    const q = this.state.q;
+    const since = tick - (q >= 0 ? this.state.qStart : 0);
+    const thinking = motion && q >= 0 && since < 14;
+    const text = q >= 0 ? QS[q].a : weekly;
+    const chars = motion ? Math.max(0, (q >= 0 ? since - 14 : tick - 18) * 3) : 9999;
+    const typed = text.slice(0, chars);
+    const typing = !thinking && chars < text.length;
+    const navL = ['Przegląd', 'Sprzedaż', 'Reklamy', 'Strona', 'Alerty'];
+    const rangeL = ['7 dni', '30 dni', '90 dni', 'Ten mies.', 'Własny'];
+    const C = [
+      { name: 'BRAND | Świadomość | Reach', pl: 'Meta', s: 8777, ctr: '0,90%', w: 'ok' },
+      { name: 'TRAFFIC | Ruch na stronę', pl: 'Meta', s: 7460, ctr: '2,10%', w: 'ok' },
+      { name: 'SEARCH | Generyczne', pl: 'Google', s: 7022, ctr: '4,50%', w: 'ok' },
+      { name: 'PMAX | Ruch', pl: 'Google', s: 5705, ctr: '1,80%', w: 'warn' },
+      { name: 'ENGAGEMENT | Instagram', pl: 'Meta', s: 4827, ctr: '2,80%', w: 'ok' }
+    ];
+    const camps = C.map((c, i) => ({ name: c.name, pl: c.pl, ctr: c.ctr, spend: this.sp(Math.round(c.s * p)), w: (c.s / 8777 * 100).toFixed(1) + '%', d: (1.1 + i * 0.1) + 's', barCls: c.w === 'warn' ? 'w' : '', dot: c.w === 'warn' ? 'var(--amber)' : 'var(--lime)', status: c.w === 'warn' ? 'Do obejrzenia' : 'Działa dobrze' }));
+    return {
+      theme, motionStr: motion ? 'on' : 'off',
+      setRoot: (el) => { this.root = el; },
+      move: (e) => { if (!this.root) return; this.root.querySelectorAll('.gl').forEach((el) => { const r = el.getBoundingClientRect(); el.style.setProperty('--mx', (e.clientX - r.left) + 'px'); el.style.setProperty('--my', (e.clientY - r.top) + 'px'); }); },
+      nav: navL.map((l, i) => ({ label: l, cls: i === this.state.nav ? 'on' : '', cur: i === this.state.nav ? 'page' : 'false', pick: () => this.setState({ nav: i }) })),
+      navX: (this.state.nav * 100) + '%',
+      ranges: rangeL.map((l, i) => ({ label: l, cls: i === this.state.range ? 'on' : '', pick: () => this.setState({ range: i, tick: 0 }) })),
+      rangeX: (this.state.range * 100) + '%',
+      heroNum: this.sp(Math.round(43885 * p)), heroClicks: this.sp(Math.round(46320 * p)), heroVisits: this.sp(Math.round(36586 * p)),
+      orbCls: 'orbw' + (thinking || typing ? ' think' : ''),
+      aiMeta: thinking ? 'analizuje Twoje dane…' : (q >= 0 ? 'odpowiedź na podstawie Meta, Google i GA4' : 'Komentarz tygodnia · 29.09–05.10'),
+      hasQ: q >= 0, qText: q >= 0 ? QS[q].label : '', thinking, typed, typing,
+      questions: QS.map((x, i) => ({ label: x.label, cls: 'qc' + (i === q ? ' on' : ''), pick: () => this.setState({ q: i, qStart: this.state.tick }) })),
+      tiles,
+      chartKick: m.label + ' · 30 dni + prognoza', chartTitle: m.label + ' dzień po dniu', chartNote: m.note,
+      mainLine, area, band, fcLine: this.line(fcP), prevLine: this.line(m.prev.map((v, i) => [X(i), Y(v)])),
+      y0: m.y[0], y1: m.y[1],
+      cx: cxN.toFixed(2) + '%', cy: (Y(val) / H * 100).toFixed(2) + '%', tipT, tipDate, tipVal: m.fmt(val), tipDiff, tipDiffStyle,
+      chartMove: (e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.max(0, Math.min(36, Math.round((e.clientX - r.left) / r.width * 36))); if (i !== this.state.hover) this.setState({ hover: i }); },
+      chartLeave: () => this.setState({ hover: null }),
+      ringDay: '6/31', r1: Math.round(18 * p), r2: Math.round(17 * p), r3: Math.round(14 * p),
+      camps
+    };
+  }
+}
+</script>
+</body>
+</html>

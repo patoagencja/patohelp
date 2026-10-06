@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Tryb prezentacji 2030</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07080A}
+a{color:inherit}a:hover{color:inherit}
+.pr{--ink:#F4F3EE;--ink-2:rgba(244,243,238,.74);--ink-3:rgba(244,243,238,.56);--line:rgba(255,255,255,.09);--chip:rgba(255,255,255,.07);--lime:#C6F25C;--lime-ink:#D8FF7A;--lime-glow:rgba(198,242,92,.5);--mint:#7FE0B5;--violet:#B9A6FF;--coral:#FF8A6B;--amber:#FFC56B;position:relative;width:1920px;height:1080px;overflow:hidden;background:#07080A;color:var(--ink);font-family:'Geist',ui-sans-serif,system-ui,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.pr *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.blob{position:absolute;border-radius:50%;filter:blur(120px);animation:drift 24s ease-in-out infinite alternate}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(120px,60px) scale(1.15)}100%{transform:translate(-60px,120px) scale(.92)}}
+.grain{position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1.3px);background-size:30px 30px;-webkit-mask-image:radial-gradient(80% 80% at 50% 40%,#000,transparent);mask-image:radial-gradient(80% 80% at 50% 40%,#000,transparent)}
+.gl{position:relative;border-radius:40px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));backdrop-filter:blur(30px) saturate(1.5);-webkit-backdrop-filter:blur(30px) saturate(1.5)}
+.gl::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(150deg,rgba(255,255,255,.34),rgba(255,255,255,.04) 40%,rgba(198,242,92,.3));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.rise{animation:rise 1.2s cubic-bezier(.16,1,.3,1) backwards;animation-delay:var(--d,0s)}
+@keyframes rise{from{opacity:0;transform:translateY(40px);filter:blur(16px)}}
+.kick{font-family:'Geist Mono',monospace;font-size:18px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+.giant{font-weight:300;letter-spacing:-.065em;line-height:.88;background:linear-gradient(180deg,#fff 25%,rgba(255,255,255,.42));-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.05em}
+.orbw{position:relative;width:72px;height:72px;flex:none}
+.halo{position:absolute;inset:-20px;border-radius:50%;background:conic-gradient(#C6F25C,#7FE0B5,#B9A6FF,#FF8A6B,#C6F25C);filter:blur(26px);opacity:.5;animation:spin 9s linear infinite reverse}
+.orb{position:absolute;inset:0;border-radius:50%}
+.orb::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(#C6F25C,#7FE0B5,#B9A6FF,#FF8A6B,#C6F25C);animation:spin 5s linear infinite}
+.orb::after{content:"";position:absolute;inset:5px;border-radius:50%;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.95),rgba(255,255,255,.12) 38%,transparent 60%),#0D0E10}
+@keyframes spin{to{transform:rotate(360deg)}}
+.caret{display:inline-block;width:3px;height:1em;background:var(--lime);vertical-align:-4px;margin-left:4px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.colbar{position:relative;width:64px;border-radius:20px;transform-origin:bottom;animation:grow 1.6s cubic-bezier(.16,1,.3,1) backwards;animation-delay:var(--d,.6s)}
+@keyframes grow{from{transform:scaleY(0)}}
+.ring{fill:none;stroke-linecap:round;animation:ring 2.4s cubic-bezier(.65,0,.35,1) backwards;animation-delay:var(--d,.6s)}
+@keyframes ring{from{stroke-dashoffset:100}}
+.nb{all:unset;box-sizing:border-box;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;cursor:pointer;transition:transform .2s,background .3s}
+.nb:hover{background:rgba(255,255,255,.14)}
+.nb:active{transform:scale(.94)}
+.nb:focus-visible,.seg:focus-visible{outline:2px solid var(--lime);outline-offset:4px}
+.seg{all:unset;box-sizing:border-box;position:relative;flex:1;height:44px;cursor:pointer;display:flex;align-items:center}
+.seg span{display:block;width:100%;height:4px;border-radius:4px;background:rgba(255,255,255,.14);overflow:hidden}
+.seg span i{display:block;height:100%;background:var(--lime);box-shadow:0 0 12px var(--lime-glow)}
+.seg span i.run{animation:fill 9s linear forwards}
+@keyframes fill{from{width:0}to{width:100%}}
+@media (prefers-reduced-motion: reduce){.pr *,.pr *::before,.pr *::after{animation:none!important;transition:none!important}}
+</style>
+</helmet>
+<div class="pr">
+<span class="blob" style="width: 1100px; height: 800px; left: -300px; top: -360px; background: rgba(166,221,78,.42)"></span>
+<span class="blob" style="width: 900px; height: 700px; right: -260px; top: -260px; background: rgba(229,72,47,.28); animation-duration: 30s"></span>
+<span class="blob" style="width: 1000px; height: 700px; left: 40%; bottom: -420px; background: rgba(140,110,255,.32); animation-duration: 36s"></span>
+<span class="grain"></span>
+
+<header style="position: absolute; left: 96px; right: 96px; top: 64px; display: flex; align-items: center; gap: 18px; z-index: 5">
+<svg width="36" height="36" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="16" r="10" fill="#E5482F"></circle><path d="M14 7c-2-3-5-2.5-6.5-.5 2.2 0 4.3.8 6.5 2 2.2-1.2 4.3-2 6.5-2C19 4.5 16 4 14 7z" fill="#4C9A2A"></path></svg>
+<b style="font-size: 22px; font-weight: 600; letter-spacing: -.02em">lokalnepomidorki</b>
+<span class="mono" style="font-size: 16px; color: var(--ink-3); letter-spacing: .1em">· RAPORT · PAŹDZIERNIK 2026</span>
+<span style="flex: 1"></span>
+<span class="mono" style="font-size: 18px; color: var(--ink-3)"><b style="color: var(--ink); font-weight: 500">{{num}}</b> / 04</span>
+<a href="Przeglad-2030.dc.html" style="display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 22px; border-radius: 999px; background: var(--chip); font-size: 17px; text-decoration: none">Zakończ</a>
+</header>
+
+<sc-if value="{{s0}}" hint-placeholder-val="{{true}}">
+<section style="position: absolute; left: 96px; right: 96px; top: 230px; display: flex; flex-direction: column; gap: 40px">
+<span class="kick rise" style="--d: .1s">Październik w jednym zdaniu</span>
+<div style="display: flex; align-items: flex-end; gap: 56px; flex-wrap: wrap">
+<div class="rise" style="--d: .2s"><div class="giant" style="font-size: 240px">{{a}}<span style="font-size: 90px; letter-spacing: -.03em"> zł</span></div><div style="font-size: 26px; color: var(--ink-3); margin-top: 18px">wydane na reklamy</div></div>
+<svg class="rise" style="--d: .5s; margin-bottom: 90px" width="120" height="60" viewBox="0 0 120 60" aria-hidden="true"><path d="M4 30h104M88 10l20 20-20 20" fill="none" stroke="#C6F25C" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+<div class="rise" style="--d: .6s"><div class="giant" style="font-size: 240px; background: linear-gradient(180deg, #D8FF7A 20%, rgba(198,242,92,.4)); -webkit-background-clip: text; background-clip: text">{{b}}</div><div style="font-size: 26px; color: var(--ink-3); margin-top: 18px">kliknięć · i {{c}} wizyt na stronie</div></div>
+</div>
+<div class="gl rise" style="--d: 1s; display: flex; align-items: center; gap: 32px; padding: 32px 40px; max-width: 1400px">
+<div class="orbw"><span class="halo"></span><span class="orb"></span></div>
+<p style="margin: 0; font-size: 36px; line-height: 1.3; letter-spacing: -.02em; font-weight: 400">{{typed}}<span class="caret"></span></p>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{s1}}" hint-placeholder-val="{{false}}">
+<section style="position: absolute; left: 96px; right: 96px; top: 230px; display: flex; flex-direction: column; gap: 56px">
+<div class="rise" style="--d: .1s"><span class="kick">Więcej ludzi, taniej</span><h1 style="margin: 18px 0 0; font-size: 72px; font-weight: 400; letter-spacing: -.045em">Za podobne pieniądze – wyraźnie lepszy wynik.</h1></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+<div class="gl rise" style="--d: .3s; padding: 44px; display: flex; justify-content: space-between; align-items: flex-end; height: 460px">
+<div style="display: flex; flex-direction: column; gap: 14px; height: 100%; justify-content: space-between"><span class="kick" style="font-size: 15px">Kliknięcia</span><div><div class="giant" style="font-size: 150px; background: linear-gradient(180deg, #D8FF7A 20%, rgba(198,242,92,.4)); -webkit-background-clip: text; background-clip: text">+{{k1}}%</div><div style="font-size: 22px; color: var(--ink-3); margin-top: 14px">46 320 vs 39 930</div></div></div>
+<div style="display: flex; gap: 12px; align-items: flex-end; height: 300px"><span class="colbar" style="height: 82%; background: rgba(255,255,255,.14); --d: .7s"></span><span class="colbar" style="height: 95%; background: linear-gradient(180deg, #D8FF7A, rgba(198,242,92,.35)); box-shadow: 0 0 40px var(--lime-glow); --d: .9s"></span></div>
+</div>
+<div class="gl rise" style="--d: .45s; padding: 44px; display: flex; justify-content: space-between; align-items: flex-end; height: 460px">
+<div style="display: flex; flex-direction: column; gap: 14px; height: 100%; justify-content: space-between"><span class="kick" style="font-size: 15px">Wizyty na stronie</span><div><div class="giant" style="font-size: 150px; background: linear-gradient(180deg, #A5F0D1 20%, rgba(127,224,181,.4)); -webkit-background-clip: text; background-clip: text">+{{k2}}%</div><div style="font-size: 22px; color: var(--ink-3); margin-top: 14px">36 586 vs 30 490</div></div></div>
+<div style="display: flex; gap: 12px; align-items: flex-end; height: 300px"><span class="colbar" style="height: 78%; background: rgba(255,255,255,.14); --d: .85s"></span><span class="colbar" style="height: 94%; background: linear-gradient(180deg, #A5F0D1, rgba(127,224,181,.35)); --d: 1.05s"></span></div>
+</div>
+<div class="gl rise" style="--d: .6s; padding: 44px; display: flex; justify-content: space-between; align-items: flex-end; height: 460px">
+<div style="display: flex; flex-direction: column; gap: 14px; height: 100%; justify-content: space-between"><span class="kick" style="font-size: 15px">Koszt kliknięcia</span><div><div class="giant" style="font-size: 150px">−{{k3}}%</div><div style="font-size: 22px; color: var(--ink-3); margin-top: 14px">0,95 zł · taniej to dobrze</div></div></div>
+<div style="display: flex; gap: 12px; align-items: flex-end; height: 300px"><span class="colbar" style="height: 92%; background: rgba(255,255,255,.14); --d: 1s"></span><span class="colbar" style="height: 85%; background: linear-gradient(180deg, #fff, rgba(255,255,255,.3)); --d: 1.2s"></span></div>
+</div>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{s2}}" hint-placeholder-val="{{false}}">
+<section style="position: absolute; left: 96px; right: 96px; top: 210px; display: flex; gap: 96px; align-items: center">
+<svg class="rise" style="--d: .2s; flex: none" width="640" height="640" viewBox="0 0 260 260" role="img" aria-label="Budżet 18%, wizyty 17%, kliknięcia 14% celu">
+<g transform="rotate(-90 130 130)">
+<circle cx="130" cy="130" r="110" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="22"></circle><circle cx="130" cy="130" r="84" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="22"></circle><circle cx="130" cy="130" r="58" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="22"></circle>
+<circle class="ring" cx="130" cy="130" r="110" stroke="#C6F25C" stroke-width="22" pathLength="100" stroke-dasharray="100 100" style="stroke-dashoffset: 82; --d: .5s; filter: drop-shadow(0 0 6px rgba(198,242,92,.6))"></circle>
+<circle class="ring" cx="130" cy="130" r="84" stroke="#7FE0B5" stroke-width="22" pathLength="100" stroke-dasharray="100 100" style="stroke-dashoffset: 83; --d: .7s"></circle>
+<circle class="ring" cx="130" cy="130" r="58" stroke="#FFC56B" stroke-width="22" pathLength="100" stroke-dasharray="100 100" style="stroke-dashoffset: 86; --d: .9s"></circle>
+</g>
+<text x="130" y="134" text-anchor="middle" style="font-size: 34px; font-weight: 300; fill: #F4F3EE; letter-spacing: -.04em">6 / 31</text>
+<text x="130" y="154" text-anchor="middle" style="font-size: 9px; letter-spacing: .16em; fill: rgba(244,243,238,.56); font-family: 'Geist Mono', monospace">DZIEŃ MIESIĄCA</text>
+</svg>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 40px">
+<div class="rise" style="--d: .3s"><span class="kick">Plan października</span><h1 style="margin: 18px 0 0; font-size: 68px; font-weight: 400; letter-spacing: -.045em; line-height: 1.05">Budżet i wizyty w planie. Kliknięcia doganiamy.</h1></div>
+<div class="rise" style="--d: .5s; display: flex; gap: 24px; align-items: center; font-size: 30px"><span style="width: 20px; height: 20px; border-radius: 50%; background: #C6F25C; box-shadow: 0 0 16px rgba(198,242,92,.6)"></span><span style="flex: 1">Budżet · 9 216 z 50 000 zł</span><b style="font-weight: 400">{{r1}}%</b></div>
+<div class="rise" style="--d: .65s; display: flex; gap: 24px; align-items: center; font-size: 30px"><span style="width: 20px; height: 20px; border-radius: 50%; background: #7FE0B5"></span><span style="flex: 1">Wizyty · 7 253 z 42 500</span><b style="font-weight: 400">{{r2}}%</b></div>
+<div class="rise" style="--d: .8s; display: flex; gap: 24px; align-items: center; font-size: 30px"><span style="width: 20px; height: 20px; border-radius: 50%; background: #FFC56B"></span><span style="flex: 1">Kliknięcia · 8 093 z 56 500</span><b style="font-weight: 400; color: #FFC56B">{{r3}}% · poniżej tempa</b></div>
+</div>
+</section>
+</sc-if>
+
+<sc-if value="{{s3}}" hint-placeholder-val="{{false}}">
+<section style="position: absolute; left: 96px; right: 96px; top: 230px; display: flex; flex-direction: column; gap: 56px">
+<div class="rise" style="--d: .1s"><span class="kick">Co robimy dalej</span><h1 style="margin: 18px 0 0; font-size: 72px; font-weight: 400; letter-spacing: -.045em">Trzy ruchy na najbliższe dwa tygodnie.</h1></div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+<div class="gl rise" style="--d: .3s; padding: 44px; height: 400px; display: flex; flex-direction: column; justify-content: space-between"><span class="mono" style="font-size: 96px; font-weight: 400; color: #C6F25C; line-height: 1">01</span><div><b style="display: block; font-size: 38px; font-weight: 500; letter-spacing: -.03em">Limit dla PMAX</b><p style="margin: 14px 0 0; font-size: 24px; line-height: 1.4; color: var(--ink-2)">Dzienny limit od dziś, 14:00 – budżet starczy do końca miesiąca.</p></div></div>
+<div class="gl rise" style="--d: .45s; padding: 44px; height: 400px; display: flex; flex-direction: column; justify-content: space-between"><span class="mono" style="font-size: 96px; font-weight: 400; color: #7FE0B5; line-height: 1">02</span><div><b style="display: block; font-size: 38px; font-weight: 500; letter-spacing: -.03em">Budżet do TRAFFIC</b><p style="margin: 14px 0 0; font-size: 24px; line-height: 1.4; color: var(--ink-2)">Kliknięcie poniżej 1 zł. Domykamy cel kliknięć w ok. 10 dni.</p></div></div>
+<div class="gl rise" style="--d: .6s; padding: 44px; height: 400px; display: flex; flex-direction: column; justify-content: space-between"><span class="mono" style="font-size: 96px; font-weight: 400; color: #B9A6FF; line-height: 1">03</span><div><b style="display: block; font-size: 38px; font-weight: 500; letter-spacing: -.03em">Więcej filmów</b><p style="margin: 14px 0 0; font-size: 24px; line-height: 1.4; color: var(--ink-2)">Dwa nowe w stylu „Poradnik montażu” – naszej najlepszej reklamy.</p></div></div>
+</div>
+</section>
+</sc-if>
+
+<footer style="position: absolute; left: 96px; right: 96px; bottom: 56px; display: flex; align-items: center; gap: 40px; z-index: 5">
+<div style="flex: 1; display: flex; gap: 12px">
+<sc-for list="{{segs}}" as="g" hint-placeholder-count="4"><button class="seg" type="button" onClick="{{g.pick}}" aria-label="{{g.label}}"><span><i class="{{g.cls}}" style="width: {{g.w}}"></i></span></button></sc-for>
+</div>
+<button class="nb gl" type="button" onClick="{{toggleAuto}}" aria-label="{{autoLabel}}" style="width: auto; padding: 0 26px; border-radius: 999px; font-size: 17px; gap: 10px; display: inline-flex; align-items: center">{{autoText}}</button>
+<button class="nb gl" type="button" onClick="{{prev}}" aria-label="Poprzedni slajd"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg></button>
+<button class="nb" type="button" onClick="{{next}}" aria-label="Następny slajd" style="background: #C6F25C; color: #121A05; box-shadow: 0 16px 50px -12px rgba(198,242,92,.6)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></button>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  state = { tick: 0, s: 0, sStart: 0, auto: false };
+  componentDidMount() {
+    this.iv = setInterval(() => this.setState((st) => {
+      const t = st.tick + 1;
+      if (st.auto && t - st.sStart >= 180) return { tick: t, s: (st.s + 1) % 4, sStart: t };
+      return { tick: t };
+    }), 50);
+  }
+  componentWillUnmount() { clearInterval(this.iv); }
+  sp(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  ease(t) { const c = Math.min(1, Math.max(0, t)); return 1 - Math.pow(1 - c, 4); }
+  go(i) { this.setState({ s: (i + 4) % 4, sStart: this.state.tick }); }
+  renderVals() {
+    const s = this.state.s, since = this.state.tick - this.state.sStart;
+    const p = this.ease((since - 4) / 32);
+    const text = 'Za podobne pieniądze przyszło wyraźnie więcej ludzi niż miesiąc wcześniej.';
+    return {
+      num: '0' + (s + 1), s0: s === 0, s1: s === 1, s2: s === 2, s3: s === 3,
+      a: this.sp(Math.round(43885 * p)), b: this.sp(Math.round(46320 * p)), c: this.sp(Math.round(36586 * p)),
+      typed: text.slice(0, Math.max(0, (since - 26) * 2)),
+      k1: Math.round(16 * p), k2: Math.round(20 * p), k3: Math.round(7 * p),
+      r1: Math.round(18 * p), r2: Math.round(17 * p), r3: Math.round(14 * p),
+      segs: [0, 1, 2, 3].map((i) => ({ label: 'Slajd ' + (i + 1), w: i < s ? '100%' : (i === s && !this.state.auto ? '100%' : (i === s ? '' : '0%')), cls: i === s && this.state.auto ? 'run' : '', pick: () => this.go(i) })),
+      autoText: this.state.auto ? 'Pauza' : 'Autoodtwarzanie', autoLabel: this.state.auto ? 'Zatrzymaj autoodtwarzanie' : 'Włącz autoodtwarzanie',
+      toggleAuto: () => this.setState({ auto: !this.state.auto, sStart: this.state.tick }),
+      prev: () => this.go(s - 1), next: () => this.go(s + 1)
+    };
+  }
+}
+</script>
+</body>
+</html>
