@@ -1,14 +1,23 @@
+import { subDays } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { AlertsBoard } from "@/components/dashboard/alert-explained";
-import { CampaignGoals } from "@/components/dashboard/campaign-goals";
+import {
+  CampaignGoals,
+  type AdsetOption,
+  type CampaignOption,
+} from "@/components/dashboard/campaign-goals";
+import { GoalTiles } from "@/components/dashboard/goal-tiles";
 import { getCurrentAlerts } from "@/lib/alerts/current";
 import { getPacing, type FlightMetric } from "@/lib/alerts/pacing";
+import { buildGoalTiles } from "@/lib/dashboard/campaign-goals";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +27,9 @@ export const dynamic = "force-dynamic";
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const addFlightSchema = z
   .object({
-    campaign: z.string().min(1).max(600), // "id|||name"
+    campaign: z.string().min(1).max(600), // "id|||name|||provider"
+    // Optional ad set (Meta) / ad group (Google) id; "" = whole campaign.
+    adset: z.string().max(100).optional(),
     metric: z.enum(["spend", "clicks", "impressions", "conversions"]),
     target: z.coerce.number().finite().positive().max(1e12),
     start: DATE,
@@ -35,6 +46,7 @@ async function addFlight(formData: FormData) {
 
   const parsed = addFlightSchema.safeParse({
     campaign: formData.get("campaign"),
+    adset: formData.get("adset") ?? undefined,
     metric: formData.get("metric"),
     target: formData.get("target"),
     start: formData.get("start"),
@@ -42,7 +54,9 @@ async function addFlight(formData: FormData) {
   });
   if (!parsed.success) return;
 
-  const [campaignId, campaignName] = parsed.data.campaign.split("|||");
+  const [campaignId, campaignName, rawProvider] = parsed.data.campaign.split("|||");
+  const provider =
+    rawProvider === "meta_ads" || rawProvider === "google_ads" ? rawProvider : null;
   const metric: FlightMetric = parsed.data.metric;
   const rawTarget = parsed.data.target;
   const startDate = parsed.data.start;
@@ -54,14 +68,41 @@ async function addFlight(formData: FormData) {
   const targetValue = metric === "spend" ? Math.round(rawTarget * 100) : Math.round(rawTarget);
 
   const admin = createAdminClient();
+
+  // Ad set level: trust our own synced row, not the posted name, and make
+  // sure the ad set really belongs to the chosen campaign (the no-JS list
+  // offers every ad set).
+  let adset: { adset_id: string; adset_name: string | null; provider: string } | null = null;
+  const adsetId = parsed.data.adset?.trim();
+  if (adsetId) {
+    const { data: row, error } = await admin
+      .from("ads_adset_daily")
+      .select("adset_id, adset_name, campaign_id, provider")
+      .eq("client_id", access.clientId)
+      .eq("adset_id", adsetId)
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !row || row.campaign_id !== campaignId) return;
+    adset = {
+      adset_id: row.adset_id as string,
+      adset_name: (row.adset_name as string | null) ?? null,
+      provider: row.provider as string,
+    };
+  }
+
   await admin.from("campaign_flights").insert({
     client_id: access.clientId,
     campaign_id: campaignId,
     campaign_name: campaignName ?? campaignId,
+    provider: adset?.provider ?? provider,
     target_metric: metric,
     target_value: targetValue,
     start_date: startDate,
     end_date: endDate,
+    // Only sent for ad set goals, so campaign goals still save on a
+    // database without migration 0033.
+    ...(adset ? { adset_id: adset.adset_id, adset_name: adset.adset_name } : {}),
   });
 
   revalidatePath(`/${clientSlug}/alerty`);
@@ -107,18 +148,19 @@ export default async function AlertyPage({
   // Campaign options for the flight form (agency only; top spenders). Needs
   // the role, not the alerts, so it starts as soon as the role is known.
   const campaignOptionsPromise = viewerPromise.then(async (viewer) => {
-    if (!viewer.isAgency) return [] as Array<{ id: string; name: string }>;
+    if (!viewer.isAgency) return [] as CampaignOption[];
     const { data: campRows } = await createClient()
       .from("ads_daily")
-      .select("campaign_id, campaign_name, spend_minor_units")
+      .select("campaign_id, campaign_name, provider, spend_minor_units")
       .eq("client_id", client.id)
       .order("spend_minor_units", { ascending: false })
       .limit(2000);
-    const byId = new Map<string, { name: string; spend: number }>();
+    const byId = new Map<string, { name: string; provider: string | null; spend: number }>();
     for (const r of campRows ?? []) {
       const id = r.campaign_id as string;
       const c = byId.get(id) ?? {
         name: (r.campaign_name as string) || id,
+        provider: (r.provider as string | null) ?? null,
         spend: 0,
       };
       c.spend += Number(r.spend_minor_units);
@@ -127,19 +169,31 @@ export default async function AlertyPage({
     return Array.from(byId.entries())
       .sort((a, b) => b[1].spend - a[1].spend)
       .slice(0, 150)
-      .map(([id, v]) => ({ id, name: v.name }));
+      .map(([id, v]) => ({ id, name: v.name, provider: v.provider }));
   });
+
+  // Ad sets / ad groups for the goal form's optional second picker (agency
+  // only). null hides the picker: migration 0033 not run yet (no table or
+  // no adset columns on campaign_flights) or the read failed.
+  const adsetOptionsPromise = viewerPromise.then((viewer) =>
+    viewer.isAgency ? getAdsetOptions(client.id) : null
+  );
 
   // One list, grouped by urgency: the client shouldn't have to know which
   // detector found what. Spend spikes go first within their severity. Shared
   // (per request) with the header bell's count.
-  const [alerts, pacing, viewer, campaignOptions] = await Promise.all([
+  const [alerts, pacing, viewer, campaignOptions, adsetOptions] = await Promise.all([
     getCurrentAlerts(client.id),
     getPacing(client.id),
     viewerPromise,
     campaignOptionsPromise,
+    adsetOptionsPromise,
   ]);
   const isAgency = viewer.isAgency;
+  const goalTiles = buildGoalTiles(
+    pacing,
+    formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd")
+  );
 
   // Clients only see the goals section once the agency has set goals - an
   // empty "no goals" box is noise for them.
@@ -147,6 +201,9 @@ export default async function AlertyPage({
 
   return (
     <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
+      {/* Running goals first: "are we on plan" before "what went wrong". */}
+      <GoalTiles goals={goalTiles} />
+
       <AlertsBoard alerts={alerts} />
 
       {showPacing ? (
@@ -155,6 +212,7 @@ export default async function AlertyPage({
           isAgency={isAgency}
           clientSlug={params.clientSlug}
           campaignOptions={campaignOptions}
+          adsetOptions={adsetOptions}
           addAction={addFlight}
           deleteAction={deleteFlight}
         />
@@ -167,4 +225,55 @@ export default async function AlertyPage({
       </p>
     </div>
   );
+}
+
+/**
+ * Ad sets (Meta) / ad groups (Google) with delivery in the last 60 days,
+ * distinct, biggest spend first. null when ad set goals aren't available on
+ * this database yet (migration 0033) - the form then stays campaign-level.
+ */
+async function getAdsetOptions(clientId: string): Promise<AdsetOption[] | null> {
+  const admin = createAdminClient();
+  const probe = await admin.from("campaign_flights").select("adset_id").limit(1);
+  if (probe.error) return null;
+  const since = formatInTimeZone(subDays(new Date(), 60), "Europe/Warsaw", "yyyy-MM-dd");
+  try {
+    const rows = await fetchAll<Record<string, unknown>>((from, to) =>
+      admin
+        .from("ads_adset_daily")
+        .select("provider, campaign_id, adset_id, adset_name, spend_minor_units, date")
+        .eq("client_id", clientId)
+        .gte("date", since)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("adset_id", { ascending: true })
+        .range(from, to)
+    );
+    const byId = new Map<string, AdsetOption & { spend: number }>();
+    for (const r of rows) {
+      const id = r.adset_id as string;
+      const cur = byId.get(id);
+      if (!cur) {
+        byId.set(id, {
+          id,
+          name: (r.adset_name as string) || id,
+          campaignId: (r.campaign_id as string) ?? "",
+          provider: r.provider as string,
+          spend: Number(r.spend_minor_units ?? 0),
+        });
+        continue;
+      }
+      cur.spend += Number(r.spend_minor_units ?? 0);
+      // Rows come oldest first: the latest name/campaign wins (renames).
+      cur.name = (r.adset_name as string) || cur.name;
+      cur.campaignId = (r.campaign_id as string) ?? cur.campaignId;
+    }
+    return Array.from(byId.values())
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 1500)
+      .map(({ id, name, campaignId, provider }) => ({ id, name, campaignId, provider }));
+  } catch (err) {
+    console.error("[alerty] ad set options failed", (err as Error).message);
+    return null;
+  }
 }
