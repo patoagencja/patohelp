@@ -100,11 +100,11 @@ export function AutoRefresh({
       <span className="relative flex h-2 w-2" aria-hidden>
         <span
           className={cn(
-            "absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60",
+            "absolute inline-flex h-full w-full rounded-full bg-lime opacity-60",
             pulse ? "motion-safe:animate-ping" : "motion-safe:animate-pulse"
           )}
         />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-lime" />
       </span>
       {stamp ? (
         <span className="sr-only sm:not-sr-only" suppressHydrationWarning>

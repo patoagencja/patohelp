@@ -126,7 +126,7 @@ export function BrandingSettingsSection({
                       onChange={(e) => setLogoUrl(e.target.value)}
                       aria-invalid={logoError ? true : undefined}
                       aria-describedby="brand-logo-hint"
-                      className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                      className="h-9 min-w-0 flex-1 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                     />
                     <Button
                       type="button"
@@ -195,7 +195,7 @@ export function BrandingSettingsSection({
                       aria-label="Wybierz kolor akcentu"
                       value={colorValid ? trimmedColor.toLowerCase() : BRAND_COLOR_PICKER_START}
                       onChange={(e) => setColor(e.target.value)}
-                      className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background p-1"
+                      className="h-9 w-12 cursor-pointer rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-1"
                     />
                     <input
                       id="brand-color-text"
@@ -204,7 +204,7 @@ export function BrandingSettingsSection({
                       value={color}
                       onChange={(e) => setColor(e.target.value)}
                       aria-invalid={colorError ? true : undefined}
-                      className="h-9 w-40 rounded-md border border-input bg-background px-2 font-mono text-sm uppercase"
+                      className="h-9 w-40 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 font-mono text-sm uppercase"
                     />
                     <Button
                       type="button"

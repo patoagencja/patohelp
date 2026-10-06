@@ -94,7 +94,7 @@ export default async function Ga4SelectPage({
                 {properties.map((p, i) => (
                   <label
                     key={p.propertyId}
-                    className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm hover:bg-muted"
+                    className="flex cursor-pointer items-start gap-3 rounded-2xl bg-muted/50 p-3 text-sm transition-colors hover:bg-muted"
                   >
                     <input
                       type="radio"

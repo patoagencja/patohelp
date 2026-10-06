@@ -1,17 +1,11 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2 } from "lucide-react";
 
-import { explainAlert } from "@/components/dashboard/alert-explained";
+import { explainAlert, SEVERITY_DOT } from "@/components/dashboard/alert-explained";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { cn } from "@/lib/utils";
 
 type Lang = "pl" | "en";
-
-const SEVERITY_DOT: Record<Anomaly["severity"], string> = {
-  critical: "bg-red-600",
-  high: "bg-amber-500",
-  medium: "bg-sky-500",
-};
 
 // Plain words instead of "Krytyczny/Wysoki/Średni" - a board member should
 // know at a glance whether something needs action today or is just FYI.
@@ -21,9 +15,9 @@ const SEVERITY_LABEL: Record<Lang, Record<Anomaly["severity"], string>> = {
 };
 
 const SEVERITY_PILL: Record<Anomaly["severity"], string> = {
-  critical: "bg-red-500/10 text-red-700 dark:text-red-400",
-  high: "bg-amber-500/15 text-amber-800 dark:text-amber-400",
-  medium: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
+  critical: "bg-negative-soft text-negative",
+  high: "bg-warning-soft text-warning",
+  medium: "bg-muted text-muted-foreground",
 };
 
 const COPY = {
@@ -63,14 +57,14 @@ export function AlertsDigest({
   const top = alerts.slice(0, 4);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
+    <div className="surface p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
+          <h2 className="flex items-center gap-2 text-section-title">
             <AlertTriangle
               className={cn(
                 "h-4 w-4 shrink-0",
-                top.length > 0 ? "text-amber-500" : "text-muted-foreground"
+                top.length > 0 ? "text-warning" : "text-muted-foreground"
               )}
               aria-hidden
             />
@@ -81,7 +75,7 @@ export function AlertsDigest({
         {!linkless ? (
           <Link
             href={`/${clientSlug}/alerty`}
-            className="flex shrink-0 items-center gap-1 rounded-sm pt-0.5 text-sm font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex shrink-0 items-center gap-1 rounded-full bg-muted py-1.5 pl-3.5 pr-2.5 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t.all}
             <ArrowRight className="h-3.5 w-3.5" aria-hidden />
@@ -91,7 +85,7 @@ export function AlertsDigest({
 
       {top.length === 0 ? (
         <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden />
           {t.empty}
         </p>
       ) : (
@@ -115,7 +109,7 @@ export function AlertsDigest({
                   ) : null}
                   <span
                     className={cn(
-                      "relative inline-flex h-2 w-2 rounded-full",
+                      "relative inline-flex h-2 w-2 rounded-full ring-[3px]",
                       SEVERITY_DOT[a.severity]
                     )}
                   />

@@ -16,16 +16,19 @@ export function AiSummaryCard({
 }) {
   const en = lang === "en";
   return (
-    <Card className="border-l-4 border-l-primary">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent">
-          <Sparkles className="h-4 w-4 text-accent-foreground" aria-hidden />
+    // v2 AI banner (benchmark 2): lavender -> pink wash and the "Analiza AI"
+    // chip, same as the overview's AI comment. Print drops the wash.
+    <Card className="bg-ai-wash">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
+        <span className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-xl bg-card/70 px-2.5 py-1.5 text-[13px] font-semibold text-ai shadow-sm dark:bg-card/40 print:shadow-none">
+          <Sparkles className="h-4 w-4" aria-hidden />
+          {en ? "AI analysis" : "Analiza AI"}
         </span>
-        <div>
-          <h2 className="text-base font-semibold">{en ? "AI summary" : "Podsumowanie AI"}</h2>
+        <div className="min-w-0 sm:border-l sm:border-ai/15 sm:pl-5">
+          <h2 className="text-section-title">{en ? "AI summary" : "Podsumowanie AI"}</h2>
           {summary ? (
             <>
-              <p className="mt-1 text-sm leading-relaxed text-foreground">
+              <p className="mt-1 max-w-3xl text-[15px] leading-relaxed text-foreground">
                 {summary.summaryText.replace(/[–—]/g, "-")}
               </p>
               <p className="mt-2 text-xs text-muted-foreground">

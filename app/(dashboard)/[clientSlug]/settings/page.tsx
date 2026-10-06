@@ -340,7 +340,7 @@ export default async function SettingsPage({
                   <CardTitle className="flex items-center gap-2">
                     {provider.label}
                     {connected ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                      <CheckCircle2 className="h-4 w-4 text-positive" />
                     ) : null}
                   </CardTitle>
                   <CardDescription>{provider.description}</CardDescription>
@@ -364,7 +364,7 @@ export default async function SettingsPage({
                           name="provider"
                           value={provider.key}
                         />
-                        <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                        <div className="max-h-64 space-y-1 overflow-y-auto rounded-2xl bg-muted/50 p-2">
                           {accounts.map((account) => (
                             <label
                               key={account.id}
@@ -375,7 +375,7 @@ export default async function SettingsPage({
                                 name="account"
                                 value={account.id}
                                 defaultChecked={account.selected}
-                                className="h-4 w-4 rounded border-input"
+                                className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                               />
                               <span className="truncate">
                                 {account.name || account.id}
@@ -394,7 +394,7 @@ export default async function SettingsPage({
                               defaultChecked={accounts.some(
                                 (a) => a.selected && a.video_only
                               )}
-                              className="h-4 w-4 rounded border-input"
+                              className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                             />
                             Tylko kampanie YouTube (VIDEO)
                             <span className="text-xs text-muted-foreground">
@@ -468,7 +468,7 @@ export default async function SettingsPage({
                   <CardTitle className="flex items-center gap-2">
                     Google Analytics 4
                     {connected ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                      <CheckCircle2 className="h-4 w-4 text-positive" />
                     ) : null}
                   </CardTitle>
                   <CardDescription>
@@ -556,7 +556,7 @@ export default async function SettingsPage({
                     type="checkbox"
                     name="email_enabled"
                     defaultChecked={notif?.email_enabled ?? false}
-                    className="h-4 w-4 rounded border-input"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                   />
                   E-mail
                 </label>
@@ -565,7 +565,7 @@ export default async function SettingsPage({
                   rows={2}
                   placeholder="adresy oddzielone przecinkiem lub nową linią"
                   defaultValue={(notif?.emails ?? []).join(", ")}
-                  className="rounded-md border border-input bg-background p-2 text-sm"
+                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
                 />
               </div>
 
@@ -576,7 +576,7 @@ export default async function SettingsPage({
                     type="checkbox"
                     name="whatsapp_enabled"
                     defaultChecked={notif?.whatsapp_enabled ?? false}
-                    className="h-4 w-4 rounded border-input"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                   />
                   WhatsApp
                 </label>
@@ -585,7 +585,7 @@ export default async function SettingsPage({
                   rows={2}
                   placeholder="numery z kierunkowym, np. +48600100200"
                   defaultValue={(notif?.whatsapp_numbers ?? []).join(", ")}
-                  className="rounded-md border border-input bg-background p-2 text-sm"
+                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   Wymaga skonfigurowania WhatsApp Business API (token + numer).
@@ -599,7 +599,7 @@ export default async function SettingsPage({
                     type="checkbox"
                     name="telegram_enabled"
                     defaultChecked={notif?.telegram_enabled ?? false}
-                    className="h-4 w-4 rounded border-input"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                   />
                   Telegram
                 </label>
@@ -608,7 +608,7 @@ export default async function SettingsPage({
                   rows={2}
                   placeholder="chat ID, np. 123456789 lub -1001234567890 (grupa)"
                   defaultValue={(notif?.telegram_chat_ids ?? []).join(", ")}
-                  className="rounded-md border border-input bg-background p-2 text-sm"
+                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   Napisz do bota{" "}
@@ -619,14 +619,14 @@ export default async function SettingsPage({
               </div>
 
               {/* Weekly digest e-mail */}
-              <div className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <div className="flex flex-col gap-2 rounded-2xl bg-lime-soft/60 p-4">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input
                     type="checkbox"
                     name="weekly_digest_enabled"
                     defaultChecked={digest?.weekly_digest_enabled ?? false}
                     disabled={!digestAvailable}
-                    className="h-4 w-4 rounded border-input"
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                   />
                   Wysyłaj co poniedziałek podsumowanie tygodnia
                 </label>
@@ -647,10 +647,10 @@ export default async function SettingsPage({
                   disabled={!digestAvailable}
                   placeholder="odbiorcy podsumowania (puste = adresy z pola E-mail powyżej)"
                   defaultValue={(digest?.weekly_digest_emails ?? []).join(", ")}
-                  className="rounded-md border border-input bg-background p-2 text-sm"
+                  className="rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted p-3 text-sm"
                 />
                 {!digestAvailable ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <p className="text-xs text-warning">
                     Wymaga migracji 0022_weekly_digest.sql w Supabase.
                   </p>
                 ) : null}
@@ -666,7 +666,7 @@ export default async function SettingsPage({
                     min="0"
                     max="23"
                     defaultValue={notif?.hour_start ?? 8}
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs">
@@ -677,7 +677,7 @@ export default async function SettingsPage({
                     min="0"
                     max="23"
                     defaultValue={notif?.hour_end ?? 20}
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs">
@@ -685,7 +685,7 @@ export default async function SettingsPage({
                   <select
                     name="min_severity"
                     defaultValue={notif?.min_severity ?? "high"}
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   >
                     <option value="high">Tylko wysoki</option>
                     <option value="medium">Wysoki + średni</option>
@@ -694,8 +694,8 @@ export default async function SettingsPage({
               </div>
 
               {/* Budget-spike thresholds */}
-              <div className="rounded-lg border border-red-200 bg-red-50/50 p-3 dark:border-red-500/20 dark:bg-red-500/5">
-                <p className="text-sm font-medium text-red-700 dark:text-red-400">
+              <div className="rounded-2xl bg-negative-soft/60 p-4">
+                <p className="text-sm font-medium text-negative">
                   🚨 Alerty budżetowe (skok wydatków)
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -719,7 +719,7 @@ export default async function SettingsPage({
                           ? Number(notif.daily_spend_cap_minor_units) / 100
                           : ""
                       }
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs">
@@ -738,7 +738,7 @@ export default async function SettingsPage({
                             100
                           : ""
                       }
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs">
@@ -752,7 +752,7 @@ export default async function SettingsPage({
                       step="0.5"
                       placeholder="3"
                       defaultValue={notif?.spike_multiplier ?? 3}
-                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                     />
                   </label>
                 </div>

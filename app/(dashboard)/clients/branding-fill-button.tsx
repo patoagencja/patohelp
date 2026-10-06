@@ -62,9 +62,9 @@ export function BrandingFillButton({ className }: { className?: string }) {
                   <li key={item.slug} className="flex items-start justify-between gap-3">
                     <span className="flex min-w-0 items-start gap-1.5">
                       {item.status === "filled" ? (
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-positive" aria-hidden />
                       ) : (
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden />
                       )}
                       <span className="min-w-0">
                         <span className="font-medium">{item.name}</span>

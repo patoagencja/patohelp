@@ -107,7 +107,7 @@ export default function DemoFullReklamy({
         />
       </div>
 
-      <AdsKpiTiles kpis={d.kpis} lang={lang} />
+      <AdsKpiTiles kpis={d.kpis} trend={d.trend} lang={lang} />
 
       <CostTrends costTrend={d.costTrend} lang={lang} />
 

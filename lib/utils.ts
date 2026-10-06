@@ -1,7 +1,14 @@
 import { clsx, type ClassValue } from "clsx";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { pl } from "date-fns/locale";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// bg-stripes / bg-dots are pattern overlays from globals.css, not colours.
+// Stock tailwind-merge reads any bg-* as a background colour and silently
+// dropped either the pattern or the fill when both went through cn().
+const twMerge = extendTailwindMerge<"bg-pattern">({
+  extend: { classGroups: { "bg-pattern": ["bg-stripes", "bg-dots"] } },
+});
 
 /** Merge Tailwind class names, resolving conflicts (shadcn convention). */
 export function cn(...inputs: ClassValue[]) {

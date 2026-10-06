@@ -22,10 +22,13 @@ export const SEVERITY_LABEL: Record<Lang, Record<Severity, string>> = {
   en: { critical: "Urgent", high: "Important", medium: "FYI" },
 };
 
-const SEVERITY_DOT: Record<Severity, string> = {
-  critical: "bg-red-600",
-  high: "bg-amber-500",
-  medium: "bg-sky-500",
+// v2: a small dot with a soft halo (same as campaign status dots on the
+// overview). Red = act now, amber = soon, grey = FYI - the label always
+// carries the meaning too.
+export const SEVERITY_DOT: Record<Severity, string> = {
+  critical: "bg-negative ring-negative-soft",
+  high: "bg-warning-fill ring-warning-soft",
+  medium: "bg-chart-muted ring-muted",
 };
 
 const SECTION_HINT: Record<Lang, Record<Severity, string>> = {
@@ -349,7 +352,7 @@ export function AlertCard({ a, lang = "pl" }: { a: Anomaly; lang?: Lang }) {
         <Arrow
           className={cn(
             "mt-0.5 h-4 w-4 shrink-0",
-            good ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+            good ? "text-positive" : "text-negative"
           )}
           aria-hidden
         />
@@ -422,7 +425,7 @@ export function AlertGroups({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?:
           <section key={s} aria-labelledby={`alerts-${s}`}>
             <h2 id={`alerts-${s}`} className="mb-3 flex flex-wrap items-baseline gap-x-2">
               <span className="flex items-center gap-2 text-[15px] font-semibold">
-                <span className={cn("h-2 w-2 rounded-full", SEVERITY_DOT[s])} aria-hidden />
+                <span className={cn("h-2 w-2 rounded-full ring-[3px]", SEVERITY_DOT[s])} aria-hidden />
                 {SEVERITY_LABEL[lang][s]}
                 <Pill className="tabular-nums">{items.length}</Pill>
               </span>
@@ -445,8 +448,8 @@ export function AlertsAllClear({ lang = "pl" }: { lang?: Lang }) {
   const en = lang === "en";
   return (
     <Card className="flex flex-col items-center px-6 py-14 text-center">
-      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
-        <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" aria-hidden />
+      <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-positive-soft">
+        <CheckCircle2 className="h-6 w-6 text-positive" aria-hidden />
       </span>
       <p className="text-section-title">
         {en ? "All good - nothing needs your attention" : "Wszystko w porządku - nic nie wymaga Twojej uwagi"}

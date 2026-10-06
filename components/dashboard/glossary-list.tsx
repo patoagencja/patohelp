@@ -42,6 +42,7 @@ export function GlossaryList({ isEcommerce }: { isEcommerce: boolean }) {
           short: e.short ?? null,
           explain: e.explain,
           goodWhen: GOOD_WHEN[e.goodWhen],
+          direction: e.goodWhen,
         };
       }),
     })

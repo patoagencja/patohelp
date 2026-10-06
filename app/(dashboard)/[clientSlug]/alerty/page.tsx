@@ -44,34 +44,37 @@ function targetText(metric: FlightMetric, value: number): string {
   }
 }
 
+// v2: meaning tokens for the pill, striped fills for the bar (same language
+// as the overview's "Plan miesiąca" card). Ahead of plan is good news too,
+// so it shares the lime fill; the pill words tell the two apart.
 const PACING_META: Record<
   PacingFlight["status"],
   { label: string; badge: string; bar: string }
 > = {
   behind: {
     label: "Poniżej planu",
-    badge: "bg-red-500/10 text-red-700 dark:text-red-400",
-    bar: "bg-red-500",
+    badge: "bg-warning-soft text-warning",
+    bar: "bg-warning-fill",
   },
   on_track: {
     label: "Zgodnie z planem",
-    badge: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-    bar: "bg-emerald-500",
+    badge: "bg-positive-soft text-positive",
+    bar: "bg-lime",
   },
   ahead: {
     label: "Szybciej niż plan",
-    badge: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
-    bar: "bg-sky-500",
+    badge: "bg-accent text-accent-foreground",
+    bar: "bg-lime",
   },
   upcoming: {
     label: "Jeszcze nie ruszyła",
     badge: "bg-muted text-muted-foreground",
-    bar: "bg-slate-400",
+    bar: "bg-chart-muted",
   },
   ended: {
     label: "Zakończona",
     badge: "bg-muted text-muted-foreground",
-    bar: "bg-slate-400",
+    bar: "bg-chart-muted",
   },
 };
 
@@ -180,7 +183,7 @@ function PacingCard({
   const expectedPct = Math.min(f.expectedPct * 100, 100);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+    <div className="surface p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words font-medium leading-snug">{f.campaignName}</p>
@@ -200,14 +203,14 @@ function PacingCard({
       </div>
 
       {/* Realized fill + a "plan na dziś" tick, same idea as the budget bar. */}
-      <div className="relative mt-4 h-2.5 w-full overflow-hidden rounded-full bg-muted">
+      <div className="relative mt-4 h-3 w-full overflow-hidden rounded-full bg-muted">
         <span
-          className={cn("block h-full rounded-full", meta.bar)}
+          className={cn("bg-stripes block h-full rounded-full", meta.bar)}
           style={{ width: `${Math.max(realizedPct, 1)}%` }}
         />
         {f.status !== "upcoming" && f.status !== "ended" ? (
           <span
-            className="absolute top-0 h-full w-0.5 bg-foreground/60"
+            className="absolute top-0 h-full w-[3px] -translate-x-1/2 rounded-full bg-foreground"
             style={{ left: `${expectedPct}%` }}
             title={`Plan na dziś: ${expectedPct.toFixed(0)}%`}
           />
@@ -354,7 +357,7 @@ export default async function AlertyPage({
                 <select
                   name="campaign"
                   required
-                  className="h-9 min-w-0 rounded-md border border-input bg-background px-2 text-sm"
+                  className="h-9 min-w-0 rounded-xl border border-transparent bg-muted px-3 text-sm hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted"
                 >
                   <option value="">Wybierz…</option>
                   {campaignOptions.map((c) => (
@@ -369,7 +372,7 @@ export default async function AlertyPage({
                 <select
                   name="metric"
                   required
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  className="h-9 rounded-xl border border-transparent bg-muted px-3 text-sm hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted"
                 >
                   <option value="clicks">Kliknięcia</option>
                   <option value="impressions">Wyświetlenia</option>
@@ -385,7 +388,7 @@ export default async function AlertyPage({
                   required
                   min="1"
                   step="any"
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  className="h-9 rounded-xl border border-transparent bg-muted px-3 text-sm hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted"
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs">
@@ -394,7 +397,7 @@ export default async function AlertyPage({
                   type="date"
                   name="start"
                   required
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  className="h-9 rounded-xl border border-transparent bg-muted px-3 text-sm hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted"
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs">
@@ -403,7 +406,7 @@ export default async function AlertyPage({
                   type="date"
                   name="end"
                   required
-                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  className="h-9 rounded-xl border border-transparent bg-muted px-3 text-sm hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted"
                 />
               </label>
               <Button type="submit" size="sm" className="sm:col-span-6 sm:w-fit">

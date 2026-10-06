@@ -27,20 +27,20 @@ const AWARD_ICON: Record<AwardKind, typeof Eye> = {
   clicks: TrendingUp,
 };
 
-// Each award keeps its own hue so the same category reads the same everywhere.
-const AWARD_TONE: Record<AwardKind, string> = {
-  ctr: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
-  cpc: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  hook: "bg-amber-500/10 text-amber-800 dark:text-amber-300",
-  impressions: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  clicks: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-};
+// Awards are categories, not judgements: the icon + words tell them apart,
+// so they share one calm style (v2: colour = meaning, not decoration). The
+// headline award gets the lime wash, extra ones stay neutral.
+const AWARD_TONE = {
+  primary: "bg-accent text-accent-foreground",
+  extra: "bg-muted text-foreground/80",
+} as const;
 
-// Dark digits on gold/silver: white on amber-500/slate-400 is ~2.2:1.
+// Place 1 is the one highlighted thing (signature lime); 2 and 3 are white
+// chips floating on the thumbnail. The digit carries the place either way.
 const MEDAL = [
-  "bg-amber-400 text-amber-950",
-  "bg-slate-300 text-slate-900",
-  "bg-orange-700 text-white",
+  "bg-lime text-lime-foreground",
+  "bg-card text-foreground",
+  "bg-card text-foreground",
 ];
 
 function AwardBadge({
@@ -57,7 +57,7 @@ function AwardBadge({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full font-semibold",
-        AWARD_TONE[kind],
+        AWARD_TONE[size === "md" ? "primary" : "extra"],
         size === "md" ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[11px]"
       )}
     >
@@ -113,7 +113,10 @@ export function CreativesPodium({
             type="button"
             onClick={() => onSelect(c)}
             className={cn(
-              "surface group flex min-w-0 gap-3 p-3 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0 lg:flex-col lg:p-0"
+              "surface group flex min-w-0 gap-3 p-3 text-left transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:hover:translate-y-0 lg:flex-col lg:p-0",
+              // The winner is the one dark "anchor" card on the page (like
+              // the overview's selected tile); tokens re-point inside it.
+              i === 0 && "surface-anchor shadow-raised"
             )}
           >
             <CreativeThumb
@@ -124,7 +127,7 @@ export function CreativesPodium({
             >
               <span
                 className={cn(
-                  "absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow lg:left-3 lg:top-3 lg:h-8 lg:w-8 lg:text-sm",
+                  "absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shadow-md lg:left-3 lg:top-3 lg:h-8 lg:w-8 lg:text-sm",
                   MEDAL[i]
                 )}
                 aria-label={en ? `Place ${i + 1}` : `Miejsce ${i + 1}`}

@@ -63,7 +63,7 @@ export function NewsRefreshButton({ clientSlug }: { clientSlug: string }) {
       onClick={refresh}
       disabled={loading}
       title="Pobierz świeże newsy teraz"
-      className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground disabled:opacity-50"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-card text-muted-foreground shadow-card transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 dark:bg-secondary"
     >
       <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
     </button>

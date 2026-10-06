@@ -79,7 +79,7 @@ export default async function AdsPage({
       </div>
 
       <SectionBoundary name="ads/kpis">
-        <AdsKpiTiles kpis={data.kpis} />
+        <AdsKpiTiles kpis={data.kpis} trend={data.trend} />
       </SectionBoundary>
 
       <SectionBoundary name="ads/cost-trends">

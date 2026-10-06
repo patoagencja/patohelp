@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 
 /**
@@ -462,7 +463,7 @@ export function GuidedTour({
                   borderRadius: hole.radius,
                 }}
                 className={cn(
-                  "pointer-events-none fixed shadow-[0_0_0_9999px_rgb(0_0_0/0.5)] ring-2 ring-primary/70 ring-offset-0 animate-in fade-in-0 duration-300 motion-reduce:animate-none dark:shadow-[0_0_0_9999px_rgb(0_0_0/0.65)]",
+                  "pointer-events-none fixed shadow-[0_0_0_9999px_rgb(0_0_0/0.5)] ring-2 ring-lime ring-offset-0 animate-in fade-in-0 duration-300 motion-reduce:animate-none dark:shadow-[0_0_0_9999px_rgb(0_0_0/0.65)]",
                   gliding &&
                     "transition-[top,left,width,height,border-radius] duration-300 ease-out motion-reduce:transition-none"
                 )}
@@ -488,12 +489,12 @@ export function GuidedTour({
                     : undefined
               }
               className={cn(
-                "fixed border border-border bg-popover text-popover-foreground shadow-2xl",
+                "fixed border border-hairline bg-popover text-popover-foreground shadow-raised",
                 layout?.mobile
                   ? layout.card.kind === "sheet-raised"
-                    ? "inset-x-2 rounded-2xl p-5"
-                    : "inset-x-0 bottom-0 rounded-t-2xl border-x-0 border-b-0 px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5"
-                  : "w-[22rem] rounded-2xl p-5",
+                    ? "inset-x-2 rounded-card p-5"
+                    : "inset-x-0 bottom-0 rounded-t-card border-x-0 border-b-0 px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5"
+                  : "w-[22rem] rounded-card p-6",
                 positioned
                   ? cn(
                       "animate-in fade-in-0 duration-300 motion-reduce:animate-none",
@@ -503,22 +504,22 @@ export function GuidedTour({
               )}
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent-foreground">
-                  <HelpCircle className="h-3.5 w-3.5" aria-hidden />
+                <Pill tone="accent">
+                  <HelpCircle aria-hidden />
                   Jak czytać panel
-                </p>
+                </Pill>
                 {!isLast ? (
                   <button
                     type="button"
                     onClick={close}
-                    className="-mr-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="-mr-1.5 rounded-full px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Pomiń
                   </button>
                 ) : null}
               </div>
 
-              <h2 id={titleId} className="mt-3 text-base font-semibold tracking-tight">
+              <h2 id={titleId} className="mt-3 text-section-title">
                 {def.title}
               </h2>
               <p id={bodyId} className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -532,7 +533,7 @@ export function GuidedTour({
                       key={s.title}
                       className={cn(
                         "h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none",
-                        i === index ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/25"
+                        i === index ? "w-4 bg-anchor" : "w-1.5 bg-muted-foreground/25"
                       )}
                     />
                   ))}

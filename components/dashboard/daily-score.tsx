@@ -14,9 +14,9 @@ import { cn } from "@/lib/utils";
 type Lang = "pl" | "en";
 
 const TIER: Record<ScoreTier, { stroke: string; text: string }> = {
-  high: { stroke: "stroke-emerald-500", text: "text-emerald-700 dark:text-emerald-400" },
-  mid: { stroke: "stroke-amber-500", text: "text-amber-700 dark:text-amber-400" },
-  low: { stroke: "stroke-rose-500", text: "text-rose-600 dark:text-rose-400" },
+  high: { stroke: "stroke-lime", text: "text-positive" },
+  mid: { stroke: "stroke-warning-fill", text: "text-warning" },
+  low: { stroke: "stroke-negative", text: "text-negative" },
 };
 
 // Plain-language meaning of each dial. Wording mirrors lib/dashboard/score.ts:
@@ -244,7 +244,7 @@ export function DailyScoreCard({
   const factors = data.factors.filter((f) => f.deltaPct !== null);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
+    <div className="surface p-5 sm:p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">{t.title}</h2>
@@ -253,8 +253,8 @@ export function DailyScoreCard({
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums",
               data.delta > 0
-                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                : "bg-rose-500/10 text-rose-700 dark:text-rose-400"
+                ? "bg-positive-soft text-positive"
+                : "bg-negative-soft text-negative"
             )}
           >
             {data.delta > 0 ? (
@@ -319,8 +319,8 @@ export function DailyScoreCard({
                     className={cn(
                       "inline-flex items-center font-medium tabular-nums",
                       up
-                        ? "text-emerald-700 dark:text-emerald-400"
-                        : "text-rose-700 dark:text-rose-400"
+                        ? "text-positive"
+                        : "text-negative"
                     )}
                   >
                     {up ? (
@@ -336,7 +336,7 @@ export function DailyScoreCard({
             })}
             {data.streak > 0 ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground">
-                <CalendarCheck className="h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-hidden />
+                <CalendarCheck className="h-4 w-4 text-positive" aria-hidden />
                 {t.streak(data.streak)}
               </span>
             ) : null}

@@ -109,19 +109,36 @@ export function MobileNav({
                           <Link
                             href={`${item.href}${suffix}`}
                             aria-current={isActive ? "page" : undefined}
-                            className="flex items-center gap-3 px-4 py-3 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:bg-muted"
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 text-[15px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                              // Active row = the anchor pill language of the
+                              // sidebar and tab bar (fill + weight + dot,
+                              // never colour alone; aria-current for AT).
+                              isActive
+                                ? "bg-anchor text-anchor-foreground"
+                                : "active:bg-muted"
+                            )}
                           >
                             <Icon
-                              className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
+                              className={cn(
+                                "h-5 w-5 shrink-0",
+                                isActive ? "text-anchor-foreground" : "text-muted-foreground"
+                              )}
                               aria-hidden
                             />
                             <span className={cn("flex-1", isActive ? "font-semibold" : "font-medium")}>
                               {item.label}
                             </span>
                             {isActive ? (
-                              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary" />
+                              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-anchor-dot" />
                             ) : null}
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+                            <ChevronRight
+                              className={cn(
+                                "h-4 w-4",
+                                isActive ? "text-anchor-foreground/60" : "text-muted-foreground"
+                              )}
+                              aria-hidden
+                            />
                           </Link>
                         </li>
                       );

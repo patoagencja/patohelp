@@ -20,9 +20,9 @@ import { cn, formatMoneyPLN,
   formatPlnWhole, formatPercent } from "@/lib/utils";
 
 const VERDICT_TONE: Record<Verdict, string> = {
-  better: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  better: "bg-positive-soft text-positive",
   average: "bg-muted text-muted-foreground",
-  worse: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+  worse: "bg-negative-soft text-negative",
   unknown: "bg-muted text-muted-foreground",
 };
 
@@ -37,8 +37,8 @@ const VERDICT_ICON: Record<Verdict, typeof Info> = {
 // the colour then points at the "why" behind the verdict chip.
 function tone(ratio: number | null): string {
   if (ratio == null) return "";
-  if (ratio >= 1.15) return "text-emerald-700 dark:text-emerald-400";
-  if (ratio <= 1 / 1.15) return "text-rose-700 dark:text-rose-400";
+  if (ratio >= 1.15) return "text-positive";
+  if (ratio <= 1 / 1.15) return "text-negative";
   return "";
 }
 
@@ -137,7 +137,7 @@ export function GalleryCard({
     <button
       type="button"
       onClick={() => onSelect(c)}
-      className="surface group flex min-w-0 flex-col overflow-hidden text-left transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:hover:translate-y-0"
+      className="surface group flex min-w-0 flex-col overflow-hidden text-left transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:hover:translate-y-0"
     >
       <CreativeThumb
         src={c.thumbnailUrl}
@@ -147,7 +147,7 @@ export function GalleryCard({
       >
         {fatigue ? <FatigueBadge fatigue={fatigue} lang={lang} /> : null}
       </CreativeThumb>
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2.5 sm:p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-3 sm:p-4">
         <p
           className="line-clamp-2 min-h-[2.5rem] break-words text-sm font-medium leading-5"
           title={c.name}

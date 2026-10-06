@@ -214,8 +214,11 @@ export default async function ClientsPage({
       >
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 md:h-16 lg:px-8">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-[0.6rem] bg-primary text-primary-foreground">
+            {/* Agency mark: the anchor tile with the lime dot, same "selected"
+                language as the client dashboard's sidebar pill. */}
+            <span className="relative flex h-8 w-8 items-center justify-center rounded-[0.6rem] bg-anchor text-anchor-foreground">
               <LayoutDashboard className="h-4 w-4" aria-hidden />
+              <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-anchor-dot ring-2 ring-background" />
             </span>
             <span className="font-semibold">Pato</span>
           </div>
@@ -245,51 +248,51 @@ export default async function ClientsPage({
 
         {/* Summary strip across all clients */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="p-5">
+          <Card className="p-5 sm:p-6">
             <p className="text-sm text-muted-foreground">Klienci</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{clientList.length}</p>
+            <p className="mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums">{clientList.length}</p>
           </Card>
-          <Card className="p-5">
+          <Card className="p-5 sm:p-6">
             <p className="text-sm text-muted-foreground">Wydatki wczoraj (łącznie)</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
+            <p className="mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums">
               {formatMoneyPLN(totalYesterday)}
             </p>
           </Card>
-          <Card className="p-5">
+          <Card className="p-5 sm:p-6">
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span
                 aria-hidden
                 className={cn(
-                  "h-2 w-2 rounded-full",
-                  totalAlerts > 0 ? "bg-red-500" : "bg-emerald-500"
+                  "h-2 w-2 rounded-full ring-[3px]",
+                  totalAlerts > 0 ? "bg-negative ring-negative-soft" : "bg-lime ring-lime-soft"
                 )}
               />
               Krytyczne alerty
             </p>
             <p
               className={cn(
-                "mt-1 text-2xl font-semibold tabular-nums",
-                totalAlerts > 0 && "text-red-600 dark:text-red-400"
+                "mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums",
+                totalAlerts > 0 && "text-negative"
               )}
             >
               {totalAlerts}
             </p>
           </Card>
-          <Card className="p-5">
+          <Card className="p-5 sm:p-6">
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span
                 aria-hidden
                 className={cn(
-                  "h-2 w-2 rounded-full",
-                  totalBroken > 0 ? "bg-amber-500" : "bg-emerald-500"
+                  "h-2 w-2 rounded-full ring-[3px]",
+                  totalBroken > 0 ? "bg-warning-fill ring-warning-soft" : "bg-lime ring-lime-soft"
                 )}
               />
               Połączenia
             </p>
             <p
               className={cn(
-                "mt-1 text-2xl font-semibold tabular-nums",
-                totalBroken > 0 && "text-amber-700 dark:text-amber-400"
+                "mt-2 text-[1.75rem] font-medium leading-none tracking-[-0.03em] tabular-nums",
+                totalBroken > 0 && "text-warning"
               )}
             >
               {totalBroken > 0 ? `${totalBroken} do naprawy` : "Wszystkie działają"}
@@ -349,13 +352,13 @@ export default async function ClientsPage({
 
                 <div className="pointer-events-none relative mt-4">
                   <p className="text-xs text-muted-foreground">Wydatki wczoraj</p>
-                  <p className="text-lg font-semibold tabular-nums">{formatMoneyPLN(spend)}</p>
+                  <p className="mt-0.5 text-xl font-medium tracking-[-0.02em] tabular-nums">{formatMoneyPLN(spend)}</p>
                 </div>
 
                 <div className="relative z-10 mt-4 border-t border-border pt-3 text-xs">
                   {health.down.length === 0 && health.expiring.length === 0 ? (
                     <p className="pointer-events-none flex items-center gap-1.5 text-muted-foreground">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-positive" aria-hidden />
                       Wszystkie połączenia działają
                     </p>
                   ) : (
@@ -364,7 +367,7 @@ export default async function ClientsPage({
                         const path = RECONNECT_PATH[h.provider];
                         return (
                           <li key={h.provider} className="flex items-center justify-between gap-2">
-                            <span className="flex min-w-0 items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                            <span className="flex min-w-0 items-center gap-1.5 text-warning">
                               <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               <span className="truncate">
                                 {h.label}:{" "}
@@ -374,7 +377,7 @@ export default async function ClientsPage({
                             {path ? (
                               <a
                                 href={`${path}?client=${c.slug}`}
-                                className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-800 hover:bg-amber-500/25 dark:text-amber-300"
+                                className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 font-medium text-warning transition-colors hover:bg-anchor hover:text-anchor-foreground"
                               >
                                 Połącz
                               </a>

@@ -69,7 +69,7 @@ export async function ShareOverviewSection({
                   <select
                     name="expiry"
                     defaultValue="30"
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   >
                     <option value="7">7 dni</option>
                     <option value="30">30 dni</option>
@@ -86,7 +86,7 @@ export async function ShareOverviewSection({
                   Brak aktywnych linków.
                 </p>
               ) : (
-                <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+                <ul className="flex flex-col divide-y divide-border rounded-2xl bg-muted/50">
                   {links.map((l) => {
                     const url = `${base}/s/${l.token}`;
                     return (
@@ -95,7 +95,7 @@ export async function ShareOverviewSection({
                           readOnly
                           value={url}
                           aria-label="Link dla zarządu"
-                          className="min-w-0 rounded-md border border-input bg-muted/40 px-2 py-1.5 font-mono text-xs"
+                          className="min-w-0 rounded-full border border-transparent bg-muted px-3 py-1.5 font-mono text-xs"
                         />
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
                           <span>

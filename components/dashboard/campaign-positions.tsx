@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { Card } from "@tremor/react";
+import { Card } from "@/components/ui/card";
+import { DeltaPill } from "@/components/ui/pill";
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { Sparkline } from "@/components/ui/sparkline";
 
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
 import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
@@ -18,11 +20,13 @@ const FILTER_LABEL: Record<Lang, Record<PositionFilter, string>> = {
   en: { all: "All", active: "Active", attention: "Need attention" },
 };
 
+// Status = a small dot with a soft halo + the words (colour is never the
+// only cue). Same tokens as the overview's top campaigns.
 const STATUS_DOT: Record<CampaignStatus, string> = {
-  active: "bg-emerald-500",
-  attention: "bg-amber-500",
-  critical: "bg-red-500",
-  off: "bg-slate-400",
+  active: "bg-lime ring-lime-soft",
+  attention: "bg-warning-fill ring-warning-soft",
+  critical: "bg-negative ring-negative-soft",
+  off: "bg-chart-muted ring-muted",
 };
 
 const STATUS_LABEL: Record<Lang, Record<CampaignStatus, string>> = {
@@ -40,10 +44,12 @@ const STATUS_LABEL: Record<Lang, Record<CampaignStatus, string>> = {
   },
 };
 
-const PLATFORM_PILL: Record<AdProvider, string> = {
-  meta_ads: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  google_ads: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
-  tiktok_ads: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
+// Platform chips are neutral (the name is the information); a tiny dot in
+// the platform's chart colour ties them to the CPC lines and budget bars.
+const PLATFORM_DOT: Record<AdProvider, string> = {
+  meta_ads: "bg-chart-1",
+  google_ads: "bg-chart-2",
+  tiktok_ads: "bg-chart-3",
 };
 
 const COPY = {
@@ -118,51 +124,6 @@ function summaryText(lang: Lang, filter: PositionFilter, count: number): string 
   return `${count} ${noun}`;
 }
 
-// Lightweight inline-SVG sparkline. Deliberately NOT Tremor's SparkAreaChart -
-// rendering dozens of Recharts instances in an interactive table blocks clicks
-// and is slow. This is pure SVG: no deps, no re-render cost, can't throw.
-function Sparkline({ values, up }: { values: number[]; up: boolean }) {
-  const w = 88;
-  const h = 28;
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1;
-  const n = values.length;
-  const pts = values.map((v, i) => {
-    const x = n > 1 ? (i / (n - 1)) * w : w;
-    const y = h - ((v - min) / range) * (h - 2) - 1;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const line = pts.join(" ");
-  const area = `0,${h} ${line} ${w},${h}`;
-
-  return (
-    <svg
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className={cn(
-        "ml-auto block",
-        up
-          ? "fill-emerald-500 stroke-emerald-500"
-          : "fill-red-500 stroke-red-500"
-      )}
-      aria-hidden
-    >
-      <polygon points={area} opacity={0.1} stroke="none" />
-      <polyline
-        points={line}
-        fill="none"
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
-  );
-}
-
 // Spend change = recent half vs earlier half of the 7-day spark. A simple,
 // explainable "is this campaign spending more or less than a few days ago".
 function spendChange(spark: number[]): number | null {
@@ -180,24 +141,32 @@ function spendChange(spark: number[]): number | null {
 
 function PlatformPill({ provider }: { provider: AdProvider }) {
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
-        PLATFORM_PILL[provider]
-      )}
-    >
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+      <span className={cn("h-1.5 w-1.5 rounded-full", PLATFORM_DOT[provider])} aria-hidden />
       {AD_PROVIDER_LABEL[provider]}
     </span>
   );
 }
 
-function StatusDot({ c, lang }: { c: CampaignRow; lang: Lang }) {
-  const label = STATUS_LABEL[lang][c.status];
-  const hint = c.statusReason ? `${label} - ${c.statusReason}` : label;
+function Dot({ status }: { status: CampaignStatus }) {
   return (
-    <span className="inline-flex shrink-0 items-center" title={hint}>
-      <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[c.status])} aria-hidden />
-      <span className="sr-only">{hint}</span>
+    <span
+      className={cn("h-2 w-2 shrink-0 rounded-full ring-[3px]", STATUS_DOT[status])}
+      aria-hidden
+    />
+  );
+}
+
+/** Dot + the status in words; the reason rides in the tooltip. */
+function StatusText({ c, lang }: { c: CampaignRow; lang: Lang }) {
+  const label = STATUS_LABEL[lang][c.status];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap"
+      title={c.statusReason ? `${label} - ${c.statusReason}` : label}
+    >
+      <Dot status={c.status} />
+      {label}
     </span>
   );
 }
@@ -214,22 +183,15 @@ function ChangeValue({
   }
   const up = value >= 0;
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 font-medium tabular-nums",
-        up
-          ? "text-emerald-700 dark:text-emerald-400"
-          : "text-red-700 dark:text-red-400",
-        className
-      )}
-    >
-      {up ? (
-        <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
-      ) : (
-        <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
-      )}
-      {up ? "+" : ""}
-      {Math.round(value)}%
+    <span className={cn("inline-flex", className)}>
+      <DeltaPill
+        tone={up ? "good" : "bad"}
+        direction={up ? "up" : "down"}
+        className="px-1.5 text-xs"
+      >
+        {up ? "+" : "-"}
+        {Math.abs(Math.round(value))}%
+      </DeltaPill>
     </span>
   );
 }
@@ -243,15 +205,15 @@ function TableRow({ c, lang }: { c: CampaignRow; lang: Lang }) {
   const hasSpark = c.spark.some((v) => v > 0);
 
   return (
-    <tr className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40">
-      <td className="max-w-[22rem] py-3.5 pr-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <StatusDot c={c} lang={lang} />
+    <tr className="border-b border-border transition-colors last:border-0 hover:bg-muted/40">
+      <td className="max-w-[22rem] py-3 pr-4">
+        <span className="block truncate text-sm font-medium" title={c.name}>
+          {c.name}
+        </span>
+        <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
           <PlatformPill provider={c.provider} />
-          <span className="truncate text-sm font-medium" title={c.name}>
-            {c.name}
-          </span>
-        </div>
+          <StatusText c={c} lang={lang} />
+        </span>
       </td>
       <td className="py-3.5 pr-4 text-right text-sm font-medium tabular-nums">
         {wholePln(c.spendMinorUnits)}
@@ -270,7 +232,12 @@ function TableRow({ c, lang }: { c: CampaignRow; lang: Lang }) {
       </td>
       <td className="py-3.5">
         {hasSpark ? (
-          <Sparkline values={c.spark} up={(change ?? 0) >= 0} />
+          <Sparkline
+            data={c.spark}
+            smooth={false}
+            tone={(change ?? 0) >= 0 ? "positive" : "negative"}
+            className="ml-auto h-7 w-[88px]"
+          />
         ) : (
           <span className="block text-right text-sm text-muted-foreground">-</span>
         )}
@@ -288,11 +255,10 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
 
   return (
     <li className="py-4 first:pt-0 last:pb-0">
-      <div className="flex items-center gap-2">
-        <StatusDot c={c} lang={lang} />
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <PlatformPill provider={c.provider} />
-        <span className="ml-auto text-xs text-muted-foreground">
-          {STATUS_LABEL[lang][c.status]}
+        <span className="ml-auto">
+          <StatusText c={c} lang={lang} />
         </span>
       </div>
       <p className="mt-2 break-words text-sm font-medium leading-snug">{c.name}</p>
@@ -307,10 +273,17 @@ function MobileCard({ c, lang }: { c: CampaignRow; lang: Lang }) {
             <ChangeValue value={change} className="text-sm" />
           </p>
         </div>
-        {hasSpark ? <Sparkline values={c.spark} up={(change ?? 0) >= 0} /> : null}
+        {hasSpark ? (
+          <Sparkline
+            data={c.spark}
+            smooth={false}
+            tone={(change ?? 0) >= 0 ? "positive" : "negative"}
+            className="mb-1 h-7 w-[88px] shrink-0"
+          />
+        ) : null}
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3 text-sm">
+      <dl className="mt-3 grid grid-cols-3 gap-2 rounded-2xl bg-muted/60 p-3 text-sm">
         <div className="min-w-0">
           <dt className="truncate text-xs text-muted-foreground">{t.clicks}</dt>
           <dd className="font-medium tabular-nums">{formatNumberPL(c.clicks)}</dd>
@@ -361,9 +334,6 @@ function SimpleCampaigns({
   const totalSpend = rows.reduce((s, c) => s + c.spendMinorUnits, 0);
   const collapsed = !showAll && rows.length > limit;
   const hiddenCount = rows.length - limit;
-  const presentStatuses = (
-    ["active", "attention", "critical", "off"] as CampaignStatus[]
-  ).filter((s) => rows.some((c) => c.status === s));
 
   return (
     <section className="surface p-5 sm:p-6">
@@ -395,15 +365,13 @@ function SimpleCampaigns({
                   collapsed && i >= limit && "hidden print:flex"
                 )}
               >
-                <span className="flex h-5 items-center">
-                  <StatusDot c={c} lang={lang} />
-                </span>
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm font-medium leading-snug">{c.name}</p>
                   {/* Each fact is unbreakable, so a narrow row wraps
                       between facts rather than inside one. */}
                   <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
                     <PlatformPill provider={c.provider} />
+                    <StatusText c={c} lang={lang} />
                     <span className="whitespace-nowrap">
                       {formatNumberPL(c.clicks)} {en ? "clicks" : plPlural(c.clicks, "kliknięcie", "kliknięcia", "kliknięć")}
                     </span>
@@ -422,14 +390,11 @@ function SimpleCampaigns({
           <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border text-left text-sm text-muted-foreground">
-                  <th scope="col" className="w-10 pb-3 font-medium">
-                    <span className="sr-only">Status</span>
-                  </th>
-                  <th scope="col" className="pb-3 pr-4 font-medium">{t.campaign}</th>
-                  <th scope="col" className="pb-3 pr-4 text-right font-medium">{t.spend}</th>
-                  <th scope="col" className="pb-3 pr-4 text-right font-medium">{t.clicks}</th>
-                  <th scope="col" className="pb-3 text-right font-medium" title={t.ctrHint}>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th scope="col" className="pb-2.5 pr-4 font-medium">{t.campaign}</th>
+                  <th scope="col" className="pb-2.5 pr-4 text-right font-medium">{t.spend}</th>
+                  <th scope="col" className="pb-2.5 pr-4 text-right font-medium">{t.clicks}</th>
+                  <th scope="col" className="pb-2.5 text-right font-medium" title={t.ctrHint}>
                     {t.ctr}
                   </th>
                 </tr>
@@ -439,30 +404,28 @@ function SimpleCampaigns({
                   <tr
                     key={`${c.provider}:${c.campaignId}`}
                     className={cn(
-                      "h-14 border-b border-border/60 last:border-0",
+                      "border-b border-border last:border-0",
                       collapsed && i >= limit && "hidden print:table-row"
                     )}
                   >
-                    <td className="w-10">
-                      <span className="flex items-center">
-                        <StatusDot c={c} lang={lang} />
+                    <td className="max-w-[28rem] py-3.5 pr-4">
+                      <span className="block truncate text-sm font-medium" title={c.name}>
+                        {c.name}
+                      </span>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                        <PlatformPill provider={c.provider} />
+                        <StatusText c={c} lang={lang} />
                       </span>
                     </td>
-                    <td className="max-w-[28rem] pr-4">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <PlatformPill provider={c.provider} />
-                        <span className="truncate text-sm font-medium" title={c.name}>
-                          {c.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="pr-4 text-right text-sm font-semibold tabular-nums">
+                    <td className="py-3.5 pr-4 text-right text-[15px] font-medium tabular-nums">
                       {wholePln(c.spendMinorUnits)}
                     </td>
-                    <td className="pr-4 text-right text-sm tabular-nums">
+                    <td className="py-3.5 pr-4 text-right text-sm tabular-nums text-muted-foreground">
                       {formatNumberPL(c.clicks)}
                     </td>
-                    <td className="text-right text-sm tabular-nums">{formatPercent(c.ctr)}</td>
+                    <td className="py-3.5 text-right text-sm tabular-nums text-muted-foreground">
+                      {formatPercent(c.ctr)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -471,26 +434,13 @@ function SimpleCampaigns({
         </>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border pt-4">
-        {presentStatuses.length > 0 ? (
-          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-            {presentStatuses.map((s) => (
-              <li key={s} className="inline-flex items-center gap-1.5">
-                <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} aria-hidden />
-                {STATUS_LABEL[lang][s]}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <span />
-        )}
-        {rows.length > limit ? (
+      {rows.length > limit ? (
+        <div className="mt-4 flex justify-center border-t border-border pt-4" data-print-hide>
           <button
             type="button"
-            data-print-hide
             aria-expanded={showAll}
             onClick={() => setShowAll((v) => !v)}
-            className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-full bg-muted px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {showAll
               ? en
@@ -500,8 +450,8 @@ function SimpleCampaigns({
                 ? `Show all (${hiddenCount} more)`
                 : `Pokaż wszystkie (jeszcze ${hiddenCount})`}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -593,7 +543,7 @@ function FullCampaigns({
     <Card className="p-5 sm:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold">{title ?? t.title}</h2>
+          <h2 className="text-section-title text-foreground">{title ?? t.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {summaryText(lang, filter, filtered.length)}
             <span aria-hidden> · </span>
@@ -605,7 +555,7 @@ function FullCampaigns({
         </div>
 
         <div
-          className="flex w-full rounded-lg bg-muted p-1 md:w-auto"
+          className={cn(segmentedTrack, "flex w-full md:inline-flex md:w-auto")}
           role="group"
           aria-label={t.title}
         >
@@ -615,11 +565,9 @@ function FullCampaigns({
               type="button"
               aria-pressed={filter === key}
               onClick={() => setFilter(key)}
-              className={cn(
-                "flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors md:flex-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                filter === key
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+              className={segmentedItem(
+                filter === key,
+                "flex-1 justify-center px-3 py-1.5 text-xs md:flex-none"
               )}
             >
               {FILTER_LABEL[lang][key]}
@@ -634,7 +582,7 @@ function FullCampaigns({
         </p>
       ) : (
         <>
-          <ul className="mt-5 divide-y divide-border/60 md:hidden">
+          <ul className="mt-5 divide-y divide-border md:hidden">
             {(showAllMobile ? filtered : filtered.slice(0, MOBILE_COLLAPSED)).map((c) => (
               <MobileCard key={`${c.provider}:${c.campaignId}`} c={c} lang={lang} />
             ))}
@@ -644,7 +592,7 @@ function FullCampaigns({
               type="button"
               data-print-hide
               onClick={() => setShowAllMobile((v) => !v)}
-              className="mt-3 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-indigo-300 md:hidden"
+              className="mt-4 w-full rounded-full bg-muted px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
             >
               {showAllMobile
                 ? lang === "en"
@@ -661,7 +609,7 @@ function FullCampaigns({
             <table className="w-full min-w-[720px]">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="pb-3 pr-4 font-medium">{t.campaign}</th>
+                  <th className="pb-2.5 pr-4 font-medium">{t.campaign}</th>
                   <th className="pb-3 pr-4 text-right font-medium">{t.spend}</th>
                   <th className="pb-3 pr-4 text-right font-medium">{t.clicks}</th>
                   <th className="pb-3 pr-4 text-right font-medium" title={t.ctrHint}>
@@ -687,11 +635,11 @@ function FullCampaigns({
       )}
 
       {presentStatuses.length > 0 ? (
-        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/60 pt-4 text-xs text-muted-foreground">
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
           <span>{t.legend}</span>
           {presentStatuses.map((s) => (
             <span key={s} className="inline-flex items-center gap-1.5">
-              <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[s])} aria-hidden />
+              <Dot status={s} />
               {STATUS_LABEL[lang][s]}
             </span>
           ))}

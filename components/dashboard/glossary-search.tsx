@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Minus, Search, X } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,14 @@ export interface GlossaryGroupView {
     short: string | null;
     explain: string;
     goodWhen: string;
+    /** Which way is good news - picks the arrow on the hint chip. */
+    direction: "higher" | "lower" | "neutral";
   }>;
+}
+
+function DirectionIcon({ direction }: { direction: "higher" | "lower" | "neutral" }) {
+  const Icon = direction === "higher" ? ArrowUpRight : direction === "lower" ? ArrowDownRight : Minus;
+  return <Icon aria-hidden strokeWidth={2.25} />;
 }
 
 // Case- and accent-insensitive, so "klikniecia" finds "Kliknięcia".
@@ -67,7 +74,7 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
             type="button"
             onClick={() => setQuery("")}
             aria-label="Wyczyść wyszukiwanie"
-            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>
@@ -97,7 +104,14 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
                       {e.short ? <Pill>{e.short}</Pill> : null}
                     </dt>
                     <dd className="mt-1 text-sm leading-relaxed text-muted-foreground">{e.explain}</dd>
-                    <dd className="mt-1.5 text-xs font-medium text-foreground/80">{e.goodWhen}</dd>
+                    {/* A hint, not a verdict: neutral chip, the arrow repeats
+                        the words. */}
+                    <dd className="mt-2">
+                      <Pill>
+                        <DirectionIcon direction={e.direction} />
+                        {e.goodWhen}
+                      </Pill>
+                    </dd>
                   </div>
                 ))}
               </dl>

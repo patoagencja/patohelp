@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils";
 
 export interface SectionTab {
@@ -10,10 +11,13 @@ export interface SectionTab {
 }
 
 /**
- * Underline tabs that switch between sibling routes of one place (Reklamy:
- * Kampanie | Kreacje). Plain links rather than client-side tabs: each tab
- * keeps its own URL, data loading and back-button behaviour, and the server
- * page simply marks which one it is.
+ * Tabs that switch between sibling routes of one place (Reklamy: Kampanie |
+ * Kreacje), drawn like the segmented controls (v2): a soft pill track with
+ * the current tab as the near-black anchor pill. Plain links rather than
+ * client-side tabs: each tab keeps its own URL, data loading and
+ * back-button behaviour, and the server page simply marks which one it is.
+ * The current tab is marked with aria-current and a bolder label too, so
+ * the fill is never the only cue.
  */
 export function SectionTabs({
   tabs,
@@ -26,18 +30,16 @@ export function SectionTabs({
   className?: string;
 }) {
   return (
-    <nav aria-label={label} className={cn("border-b border-border", className)}>
-      <ul className="-mb-px flex gap-6">
+    <nav aria-label={label} className={cn("flex", className)} data-print-hide>
+      <ul className={segmentedTrack}>
         {tabs.map((t) => (
-          <li key={t.href}>
+          <li key={t.href} className="flex">
             <Link
               href={t.href}
               aria-current={t.active ? "page" : undefined}
-              className={cn(
-                "inline-flex h-10 items-center border-b-2 text-[15px] transition-colors focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                t.active
-                  ? "border-foreground font-semibold text-foreground"
-                  : "border-transparent font-medium text-muted-foreground hover:border-border hover:text-foreground"
+              className={segmentedItem(
+                Boolean(t.active),
+                cn("px-4 py-2 text-[15px]", t.active && "font-semibold")
               )}
             >
               {t.label}

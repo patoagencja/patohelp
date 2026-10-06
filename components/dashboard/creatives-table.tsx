@@ -6,6 +6,7 @@ import { ExternalLink, Film, RefreshCw, X } from "lucide-react";
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { RankingChipList } from "@/components/dashboard/creatives/insight-bits";
 import { useModalFocus } from "@/components/dashboard/use-modal-focus";
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import {
   completionSentence,
   computeBenchmarks,
@@ -88,7 +89,7 @@ export function CreativeModal({
     >
       <div
         ref={panelRef}
-        className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-card bg-card shadow-raised"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -108,7 +109,7 @@ export function CreativeModal({
           className="h-[50vh] max-h-[28rem] min-h-48 w-full rounded-none bg-black/90"
         />
 
-        <div className="space-y-3 overflow-y-auto p-4">
+        <div className="space-y-3 overflow-y-auto p-5">
           <div>
             <p className="break-words text-sm font-semibold leading-snug">{c.name}</p>
             {score ? (
@@ -148,16 +149,16 @@ export function CreativeModal({
                   ]
                 : []),
             ].map((s) => (
-              <div key={s.label} className="rounded-lg bg-muted/50 p-2.5">
+              <div key={s.label} className="rounded-xl bg-muted/60 p-2.5">
                 <p className="text-[11px] text-muted-foreground">{s.label}</p>
-                <p className="tabular-nums text-sm font-semibold">
+                <p className="tabular-nums text-base font-medium tracking-tight">
                   {s.value}
                 </p>
               </div>
             ))}
           </div>
           {fatigue ? (
-            <div className="flex gap-2 rounded-lg bg-amber-500/10 p-2.5 text-xs leading-snug text-amber-900 dark:text-amber-200">
+            <div className="flex gap-2 rounded-xl bg-warning-soft p-2.5 text-xs leading-snug text-warning">
               <RefreshCw className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               <p>
                 <span className="font-semibold">{fatigueHeadline(lang)}.</span>{" "}
@@ -166,7 +167,7 @@ export function CreativeModal({
             </div>
           ) : null}
           {videoLines.length > 0 ? (
-            <div className="space-y-1 rounded-lg bg-muted/50 p-2.5">
+            <div className="space-y-1 rounded-xl bg-muted/60 p-2.5">
               <p className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                 <Film className="h-3.5 w-3.5" aria-hidden />
                 {en ? "How the video is watched" : "Jak oglądany jest film"}
@@ -184,7 +185,7 @@ export function CreativeModal({
               href={c.thumbnailUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-sm text-xs font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex items-center gap-1.5 rounded-sm text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               {en ? "Open full-size image" : "Otwórz grafikę w pełnym rozmiarze"}
@@ -230,7 +231,7 @@ export function CreativesTable({
     <section
       className={cn(
         "min-w-0",
-        embedded ? "" : "rounded-xl border border-border bg-card p-4"
+        embedded ? "" : "surface p-4 sm:p-5"
       )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -241,19 +242,18 @@ export function CreativesTable({
             {en ? "· click a row to view the creative" : "· kliknij wiersz, by zobaczyć reklamę"}
           </span>
         </h2>
-        <div className="flex self-start rounded-lg bg-muted p-1 sm:self-auto">
+        <div
+          role="group"
+          aria-label={en ? "Sort" : "Sortowanie"}
+          className={cn(segmentedTrack, "self-start sm:self-auto")}
+        >
           {SORT_KEYS.map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => setSort(key)}
               aria-pressed={sort === key}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                sort === key
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+              className={segmentedItem(sort === key, "px-3 py-1 text-xs")}
             >
               {sortLabel[key]}
             </button>
@@ -284,7 +284,7 @@ export function CreativesTable({
               <tr
                 key={c.adId}
                 onClick={() => setSelected(c)}
-                className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-muted/40"
+                className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40"
               >
                 <td className="max-w-[22rem] py-2 pr-3">
                   <div className="flex items-center gap-2.5">
@@ -293,7 +293,7 @@ export function CreativesTable({
                       name={c.name}
                       lang={lang}
                       compact
-                      className="h-9 w-9 rounded-md"
+                      className="h-9 w-9 rounded-lg"
                     />
                     {/* The row is clickable for mouse users; this button is
                         the keyboard/screen-reader way in (it bubbles to the row). */}

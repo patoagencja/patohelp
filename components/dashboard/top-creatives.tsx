@@ -25,7 +25,7 @@ export function TopCreatives({
     <Card>
       {/* Sorted by spend, not results - "najlepsze" put an ad the Kreacje tab
           flags as worn out ("Do odświeżenia") on the "best" list. */}
-      <h2 className="text-base font-semibold">
+      <h2 className="text-section-title">
         {en
           ? "Ads with the biggest budget (Meta, last 30 days)"
           : "Reklamy z największym budżetem (Meta, ostatnie 30 dni)"}
@@ -48,7 +48,7 @@ export function TopCreatives({
           {creatives.map((c) => (
             <div
               key={c.adId}
-              className="w-[70%] min-w-0 shrink-0 snap-start overflow-hidden rounded-lg border border-border sm:w-auto"
+              className="w-[70%] min-w-0 shrink-0 snap-start overflow-hidden rounded-2xl bg-muted/60 sm:w-auto"
             >
               <CreativeThumb
                 src={c.thumbnailUrl}

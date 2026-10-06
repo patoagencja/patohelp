@@ -66,7 +66,7 @@ export async function EcomSettingsSection({
                     inputMode="decimal"
                     placeholder="np. 55"
                     defaultValue={settings.marginPct ?? ""}
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   />
                   <span className="text-xs text-muted-foreground">
                     Średnia marża na sprzedaży netto (po kosztach towaru).
@@ -77,7 +77,7 @@ export async function EcomSettingsSection({
                     type="checkbox"
                     name="revenue_includes_vat"
                     defaultChecked={settings.revenueIncludesVat}
-                    className="mt-0.5 h-4 w-4 rounded border-input"
+                    className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-ring"
                   />
                   <span>
                     Przychód w GA4 zawiera VAT
@@ -104,7 +104,7 @@ export async function EcomSettingsSection({
                         defaultValue={
                           goals.has(m) ? Math.round(goals.get(m)! / 100) : ""
                         }
-                        className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                        className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                       />
                     </label>
                   ))}

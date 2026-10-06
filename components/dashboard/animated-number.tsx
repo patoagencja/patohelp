@@ -64,8 +64,8 @@ export function AnimatedNumber({
     <span
       className={cn(
         "tabular-nums transition-colors duration-300",
-        flash === "up" && "text-emerald-500",
-        flash === "down" && "text-red-500",
+        flash === "up" && "text-positive",
+        flash === "down" && "text-negative",
         className
       )}
     >

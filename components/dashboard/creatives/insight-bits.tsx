@@ -17,9 +17,9 @@ import { cn, formatPlnWhole } from "@/lib/utils";
 // Below-average is amber, not rose: it is Meta's relative diagnosis, a cue to
 // look closer, not proof the ad is failing (the verdict chip owns red).
 const RANKING_TONE: Record<RankingTone, string> = {
-  good: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  good: "bg-positive-soft text-positive",
   neutral: "bg-muted text-muted-foreground",
-  bad: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  bad: "bg-warning-soft text-warning",
 };
 
 /** Meta's relevance diagnostics as chips. Renders nothing when none are known. */
@@ -65,7 +65,7 @@ export function RankingChipList({
 export function FatigueBadge({ fatigue, lang }: { fatigue: Fatigue; lang: Lang }) {
   return (
     <span
-      className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950 shadow sm:text-[11px]"
+      className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold text-warning shadow-md sm:text-[11px]"
       title={`${fatigueHeadline(lang)}. ${fatigueReason(fatigue, lang)}`}
     >
       <RefreshCw className="h-3 w-3" aria-hidden />
@@ -96,8 +96,10 @@ export function RefreshList({
   return (
     <section className="surface space-y-3 p-5 sm:p-6">
       <div>
-        <h2 className="flex items-center gap-2 text-base font-semibold">
-          <RefreshCw className="h-4 w-4 text-amber-700 dark:text-amber-400" aria-hidden />
+        <h2 className="flex items-center gap-2 text-section-title text-foreground">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-warning-soft text-warning">
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+          </span>
           {en ? "Worth refreshing" : "Do odświeżenia"}{" "}
           <span className="font-normal tabular-nums text-muted-foreground">({items.length})</span>
         </h2>
@@ -107,20 +109,20 @@ export function RefreshList({
             : "Te reklamy odbiorcy widzieli już wiele razy i reagują coraz słabiej. Zwykle pomaga nowa grafika, film lub nagłówek."}
         </p>
       </div>
-      <ul className="divide-y divide-border/60">
+      <ul className="divide-y divide-border">
         {shown.map(({ c, fatigue }) => (
           <li key={c.adId}>
             <button
               type="button"
               onClick={() => onSelect(c)}
-              className="flex w-full min-w-0 items-center gap-3 rounded-lg py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full min-w-0 items-center gap-3 rounded-xl py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <CreativeThumb
                 src={c.thumbnailUrl}
                 name={c.name}
                 lang={lang}
                 compact
-                className="h-11 w-11 rounded-md"
+                className="h-11 w-11 rounded-lg"
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium" title={c.name}>

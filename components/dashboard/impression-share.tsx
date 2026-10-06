@@ -15,18 +15,15 @@ const MENTION_FROM = 5;
 const MIN_CLICKS_TO_MENTION = 10;
 
 // Shared by the big bar, the legend and the per-campaign bars so one colour
-// always means one thing.
+// always means one thing: lime = where you showed (the good part, striped
+// like the benchmarks' highlighted bar), amber = lost to budget (the
+// actionable warning), olive = lost to ad rank (quiet).
 const SEGMENTS = {
-  shown: "bg-primary",
-  budget: "bg-amber-500",
-  rank: "bg-slate-400 dark:bg-slate-500",
+  shown: "bg-lime",
+  budget: "bg-warning-fill",
+  rank: "bg-olive",
 } as const;
-// Dark digits on the light amber/slate fills: white on them fails WCAG AA.
-const SEGMENT_TEXT = {
-  shown: "text-primary-foreground",
-  budget: "text-amber-950",
-  rank: "text-slate-900 dark:text-white",
-} as const;
+const LEGEND_CHIP = "inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1";
 
 function labels(en: boolean) {
   return {
@@ -101,20 +98,29 @@ function StackedBar({
   const keys = ["shown", "budget", "rank"] as const;
   return (
     // Values are repeated in the legend/row text, so the bar is visual only.
-    <div className={cn("flex w-full overflow-hidden rounded-md bg-muted", className)} aria-hidden>
+    <div
+      className={cn("flex w-full gap-0.5 overflow-hidden rounded-full bg-muted", className)}
+      aria-hidden
+    >
       {keys.map((k, i) =>
         parts[i] > 0 ? (
           <div
             key={k}
-            className={cn(
-              "flex h-full items-center justify-center text-xs font-semibold tabular-nums",
-              SEGMENTS[k],
-              SEGMENT_TEXT[k]
-            )}
+            // Plain string, not cn(): tailwind-merge reads bg-stripes as a
+            // background colour and would drop the fill next to it.
+            className={`flex h-full items-center justify-center first:rounded-l-full last:rounded-r-full ${SEGMENTS[k]}${
+              k === "shown" && showValues ? " bg-stripes" : ""
+            }`}
             style={{ width: `${parts[i]}%` }}
           >
-            {/* Narrow segments can't fit a label; the legend carries it. */}
-            {showValues && parts[i] >= 8 ? parts[i] : null}
+            {/* Values as small white chips (benchmark's floating pill):
+                readable on any fill in both themes. Narrow segments can't
+                fit one; the legend carries it. */}
+            {showValues && parts[i] >= 8 ? (
+              <span className="rounded-full bg-card px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground shadow-sm">
+                {parts[i]}
+              </span>
+            ) : null}
           </div>
         ) : null
       )}
@@ -138,7 +144,7 @@ function CampaignRow({ c, en }: { c: ImpressionShareCampaign; en: boolean }) {
           </span>
         </p>
       </div>
-      <StackedBar parts={parts} className="mt-1.5 h-2" />
+      <StackedBar parts={parts} className="mt-2 h-2" />
       <p className="mt-1.5 text-xs tabular-nums text-muted-foreground">
         {en ? "budget" : "budżet"}: {c.budgetAbove90 ? ">90" : parts[1]}
         {" · "}
@@ -177,7 +183,7 @@ export function ImpressionShare({
 
   return (
     <section className="surface p-5 sm:p-6">
-      <h2 className="text-base font-semibold">
+      <h2 className="text-section-title text-foreground">
         {en ? "How visible you are on Google" : "Jak dobrze widać Twoje reklamy w Google"}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -186,15 +192,19 @@ export function ImpressionShare({
           : "Na 100 wyszukiwań w Google, przy których Twoja reklama mogła się pojawić - kampanie w wyszukiwarce, ostatnie 30 dni"}
       </p>
 
-      <StackedBar parts={parts} showValues className="mt-5 h-9 rounded-lg sm:h-10" />
-      <ul className="mt-3 flex flex-col gap-1.5 text-sm sm:flex-row sm:flex-wrap sm:gap-x-5">
+      <StackedBar parts={parts} showValues className="mt-5 h-10 sm:h-11" />
+      <ul className="mt-3 flex flex-wrap items-start gap-1.5 text-xs text-muted-foreground">
         {(["shown", "budget", "rank"] as const).map((k, i) => (
-          <li key={k} className="flex items-baseline gap-2">
-            <span className={cn("h-3 w-3 shrink-0 translate-y-0.5 rounded-sm", SEGMENTS[k])} aria-hidden />
+          <li key={k} className={LEGEND_CHIP}>
+            <span
+              className={`h-2.5 w-2.5 shrink-0 rounded-full ${SEGMENTS[k]}${k === "shown" ? " bg-stripes" : ""}`}
+              aria-hidden
+            />
             {/* One text node so the number wraps with the label on phones
                 instead of drifting to the far edge. */}
             <span>
-              {l[k]} <span className="font-semibold tabular-nums">{parts[i]}</span>
+              {l[k]}{" "}
+              <span className="font-semibold tabular-nums text-foreground">{parts[i]}</span>
             </span>
           </li>
         ))}

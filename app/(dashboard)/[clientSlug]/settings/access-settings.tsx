@@ -103,7 +103,7 @@ export async function AccessSettingsSection({
                     maxLength={254}
                     autoComplete="off"
                     placeholder="np. marketing@firma.pl"
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   />
                 </label>
                 <Button type="submit" size="sm">
@@ -115,7 +115,7 @@ export async function AccessSettingsSection({
                   type="checkbox"
                   name="send_email"
                   defaultChecked
-                  className="h-4 w-4 rounded border-input"
+                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
                 />
                 Wyślij e-mail z zaproszeniem
               </label>
@@ -132,7 +132,7 @@ export async function AccessSettingsSection({
               Nikt po stronie klienta nie ma jeszcze dostępu.
             </p>
           ) : (
-            <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
+            <ul className="flex flex-col divide-y divide-border rounded-2xl bg-muted/50">
               {users.map((u) => {
                 const isClient = u.role === "client";
                 const signedIn = lastSignIn.get(u.id);

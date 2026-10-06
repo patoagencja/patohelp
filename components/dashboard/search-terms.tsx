@@ -131,7 +131,7 @@ export function SearchTerms({
 
   return (
     <section className="surface p-5 sm:p-6">
-      <h2 className="text-base font-semibold">
+      <h2 className="text-section-title text-foreground">
         {en ? "What your customers search for" : "Czego szukają Twoi klienci"}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -149,18 +149,19 @@ export function SearchTerms({
           <ul className="mt-2 flex flex-wrap items-center gap-2">
             {topics.map((t) => {
               // Three size steps read as "big / medium / small" at a glance;
-              // a continuous scale just looks uneven.
+              // a continuous scale just looks uneven. Only the big topics
+              // get the signature lime; the rest stay quiet.
               const ratio = maxTopic > 0 ? t.weight / maxTopic : 0;
               return (
                 <li
                   key={t.word}
                   className={cn(
-                    "rounded-full border border-border",
+                    "rounded-full",
                     ratio >= 0.6
-                      ? "bg-primary/15 px-3.5 py-1.5 text-base font-semibold"
+                      ? "bg-lime px-3.5 py-1.5 text-base font-semibold text-lime-foreground"
                       : ratio >= 0.3
-                        ? "bg-primary/10 px-3 py-1 text-sm font-medium"
-                        : "bg-muted px-2.5 py-0.5 text-xs"
+                        ? "bg-lime-soft px-3 py-1 text-sm font-medium text-foreground"
+                        : "bg-muted px-2.5 py-0.5 text-xs text-foreground"
                   )}
                   title={
                     byClicks
@@ -169,7 +170,7 @@ export function SearchTerms({
                   }
                 >
                   {t.word}
-                  <span className="ml-1.5 text-[0.8em] font-normal tabular-nums text-foreground/70">
+                  <span className="ml-1.5 text-[0.8em] font-normal tabular-nums opacity-75">
                     {formatNumberPL(t.weight)}
                   </span>
                 </li>
@@ -201,9 +202,14 @@ export function SearchTerms({
                 <p className="break-words text-sm font-medium">
                   {en ? `"${t.term}"` : `„${t.term}”`}
                 </p>
-                <div className="mt-1 h-1 rounded-full bg-muted" aria-hidden>
+                {/* The top phrase is the highlighted (striped lime) bar,
+                    everything else quiet grey - its rank number says the
+                    same without colour. */}
+                <div className="mt-1.5 h-1.5 rounded-full bg-muted" aria-hidden>
                   <div
-                    className="h-1 rounded-full bg-primary/60"
+                    // Plain string, not cn(): tailwind-merge would drop bg-lime
+                    // as a "conflict" with bg-stripes.
+                    className={`h-1.5 rounded-full ${i === 0 ? "bg-lime bg-stripes" : "bg-chart-muted/70"}`}
                     style={{ width: `${width}%` }}
                   />
                 </div>

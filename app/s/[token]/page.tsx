@@ -19,6 +19,7 @@ import {
   TopCreatives,
   type CreativeRow,
 } from "@/components/dashboard/top-creatives";
+import { segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import {
   RANGE_KEYS,
   RANGE_LABELS,
@@ -243,12 +244,13 @@ export default async function SharedOverviewPage({
 
   return (
     <div
-      className="min-h-screen bg-muted/20"
+      className="min-h-screen bg-background"
       style={clientAccentStyle(branding.brandColor)}
     >
       <header
         data-present-hide
-        className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-card px-4 py-2 sm:px-6 print:hidden"
+        data-chrome-header
+        className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-transparent bg-chrome/75 px-4 py-2 backdrop-blur-xl backdrop-saturate-150 sm:px-6 print:hidden"
       >
         {/* The board sees the client's own mark first; no initials badge when
             there is no logo - the name right next to it says it already. */}
@@ -292,7 +294,7 @@ export default async function SharedOverviewPage({
           aria-label="Zakres dat"
           data-present-hide
           data-print-hide
-          className="mb-6 mt-2 flex flex-wrap gap-2 text-sm"
+          className={cn(segmentedTrack, "mb-6 mt-2")}
         >
           {RANGE_KEYS.map((key) => (
             <Link
@@ -300,12 +302,7 @@ export default async function SharedOverviewPage({
               href={`${basePath}?range=${key}`}
               prefetch={false}
               aria-current={key === range ? "page" : undefined}
-              className={cn(
-                "rounded-full border px-3 py-1 transition-colors",
-                key === range
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
-              )}
+              className={segmentedItem(key === range)}
             >
               {RANGE_LABELS[key]}
             </Link>

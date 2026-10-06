@@ -36,7 +36,7 @@ import {
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { AD_PROVIDER_HEX, AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
+import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import {
   formatDateWarsaw,
   formatMoneyPLN,
@@ -128,7 +128,7 @@ async function ShareBox({
   // user exactly what to do instead of failing silently.
   if (error || status === "error") {
     return (
-      <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 print:hidden">
+      <div className="rounded-2xl bg-warning-soft px-4 py-3 text-sm text-warning print:hidden">
         Publiczne linki wymagają tabeli <code>share_links</code> w Supabase.
         Odpal zbiorczy SQL (<code>ALL_RECENT.sql</code> / patrz czat), potem
         odśwież stronę.
@@ -138,20 +138,20 @@ async function ShareBox({
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 print:hidden">
+    <div className="surface flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5 print:hidden">
       <span className="text-sm font-medium">Publiczny link (bez logowania):</span>
       {token ? (
         <>
           <input
             readOnly
             value={`${base}/r/${token}`}
-            className="min-w-0 flex-1 rounded-md border border-input bg-muted/40 px-2 py-1.5 font-mono text-xs"
+            className="min-w-0 flex-1 rounded-full border border-transparent bg-muted px-3 py-1.5 font-mono text-xs"
           />
           <form action={revokeShareLink}>
             <input type="hidden" name="client" value={clientSlug} />
             <button
               type="submit"
-              className="rounded-md px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+              className="rounded-full px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Unieważnij
             </button>
@@ -162,7 +162,7 @@ async function ShareBox({
           <input type="hidden" name="client" value={clientSlug} />
           <button
             type="submit"
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+            className="rounded-full bg-anchor px-3.5 py-1.5 text-xs font-medium text-anchor-foreground hover:bg-anchor/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Wygeneruj link
           </button>
@@ -171,6 +171,14 @@ async function ShareBox({
     </div>
   );
 }
+
+// Platforms in the deck charts take the earthy palette in a fixed order, so
+// Meta is the same colour on the donut and the bar list.
+const PROVIDER_DECK_COLOR: Record<AdProvider, string> = {
+  meta_ads: DECK_COLORS[0],
+  google_ads: DECK_COLORS[1],
+  tiktok_ads: DECK_COLORS[2],
+};
 
 type Direction = "good" | "bad" | "neutral";
 
@@ -471,7 +479,7 @@ export default async function RaportPage({
         >
           <div className="grid h-full grid-cols-2 gap-10">
             <div className="flex flex-col">
-              <p className="mb-3 text-sm font-medium text-slate-500">
+              <p className="mb-3 text-sm font-medium text-muted-foreground">
                 Udział w wydatkach
               </p>
               <div className="min-h-0 flex-1">
@@ -484,19 +492,19 @@ export default async function RaportPage({
                     label: AD_PROVIDER_LABEL[p],
                     value: platform[p].spend,
                     display: formatMoneyPLN(platform[p].spend),
-                    color: AD_PROVIDER_HEX[p],
+                    color: PROVIDER_DECK_COLOR[p],
                   }))}
                 />
               </div>
             </div>
             <div>
-              <p className="mb-3 text-sm font-medium text-slate-500">Kliknięcia</p>
+              <p className="mb-3 text-sm font-medium text-muted-foreground">Kliknięcia</p>
               <BarList
                 items={activePlatforms.map((p) => ({
                   label: AD_PROVIDER_LABEL[p],
                   value: platform[p].clicks,
                   display: formatNumberPL(platform[p].clicks),
-                  color: AD_PROVIDER_HEX[p],
+                  color: PROVIDER_DECK_COLOR[p],
                 }))}
               />
             </div>
@@ -513,7 +521,7 @@ export default async function RaportPage({
           >
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Platforma</th>
                   <th className="py-2 pr-3 font-medium">Kampania</th>
                   <th className="py-2 pr-3 text-right font-medium">Wydatki</th>
@@ -525,9 +533,9 @@ export default async function RaportPage({
                 {topCampaigns.map((c) => (
                   <tr
                     key={`${c.provider}:${c.campaignId}`}
-                    className="border-b border-slate-100 last:border-0"
+                    className="border-b border-border last:border-0"
                   >
-                    <td className="py-2 pr-3 text-slate-500">
+                    <td className="py-2 pr-3 text-muted-foreground">
                       {AD_PROVIDER_LABEL[c.provider]}
                     </td>
                     <td className="max-w-[22rem] truncate py-2 pr-3" title={c.name}>
@@ -639,7 +647,7 @@ export default async function RaportPage({
                   />
                 </div>
                 <div className="flex flex-col">
-                  <p className="mb-2 text-sm font-medium text-slate-500">
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">
                     Wizyty na stronie dzień po dniu
                   </p>
                   <div className="min-h-0 flex-1">
@@ -685,7 +693,7 @@ export default async function RaportPage({
             >
               <div className="grid h-full grid-cols-2 gap-10">
                 <div>
-                  <p className="mb-3 text-sm font-medium text-slate-500">Urządzenia</p>
+                  <p className="mb-3 text-sm font-medium text-muted-foreground">Urządzenia</p>
                   <BarList
                     items={website.devices
                       .slice()
@@ -698,17 +706,17 @@ export default async function RaportPage({
                   />
                 </div>
                 <div>
-                  <p className="mb-3 text-sm font-medium text-slate-500">
+                  <p className="mb-3 text-sm font-medium text-muted-foreground">
                     Najczęściej odwiedzane
                   </p>
                   <ol className="space-y-1.5 text-sm">
                     {website.topPages.slice(0, 5).map((p, i) => (
                       <li key={p.path} className="flex gap-2">
-                        <span className="text-slate-400">{i + 1}.</span>
+                        <span className="text-muted-foreground">{i + 1}.</span>
                         <span className="flex-1 truncate" title={p.path}>
                           {p.path}
                         </span>
-                        <span className="tabular-nums text-slate-500">
+                        <span className="tabular-nums text-muted-foreground">
                           {formatNumberPL(p.views)}
                         </span>
                       </li>
@@ -720,7 +728,7 @@ export default async function RaportPage({
           </>
         ) : (
           <ContentSlide title="Ruch na stronie">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               Dane GA4 nie są jeszcze dostępne dla tego okresu. Po pierwszej
               synchronizacji pojawią się tu źródła ruchu, urządzenia i podstrony.
             </p>

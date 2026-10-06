@@ -5,8 +5,11 @@ import {
   type ChangeTone,
   type GlossaryKey,
 } from "@/lib/dashboard/glossary";
-import type { DashboardKpis, Kpi } from "@/lib/dashboard/metrics";
-import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
+import { MetricTile } from "@/components/dashboard/metric-tile";
+import { DeltaPill, type DeltaTone } from "@/components/ui/pill";
+import type { SparklineTone } from "@/components/ui/sparkline";
+import type { DashboardKpis, Kpi, TrendPoint } from "@/lib/dashboard/metrics";
+import { formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 type Lang = "pl" | "en";
 
@@ -35,21 +38,25 @@ function wholePln(minorUnits: number): string {
 }
 
 /**
- * Colour the change by whether it is good news, not by its sign: a pricier
- * click is red even though the number went up, and spend is never judged.
+ * Judge the change by whether it is good news, not by its sign: a pricier
+ * click is bad even though the number went up, and spend is never judged.
  */
-function changeTone(kpi: Kpi, metric: GlossaryKey, thinBase: boolean): string {
+function changeTone(kpi: Kpi, metric: GlossaryKey, thinBase: boolean): DeltaTone {
   const d = kpi.deltaPercent;
   const goodWhen = GLOSSARY[metric].goodWhen;
-  if (thinBase || d === null || !Number.isFinite(d) || goodWhen === "neutral") {
-    return "text-muted-foreground";
-  }
-  if (Math.abs(d) < FLAT_THRESHOLD) return "text-muted-foreground";
+  if (thinBase || d === null || !Number.isFinite(d) || goodWhen === "neutral") return "flat";
+  if (Math.abs(d) < FLAT_THRESHOLD) return "flat";
   const good = goodWhen === "lower" ? d < 0 : d > 0;
-  return good
-    ? "text-emerald-700 dark:text-emerald-400"
-    : "text-red-700 dark:text-red-400";
+  return good ? "good" : "bad";
 }
+
+// Sparkline colour = the delta's judgement; spend (never judged) draws in
+// the "this period" green so the row doesn't read as four grey squiggles.
+const SPARK_TONE: Record<DeltaTone, SparklineTone> = {
+  good: "positive",
+  bad: "negative",
+  flat: "neutral",
+};
 
 function Tile({
   metric,
@@ -58,6 +65,7 @@ function Tile({
   kpi,
   hint,
   thinBase,
+  series,
   lang,
 }: {
   metric: GlossaryKey;
@@ -68,6 +76,8 @@ function Tile({
   /** Replaces the change sentence (no data yet, no clicks...). */
   hint?: string;
   thinBase: boolean;
+  /** Daily values for the sparkline, oldest -> newest (decorative). */
+  series?: number[];
   lang: Lang;
 }) {
   const g = GLOSSARY[metric];
@@ -75,45 +85,54 @@ function Tile({
   const tag = en ? (g.en.short ?? g.short) : g.short;
   const change = hint ?? describeChange(kpi.deltaPercent, tone, { thinBase, lang });
   const d = kpi.deltaPercent;
-  const arrow =
-    hint || thinBase || d === null || !Number.isFinite(d) || Math.abs(d) < FLAT_THRESHOLD
-      ? null
-      : d > 0
-        ? "▲"
-        : "▼";
+  const moved =
+    !hint && !thinBase && d !== null && Number.isFinite(d) && Math.abs(d) >= FLAT_THRESHOLD;
+  const judged = changeTone(kpi, metric, thinBase);
+  // The pill carries "16%", the words after it say what that means
+  // ("więcej niż wcześniej"), so colour is never the only cue.
+  const pct = moved ? `${Math.round(Math.abs(d!)).toLocaleString(en ? "en-GB" : "pl-PL")}%` : null;
+  const words = pct ? change.replace(/^(o\s)?\d[\d\s.,]*%\s*/, "") : change;
 
   return (
-    // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
-    <div className="surface relative flex min-w-0 flex-col gap-2 p-4 focus-within:z-10 hover:z-10 sm:p-5">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="truncate text-sm font-medium text-foreground">
-          {TILE_LABEL[lang][metric] ?? (en ? g.en.name : g.name)}
+    <MetricTile
+      label={
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-sm font-medium leading-5 text-muted-foreground">
+            {TILE_LABEL[lang][metric] ?? (en ? g.en.name : g.name)}
+          </span>
+          {/* The CTR/CPC tag people hear from platforms; no room on phones. */}
+          {tag ? (
+            <span
+              data-caps
+              className="hidden rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:inline"
+            >
+              {tag}
+            </span>
+          ) : null}
+          <InfoTip
+            label={tag ?? (en ? g.en.name : g.name)}
+            text={en ? g.en.explain : g.explain}
+            lang={lang}
+            className="shrink-0"
+          />
         </span>
-        {/* The CTR/CPC tag people hear from platforms; no room on phones. */}
-        {tag ? (
-          <span className="hidden rounded bg-muted px-1.5 py-px text-[11px] font-medium text-muted-foreground sm:inline">
-            {tag}
-          </span>
-        ) : null}
-        <InfoTip label={tag ?? (en ? g.en.name : g.name)} text={en ? g.en.explain : g.explain} lang={lang} />
-      </div>
-      <p className="truncate text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-metric">
-        {value}
-      </p>
-      <p
-        className={cn(
-          "text-sm leading-snug",
-          hint ? "text-muted-foreground" : changeTone(kpi, metric, thinBase)
-        )}
-      >
-        {arrow ? (
-          <span aria-hidden className="mr-1 text-[0.7em]">
-            {arrow}
-          </span>
-        ) : null}
-        {change}
-      </p>
-    </div>
+      }
+      value={value}
+      delta={
+        pct ? (
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-snug text-muted-foreground">
+            <DeltaPill tone={judged} direction={d! > 0 ? "up" : "down"}>
+              {pct}
+            </DeltaPill>
+            <span>{words}</span>
+          </p>
+        ) : (
+          <p className="text-[13px] leading-snug text-muted-foreground">{change}</p>
+        )
+      }
+      sparkline={hint || value === "-" ? undefined : series}
+      sparkTone={metric === "spend" ? "accent" : SPARK_TONE[judged]}
+    />
   );
 }
 
@@ -124,12 +143,23 @@ function Tile({
  */
 export function AdsKpiTiles({
   kpis,
+  trend,
   lang = "pl",
 }: {
   kpis: DashboardKpis;
+  /** The page's daily trend (already loaded) - feeds the tile sparklines. */
+  trend?: TrendPoint[];
   lang?: Lang;
 }) {
   const en = lang === "en";
+  const days = trend ?? [];
+  // Ratio days without a denominator have no value; skip, don't plot a 0.
+  const series = {
+    spend: days.map((p) => p.spendMinorUnits),
+    clicks: days.map((p) => p.clicks),
+    cpc: days.filter((p) => p.clicks > 0).map((p) => p.spendMinorUnits / p.clicks),
+    ctr: days.filter((p) => p.impressions > 0).map((p) => (p.clicks / p.impressions) * 100),
+  };
   const afterAds = en
     ? "Ad data appears after the first sync"
     : "Dane pojawią się po pierwszej synchronizacji";
@@ -163,6 +193,7 @@ export function AdsKpiTiles({
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Tile
           metric="spend"
+          series={series.spend}
           tone="amount"
           // Whole złoty: grosze on a five-digit budget is noise.
           value={noAds ? "-" : wholePln(kpis.spendMinorUnits.value)}
@@ -173,6 +204,7 @@ export function AdsKpiTiles({
         />
         <Tile
           metric="clicks"
+          series={series.clicks}
           tone="amount"
           value={noAds ? "-" : formatNumberPL(kpis.clicks.value)}
           kpi={kpis.clicks}
@@ -182,6 +214,7 @@ export function AdsKpiTiles({
         />
         <Tile
           metric="cpc"
+          series={series.cpc}
           tone="cost"
           // CPC keeps grosze: 1,47 zł vs 1,52 zł is the whole story here.
           value={noAds || noClicks ? "-" : formatMoneyPLN(Math.round(kpis.cpcMinorUnits.value))}
@@ -192,6 +225,7 @@ export function AdsKpiTiles({
         />
         <Tile
           metric="ctr"
+          series={series.ctr}
           tone="rate"
           value={noAds ? "-" : formatPercent(kpis.ctr.value)}
           kpi={kpis.ctr}

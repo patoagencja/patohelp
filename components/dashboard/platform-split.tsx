@@ -57,27 +57,28 @@ export function PlatformSplit({
   lang?: Lang;
 }) {
   const en = lang === "en";
-  // Bar colours match the platform pills in the campaigns list.
+  // Bar colours = the platform dots in the campaign list and the CPC chart
+  // lines (chart-1 Meta, chart-2 Google, chart-3 TikTok).
   const rows: ShareRow[] = [
     {
       key: "meta",
       label: "Meta",
       hint: en ? "Facebook and Instagram" : "Facebook i Instagram",
       value: split.metaSpendMinorUnits,
-      barClass: "bg-blue-500",
+      barClass: "bg-chart-1",
     },
     {
       key: "google",
       label: "Google",
       hint: en ? "search and YouTube" : "wyszukiwarka i YouTube",
       value: split.googleSpendMinorUnits,
-      barClass: "bg-amber-500",
+      barClass: "bg-chart-2",
     },
     {
       key: "tiktok",
       label: "TikTok",
       value: split.tiktokSpendMinorUnits,
-      barClass: "bg-pink-500",
+      barClass: "bg-chart-3",
     },
   ].filter((r) => r.value > 0);
   const total = rows.reduce((a, r) => a + r.value, 0);

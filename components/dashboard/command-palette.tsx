@@ -178,7 +178,7 @@ function Highlight({ text, match }: { text: string; match: [number, number] | nu
   return (
     <>
       {chars.slice(0, match[0]).join("")}
-      <mark className="rounded-sm bg-primary/15 text-foreground">
+      <mark className="rounded-sm bg-lime/35 text-foreground">
         {chars.slice(match[0], match[1]).join("")}
       </mark>
       {chars.slice(match[1]).join("")}
@@ -606,9 +606,9 @@ export function CommandPalette({
               aria-labelledby={titleId}
               onKeyDown={onPanelKey}
               className={cn(
-                "absolute inset-x-0 top-0 flex max-h-[85vh] flex-col overflow-hidden border-b border-border bg-card text-card-foreground shadow-2xl",
-                "rounded-b-2xl animate-in fade-in-0 slide-in-from-top-4 duration-150",
-                "sm:inset-x-auto sm:left-1/2 sm:top-[15vh] sm:max-h-[70vh] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:rounded-xl sm:border sm:slide-in-from-top-2 sm:zoom-in-95",
+                "absolute inset-x-0 top-0 flex max-h-[85vh] flex-col overflow-hidden border-b border-hairline bg-card text-card-foreground shadow-raised",
+                "rounded-b-card animate-in fade-in-0 slide-in-from-top-4 duration-150",
+                "sm:inset-x-auto sm:left-1/2 sm:top-[15vh] sm:max-h-[70vh] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:-translate-x-1/2 sm:rounded-card sm:border sm:slide-in-from-top-2 sm:zoom-in-95",
                 "motion-reduce:animate-none"
               )}
             >
@@ -644,7 +644,7 @@ export function CommandPalette({
                 <button
                   type="button"
                   onClick={() => closePalette()}
-                  className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted sm:hidden"
+                  className="rounded-full px-2.5 py-1 text-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden"
                 >
                   Anuluj
                 </button>
@@ -695,14 +695,17 @@ export function CommandPalette({
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => runRow(row)}
                                   className={cn(
-                                    "flex cursor-pointer select-none items-center gap-3 rounded-lg px-2.5 py-2 text-sm",
-                                    selected ? "bg-accent text-accent-foreground" : "text-foreground"
+                                    "flex cursor-pointer select-none items-center gap-3 rounded-xl px-2.5 py-2 text-sm",
+                                    // v2 "selected" = the anchor pill. surface-anchor
+                                    // re-points the muted tokens so the row's
+                                    // secondary text stays readable on it.
+                                    selected ? "surface-anchor bg-card text-card-foreground" : "text-foreground"
                                   )}
                                 >
                                   <Icon
                                     className={cn(
                                       "h-4 w-4 shrink-0",
-                                      selected ? "text-accent-foreground" : "text-muted-foreground"
+                                      selected ? "text-card-foreground" : "text-muted-foreground"
                                     )}
                                     aria-hidden
                                   />

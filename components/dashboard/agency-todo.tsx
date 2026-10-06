@@ -38,19 +38,19 @@ const SEVERITY_UI: Record<
   pilne: {
     heading: "Pilne",
     count: (n) => `${n} ${plPlural(n, "pilna", "pilne", "pilnych")}`,
-    dot: "bg-red-500",
+    dot: "bg-negative ring-negative-soft",
     tone: "negative",
   },
   wazne: {
     heading: "Ważne",
     count: (n) => `${n} ${plPlural(n, "ważna", "ważne", "ważnych")}`,
-    dot: "bg-amber-500",
+    dot: "bg-warning-fill ring-warning-soft",
     tone: "warning",
   },
   wskazowka: {
     heading: "Wskazówki",
     count: (n) => `${n} ${plPlural(n, "wskazówka", "wskazówki", "wskazówek")}`,
-    dot: "bg-sky-500",
+    dot: "bg-chart-muted ring-muted",
     tone: "neutral",
   },
 };
@@ -137,8 +137,8 @@ export function AgencyTodoCard({
 
       {groups.length === 0 ? (
         <div className="mt-6 flex flex-col items-center gap-2 px-6 py-6 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-positive-soft">
+            <CheckCircle2 className="h-5 w-5 text-positive" aria-hidden />
           </span>
           <p className="text-base font-semibold">Wszystko pod kontrolą</p>
           <p className="text-sm text-muted-foreground">
@@ -157,7 +157,7 @@ export function AgencyTodoCard({
             );
             const heading = (
               <span className="flex items-center gap-2 text-sm font-semibold">
-                <span className={cn("h-2 w-2 rounded-full", SEVERITY_UI[g.severity].dot)} aria-hidden />
+                <span className={cn("h-2 w-2 rounded-full ring-[3px]", SEVERITY_UI[g.severity].dot)} aria-hidden />
                 {SEVERITY_UI[g.severity].heading}
                 <span className="font-normal text-muted-foreground tabular-nums">{g.items.length}</span>
               </span>
@@ -239,7 +239,7 @@ export function AgencyTodoChip({
   if (!counts || total === 0) {
     return (
       <Pill tone="positive">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden />
+        <span className="h-1.5 w-1.5 rounded-full bg-lime" aria-hidden />
         Nic do zrobienia
       </Pill>
     );

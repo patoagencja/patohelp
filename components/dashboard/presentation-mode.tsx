@@ -352,7 +352,7 @@ export function PresentationMode({
           {brand ? (
             <div
               aria-hidden
-              className="pointer-events-none fixed left-5 top-4 z-[60] flex max-w-[14rem] items-center rounded-xl bg-card/80 px-3 py-2 text-foreground opacity-80 shadow-sm backdrop-blur print:hidden"
+              className="pointer-events-none fixed left-5 top-4 z-[60] flex max-w-[14rem] items-center rounded-2xl bg-card/80 px-3 py-2 text-foreground opacity-80 shadow-card backdrop-blur print:hidden"
             >
               {brand}
             </div>
@@ -360,7 +360,7 @@ export function PresentationMode({
           <div
             role="toolbar"
             aria-label="Sterowanie prezentacją"
-            className="fixed bottom-5 right-5 z-[60] flex items-center gap-1 rounded-full border border-border bg-card/90 p-1 text-sm text-foreground opacity-40 shadow-lg backdrop-blur transition-opacity duration-300 focus-within:opacity-100 hover:opacity-100 print:hidden"
+            className="fixed bottom-5 right-5 z-[60] flex items-center gap-1 rounded-full border border-hairline bg-card/90 p-1 text-sm text-foreground opacity-40 shadow-raised backdrop-blur transition-opacity duration-300 focus-within:opacity-100 hover:opacity-100 print:hidden"
           >
             <Button
               type="button"
@@ -394,7 +394,6 @@ export function PresentationMode({
             </Button>
             <Button
               type="button"
-              variant="outline"
               size="sm"
               className="ml-1 h-8 gap-1.5 rounded-full px-3"
               onClick={exit}

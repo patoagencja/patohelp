@@ -74,8 +74,10 @@ export default async function NewsyPage({
 
       {items.length === 0 ? (
         <Card className="flex flex-col items-center px-6 py-14 text-center">
-          <Newspaper className="mb-3 h-7 w-7 text-muted-foreground" aria-hidden />
-          <p className="text-base font-semibold">Brak newsów</p>
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Newspaper className="h-6 w-6 text-muted-foreground" aria-hidden />
+          </span>
+          <p className="text-section-title">Brak newsów</p>
           <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
             Lista wypełnia się automatycznie raz dziennie. Kliknij ikonę
             odświeżania, aby pobrać pierwszą porcję (potrwa ~1 min).

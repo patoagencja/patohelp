@@ -22,9 +22,9 @@ const KIND_LABEL: Record<LogoKind, string> = {
 };
 
 const CONFIDENCE: Record<Confidence, { label: string; className: string }> = {
-  high: { label: "pewne", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
-  medium: { label: "prawdopodobne", className: "bg-sky-500/15 text-sky-700 dark:text-sky-400" },
-  low: { label: "do sprawdzenia", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  high: { label: "pewne", className: "bg-positive-soft text-positive" },
+  medium: { label: "prawdopodobne", className: "bg-muted text-muted-foreground" },
+  low: { label: "do sprawdzenia", className: "bg-warning-soft text-warning" },
 };
 
 /**
@@ -124,7 +124,7 @@ export function BrandingWebsiteFetch({
             }}
             aria-invalid={inputError ? true : undefined}
             aria-describedby="brand-website-hint"
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+            className="h-9 min-w-0 flex-1 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
           />
           <Button
             type="button"
@@ -203,7 +203,7 @@ export function BrandingWebsiteFetch({
                       )}
                     >
                       {/* Logos are made for light backgrounds - the PDF and the light panel. */}
-                      <span className="flex h-16 items-center justify-center rounded-md border border-border bg-white px-3">
+                      <span className="flex h-16 items-center justify-center rounded-xl border border-border bg-white px-3">
                         {broken ? (
                           <span className="text-muted-foreground">Nie wczytuje się</span>
                         ) : (

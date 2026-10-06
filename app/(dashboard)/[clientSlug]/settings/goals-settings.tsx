@@ -107,7 +107,7 @@ export async function GoalsSettingsSection({
                                   aria-label={`${LABELS[metric].name} - ${monthLabelPl(m)}`}
                                   placeholder="brak celu"
                                   defaultValue={v !== undefined ? formatNumberPL(v) : ""}
-                                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm tabular-nums"
+                                  className="h-9 w-full rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm tabular-nums"
                                 />
                               </td>
                             );

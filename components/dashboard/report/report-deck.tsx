@@ -47,7 +47,7 @@ export function ReportDeck({
         section="Executive summary"
         foot={foot}
       >
-        <div className="space-y-4 text-[15px] leading-relaxed text-slate-700">
+        <div className="space-y-4 text-[15px] leading-relaxed text-foreground/85">
           {summary
             .replace(/[–—]/g, "-")
             .split(/\n\s*\n/)
@@ -168,10 +168,11 @@ export function ReportDeck({
             type="button"
             onClick={() => setIndex(i)}
             aria-label={`Slajd ${i + 1}`}
+            aria-current={i === active ? "step" : undefined}
             className={cn(
-              "h-2 w-2 rounded-full transition-colors",
+              "h-2 w-2 rounded-full transition-[width,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               i === active
-                ? "bg-primary"
+                ? "w-5 bg-anchor"
                 : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
             )}
           />

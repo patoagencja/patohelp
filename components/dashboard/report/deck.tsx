@@ -1,17 +1,24 @@
 // Presentational primitives for the client report "deck" - a premium 16:9 slide
-// layout for the monthly PDF. Fixed light/dark palette (not theme tokens) so the
-// deliverable looks identical in light mode, terminal mode and the printed PDF.
+// layout for the monthly PDF. v2 skin: slides are theme surfaces (white card /
+// lifted charcoal in dark), cover and dividers use the near-black anchor, and
+// charts use the earthy --chart-* palette. The printed PDF is always the light
+// palette: globals.css re-points every token under @media print.
 import { cn } from "@/lib/utils";
 
-// Cohesive chart palette (indigo brand + supporting hues).
+// CSS colour strings (not classes) because the charts below paint SVG strokes
+// and inline bar fills. Same order as everywhere else: chart-1 is "the" series.
 export const DECK_COLORS = [
-  "#6366f1", // indigo
-  "#14b8a6", // teal
-  "#f59e0b", // amber
-  "#0ea5e9", // sky
-  "#f43f5e", // rose
-  "#94a3b8", // slate
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--chart-6))",
 ];
+
+const GRID = "hsl(var(--border))";
+const TRACK = "hsl(var(--muted))";
+const AXIS = "hsl(var(--muted-foreground))";
 
 /** One 16:9 slide. On screen a card; in print a full landscape page. */
 export function Slide({
@@ -26,10 +33,10 @@ export function Slide({
   return (
     <div
       className={cn(
-        "deck-slide relative mx-auto flex aspect-[16/9] w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-lg",
+        "deck-slide relative mx-auto flex aspect-[16/9] w-full max-w-5xl flex-col overflow-hidden rounded-card shadow-raised",
         dark
-          ? "bg-slate-900 text-white"
-          : "border border-slate-200 bg-white text-slate-900",
+          ? "bg-anchor text-anchor-foreground"
+          : "border border-hairline bg-card text-card-foreground",
         className
       )}
     >
@@ -58,33 +65,33 @@ export function CoverSlide({
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(120% 120% at 100% 0%, rgba(99,102,241,0.45) 0%, rgba(15,23,42,0) 55%)",
+            "radial-gradient(120% 120% at 100% 0%, hsl(var(--lime) / 0.38) 0%, transparent 55%), radial-gradient(80% 90% at 70% 0%, hsl(var(--olive) / 0.22) 0%, transparent 60%)",
         }}
       />
       <div className="relative flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">
-          <span className="inline-block h-2 w-2 rounded-full bg-indigo-400" />
+        <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-anchor-foreground/75">
+          <span className="inline-block h-2 w-2 rounded-full bg-anchor-dot" />
           patoagencja
         </div>
         {logo ? (
-          <span className="flex h-10 items-center text-white">{logo}</span>
+          <span className="flex h-10 items-center text-anchor-foreground">{logo}</span>
         ) : monogram ? (
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-sm font-bold tracking-wide text-white">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-anchor-foreground/15 bg-anchor-foreground/10 text-sm font-bold tracking-wide text-anchor-foreground">
             {monogram}
           </span>
         ) : null}
       </div>
       <div className="relative">
         {eyebrow ? (
-          <p className="mb-2 text-sm font-medium uppercase tracking-wider text-indigo-300">
+          <p className="mb-2 text-sm font-medium uppercase tracking-wider text-anchor-foreground/75">
             {eyebrow}
           </p>
         ) : null}
         <h1 className="text-6xl font-bold leading-none tracking-tight">{title}</h1>
-        <div className="mt-6 h-1 w-24 rounded-full bg-indigo-400" />
-        <p className="mt-4 text-lg text-slate-300">{period}</p>
+        <div className="mt-6 h-1.5 w-24 rounded-full bg-anchor-dot" />
+        <p className="mt-4 text-lg text-anchor-foreground/80">{period}</p>
       </div>
-      <div className="relative text-sm text-slate-400">
+      <div className="relative text-sm text-anchor-foreground/65">
         Raport wyników kampanii online
       </div>
     </Slide>
@@ -105,13 +112,13 @@ export function DividerSlide({
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(100% 100% at 0% 100%, rgba(20,184,166,0.28) 0%, rgba(15,23,42,0) 55%)",
+            "radial-gradient(100% 100% at 0% 100%, hsl(var(--lime) / 0.28) 0%, transparent 55%)",
         }}
       />
       <div className="relative">
-        <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-indigo-400" />
+        <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-anchor-dot" />
         <h2 className="text-5xl font-bold tracking-tight">{title}</h2>
-        {subtitle ? <p className="mt-3 text-lg text-slate-300">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-3 text-lg text-anchor-foreground/80">{subtitle}</p> : null}
       </div>
     </Slide>
   );
@@ -135,17 +142,17 @@ export function ContentSlide({
     <Slide className="p-10">
       <div className="mb-5 shrink-0">
         {section ? (
-          <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-indigo-500">
-            <span className="inline-block h-3 w-1 rounded-full bg-indigo-500" />
+          <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <span className="inline-block h-2 w-2 rounded-full bg-lime" />
             {section}
           </p>
         ) : null}
         <h3 className="text-3xl font-bold tracking-tight">{title}</h3>
-        {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
       </div>
       <div className="min-h-0 flex-1">{children}</div>
       {foot ? (
-        <div className="mt-4 flex shrink-0 items-center justify-between border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+        <div className="mt-4 flex shrink-0 items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
           <span>{foot}</span>
           <span className="slide-pageno" />
         </div>
@@ -160,9 +167,9 @@ function DeltaPill({ text, tone }: { text: string; tone: "up" | "down" | "flat" 
     <span
       className={cn(
         "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold",
-        tone === "up" && "bg-emerald-50 text-emerald-600",
-        tone === "down" && "bg-red-50 text-red-600",
-        tone === "flat" && "bg-slate-100 text-slate-500"
+        tone === "up" && "bg-positive-soft text-positive",
+        tone === "down" && "bg-negative-soft text-negative",
+        tone === "flat" && "bg-muted text-muted-foreground"
       )}
     >
       {tone === "up" ? "▲" : tone === "down" ? "▼" : "→"} {text}
@@ -185,13 +192,13 @@ export function Stat({
   accent?: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl bg-muted/60 p-5">
       <span
         className="absolute inset-y-0 left-0 w-1"
         style={{ background: accent }}
       />
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1.5 text-[26px] font-bold leading-none tabular-nums tracking-tight">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1.5 text-[28px] font-medium leading-none tabular-nums tracking-[-0.03em]">
         {value}
       </p>
       {sub ? (
@@ -217,7 +224,7 @@ export function BarList({
         return (
           <div key={it.label} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-slate-600">
+              <span className="flex items-center gap-2 text-muted-foreground">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-full"
                   style={{ background: color }}
@@ -228,7 +235,7 @@ export function BarList({
               </span>
               <span className="font-semibold tabular-nums">{it.display}</span>
             </div>
-            <span className="block h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <span className="block h-3 w-full overflow-hidden rounded-full bg-muted">
               <span
                 className="block h-full rounded-full"
                 style={{
@@ -264,7 +271,7 @@ export function Donut({
       <div className="relative h-44 w-44 shrink-0">
         <svg viewBox="0 0 160 160" className="h-full w-full">
           <g transform="rotate(-90 80 80)">
-            <circle cx="80" cy="80" r={r} fill="none" stroke="#f1f5f9" strokeWidth="16" />
+            <circle cx="80" cy="80" r={r} fill="none" style={{ stroke: TRACK }} strokeWidth="16" />
             {items.map((it, idx) => {
               const frac = it.value / total;
               const dash = frac * circ;
@@ -275,7 +282,7 @@ export function Donut({
                   cy="80"
                   r={r}
                   fill="none"
-                  stroke={it.color ?? DECK_COLORS[idx % DECK_COLORS.length]}
+                  style={{ stroke: it.color ?? DECK_COLORS[idx % DECK_COLORS.length] }}
                   strokeWidth="16"
                   strokeDasharray={`${dash} ${circ - dash}`}
                   strokeDashoffset={-offset}
@@ -289,12 +296,12 @@ export function Donut({
         {/* Centre label as HTML so it never overflows the ring hole. */}
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           {centerValue ? (
-            <span className="text-lg font-bold leading-tight tracking-tight text-slate-900">
+            <span className="text-lg font-semibold leading-tight tracking-tight text-foreground">
               {centerValue}
             </span>
           ) : null}
           {centerLabel ? (
-            <span className="text-[10px] uppercase tracking-wide text-slate-400">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {centerLabel}
             </span>
           ) : null}
@@ -303,9 +310,9 @@ export function Donut({
       <div className="min-w-0 flex-1 space-y-3">
         {items.map((it, idx) => (
           <div key={it.label} className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-slate-600">
+            <span className="flex items-center gap-2 text-muted-foreground">
               <span
-                className="inline-block h-3 w-3 rounded-sm"
+                className="inline-block h-3 w-3 rounded-full"
                 style={{ background: it.color ?? DECK_COLORS[idx % DECK_COLORS.length] }}
               />
               {it.label}
@@ -334,9 +341,9 @@ export function CreativesGrid({
       {items.map((c, i) => (
         <div
           key={i}
-          className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
+          className="flex flex-col overflow-hidden rounded-2xl bg-muted/60"
         >
-          <div className="aspect-square w-full bg-slate-100">
+          <div className="aspect-square w-full bg-muted">
             {c.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -345,7 +352,7 @@ export function CreativesGrid({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-xs text-slate-300">
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
                 brak podglądu
               </div>
             )}
@@ -354,7 +361,7 @@ export function CreativesGrid({
             <span className="truncate text-xs font-medium" title={c.name}>
               {c.name}
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted-foreground">
               {c.spendDisplay} · CTR {c.ctrDisplay}
             </span>
           </div>
@@ -370,7 +377,7 @@ function TickCol({
   min,
   max,
   format,
-  color = "#94a3b8",
+  color = AXIS,
   align = "right",
 }: {
   min: number;
@@ -404,8 +411,10 @@ function grid(w: number, h: number) {
       x2={w}
       y1={h * f}
       y2={h * f}
-      stroke="#f1f5f9"
+      style={{ stroke: GRID }}
       strokeWidth={1}
+      strokeDasharray="3 4"
+      vectorEffect="non-scaling-stroke"
     />
   ));
 }
@@ -423,12 +432,13 @@ export function LineChart({
   const w = 640;
   const h = 220;
   if (values.length === 0)
-    return <p className="text-sm text-slate-400">Brak danych.</p>;
+    return <p className="text-sm text-muted-foreground">Brak danych.</p>;
   const max = Math.max(...values);
   const min = Math.min(...values, 0);
   const range = max - min || 1;
   const n = values.length;
-  const gid = `g-${color.replace("#", "")}`;
+  // Colours are CSS strings like "hsl(var(--chart-1))": keep only id-safe chars.
+  const gid = `g-${color.replace(/[^a-z0-9]/gi, "")}`;
   const pts = values.map((v, i) => {
     const x = n > 1 ? (i / (n - 1)) * w : w / 2;
     const y = h - ((v - min) / range) * (h - 12) - 6;
@@ -439,8 +449,8 @@ export function LineChart({
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-full w-full">
       <defs>
         <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.28} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
+          <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.28 }} />
+          <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
         </linearGradient>
       </defs>
       {grid(w, h)}
@@ -448,7 +458,7 @@ export function LineChart({
       <polyline
         points={line}
         fill="none"
-        stroke={color}
+        style={{ stroke: color }}
         strokeWidth={2.5}
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
@@ -509,14 +519,14 @@ export function DualLineChart({
           <polyline
             points={path(a.values, ab)}
             fill="none"
-            stroke={aColor}
+            style={{ stroke: aColor }}
             strokeWidth={2.5}
             vectorEffect="non-scaling-stroke"
           />
           <polyline
             points={path(b.values, bb)}
             fill="none"
-            stroke={bColor}
+            style={{ stroke: bColor }}
             strokeWidth={2.5}
             vectorEffect="non-scaling-stroke"
           />

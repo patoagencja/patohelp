@@ -156,7 +156,7 @@ export async function IntegrationHealthBanner({
     return (
       <>
       {catchingUpNote}
-      <div className="border-b border-amber-500/30 bg-amber-500/5 px-6 py-2 text-sm text-amber-800 dark:text-amber-300/90 print:hidden">
+      <div className="border-b border-warning/20 bg-warning-soft/60 px-6 py-2 text-sm text-warning print:hidden">
         {upcoming.map((e) => (
           <p key={e.provider} className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -181,17 +181,17 @@ export async function IntegrationHealthBanner({
   return (
     <>
     {catchingUpNote}
-    <div className="border-b border-amber-500/30 bg-amber-500/10 px-6 py-3 print:hidden">
+    <div className="border-b border-warning/20 bg-warning-soft px-6 py-3 print:hidden">
       <div className="flex items-start gap-2.5">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
         <div className="text-sm">
-          <p className="font-medium text-amber-900 dark:text-amber-200">
+          <p className="font-medium text-foreground">
             {unhealthy.length === 1
               ? "Jedno źródło danych nie działa"
               : "Kilka źródeł danych nie działa"}{" "}
             - liczby poniżej są niepełne.
           </p>
-          <ul className="mt-1 space-y-0.5 text-amber-800 dark:text-amber-300/90">
+          <ul className="mt-1 space-y-0.5 text-warning">
             {unhealthy.map((h) => (
               <li key={h.provider}>
                 <span className="font-medium">{h.label}</span>: {since(h)}

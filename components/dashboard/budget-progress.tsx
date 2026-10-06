@@ -9,17 +9,19 @@ import { cn } from "@/lib/utils";
 
 type Lang = "pl" | "en";
 
+// v2: same striped fills as the overview's "Plan miesiąca" (plan-card.tsx):
+// lime on plan, amber behind, red overspending. The sentence says it in words.
 const PACE_BAR: Record<BudgetStatus["pace"], string> = {
-  ok: "bg-emerald-500",
-  slow: "bg-amber-500",
-  fast: "bg-red-500",
-  none: "bg-emerald-500",
+  ok: "bg-lime",
+  slow: "bg-warning-fill",
+  fast: "bg-negative",
+  none: "bg-lime",
 };
 
 const PACE_DOT: Record<BudgetStatus["pace"], string> = {
-  ok: "bg-emerald-500",
-  slow: "bg-amber-500",
-  fast: "bg-red-500",
+  ok: "bg-lime",
+  slow: "bg-warning-fill",
+  fast: "bg-negative",
   none: "bg-muted-foreground",
 };
 
@@ -130,7 +132,7 @@ export function BudgetProgress({
   if (!budget.hasBudget) {
     return (
       <Card className="p-5 sm:p-6">
-        <h2 className="text-base font-semibold">{title}</h2>
+        <h2 className="text-section-title">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {en ? "No budget has been set for this month." : "Nie ustawiono budżetu na ten miesiąc."}
         </p>
@@ -166,7 +168,7 @@ export function BudgetProgress({
     <Card className="p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold">{title}</h2>
+          <h2 className="text-section-title">{title}</h2>
           {since ? <p className="mt-0.5 text-xs text-muted-foreground">{since}</p> : null}
         </div>
         {isAgency ? (
@@ -191,7 +193,7 @@ export function BudgetProgress({
       {/* Headline amount */}
       <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
         <p className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl">
+          <span className="text-metric tabular-nums sm:text-metric-lg">
             {wholePln(budget.spentMinorUnits)}
           </span>
           <span className="text-lg text-muted-foreground tabular-nums">
@@ -208,7 +210,7 @@ export function BudgetProgress({
       {/* Progress bar + "today" marker for the planned pace */}
       <div className="relative mt-5 pb-6">
         <div
-          className="relative h-3 w-full overflow-hidden rounded-full bg-muted"
+          className="relative h-3.5 w-full overflow-hidden rounded-full bg-muted"
           role="progressbar"
           aria-label={en ? "Budget used" : "Wykorzystanie budżetu"}
           aria-valuemin={0}
@@ -221,12 +223,12 @@ export function BudgetProgress({
           }
         >
           <div
-            className={cn("h-full rounded-full transition-all motion-reduce:transition-none", PACE_BAR[budget.pace])}
+            className={cn("bg-stripes h-full rounded-full transition-all motion-reduce:transition-none", PACE_BAR[budget.pace])}
             style={{ width: `${barPercent}%` }}
           />
         </div>
         <div
-          className="absolute -top-1 h-5 w-0.5 -translate-x-1/2 rounded-full bg-foreground/70"
+          className="absolute -top-1 h-[1.375rem] w-[3px] -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
           style={{ left: `${markerPercent}%` }}
           aria-hidden
         />

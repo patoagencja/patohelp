@@ -64,11 +64,11 @@ export async function ConnectionStability({
             <div className="flex items-start justify-between gap-2">
               <p className="font-semibold">Meta Ads</p>
               {metaPermanent ? (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-positive">
                   <CheckCircle2 className="h-3.5 w-3.5" /> nie wygasa
                 </span>
               ) : metaDaysLeft !== null ? (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
                   <TriangleAlert className="h-3.5 w-3.5" />
                   wygasa za {Math.max(0, metaDaysLeft)} {metaDaysLeft === 1 ? "dzień" : "dni"}
                 </span>
@@ -109,7 +109,7 @@ export async function ConnectionStability({
                     type="password"
                     autoComplete="off"
                     placeholder="Token System User (EAA...)"
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9 rounded-xl border border-transparent bg-muted transition-shadow hover:bg-secondary focus-visible:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:focus-visible:bg-muted px-3 text-sm"
                   />
                   <Button type="submit" size="sm" className="w-fit">
                     Zapisz token na stałe

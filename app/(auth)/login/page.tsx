@@ -70,8 +70,11 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 sm:px-6">
       <div className="w-full max-w-[25rem]">
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-card">
+          {/* Brand mark in the v2 "selected" language: the anchor tile with
+              the small lime dot of the active sidebar pill. */}
+          <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-anchor text-anchor-foreground shadow-raised">
             <Sparkles className="h-5 w-5" aria-hidden />
+            <span aria-hidden className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-anchor-dot" />
           </span>
           <p className="mt-4 text-sm font-medium text-muted-foreground">Panel klienta Pato</p>
         </div>
@@ -79,7 +82,7 @@ export default function LoginPage() {
         <section className="rounded-card border border-hairline bg-card p-6 shadow-card sm:p-8">
           {status === "sent" ? (
             <div role="status" className="animate-in fade-in slide-in-from-bottom-2 motion-reduce:animate-none">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-lime text-lime-foreground">
                 <MailCheck className="h-6 w-6" aria-hidden />
               </span>
               <h1 className="mt-5 text-2xl font-semibold tracking-tight">Sprawdź skrzynkę</h1>
@@ -89,11 +92,11 @@ export default function LoginPage() {
               </p>
               <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-positive" aria-hidden />
                   Nie widzisz maila? Zajrzyj do folderu Spam lub Oferty.
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-positive" aria-hidden />
                   Link działa przez godzinę i tylko raz.
                 </li>
               </ul>
@@ -132,7 +135,7 @@ export default function LoginPage() {
                 {errorMessage ? (
                   <p
                     role="alert"
-                    className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive dark:text-red-300"
+                    className="rounded-xl bg-negative-soft px-3 py-2 text-sm text-negative"
                   >
                     {errorMessage}
                   </p>
@@ -171,7 +174,11 @@ export default function LoginPage() {
           <ul className="space-y-3">
             {BENEFITS.map((b) => (
               <li key={b.text} className="flex items-start gap-3 text-sm text-muted-foreground">
-                <b.icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                {/* Lime is a fill in v2; the icon on it uses the deep
+                    green that reads on the pale wash. */}
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-lime-soft text-accent-foreground">
+                  <b.icon className="h-3.5 w-3.5" aria-hidden />
+                </span>
                 <span className="leading-relaxed">{b.text}</span>
               </li>
             ))}

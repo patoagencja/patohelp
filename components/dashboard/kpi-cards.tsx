@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
+import { Card, Flex, Grid, Text } from "@tremor/react";
 
 import { AnimatedNumber } from "@/components/dashboard/animated-number";
 import { MetricLabel } from "@/components/dashboard/info-tip";
+import { DeltaPill, type DeltaTone } from "@/components/ui/pill";
+import { Sparkline, type SparklineTone } from "@/components/ui/sparkline";
 import {
   GLOSSARY,
   describeChange,
@@ -26,37 +28,31 @@ import {
 // the text under the number never tell two different stories.
 const FLAT_THRESHOLD = 3;
 
-// Tremor picks the arrow from deltaType and the colour from deltaType +
-// isIncreasePositive, so a pricier click shows an UP arrow in RED. Neutral
-// metrics (spend) and tiny moves get a gray badge - direction without verdict.
+// v2: the shared DeltaPill (arrow + %) instead of Tremor's BadgeDelta. The
+// arrow says where the number went, the tone whether that is good news - a
+// pricier click is an UP arrow in RED. Neutral metrics (spend) and tiny moves
+// get a grey pill: direction without verdict.
 function deltaBadge(kpi: Kpi, goodWhen: GoodWhen) {
   if (kpi.deltaPercent === null || !Number.isFinite(kpi.deltaPercent)) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
-  const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
+  const direction: "up" | "down" | null = rounded > 0 ? "up" : rounded < 0 ? "down" : null;
   const muted = goodWhen === "neutral" || Math.abs(rounded) < FLAT_THRESHOLD;
   const good = goodWhen === "lower" ? rounded < 0 : rounded > 0;
+  const tone: DeltaTone = muted || direction === null ? "flat" : good ? "good" : "bad";
   return {
-    deltaType,
-    isIncreasePositive: goodWhen !== "lower",
-    // Tremor's own badge text is emerald/red-600 on a 10% tint (~3.4:1);
-    // one shade darker keeps the colour meaning and clears WCAG AA.
-    className: muted
-      ? "bg-slate-50 text-slate-600 ring-slate-500 dark:text-slate-300"
-      : deltaType === "unchanged"
-        ? undefined
-        : good
-          ? "text-emerald-700 dark:text-emerald-400"
-          : "text-red-700 dark:text-red-400",
+    direction,
+    tone,
     label: `${rounded > 0 ? "+" : ""}${formatPercent(rounded, 1)}`,
   };
 }
 
 // Sparkline colour mirrors the delta judgement: green = good move, red = bad,
-// indigo for neutral (spend). Keeps the whole card reading as one signal.
-function sparkColor(kpi: Kpi, goodWhen: GoodWhen) {
-  if (goodWhen === "neutral" || kpi.deltaPercent === null) return "indigo";
+// the "this period" chart green for neutral (spend). Keeps the whole card
+// reading as one signal.
+function sparkTone(kpi: Kpi, goodWhen: GoodWhen): SparklineTone {
+  if (goodWhen === "neutral" || kpi.deltaPercent === null) return "accent";
   const good = goodWhen === "higher" ? kpi.deltaPercent >= 0 : kpi.deltaPercent <= 0;
-  return good ? "emerald" : "red";
+  return good ? "positive" : "negative";
 }
 
 function KpiCard({
@@ -90,7 +86,6 @@ function KpiCard({
   const trimmed =
     kpi.previous === 0 && firstNonZero > 0 ? series.slice(firstNonZero) : series;
   const hasSpark = !hint && trimmed.length >= 2 && trimmed.some((v) => v > 0);
-  const data = trimmed.map((v, i) => ({ i, v }));
   const subtitle = hint ?? describeChange(kpi.deltaPercent, tone, { thinBase, lang });
 
   // Flash the whole card green/red when the value changes (e.g. auto-refresh).
@@ -108,9 +103,9 @@ function KpiCard({
     <Card
       className={cn(
         // z-index lift keeps an open ⓘ bubble above the neighbouring cards.
-        "group transition-all duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-        cardFlash === "up" && "ring-2 ring-emerald-500/60",
-        cardFlash === "down" && "ring-2 ring-red-500/60"
+        "group transition-all duration-200 focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-raised motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        cardFlash === "up" && "ring-2 ring-positive/60",
+        cardFlash === "down" && "ring-2 ring-negative/60"
       )}
     >
       <Flex justifyContent="between" alignItems="start" className="gap-2">
@@ -121,14 +116,9 @@ function KpiCard({
           lang={lang}
         />
         {delta ? (
-          <BadgeDelta
-            deltaType={delta.deltaType}
-            isIncreasePositive={delta.isIncreasePositive}
-            size="xs"
-            className={cn("tabular-nums", delta.className)}
-          >
+          <DeltaPill tone={delta.tone} direction={delta.direction} className="shrink-0">
             {delta.label}
-          </BadgeDelta>
+          </DeltaPill>
         ) : null}
       </Flex>
 
@@ -136,20 +126,14 @@ function KpiCard({
         <AnimatedNumber
           value={value}
           format={format}
-          className="min-w-0 flex-1 truncate text-2xl font-bold tabular-nums tracking-tight text-foreground"
+          className="min-w-0 flex-1 truncate text-[1.625rem] font-medium leading-tight tracking-[-0.03em] tabular-nums text-foreground"
         />
         {/* Static on purpose: a sparkline that breathes forever pulls the
             eye from the numbers, which is the wrong signal on a boardroom
             TV. The sentence below carries the same trend for screen readers. */}
         {hasSpark ? (
           <div aria-hidden className="shrink-0">
-            <SparkAreaChart
-              data={data}
-              index="i"
-              categories={["v"]}
-              colors={[sparkColor(kpi, g.goodWhen)]}
-              className="h-8 w-16 sm:w-20"
-            />
+            <Sparkline data={trimmed} tone={sparkTone(kpi, g.goodWhen)} className="h-8 w-16 sm:w-20" />
           </div>
         ) : null}
       </Flex>

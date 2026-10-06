@@ -54,6 +54,8 @@ const CATEGORIES: AgencyWorkCategory[] = [
   "inne",
 ];
 
+// Icon chips in the earthy chart palette (v2): categories are kinds, not
+// judgements, so they never borrow the positive/negative/warning tones.
 const CATEGORY: Record<
   AgencyWorkCategory,
   { label: string; icon: LucideIcon; tone: string }
@@ -61,27 +63,27 @@ const CATEGORY: Record<
   kampania: {
     label: "Kampania",
     icon: Megaphone,
-    tone: "bg-indigo-500/10 text-indigo-600 ring-indigo-500/20 dark:text-indigo-400",
+    tone: "bg-chart-1/10 text-chart-1 ring-chart-1/20",
   },
   kreacja: {
     label: "Kreacja",
     icon: Palette,
-    tone: "bg-pink-500/10 text-pink-700 ring-pink-500/20 dark:text-pink-400",
+    tone: "bg-chart-4/10 text-chart-4 ring-chart-4/25",
   },
   optymalizacja: {
     label: "Optymalizacja",
     icon: SlidersHorizontal,
-    tone: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20 dark:text-emerald-400",
+    tone: "bg-chart-2/10 text-chart-2 ring-chart-2/20",
   },
   raport: {
     label: "Raport",
     icon: FileText,
-    tone: "bg-amber-500/10 text-amber-700 ring-amber-500/20 dark:text-amber-400",
+    tone: "bg-chart-5/10 text-chart-5 ring-chart-5/25",
   },
   strona: {
     label: "Strona www",
     icon: Globe,
-    tone: "bg-sky-500/10 text-sky-700 ring-sky-500/20 dark:text-sky-400",
+    tone: "bg-chart-3/10 text-chart-3 ring-chart-3/20",
   },
   inne: {
     label: "Inne",
@@ -466,7 +468,7 @@ export function AgencyActivity({
               type="button"
               data-print-hide
               onClick={() => setShowAll((v) => !v)}
-              className="rounded-sm text-sm font-medium text-primary dark:text-indigo-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {showAll
                 ? "Pokaż mniej"
@@ -643,7 +645,7 @@ export function AddActivityButton({ clientSlug }: { clientSlug: string }) {
   }
 
   const selectClass =
-    "flex h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    "flex h-9 w-full cursor-pointer rounded-xl border border-transparent bg-muted px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
   return (
     <div ref={boxRef} className="relative">
@@ -733,7 +735,7 @@ export function AddActivityButton({ clientSlug }: { clientSlug: string }) {
                 maxLength={500}
                 rows={2}
                 placeholder="Krótko, językiem klienta - bez żargonu."
-                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex w-full rounded-xl border border-transparent bg-muted px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </label>
 

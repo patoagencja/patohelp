@@ -16,14 +16,14 @@ import { comparisonPhrase, type Story, type Tone } from "@/lib/dashboard/story";
 import { cn, formatDateWarsaw } from "@/lib/utils";
 
 const TONE_CLASS: Record<Tone, string> = {
-  good: "text-emerald-700 dark:text-emerald-400",
-  bad: "text-rose-600 dark:text-rose-400",
+  good: "text-positive",
+  bad: "text-negative",
   flat: "text-muted-foreground",
 };
 
 const VERDICT_CLASS: Record<Tone, string> = {
-  good: "bg-emerald-500/10 text-emerald-800 ring-emerald-500/25 dark:text-emerald-300",
-  bad: "bg-rose-500/10 text-rose-700 ring-rose-500/25 dark:text-rose-300",
+  good: "bg-positive-soft text-positive ring-positive/15",
+  bad: "bg-negative-soft text-negative ring-negative/15",
   flat: "bg-muted text-foreground ring-border",
 };
 
@@ -58,11 +58,11 @@ export function StoryHero({
   return (
     <section
       aria-label="Najważniejsze w skrócie"
-      className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] via-card to-card p-5 shadow-sm sm:p-7"
+      className="surface relative overflow-hidden p-5 sm:p-7"
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"
+        className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-lime/20 blur-3xl dark:bg-lime/10 print:hidden"
       />
       {/* Thin strip in the client's accent (primary when unset): enough to
           read as "their" report without recolouring the dashboard. */}
@@ -111,7 +111,7 @@ export function StoryHero({
           // number on top visually.
           <div key={f.key} className="flex min-w-0 flex-col">
             <dt className="order-2 mt-0.5 text-sm text-muted-foreground">{f.caption}</dt>
-            <dd className="order-1 text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">
+            <dd className="order-1 text-[1.75rem] font-medium leading-tight tracking-[-0.03em] tabular-nums sm:text-metric">
               {f.value}
             </dd>
             {f.change ? (
@@ -148,13 +148,13 @@ export function StoryHero({
           {story.wins.length > 0 ? (
             <div>
               <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-                <PartyPopper className="h-4 w-4 text-amber-500" aria-hidden />
+                <PartyPopper className="h-4 w-4 text-positive" aria-hidden />
                 Dobre wiadomości
               </h3>
               <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
                 {story.wins.map((w) => (
                   <li key={w} className="flex items-start gap-2 text-sm">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-lime" aria-hidden />
                     <span>{w}</span>
                   </li>
                 ))}
@@ -171,9 +171,9 @@ export function StoryHero({
       ) : null}
 
       {aiSummary ? (
-        <figure className="mt-5 rounded-xl border border-primary/15 bg-card/70 p-4 sm:p-5">
+        <figure className="bg-ai-wash mt-5 rounded-2xl p-4 sm:p-5 print:border print:border-border">
           <figcaption className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold">
-            <MessageSquareQuote className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <MessageSquareQuote className="h-4 w-4 shrink-0 text-ai" aria-hidden />
             Komentarz tygodnia
             {/* Its own fixed 7-day window, not the range above - say which
                 days, or its numbers look like they contradict the tiles. */}

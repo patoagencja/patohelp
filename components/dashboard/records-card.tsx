@@ -42,11 +42,13 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
   return (
     <section className="surface overflow-hidden">
       <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
-          <Trophy className="h-5 w-5 text-amber-700 dark:text-amber-400" aria-hidden />
+        {/* Celebrations wear the signature lime (v2), never the amber that
+            means "behind plan" elsewhere. */}
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-lime text-lime-foreground">
+          <Trophy className="h-[18px] w-[18px]" aria-hidden />
         </span>
         <div>
-          <h2 className="text-base font-semibold">Rekordy i kamienie milowe</h2>
+          <h2 className="text-section-title">Rekordy i kamienie milowe</h2>
           <p className="text-xs text-muted-foreground">
             Policzone na Twoich danych - warte pokazania zarządowi
           </p>
@@ -67,11 +69,11 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
             <li
               key={r.id}
               className={cn(
-                "group relative flex shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-border bg-card p-4 sm:w-auto",
+                "group relative flex shrink-0 snap-start flex-col overflow-hidden rounded-2xl bg-muted/70 p-4 sm:w-auto",
                 items.length > 1 ? "w-[80%]" : "w-full"
               )}
             >
-              <span className="relative flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400">
+              <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-card text-accent-foreground shadow-card">
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
               <p className="relative mt-3 text-sm font-semibold leading-snug text-foreground">
@@ -81,7 +83,7 @@ export function RecordsCard({ records }: { records: RecordItem[] }) {
                 {r.detail}
               </p>
               {r.achievedOn ? (
-                <p className="relative mt-auto pt-3 text-[11px] font-medium uppercase tracking-wide text-amber-800 dark:text-amber-400">
+                <p className="relative mt-auto pt-3 text-xs font-medium text-muted-foreground">
                   {dayLabel(r.achievedOn)}
                 </p>
               ) : null}

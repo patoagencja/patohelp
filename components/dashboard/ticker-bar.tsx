@@ -4,10 +4,12 @@ import type { CampaignRow } from "@/lib/dashboard/metrics";
 import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import { cn, formatPlnWhole } from "@/lib/utils";
 
+// v2: one neutral platform chip (as in top-campaigns.tsx) - platform is a
+// label, not a signal, so it doesn't get a brand colour.
 const PLATFORM_PILL: Record<AdProvider, string> = {
-  meta_ads: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  google_ads: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
-  tiktok_ads: "bg-pink-500/10 text-pink-700 dark:text-pink-300",
+  meta_ads: "bg-muted text-foreground/80",
+  google_ads: "bg-muted text-foreground/80",
+  tiktok_ads: "bg-muted text-foreground/80",
 };
 
 // Recent-vs-earlier spend change from the 7-day spark - the same measure as the
@@ -47,8 +49,8 @@ function TickerItem({ c }: { c: CampaignRow }) {
           className={cn(
             "inline-flex items-center tabular-nums",
             up
-              ? "text-emerald-700 dark:text-emerald-400"
-              : "text-red-700 dark:text-red-400"
+              ? "text-positive"
+              : "text-negative"
           )}
         >
           {up ? (

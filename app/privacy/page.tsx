@@ -7,9 +7,10 @@ export const metadata: Metadata = {
 // Public privacy policy (required for Google OAuth verification).
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16 text-slate-800">
-      <h1 className="text-2xl font-semibold">Polityka prywatności</h1>
-      <p className="mt-2 text-sm text-slate-500">patoagencja · Pato Dashboard</p>
+    <main className="min-h-screen bg-background px-4 py-10 text-foreground sm:px-6 sm:py-16">
+      <article className="surface mx-auto max-w-2xl p-6 sm:p-10">
+      <h1 className="text-page-title">Polityka prywatności</h1>
+      <p className="mt-2 text-sm text-muted-foreground">patoagencja · Pato Dashboard</p>
 
       <div className="mt-8 space-y-5 text-sm leading-relaxed">
         <p>
@@ -18,7 +19,7 @@ export default function PrivacyPage() {
           (Meta Ads, Google Ads, TikTok Ads) oraz Google Analytics 4.
         </p>
 
-        <h2 className="text-base font-semibold">Jakie dane przetwarzamy</h2>
+        <h2 className="text-section-title">Jakie dane przetwarzamy</h2>
         <p>
           Za zgodą właściciela konta pobieramy — wyłącznie w trybie do odczytu —
           statystyki kampanii i ruchu (wydatki, wyświetlenia, kliknięcia, CTR,
@@ -26,14 +27,14 @@ export default function PrivacyPage() {
           użytkowników końcowych ani treści prywatnych.
         </p>
 
-        <h2 className="text-base font-semibold">Wykorzystanie danych Google</h2>
+        <h2 className="text-section-title">Wykorzystanie danych Google</h2>
         <p>
           Dostęp do interfejsów API Google (Google Ads, Google Analytics) jest
           używany wyłącznie do wyświetlania statystyk w panelu klienta. Dane nie
           są sprzedawane, udostępniane stronom trzecim ani wykorzystywane do
           celów reklamowych. Korzystanie z danych Google jest zgodne z
           <a
-            className="text-indigo-600 underline"
+            className="font-medium text-primary underline underline-offset-2"
             href="https://developers.google.com/terms/api-services-user-data-policy"
             target="_blank"
             rel="noreferrer"
@@ -44,7 +45,7 @@ export default function PrivacyPage() {
           , w tym z wymogami Limited Use.
         </p>
 
-        <h2 className="text-base font-semibold">Przechowywanie i bezpieczeństwo</h2>
+        <h2 className="text-section-title">Przechowywanie i bezpieczeństwo</h2>
         <p>
           Tokeny dostępu są przechowywane w postaci zaszyfrowanej. Dane
           statystyczne trzymamy w bazie z dostępem ograniczonym do właściwego
@@ -53,11 +54,12 @@ export default function PrivacyPage() {
           Google.
         </p>
 
-        <h2 className="text-base font-semibold">Kontakt</h2>
+        <h2 className="text-section-title">Kontakt</h2>
         <p>
           W sprawach prywatności: kontakt@patoagencja.com
         </p>
       </div>
+      </article>
     </main>
   );
 }
