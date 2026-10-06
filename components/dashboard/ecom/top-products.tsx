@@ -1,11 +1,8 @@
-import { Card } from "@tremor/react";
-import { Package } from "lucide-react";
+import { ShowMoreList } from "@/components/dashboard/show-more-list";
+import { Card } from "@/components/ui/card";
+import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
-import type { CSSProperties } from "react";
-
-import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
-
-import { aboutPln, pctOf, Takeaway } from "./plain";
+import { aboutPln, pctOf } from "./plain";
 
 export interface ProductRow {
   itemName: string;
@@ -37,9 +34,8 @@ function productsTakeaway(products: ProductRow[], totalRev: number): string | nu
 }
 
 // Bestsellers for the selected range as a ranked list (not a table) so long
-// product names wrap instead of forcing a horizontal scroll on phones. The
-// card spans the full width; from lg the list flows into two columns (1-5,
-// 6-10) so ten rows don't make one very tall card.
+// product names wrap instead of forcing a horizontal scroll on phones. Top 5
+// by default; the rest of the ten one click away.
 export function TopProducts({
   products,
   tableMissing,
@@ -51,15 +47,11 @@ export function TopProducts({
    *  product names only (a code like "SW-MER-OVS-BEZ" means nothing to them). */
   isAgency?: boolean;
 }) {
-  const title = (
-    <h3 className="flex items-center gap-2 text-base font-semibold">
-      <Package className="h-4 w-4 text-emerald-500" /> Najlepiej sprzedające się produkty
-    </h3>
-  );
+  const title = <h2 className="text-section-title text-foreground">Najlepiej sprzedające się produkty</h2>;
 
   if (tableMissing) {
     return (
-      <Card>
+      <Card className="p-5 sm:p-6">
         {title}
         {isAgency ? (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -79,63 +71,33 @@ export function TopProducts({
   }
 
   const totalRev = products.reduce((a, p) => a + p.revenueMinorUnits, 0);
-  const totalQty = products.reduce((a, p) => a + p.quantity, 0);
+  const max = Math.max(1, ...products.map((p) => p.revenueMinorUnits));
   const takeaway = productsTakeaway(products, totalRev);
 
   return (
-    <Card className="flex flex-col">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        {title}
-        {products.length ? (
-          <p className="text-xs tabular-nums text-muted-foreground">
-            top {products.length} · {units(totalQty)} · {formatPlnWhole(totalRev)}
-          </p>
-        ) : null}
-      </div>
-
+    <Card className="flex flex-col p-5 sm:p-6">
+      {title}
       {takeaway ? (
-        <Takeaway tone="good" className="mt-3">
-          {takeaway}
-        </Takeaway>
-      ) : null}
-
-      {products.length ? (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Procent przy produkcie = udział w sprzedaży top {products.length}.
-        </p>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{takeaway}</p>
       ) : null}
 
       {products.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-4 text-sm text-muted-foreground">
           Google Analytics nie przekazał jeszcze sprzedaży w podziale na produkty dla
           tego okresu. Jeśli sklep jest świeżo podłączony, historia pojawi się po
           pierwszym pełnym pobraniu danych.
         </p>
       ) : (
-        <ol
-          className="mt-2 grid grid-cols-1 lg:grid-flow-col lg:grid-cols-2 lg:gap-x-10 lg:[grid-template-rows:repeat(var(--rows),auto)]"
-          style={{ "--rows": Math.ceil(products.length / 2) } as CSSProperties}
-        >
+        <ShowMoreList initial={5} className="mt-4">
           {products.map((p, i) => {
             const share = totalRev > 0 ? p.revenueMinorUnits / totalRev : 0;
-            const rows = Math.ceil(products.length / 2);
             return (
               <li
                 key={`${p.itemId}:${p.itemName}`}
-                className={cn(
-                  "flex gap-3 border-t border-border/60 py-3",
-                  i === 0 && "border-t-0",
-                  // First item of the second column starts it - no divider on top.
-                  i === rows && "lg:border-t-0"
-                )}
+                className="flex gap-3 border-t border-border py-3 first:border-t-0 first:pt-0"
               >
                 <span
-                  className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                    i < 3
-                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                      : "bg-muted text-muted-foreground"
-                  )}
+                  className="w-5 shrink-0 pt-px text-right text-sm tabular-nums text-muted-foreground"
                   aria-label={`Miejsce ${i + 1}`}
                 >
                   {i + 1}
@@ -149,25 +111,15 @@ export function TopProducts({
                       {formatPlnWhole(p.revenueMinorUnits)}
                     </p>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          i < 3 ? "bg-emerald-500" : "bg-emerald-500/50"
-                        )}
-                        style={{ width: `${Math.max(share * 100, 1.5)}%` }}
-                      />
-                    </div>
-                    <span
-                      className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
-                      title={`Udział w sprzedaży top ${products.length}`}
-                    >
-                      {pctOf(share)}
-                    </span>
+                  {/* Bar length is relative to the bestseller (a ranking, not shares). */}
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+                    <div
+                      className="h-full rounded-full bg-primary/80"
+                      style={{ width: `${Math.max((p.revenueMinorUnits / max) * 100, 1.5)}%` }}
+                    />
                   </div>
                   <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                    {units(p.quantity)}
+                    {units(p.quantity)} · {pctOf(share)} sprzedaży z listy
                     {isAgency && p.itemId && p.itemId !== p.itemName ? (
                       <span className="break-all"> · kod {p.itemId}</span>
                     ) : null}
@@ -176,14 +128,8 @@ export function TopProducts({
               </li>
             );
           })}
-        </ol>
+        </ShowMoreList>
       )}
-
-      {products.length ? (
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          Według Google Analytics, za wybrany okres.
-        </p>
-      ) : null}
     </Card>
   );
 }

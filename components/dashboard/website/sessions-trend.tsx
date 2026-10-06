@@ -1,6 +1,8 @@
 "use client";
 
-import { AreaChart, Card } from "@tremor/react";
+import { LineChart } from "@tremor/react";
+
+import { Card } from "@/components/ui/card";
 
 import { formatNumberPL } from "@/lib/utils";
 
@@ -48,8 +50,8 @@ export function SessionsTrend({
       : null;
 
   return (
-    <Card>
-      <h2 className="text-base font-semibold">
+    <Card className="p-5 sm:p-6">
+      <h2 className="text-section-title text-foreground">
         {en ? "Sessions - last 30 days" : "Wizyty na stronie dzień po dniu"}
       </h2>
       {summary ? <p className="sr-only">{summary}</p> : null}
@@ -58,12 +60,12 @@ export function SessionsTrend({
           {empty}
         </div>
       ) : (
-      <AreaChart
+      <LineChart
         className="mt-4 h-64"
         data={data}
         index="date"
         categories={[key]}
-        colors={["emerald"]}
+        colors={["indigo"]}
         valueFormatter={(v) => formatNumberPL(v)}
         showLegend={false}
         yAxisWidth={56}

@@ -1,4 +1,5 @@
-import { Card } from "@tremor/react";
+import { ShowMoreList } from "@/components/dashboard/show-more-list";
+import { Card } from "@/components/ui/card";
 
 import { formatNumberPL, formatPercent } from "@/lib/utils";
 
@@ -61,7 +62,10 @@ export function TopPages({
   lang = "pl",
   headingLevel = 2,
   periodNote,
+  limit = 5,
 }: {
+  /** Rows shown before "Pokaż wszystkie". */
+  limit?: number;
   pages: Array<{ path: string; views: number; engagementRate: number }>;
   /** Data window, when the page around it shows a different period. */
   periodNote?: string;
@@ -73,16 +77,16 @@ export function TopPages({
   const Heading = headingLevel === 3 ? "h3" : "h2";
   const max = Math.max(1, ...pages.map((p) => p.views));
   return (
-    <Card className="flex flex-col">
-      <Heading className="text-base font-semibold">
-        {en ? "Top pages" : "Co oglądają najchętniej"}
+    <Card className="flex flex-col p-5 sm:p-6">
+      <Heading className="text-section-title text-foreground">
+        {en ? "Top pages" : "Najczęściej oglądane strony"}
       </Heading>
-      {periodNote ? <p className="mt-0.5 text-xs text-muted-foreground">{periodNote}</p> : null}
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         {en
           ? "Most viewed pages and how engaging they are."
-          : "Najczęściej odwiedzane podstrony i jak bardzo wciągają."}
+          : "Ile razy je wyświetlono i jaka część wizyt była zainteresowana."}
       </p>
+      {periodNote ? <p className="mt-1 text-xs text-muted-foreground">{periodNote}</p> : null}
       {pages.length === 0 ? (
         <p className="mt-5 text-sm text-muted-foreground">
           {en
@@ -90,12 +94,17 @@ export function TopPages({
             : "Lista podstron pojawi się po najbliższej synchronizacji Google Analytics."}
         </p>
       ) : null}
-      <ol className="mt-5 space-y-3 empty:hidden">
+      <ShowMoreList
+        initial={limit}
+        className="mt-5 space-y-3 empty:hidden"
+        moreLabel={en ? "Show all" : "Pokaż wszystkie"}
+        lessLabel={en ? "Show less" : "Pokaż mniej"}
+      >
         {pages.map((p, i) => {
           const context = en ? null : pathContext(p.path);
           return (
           <li key={p.path} className="flex items-center gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
+            <span className="w-5 shrink-0 self-start pt-px text-right text-sm tabular-nums text-muted-foreground">
               {i + 1}
             </span>
             <div className="min-w-0 flex-1">
@@ -113,7 +122,7 @@ export function TopPages({
               <div className="mt-1 flex items-center gap-2">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
                   <div
-                    className="h-full rounded-full bg-primary/70"
+                    className="h-full rounded-full bg-primary/80"
                     style={{ width: `${(p.views / max) * 100}%` }}
                   />
                 </div>
@@ -133,7 +142,7 @@ export function TopPages({
           </li>
           );
         })}
-      </ol>
+      </ShowMoreList>
     </Card>
   );
 }

@@ -4,11 +4,11 @@ import { outOfTen, ShareBars, visitsUnit, type ShareRow } from "./share-bars";
 
 // Channel names in the words a client uses, not GA4's Paid/Organic/Direct.
 const SOURCE_PL: Record<string, { label: string; hint: string; bar: string }> = {
-  Paid: { label: "Z reklam", hint: "płatne kampanie", bar: "bg-indigo-500" },
-  Organic: { label: "Z wyszukiwarki", hint: "bezpłatne wyniki Google", bar: "bg-emerald-500" },
-  Direct: { label: "Bezpośrednio", hint: "wpisali adres lub mają zakładkę", bar: "bg-amber-500" },
-  Social: { label: "Z social mediów", hint: "posty i profile, nie reklamy", bar: "bg-sky-500" },
-  "Referral/Inne": { label: "Z innych stron", hint: "linki, newslettery i inne", bar: "bg-slate-400" },
+  Paid: { label: "Z reklam", hint: "płatne kampanie", bar: "bg-primary" },
+  Organic: { label: "Z wyszukiwarki", hint: "bezpłatne wyniki Google", bar: "bg-primary" },
+  Direct: { label: "Bezpośrednio", hint: "wpisali adres lub mają zakładkę", bar: "bg-primary" },
+  Social: { label: "Z social mediów", hint: "posty i profile, nie reklamy", bar: "bg-primary" },
+  "Referral/Inne": { label: "Z innych stron", hint: "linki, newslettery i inne", bar: "bg-primary" },
 };
 
 const SOURCE_EN: Record<string, string> = {
@@ -32,7 +32,7 @@ export function TrafficSources({
     label: en ? SOURCE_EN[s.category] ?? s.category : SOURCE_PL[s.category]?.label ?? s.category,
     hint: en ? undefined : SOURCE_PL[s.category]?.hint,
     value: s.sessions,
-    barClass: SOURCE_PL[s.category]?.bar ?? "bg-slate-400",
+    barClass: SOURCE_PL[s.category]?.bar ?? "bg-primary",
   }));
 
   const total = rows.reduce((a, r) => a + r.value, 0);

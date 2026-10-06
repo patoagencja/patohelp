@@ -1,6 +1,6 @@
 "use client";
 
-import { Card } from "@tremor/react";
+import { Card } from "@/components/ui/card";
 import { useState } from "react";
 
 import type { ActivityHeatmap as ActivityHeatmapData } from "@/lib/dashboard/activity";
@@ -137,9 +137,9 @@ export function ActivityHeatmap({ data }: { data: ActivityHeatmapData | null }) 
   ];
 
   return (
-    <Card>
-      <h2 className="text-base font-semibold">Kiedy Twoi klienci są aktywni</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{data.takeaway}</p>
+    <Card className="p-5 sm:p-6">
+      <h2 className="text-section-title text-foreground">Kiedy Twoi klienci są aktywni</h2>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{data.takeaway}</p>
 
       <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-start">
         <div

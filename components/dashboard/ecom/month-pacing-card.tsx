@@ -1,37 +1,23 @@
 import Link from "next/link";
-import { Target, TrendingDown, TrendingUp } from "lucide-react";
+import { TrendingDown, TrendingUp } from "lucide-react";
 
 import { InfoTip, MetricLabel } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
+import { Pill, type PillProps } from "@/components/ui/pill";
 import { plPlural } from "@/lib/dashboard/story";
 import type { MonthPacing } from "@/lib/ecom/insights";
 import { cn, formatPlnWhole, formatSignedPct } from "@/lib/utils";
 
-import {
-  aboutPln,
-  CardEyebrow,
-  ECOM_TERMS,
-  pctOf,
-  Takeaway,
-  zlPerZl,
-  type TakeawayTone,
-} from "./plain";
+import { aboutPln, ECOM_TERMS, pctOf, zlPerZl, type TakeawayTone } from "./plain";
 
+// Colour only says "fine / look at this"; the words say how fine.
 const STATUS: Record<
   MonthPacing["status"],
-  { label: string; className: string } | null
+  { label: string; tone: PillProps["tone"] } | null
 > = {
-  ahead: {
-    label: "Przed planem",
-    className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  },
-  on_track: {
-    label: "Zgodnie z planem",
-    className: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
-  },
-  behind: {
-    label: "Poniżej tempa",
-    className: "bg-amber-500/10 text-amber-800 dark:text-amber-400",
-  },
+  ahead: { label: "Przed planem", tone: "positive" },
+  on_track: { label: "Zgodnie z planem", tone: "positive" },
+  behind: { label: "Poniżej tempa", tone: "warning" },
   no_goal: null,
 };
 
@@ -140,89 +126,76 @@ export function MonthPacingCard({
       : null;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <CardEyebrow icon={<Target className="h-4 w-4 shrink-0 text-primary" />}>
-          {p.goal ? "Cel sprzedaży" : "Prognoza sprzedaży"} · {p.monthLabel}
-        </CardEyebrow>
-        {status ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-              status.className
-            )}
-          >
-            {status.label}
-          </span>
-        ) : null}
+    <Card className="p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <h2 className="text-section-title text-foreground">Plan miesiąca</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {p.goal ? "Sprzedaż na tle celu" : "Prognoza sprzedaży"} · {p.monthLabel}
+          </p>
+        </div>
+        {status ? <Pill tone={status.tone}>{status.label}</Pill> : null}
       </div>
 
-      <Takeaway tone={takeaway.tone} className="mt-3">
-        {takeaway.text}
-      </Takeaway>
+      <p className="mt-4 text-[15px] leading-snug text-foreground">{takeaway.text}</p>
 
-      <div className="mt-5 grid gap-x-8 gap-y-5 lg:grid-cols-2">
-        <div className="min-w-0">
-          <MetricLabel
-            name={ECOM_TERMS.mtd.name}
-            explain={ECOM_TERMS.mtd.explain}
-          />
-          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">
-            {formatPlnWhole(p.mtdRevenue)}
-            {p.goal ? (
-              <span className="ml-2 text-base font-medium text-muted-foreground">
-                z {formatPlnWhole(p.goal)}
-              </span>
-            ) : null}
-          </p>
-          {/* "Pełne" on purpose: the count is finished days only (the same
-              days summed above), so day 6 of the month reads "5 pełnych dni",
-              with today's running total shown separately. */}
-          <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-            {p.completeDays}{" "}
-            {plPlural(p.completeDays, "pełny dzień", "pełne dni", "pełnych dni")} z{" "}
-            {p.daysInMonth} za nami
-            {p.todayRevenue > 0
-              ? ` · dziś do tej pory ${formatPlnWhole(p.todayRevenue)} (doliczymy jutro)`
-              : ""}
-          </p>
-
-          {/* Actual (solid) vs forecast (ghost) against the goal marker. */}
-          <div className="relative mt-4 h-3 overflow-hidden rounded-full bg-muted">
-            {p.forecastReliable ? (
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-primary/25"
-                style={{ width: pct(p.forecast) }}
-              />
-            ) : null}
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-700"
-              style={{ width: pct(p.mtdRevenue) }}
-            />
-            {p.goal ? (
-              <div
-                className="absolute inset-y-0 w-0.5 bg-foreground/70"
-                style={{ left: `calc(${pct(p.goal)} - 1px)` }}
-                title="Cel"
-              />
-            ) : null}
-          </div>
-          <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-[11px] text-muted-foreground">
-            <span>
-              <span className="mr-1 inline-block h-2 w-2 rounded-full bg-primary" />
-              sprzedane
-              {p.forecastReliable ? (
-                <>
-                  <span className="ml-3 mr-1 inline-block h-2 w-2 rounded-full bg-primary/25" />
-                  prognoza
-                </>
-              ) : null}
+      <div className="mt-5 min-w-0">
+        <MetricLabel name={ECOM_TERMS.mtd.name} explain={ECOM_TERMS.mtd.explain} />
+        <p className="mt-1 text-metric tabular-nums">
+          {formatPlnWhole(p.mtdRevenue)}
+          {p.goal ? (
+            <span className="ml-2 text-base font-medium tracking-normal text-muted-foreground">
+              z {formatPlnWhole(p.goal)}
             </span>
-            {p.goal ? <span>| cel</span> : null}
-          </div>
-        </div>
+          ) : null}
+        </p>
+        {/* "Pełne" on purpose: the count is finished days only (the same
+            days summed above), so day 6 of the month reads "5 pełnych dni",
+            with today's running total shown separately. */}
+        <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+          {p.completeDays}{" "}
+          {plPlural(p.completeDays, "pełny dzień", "pełne dni", "pełnych dni")} z{" "}
+          {p.daysInMonth} za nami
+          {p.todayRevenue > 0
+            ? ` · dziś do tej pory ${formatPlnWhole(p.todayRevenue)} (doliczymy jutro)`
+            : ""}
+        </p>
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+        {/* Bullet bar: actual (solid) vs forecast (ghost) against the goal tick. */}
+        <div className="relative mt-4 h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+          {p.forecastReliable ? (
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-primary/25"
+              style={{ width: pct(p.forecast) }}
+            />
+          ) : null}
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-700 motion-reduce:transition-none"
+            style={{ width: pct(p.mtdRevenue) }}
+          />
+          {p.goal ? (
+            <div
+              className="absolute inset-y-0 w-0.5 bg-foreground/70"
+              style={{ left: `calc(${pct(p.goal)} - 1px)` }}
+            />
+          ) : null}
+        </div>
+        <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+          <span>
+            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-primary" />
+            sprzedane
+            {p.forecastReliable ? (
+              <>
+                <span className="ml-3 mr-1 inline-block h-2 w-2 rounded-full bg-primary/25" />
+                prognoza
+              </>
+            ) : null}
+          </span>
+          {p.goal ? <span>| cel</span> : null}
+        </div>
+      </div>
+
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-border pt-5 text-sm lg:grid-cols-4">
           <div className="min-w-0">
             <dt className="text-xs text-muted-foreground">Prognoza na koniec miesiąca</dt>
             <dd className="font-semibold tabular-nums">
@@ -308,8 +281,7 @@ export function MonthPacingCard({
               )}
             </dd>
           </div>
-        </dl>
-      </div>
+      </dl>
 
       {seasonalNote ? (
         <p className="mt-4 text-xs text-muted-foreground">{seasonalNote}</p>
@@ -334,6 +306,6 @@ export function MonthPacingCard({
           </span>
         </p>
       ) : null}
-    </section>
+    </Card>
   );
 }

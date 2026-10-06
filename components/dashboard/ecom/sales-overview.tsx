@@ -1,73 +1,39 @@
 "use client";
 
-import { AreaChart, BadgeDelta, Card } from "@tremor/react";
+import { LineChart } from "@tremor/react";
 
-import { InfoTip } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
 import { usePrefersReducedMotion } from "@/components/dashboard/use-reduced-motion";
-import { describeChange } from "@/lib/dashboard/glossary";
 import type { Kpi, TrendPoint } from "@/lib/dashboard/metrics";
 import { dayMonthPL } from "@/lib/dashboard/story";
-import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
+import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
-import { aboutPln, Takeaway, todayWarsawIso } from "./plain";
+import { aboutPln, todayWarsawIso } from "./plain";
 
 // Non-breaking spaces: Recharts wraps axis ticks on plain spaces, which split
 // the top tick into "12 tys." / "zł" on two lines.
 const compactPln = (zl: number) => {
   if (Math.abs(zl) >= 1_000_000)
-    return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })}\u00a0mln\u00a0zł`;
+    return `${(zl / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln zł`;
   if (Math.abs(zl) >= 1_000)
-    return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 0 })}\u00a0tys.\u00a0zł`;
-  return `${formatNumberPL(zl)}\u00a0zł`;
+    return `${(zl / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: 0 })} tys. zł`;
+  return `${formatNumberPL(zl)} zł`;
 };
 
-function SummaryRow({
-  dot,
-  label,
-  value,
-  strong,
-  explain,
-}: {
-  dot: string;
-  label: string;
-  value: string;
-  strong?: boolean;
-  explain?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-        <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
-        {label}
-        {explain ? <InfoTip label={label} text={explain} /> : null}
-      </span>
-      <span
-        className={cn(
-          "shrink-0 text-sm tabular-nums text-foreground",
-          strong ? "font-bold" : "font-semibold"
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
+const SALES = "Sprzedaż";
+const LAST_YEAR = "Rok temu";
 
-// "How sales went, day by day": total + change on the left with a sales / ad
-// spend / what's left breakdown, the sales-vs-spend curve on the right (with
-// last year overlaid when it's well covered).
+// "How sales went, day by day": the page's one chart. Sales as a solid line,
+// the same days last year as a dashed grey line when that history is
+// reliable. Totals live in the KPI row above and spend/profit in the
+// details, so the card is just the shape of the period plus one sentence.
 export function SalesOverview({
   trend,
-  revenueKpi,
   lastYear,
-  thinBase = false,
 }: {
   trend: TrendPoint[];
-  revenueKpi: Kpi;
-  /**
-   * Previous period had too few orders for a meaningful % - same guard as
-   * the revenue tile above, so the two cards never disagree on the change.
-   */
+  /** Kept for callers; the revenue total and change now live in the KPI row. */
+  revenueKpi?: Kpi;
   thinBase?: boolean;
   /** Last year's revenue per current date (52-week aligned), when reliable. */
   lastYear?: Array<{ date: string; revenue: number | null }> | null;
@@ -77,35 +43,15 @@ export function SalesOverview({
   const showLy = lyByDate.size > 0;
   const totalRev = trend.reduce((a, p) => a + p.revenueMinorUnits, 0);
   const totalSpend = trend.reduce((a, p) => a + p.spendMinorUnits, 0);
-  // The three summary rows are a little sum (sales - ads = rest), so they are
-  // shown in whole złoty and the rest is derived from the ROUNDED parts:
-  // rounded separately (or as "12 tys. zł"), 12 600 - 3 400 printed as
-  // "13 tys. - 3 tys. = 9 tys.", which a board member will subtract.
-  const revZl = Math.round(totalRev / 100);
-  const spendZl = Math.round(totalSpend / 100);
-  const netZl = revZl - spendZl;
-  const zl = (v: number) => `${formatNumberPL(v)}\u00a0zł`;
-  // Totals above include today's orders so far (they match the KPI tiles);
-  // per-day figures and the curve use finished days only - a half-synced
-  // today would drag the average down and plunge the end of the chart.
+  // The curve uses finished days only - a half-synced today would plunge the
+  // end of the chart and read as "sales crashed".
   const today = todayWarsawIso();
   const fullDays = trend.filter((p) => p.date < today);
   const todayPoint = trend.find((p) => p.date === today) ?? null;
-  const fullRev = fullDays.reduce((a, p) => a + p.revenueMinorUnits, 0);
-  const daysWithRevenue = fullDays.filter((p) => p.revenueMinorUnits > 0).length;
-  const avgDaily = daysWithRevenue > 0 ? fullRev / daysWithRevenue : 0;
   const best = fullDays.reduce<TrendPoint | null>(
     (m, p) => (p.revenueMinorUnits > (m?.revenueMinorUnits ?? 0) ? p : m),
     null
   );
-
-  const deltaPct = revenueKpi.deltaPercent;
-  const deltaType =
-    deltaPct === null || Math.round(deltaPct) === 0
-      ? "unchanged"
-      : deltaPct > 0
-        ? "increase"
-        : "decrease";
 
   // Ad cost as a share of sales is the plainest "is this sane" number for a
   // board: "z każdych 100 zł sprzedaży 18 zł poszło na reklamy".
@@ -120,19 +66,19 @@ export function SalesOverview({
         : "W tym okresie nie ma jeszcze danych o sprzedaży.";
   } else {
     const parts: string[] = [];
+    if (best) {
+      parts.push(
+        `Najlepszym dniem był ${dayMonthPL(best.date)} (${aboutPln(best.revenueMinorUnits)})`
+      );
+    }
     if (adShare !== null && totalSpend > 0) {
       const share = adShare.toLocaleString("pl-PL", {
         maximumFractionDigits: adShare < 10 ? 1 : 0,
       });
-      parts.push(`Z każdych 100 zł sprzedaży ok. ${share} zł poszło na reklamy`);
-    }
-    if (best) {
-      parts.push(
-        `najlepszym dniem był ${dayMonthPL(best.date)} (${aboutPln(best.revenueMinorUnits)})`
-      );
+      parts.push(`z każdych 100 zł sprzedaży ok. ${share} zł poszło na reklamy`);
     }
     takeaway = parts.length
-      ? `${parts[0].charAt(0).toUpperCase()}${parts.join(", a ").slice(1)}.`
+      ? `${parts.join(", a ")}.`
       : `Sklep sprzedał w tym okresie za ok. ${aboutPln(totalRev)}.`;
   }
 
@@ -141,119 +87,49 @@ export function SalesOverview({
     const ly = lyByDate.get(p.date);
     return {
       date: `${day}.${month}`,
-      Sprzedaż: p.revenueMinorUnits / 100,
-      "Wydatki na reklamy": p.spendMinorUnits / 100,
-      ...(showLy ? { "Sprzedaż rok temu": ly != null ? ly / 100 : null } : {}),
+      [SALES]: p.revenueMinorUnits / 100,
+      ...(showLy ? { [LAST_YEAR]: ly != null ? ly / 100 : null } : {}),
     };
   });
 
   return (
-    <Card>
-      <h3 className="text-base font-semibold">Sprzedaż dzień po dniu</h3>
-      <Takeaway className="mt-3">{takeaway}</Takeaway>
+    <Card className="p-5 sm:p-6">
+      <h2 className="text-section-title text-foreground">Sprzedaż dzień po dniu</h2>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{takeaway}</p>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[260px_1fr]">
-        <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">Sprzedaż w wybranym okresie</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-foreground">
-            {formatPlnWhole(totalRev)}
-          </p>
-          {/* No sales this period vs a real baseline is a tracking gap, not
-              a "-100%" headline. */}
-          {deltaPct !== null && Number.isFinite(deltaPct) && totalRev > 0 && !thinBase ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <BadgeDelta
-                deltaType={deltaType}
-                size="xs"
-                className={cn(
-                  "tabular-nums",
-                  // One shade darker than Tremor's default to clear WCAG AA.
-                  deltaType === "increase" && "text-emerald-700 dark:text-emerald-400",
-                  deltaType === "decrease" && "text-red-700 dark:text-red-400"
-                )}
-              >
-                {`${deltaPct > 0 ? "+" : ""}${(Math.round(deltaPct * 10) / 10).toLocaleString(
-                  "pl-PL"
-                )}%`}
-              </BadgeDelta>
-              <span className="text-xs text-muted-foreground">
-                {describeChange(deltaPct, "amount")}
-              </span>
-            </div>
-          ) : null}
-
-          <div className="mt-5 divide-y divide-border/60 border-y border-border/60">
-            <SummaryRow dot="bg-emerald-500" label="Sprzedaż" value={zl(revZl)} />
-            <SummaryRow
-              dot="bg-indigo-500"
-              label="Wydatki na reklamy"
-              value={zl(spendZl)}
-            />
-            {/* Not profit (no margin applied) - the profit card does that. */}
-            <SummaryRow
-              dot={netZl >= 0 ? "bg-emerald-600" : "bg-rose-500"}
-              label="Po odjęciu reklam"
-              value={zl(netZl)}
-              strong
-              explain="Sprzedaż minus wydatki na reklamy. To jeszcze nie zysk - nie odjęliśmy kosztu towaru ani VAT. Zysk liczymy w karcie „Zysk po reklamach”."
-            />
-          </div>
-
-          <div className="mt-4 space-y-1.5 text-xs text-muted-foreground">
-            <p>
-              Średnio dziennie:{" "}
-              <span className="font-semibold tabular-nums text-foreground">
-                {compactPln(avgDaily / 100)}
-              </span>
-            </p>
-            {best ? (
-              <p>
-                Najlepszy dzień:{" "}
-                <span className="font-semibold tabular-nums text-foreground">
-                  {dayMonthPL(best.date)} · {compactPln(best.revenueMinorUnits / 100)}
-                </span>
-              </p>
-            ) : null}
-          </div>
+      {/* Fewer than two finished days gives Tremor nothing to draw but an
+          English "No data". Say why instead. */}
+      {chart.length < 2 || totalRev <= 0 ? (
+        <div className="mt-5 flex h-64 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground sm:h-72">
+          {chart.length < 2
+            ? "Za mało dni, by narysować wykres - wróć za kilka dni."
+            : "Wykres pojawi się, gdy Google Analytics zarejestruje pierwszą sprzedaż."}
         </div>
-
-        <div className="min-w-0">
-          {/* Fewer than two finished days gives Tremor nothing to draw but an
-              English "No data"; with no sales at all it would be a lone spend
-              line over a flat zero. Say why instead. */}
-          {chart.length < 2 || totalRev <= 0 ? (
-            <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground sm:h-72 lg:h-80">
-              {chart.length < 2
-                ? "Za mało dni, by narysować wykres - wróć za kilka dni."
-                : "Wykres pojawi się, gdy Google Analytics zarejestruje pierwszą sprzedaż."}
-            </div>
-          ) : (
-          <AreaChart
-            className="h-64 sm:h-72 lg:h-80"
-            data={chart}
-            index="date"
-            categories={
-              showLy
-                ? ["Sprzedaż", "Sprzedaż rok temu", "Wydatki na reklamy"]
-                : ["Sprzedaż", "Wydatki na reklamy"]
-            }
-            colors={showLy ? ["emerald", "slate", "indigo"] : ["emerald", "indigo"]}
-            valueFormatter={compactPln}
-            yAxisWidth={76}
-            showLegend
-            showAnimation={!reducedMotion}
-            curveType="monotone"
-          />
-          )}
-          {todayPoint ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Wykres bez dzisiejszego, niepełnego dnia (do tej pory{" "}
-              <span className="tabular-nums">{formatPlnWhole(todayPoint.revenueMinorUnits)}</span>
-              ) - doliczymy go jutro.
-            </p>
-          ) : null}
-        </div>
-      </div>
+      ) : (
+        <LineChart
+          // Last year is the comparison, not the news: grey and dashed.
+          className="mt-5 h-64 sm:h-72 [&_.recharts-line.stroke-slate-500_.recharts-line-curve]:[stroke-dasharray:5_5]"
+          data={chart}
+          index="date"
+          categories={showLy ? [SALES, LAST_YEAR] : [SALES]}
+          colors={showLy ? ["indigo", "slate"] : ["indigo"]}
+          valueFormatter={compactPln}
+          yAxisWidth={72}
+          showLegend={showLy}
+          showAnimation={!reducedMotion}
+          curveType="monotone"
+          connectNulls
+          role="img"
+          aria-label={`Wykres sprzedaży dzień po dniu. ${takeaway}`}
+        />
+      )}
+      {todayPoint ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Bez dzisiejszego, niepełnego dnia (do tej pory{" "}
+          <span className="tabular-nums">{formatPlnWhole(todayPoint.revenueMinorUnits)}</span>)
+          - doliczymy go jutro.
+        </p>
+      ) : null}
     </Card>
   );
 }

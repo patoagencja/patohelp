@@ -30,13 +30,13 @@ export function NewVsReturning({
           key: "new",
           label: en ? "New users" : "Pierwszy raz na stronie",
           value: data.newUsers,
-          barClass: "bg-indigo-500",
+          barClass: "bg-primary",
         },
         {
           key: "returning",
           label: en ? "Returning" : "Wracają kolejny raz",
           value: data.returningUsers,
-          barClass: "bg-emerald-500",
+          barClass: "bg-primary",
         },
       ]}
       unit={(n) => `${formatNumberPL(n)} ${en ? "users" : "os."}`}

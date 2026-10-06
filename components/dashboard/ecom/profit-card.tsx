@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { Coins } from "lucide-react";
 
 import { InfoTip, MetricLabel } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
 import { computeProfit, type EcomSettings } from "@/lib/ecom/insights";
 import { cn, formatPlnWhole } from "@/lib/utils";
 
 import {
   aboutPln,
-  CardEyebrow,
+  CardHeading,
   ECOM_TERMS,
   Takeaway,
   zlPerZl,
@@ -42,10 +42,8 @@ export function ProfitCard({
 
   if (!p) {
     return (
-      <section className="rounded-xl border border-dashed border-border bg-card p-5">
-        <CardEyebrow icon={<Coins className="h-4 w-4 shrink-0 text-emerald-500" />}>
-          Zysk po reklamach
-        </CardEyebrow>
+      <Card className="p-5 sm:p-6">
+        <CardHeading>Zysk po reklamach</CardHeading>
         <Takeaway className="mt-3">
           Wiemy, ile sprzedaży przyniosły reklamy - ale żeby powiedzieć, czy na
           nich zarabiasz, potrzebujemy Twojej marży.
@@ -62,7 +60,7 @@ export function ProfitCard({
             Podaj marżę w Ustawieniach
           </Link>
         ) : null}
-      </section>
+      </Card>
     );
   }
 
@@ -109,10 +107,8 @@ export function ProfitCard({
   const netPerZl = p.poas !== null ? p.poas - 1 : null;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
-      <CardEyebrow icon={<Coins className="h-4 w-4 shrink-0 text-emerald-500" />}>
-        Zysk po reklamach · {rangeLabel}
-      </CardEyebrow>
+    <Card className="p-5 sm:p-6">
+      <CardHeading note={rangeLabel}>Zysk po reklamach</CardHeading>
       <Takeaway tone={takeaway.tone} className="mt-3">
         {takeaway.text}
       </Takeaway>
@@ -216,6 +212,6 @@ export function ProfitCard({
           </p>
         </dl>
       </div>
-    </section>
+    </Card>
   );
 }

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { CalendarClock, Flame, Lightbulb } from "lucide-react";
+import { CalendarClock, Lightbulb } from "lucide-react";
 
 import { InfoTip } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
 import { plPlural } from "@/lib/dashboard/story";
 import { dayLabelPl, type SeasonPlan } from "@/lib/ecom/insights";
 import { cn, formatMultiple, formatPlnWhole } from "@/lib/utils";
@@ -80,16 +81,13 @@ export function SeasonPlanner({
   const takeaway = seasonTakeaway(plan);
 
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-xl border-b border-border bg-gradient-to-r from-amber-500/10 via-rose-500/5 to-transparent px-5 py-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <Flame className="h-5 w-5 shrink-0 text-rose-500" />
-          <div className="min-w-0">
-            <h3 className="text-base font-semibold">Black Friday i Święta - plan</h3>
-            <p className="text-xs text-muted-foreground">
-              Na podstawie Twoich własnych wyników z {ly?.year ?? "zeszłego roku"}
-            </p>
-          </div>
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-5 sm:px-6">
+        <div className="min-w-0">
+          <h2 className="text-section-title text-foreground">Plan na Black Friday i Święta</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Na podstawie Twoich własnych wyników z {ly?.year ?? "zeszłego roku"}
+          </p>
         </div>
         {/* Phones: the countdown wraps under the title, so it reads as one
             left-aligned line ("52 dni do Black Friday") instead of a lone
@@ -174,7 +172,7 @@ export function SeasonPlanner({
         <div className="min-w-0 space-y-4">
           {plan.events.length ? (
             <div>
-              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                 <CalendarClock className="h-3.5 w-3.5" /> Nadchodzące szczyty
               </p>
               <ul className="space-y-2">
@@ -202,8 +200,8 @@ export function SeasonPlanner({
             </div>
           ) : null}
 
-          <div className="rounded-lg bg-primary/5 p-4">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary dark:text-indigo-300">
+          <div className="rounded-xl bg-muted/60 p-4">
+            <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-foreground">
               <Lightbulb className="h-3.5 w-3.5" /> Co z tego wynika
             </p>
             <ul className="space-y-2 text-sm leading-relaxed">
@@ -257,7 +255,7 @@ export function SeasonPlanner({
           </div>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }
 

@@ -1,8 +1,11 @@
-import { BadgeDelta, Card, Flex, Grid, SparkAreaChart, Text } from "@tremor/react";
 import { ShoppingBag } from "lucide-react";
+import type { ReactNode } from "react";
 
-import { ECOM_TERMS, withoutToday } from "@/components/dashboard/ecom/plain";
+import { ECOM_TERMS } from "@/components/dashboard/ecom/plain";
 import { MetricLabel } from "@/components/dashboard/info-tip";
+import { MetricTile } from "@/components/dashboard/metric-tile";
+import { Card } from "@/components/ui/card";
+import { Pill } from "@/components/ui/pill";
 import {
   GLOSSARY,
   describeChange,
@@ -16,34 +19,31 @@ import type {
 } from "@/lib/dashboard/metrics";
 import {
   cn,
-  formatMoneyPLN,
   formatNumberPL,
   formatPlnWhole,
   formatSignedPct,
 } from "@/lib/utils";
 
-// Matches the "podobnie jak wcześniej" cut-off in describeChange so the badge
-// and the sentence under the number agree.
+// Matches the "podobnie jak wcześniej" cut-off in describeChange so the pill
+// and the sentence next to it agree.
 const FLAT_THRESHOLD = 3;
 
-// Every e-commerce KPI here is "higher is better", so Tremor's default
-// increase=green / decrease=red mapping is right; tiny moves go gray.
+// Every e-commerce KPI here is "higher is better": up = green, down = red,
+// tiny moves stay neutral grey.
 function delta(kpi: Kpi) {
   if (kpi.deltaPercent === null || !Number.isFinite(kpi.deltaPercent)) return null;
   const rounded = Math.round(kpi.deltaPercent * 10) / 10;
-  const deltaType = rounded > 0 ? "increase" : rounded < 0 ? "decrease" : "unchanged";
   return {
-    deltaType,
-    // Tremor's emerald/red-600 badge text is ~3.4:1 on its tint; -700 is AA.
-    className:
+    tone:
       Math.abs(rounded) < FLAT_THRESHOLD
-        ? "bg-slate-50 text-slate-600 ring-slate-500 dark:text-slate-300"
+        ? ("neutral" as const)
         : rounded > 0
-          ? "text-emerald-700 dark:text-emerald-400"
-          : "text-red-700 dark:text-red-400",
-    label: `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("pl-PL", {
-      maximumFractionDigits: 1,
-    })}%`,
+          ? ("positive" as const)
+          : ("negative" as const),
+    label: `${rounded > 0 ? "▲ " : rounded < 0 ? "▼ " : ""}${Math.abs(rounded).toLocaleString(
+      "pl-PL",
+      { maximumFractionDigits: 1 }
+    )}%`,
   };
 }
 
@@ -53,8 +53,6 @@ function KpiTile({
   tone,
   value,
   kpi,
-  spark,
-  sparkColor,
   yoyRatio,
   thinBase = false,
 }: {
@@ -64,68 +62,52 @@ function KpiTile({
   tone: ChangeTone;
   value: string;
   kpi: Kpi;
-  spark?: number[];
-  sparkColor?: "emerald" | "indigo" | "amber" | "sky";
   yoyRatio?: number | null;
   /** Previous period too small for a meaningful % - hide it. */
   thinBase?: boolean;
 }) {
   const g = GLOSSARY[metric];
   // Zero this period against a real baseline means missing data here, so no
-  // "-100%" badge; the sentence below still explains it.
+  // "-100%" pill; the sentence still explains it.
   const d = thinBase || kpi.value === 0 ? null : delta(kpi);
-  const sparkData = (spark ?? []).map((v, i) => ({ i, v }));
+  const sentence =
+    kpi.value === 0 && kpi.previous > 0
+      ? "brak danych w tym okresie"
+      : describeChange(kpi.deltaPercent, tone, { thinBase });
   return (
-    // z-index lift keeps an open ⓘ bubble above the neighbouring tiles.
-    <Card className="transition-all focus-within:z-10 hover:z-10 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-      {/* Fixed header height: a label that wraps to two lines in one tile
-          would otherwise push its value below the neighbours' values. */}
-      <Flex justifyContent="between" alignItems="start" className="gap-2 sm:min-h-[2.75rem]">
-        <MetricLabel name={name ?? g.name} tag={g.short} explain={g.explain} />
+    <MetricTile
+      // No "ROAS"/"AOV" tag here: the friendly name + ⓘ say it without jargon.
+      label={<MetricLabel name={name ?? g.name} explain={g.explain} />}
+      value={value}
+    >
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground">
         {d ? (
-          <BadgeDelta
-            deltaType={d.deltaType}
-            size="xs"
-            className={cn("tabular-nums", d.className)}
-          >
+          <Pill tone={d.tone} className="tabular-nums">
             {d.label}
-          </BadgeDelta>
+          </Pill>
         ) : null}
-      </Flex>
-      {/* Value gets the full width; the sparkline sits under it. Side by side,
-          four tiles next to the sidebar left the value ~5 characters and
-          truncated it ("292 0…"). */}
-      <p className="mt-2 whitespace-nowrap text-2xl font-bold tabular-nums tracking-tight text-foreground">
-        {value}
+        {/* The pill already carries the number; the words carry direction. */}
+        <span>{d ? sentence.replace(/^o \d+% /, "") : sentence}</span>
       </p>
-      {sparkData.length > 1 ? (
-        <SparkAreaChart
-          aria-hidden
-          data={sparkData}
-          categories={["v"]}
-          index="i"
-          colors={[sparkColor ?? "emerald"]}
-          className="mt-2 h-8 w-full"
-        />
-      ) : null}
-      <Text className={cn("mt-1 text-xs", thinBase && "text-muted-foreground")}>
-        {kpi.value === 0 && kpi.previous > 0
-          ? "brak danych w tym okresie"
-          : describeChange(kpi.deltaPercent, tone, { thinBase })}
-        {yoyRatio != null ? (
+      {yoyRatio != null ? (
+        <p
+          className="text-xs tabular-nums text-muted-foreground"
+          title="Ten sam okres rok temu (wyrównany do dni tygodnia)"
+        >
           <span
-            className={
+            className={cn(
+              "font-medium",
               yoyRatio >= 0
-                ? "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-emerald-700 dark:text-emerald-400"
-                : "ml-2 inline-block whitespace-nowrap font-medium tabular-nums text-rose-600 dark:text-rose-400"
-            }
-            title="Ten sam okres rok temu (wyrównany do dni tygodnia)"
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-red-700 dark:text-red-400"
+            )}
           >
-            {formatSignedPct(yoyRatio)} r/r
-          </span>
-        ) : null}
-      </Text>
-    </Card>
+            {formatSignedPct(yoyRatio)}
+          </span>{" "}
+          vs rok temu
+        </p>
+      ) : null}
+    </MetricTile>
   );
 }
 
@@ -144,21 +126,24 @@ export interface EcommerceYoY {
 
 const ratio = (cur: number, prev: number) => (prev > 0 ? cur / prev - 1 : null);
 
-// Revenue-first KPI row for e-commerce clients: revenue, ROAS, transactions,
-// average order value. Sourced from GA4 purchases + ad spend. When the daily
-// trend is provided each tile gets a sparkline of its own series.
+// Revenue-first KPI row for e-commerce clients: revenue, orders, return on
+// ads, average basket. Sourced from GA4 purchases + ad spend. Plain numbers
+// with one comparison each; the trend lives in the one chart below the row.
 export function EcommerceKpis({
   data,
-  trend,
   yoy,
   spend,
+  heading = "Wyniki sklepu w wybranym okresie",
 }: {
   data: EcommerceKpisData;
+  /** No longer drawn (tiles carry no sparklines); kept so callers compile. */
   trend?: TrendPoint[];
   /** Last year's same window; omit when last year's data is too thin. */
   yoy?: EcommerceYoY | null;
   /** Current-window ad spend (grosze), needed for the ROAS r/r line. */
   spend?: number;
+  /** Small heading above the row; null where the page header already says it. */
+  heading?: ReactNode | null;
 }) {
   const roas = data.roas.value / 100; // stored ×100
   const curRevenue = data.revenueMinorUnits.value;
@@ -183,81 +168,66 @@ export function EcommerceKpis({
     data.revenueMinorUnits.previous === 0 &&
     data.transactions.previous === 0;
   const hasSpend = (spend ?? 0) > 0;
-  // Sparklines stop at yesterday: today's half-synced day reads as a crash.
-  const t = withoutToday(trend ?? []);
-  const revSeries = t.map((p) => p.revenueMinorUnits / 100);
-  const roasSeries = t.map((p) =>
-    p.spendMinorUnits > 0 ? p.revenueMinorUnits / p.spendMinorUnits : 0
-  );
-  const txSeries = t.map((p) => p.transactions ?? 0);
-  const aovSeries = t.map((p) =>
-    (p.transactions ?? 0) > 0 ? p.revenueMinorUnits / 100 / p.transactions! : 0
-  );
   return (
-    <div>
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-        <ShoppingBag className="h-4 w-4 text-emerald-500" />
-        Wyniki sklepu w wybranym okresie
-      </h2>
+    <section aria-label={heading ? undefined : "Wyniki sklepu"}>
+      {heading ? (
+        <h2 className="mb-3 text-sm font-medium text-muted-foreground">{heading}</h2>
+      ) : null}
       {noSalesData ? (
-        <Card className="flex items-start gap-3">
-          <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <Card className="flex items-start gap-3 p-5">
+          <ShoppingBag className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <p className="text-sm text-muted-foreground">
             Sprzedaż pojawi się tutaj, gdy Google Analytics zarejestruje pierwsze
             zamówienia - wymaga to włączonego śledzenia zakupów w sklepie.
           </p>
         </Card>
       ) : (
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
-        <KpiTile
-          metric="revenue"
-          tone="amount"
-          value={formatPlnWhole(data.revenueMinorUnits.value)}
-          kpi={data.revenueMinorUnits}
-          thinBase={thinBase}
-          spark={revSeries}
-          sparkColor="emerald"
-          yoyRatio={yoyRevenue}
-        />
-        <KpiTile
-          metric="roas"
-          tone="rate"
-          // Return on zero spend is undefined, not "0×" (overview passes no
-          // spend - there the stored ROAS of 0 means the same thing).
-          value={
-            (spend !== undefined && !hasSpend) || (spend === undefined && roas === 0)
-              ? "-"
-              : `${roas.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}×`
-          }
-          kpi={data.roas}
-          thinBase={thinBase}
-          spark={roasSeries}
-          sparkColor="indigo"
-          yoyRatio={yoyRoas}
-        />
-        <KpiTile
-          metric="transactions"
-          tone="amount"
-          value={formatNumberPL(data.transactions.value)}
-          kpi={data.transactions}
-          thinBase={thinBase}
-          spark={txSeries}
-          sparkColor="sky"
-          yoyRatio={yoyTx}
-        />
-        <KpiTile
-          metric="aov"
-          name={ECOM_TERMS.aov.name}
-          tone="amount"
-          value={curTx > 0 ? formatMoneyPLN(data.aovMinorUnits.value) : "-"}
-          kpi={data.aovMinorUnits}
-          thinBase={thinBase}
-          spark={aovSeries}
-          sparkColor="amber"
-          yoyRatio={yoyAov}
-        />
-      </Grid>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <KpiTile
+            metric="revenue"
+            tone="amount"
+            value={formatPlnWhole(data.revenueMinorUnits.value)}
+            kpi={data.revenueMinorUnits}
+            thinBase={thinBase}
+            yoyRatio={yoyRevenue}
+          />
+          <KpiTile
+            metric="transactions"
+            tone="amount"
+            value={formatNumberPL(data.transactions.value)}
+            kpi={data.transactions}
+            thinBase={thinBase}
+            yoyRatio={yoyTx}
+          />
+          <KpiTile
+            metric="roas"
+            tone="rate"
+            // Return on zero spend is undefined, not "0×" (overview passes no
+            // spend - there the stored ROAS of 0 means the same thing).
+            value={
+              (spend !== undefined && !hasSpend) || (spend === undefined && roas === 0)
+                ? "-"
+                : `${roas.toLocaleString("pl-PL", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}×`
+            }
+            kpi={data.roas}
+            thinBase={thinBase}
+            yoyRatio={yoyRoas}
+          />
+          <KpiTile
+            metric="aov"
+            name={ECOM_TERMS.aov.name}
+            tone="amount"
+            // Whole złoty: grosze in a headline number are false precision.
+            value={curTx > 0 ? formatPlnWhole(data.aovMinorUnits.value) : "-"}
+            kpi={data.aovMinorUnits}
+            thinBase={thinBase}
+            yoyRatio={yoyAov}
+          />
+        </div>
       )}
-    </div>
+    </section>
   );
 }

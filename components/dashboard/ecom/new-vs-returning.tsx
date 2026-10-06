@@ -1,6 +1,5 @@
-import { Users } from "lucide-react";
-
 import { InfoTip } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
 import { dayLabelPl } from "@/lib/ecom/insights";
 import type { NewVsReturning as NewVsReturningData, NvrSegment } from "@/lib/ecom/new-vs-returning";
 import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
@@ -86,11 +85,8 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
   const aovLine = aovComparison(data.newBuyers, data.returning);
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
-      <h3 className="flex items-center gap-2 text-base font-semibold">
-        <Users className="h-4 w-4 shrink-0 text-emerald-500" />
-        Nowi czy stali klienci
-      </h3>
+    <Card className="p-5 sm:p-6">
+      <h2 className="text-section-title text-foreground">Nowi czy stali klienci</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Okres:{" "}
         <span className="font-medium text-foreground">
@@ -188,6 +184,6 @@ export function NewVsReturning({ data }: { data: NewVsReturningData | null }) {
           ? ` ${pctOf(data.notSetRevenueShare)} sprzedaży Google Analytics nie przypisał do żadnej grupy - nie liczymy jej powyżej.`
           : ""}
       </p>
-    </section>
+    </Card>
   );
 }

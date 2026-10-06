@@ -1,6 +1,5 @@
-import { Card } from "@tremor/react";
-
 import { InfoTip, MetricLabel } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
 import { GLOSSARY } from "@/lib/dashboard/glossary";
 import { cn, formatNumberPL } from "@/lib/utils";
 
@@ -90,8 +89,8 @@ export function ConversionFunnel({
   const colors = ["bg-indigo-300/70", "bg-indigo-500/80", "bg-emerald-500"];
 
   return (
-    <Card className="flex flex-col">
-      <h3 className="text-base font-semibold">Od wizyty do zakupu</h3>
+    <Card className="flex flex-col p-5 sm:p-6">
+      <h2 className="text-section-title text-foreground">Od wizyty do zakupu</h2>
       <Takeaway tone={takeaway.tone} className="mt-3">
         {takeaway.text}
       </Takeaway>

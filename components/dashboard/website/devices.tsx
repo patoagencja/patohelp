@@ -3,9 +3,9 @@ import { formatNumberPL } from "@/lib/utils";
 import { outOfTen, ShareBars, visitsUnit, type ShareRow } from "./share-bars";
 
 const DEVICE: Record<string, { pl: string; en: string; bar: string }> = {
-  mobile: { pl: "Telefon", en: "Mobile", bar: "bg-indigo-500" },
-  desktop: { pl: "Komputer", en: "Desktop", bar: "bg-sky-500" },
-  tablet: { pl: "Tablet", en: "Tablet", bar: "bg-slate-400" },
+  mobile: { pl: "Telefon", en: "Mobile", bar: "bg-primary" },
+  desktop: { pl: "Komputer", en: "Desktop", bar: "bg-primary" },
+  tablet: { pl: "Tablet", en: "Tablet", bar: "bg-primary" },
 };
 
 export function Devices({
@@ -25,7 +25,7 @@ export function Devices({
     key: d.device,
     label: DEVICE[d.device]?.[en ? "en" : "pl"] ?? d.device,
     value: d.sessions,
-    barClass: DEVICE[d.device]?.bar ?? "bg-slate-400",
+    barClass: DEVICE[d.device]?.bar ?? "bg-primary",
   }));
   const total = rows.reduce((a, r) => a + r.value, 0);
   const mobile = rows.find((r) => r.key === "mobile")?.value ?? 0;

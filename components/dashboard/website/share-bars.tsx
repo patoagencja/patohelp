@@ -1,4 +1,4 @@
-import { Card } from "@tremor/react";
+import { Card } from "@/components/ui/card";
 
 import { plPlural } from "@/lib/dashboard/story";
 import { cn, formatNumberPL } from "@/lib/utils";
@@ -88,10 +88,12 @@ export function ShareBars({
   const pcts = sharesSumming100(sorted.map((r) => r.value));
 
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <Heading className="text-base font-semibold">{title}</Heading>
-      {periodNote ? <p className="mt-0.5 text-xs text-muted-foreground">{periodNote}</p> : null}
-      {insight ? <p className="mt-1 text-sm text-muted-foreground">{insight}</p> : null}
+    <Card className={cn("flex flex-col p-5 sm:p-6", className)}>
+      <Heading className="text-section-title text-foreground">{title}</Heading>
+      {insight ? (
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{insight}</p>
+      ) : null}
+      {periodNote ? <p className="mt-1 text-xs text-muted-foreground">{periodNote}</p> : null}
       <ul className="mt-5 space-y-4">
         {sorted.map((r, i) => {
           const share = total > 0 ? r.value / total : 0;

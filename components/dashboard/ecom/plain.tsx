@@ -11,43 +11,39 @@ import { cn, formatNumberPL } from "@/lib/utils";
 
 export type TakeawayTone = "good" | "warn" | "bad" | "neutral";
 
-const TONE_BAR: Record<TakeawayTone, string> = {
-  good: "border-emerald-500",
-  warn: "border-amber-500",
-  bad: "border-rose-500",
-  neutral: "border-primary/60",
-};
-
 /** The one-sentence "what this card tells you", shown above the numbers. */
 export function Takeaway({
-  tone = "neutral",
   children,
   className,
 }: {
+  /** Kept for callers; status colour now lives in pills, not in the sentence. */
   tone?: TakeawayTone;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <p
-      className={cn(
-        "border-l-2 pl-3 text-[15px] font-medium leading-snug text-foreground",
-        TONE_BAR[tone],
-        className
-      )}
-    >
-      {children}
-    </p>
+    <p className={cn("text-[15px] leading-snug text-foreground", className)}>{children}</p>
   );
 }
 
-/** Small uppercase card eyebrow with an icon ("Cel sprzedaży - październik"). */
-export function CardEyebrow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+/**
+ * Card heading in the dashboard's one card-title style, with an optional
+ * muted line under it (the card's period or source).
+ */
+export function CardHeading({
+  children,
+  note,
+  as: Tag = "h2",
+}: {
+  children: ReactNode;
+  note?: ReactNode;
+  as?: "h2" | "h3";
+}) {
   return (
-    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      {icon}
-      <span className="min-w-0">{children}</span>
-    </p>
+    <div className="min-w-0">
+      <Tag className="text-section-title text-foreground">{children}</Tag>
+      {note ? <p className="mt-0.5 text-sm text-muted-foreground">{note}</p> : null}
+    </div>
   );
 }
 

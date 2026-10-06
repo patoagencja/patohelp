@@ -1,4 +1,3 @@
-import { Users } from "lucide-react";
 
 import type { DemographicsData } from "@/lib/dashboard/demographics";
 import { formatCompactPL } from "@/lib/dashboard/story";
@@ -49,15 +48,6 @@ const GENDER_PL: Record<string, string> = {
   unknown: "Nieznana",
 };
 
-const AGE_BARS = [
-  "bg-indigo-300",
-  "bg-indigo-400",
-  "bg-indigo-500",
-  "bg-indigo-600",
-  "bg-indigo-700",
-  "bg-indigo-800",
-];
-
 /**
  * "Kim są Twoi odbiorcy": age, gender and region in three glanceable cards.
  * Age/gender prefer Meta (people reached by ads) and fall back to GA4
@@ -68,11 +58,11 @@ export function Audience({ data }: { data: DemographicsData }) {
 
   const ageRows: ShareRow[] = data.age
     .filter((a) => a.bucket !== "unknown")
-    .map((a, i) => ({
+    .map((a) => ({
       key: a.bucket,
       label: ageLabel(a.bucket),
       value: a.value,
-      barClass: AGE_BARS[i % AGE_BARS.length],
+      barClass: "bg-primary",
     }));
   const ageTotal = ageRows.reduce((s, r) => s + r.value, 0);
   const topAge = [...ageRows].sort((a, b) => b.value - a.value)[0];
@@ -83,7 +73,7 @@ export function Audience({ data }: { data: DemographicsData }) {
       key: g.bucket,
       label: GENDER_PL[g.bucket.toLowerCase()] ?? g.bucket,
       value: g.value,
-      barClass: g.bucket.toLowerCase() === "female" ? "bg-rose-400" : "bg-sky-500",
+      barClass: "bg-primary",
     }));
   const genderTotal = genderRows.reduce((s, r) => s + r.value, 0);
   const topGender = [...genderRows].sort((a, b) => b.value - a.value)[0];
@@ -95,7 +85,7 @@ export function Audience({ data }: { data: DemographicsData }) {
       key: g.bucket,
       label: regionPL(g.bucket),
       value: g.value,
-      barClass: "bg-emerald-500",
+      barClass: "bg-primary",
     }));
 
   const sourceNote = (src: "meta" | "ga4" | null) =>
@@ -105,15 +95,12 @@ export function Audience({ data }: { data: DemographicsData }) {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Users className="h-5 w-5 text-primary" />
-          Kim są Twoi odbiorcy
-        </h2>
+        <h2 className="text-section-title text-foreground">Kim są Twoi odbiorcy</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Wiek, płeć i region - żeby wiedzieć, do kogo naprawdę mówią reklamy.
         </p>
       </div>
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {ageRows.length ? (
           <ShareBars
             headingLevel={3}

@@ -1,17 +1,9 @@
 import { redirect } from "next/navigation";
-import {
-  CalendarRange,
-  LineChart,
-  ShoppingBag,
-  Sparkles,
-  TrendingUp,
-} from "lucide-react";
 
-import {
-  EcommerceKpis,
-  MIN_PREV_TRANSACTIONS,
-} from "@/components/dashboard/ecommerce-kpis";
+import { EcommerceKpis } from "@/components/dashboard/ecommerce-kpis";
+import { DetailsDisclosure } from "@/components/dashboard/details-disclosure";
 import { EcomAnalysisButton } from "@/components/dashboard/ecom-analysis-button";
+import { AiAnalysisCard } from "@/components/dashboard/ecom/ai-analysis-card";
 import { ChannelEfficiency } from "@/components/dashboard/ecom/channel-efficiency";
 import { ConversionFunnel } from "@/components/dashboard/ecom/conversion-funnel";
 import { MonthPacingCard } from "@/components/dashboard/ecom/month-pacing-card";
@@ -19,7 +11,6 @@ import { NewVsReturning } from "@/components/dashboard/ecom/new-vs-returning";
 import { ProfitCard } from "@/components/dashboard/ecom/profit-card";
 import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
 import { SeasonPlanner } from "@/components/dashboard/ecom/season-planner";
-import { StorySection } from "@/components/dashboard/ecom/story-section";
 import {
   TopProducts,
   type ProductRow,
@@ -48,7 +39,7 @@ import {
 } from "@/lib/dashboard/metrics";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
-import { formatDateWarsaw } from "@/lib/utils";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -178,65 +169,61 @@ export default async function SprzedazPage({
     }
   }
 
+  // Top-level children are the presentation-mode slides: header, numbers,
+  // chart, plan, products, details. Everything else sits behind one click.
   return (
-    <div className="min-w-0 space-y-10 p-4 sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <ShoppingBag className="h-6 w-6 shrink-0 text-emerald-500" />
-            Sprzedaż w sklepie
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Zamówienia ze sklepu internetowego {client.name} według Google
-            Analytics, zestawione z tym, ile wydaliśmy na reklamy. Okres:{" "}
-            <span className="font-medium text-foreground">{data.rangeLabel}</span>.
-          </p>
-        </div>
-        <DateRangePicker
-          value={range}
-          customFrom={custom?.start}
-          customTo={custom?.end}
+    <div className="min-w-0 space-y-8 p-4 sm:p-6">
+      <PageHeader
+        title="Sprzedaż"
+        description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
+        actions={
+          <DateRangePicker
+            value={range}
+            customFrom={custom?.start}
+            customTo={custom?.end}
+          />
+        }
+      />
+
+      {/* One boundary per widget: a shop with odd data (no revenue
+          tracking, a few days of history) must still see the rest. */}
+      <SectionBoundary name="sales/kpis">
+        <EcommerceKpis
+          data={data.ecommerce}
+          yoy={yoy.available ? yoy : null}
+          spend={rangeSpend}
+          heading={null}
         />
-      </div>
+      </SectionBoundary>
 
-      <StorySection
-        step={1}
-        title="Gdzie jesteśmy w tym miesiącu"
-        description="Postęp bieżącego miesiąca, a pod nim wyniki z wybranego okresu."
-      >
-        {/* One boundary per widget: a shop with odd data (no revenue
-            tracking, a few days of history) must still see the rest. */}
-        {pacing ? (
-          <SectionBoundary name="sales/month-pacing">
-            <MonthPacingCard
-              pacing={pacing}
-              clientSlug={params.clientSlug}
-              isAgency={isAgency}
-            />
-          </SectionBoundary>
-        ) : null}
-        <SectionBoundary name="sales/kpis">
-          <EcommerceKpis
-            data={data.ecommerce}
-            trend={data.trend}
-            yoy={yoy.available ? yoy : null}
-            spend={rangeSpend}
+      <SectionBoundary name="sales/overview">
+        <SalesOverview
+          trend={data.trend}
+          lastYear={yoy.available ? yoy.series : null}
+        />
+      </SectionBoundary>
+
+      {pacing ? (
+        <SectionBoundary name="sales/month-pacing">
+          <MonthPacingCard
+            pacing={pacing}
+            clientSlug={params.clientSlug}
+            isAgency={isAgency}
           />
         </SectionBoundary>
-        <SectionBoundary name="sales/overview">
-          <SalesOverview
-            trend={data.trend}
-            revenueKpi={data.ecommerce.revenueMinorUnits}
-          thinBase={data.ecommerce.transactions.previous < MIN_PREV_TRANSACTIONS}
-            lastYear={yoy.available ? yoy.series : null}
-          />
-        </SectionBoundary>
-      </StorySection>
+      ) : null}
 
-      <StorySection
-        step={2}
-        title="Czy reklamy się opłacają"
-        description="Ile zostaje po odjęciu kosztu towaru i wydatków na reklamy."
+      <SectionBoundary name="sales/top-products">
+        <TopProducts
+          products={products}
+          tableMissing={itemsTableMissing}
+          isAgency={isAgency}
+        />
+      </SectionBoundary>
+
+      <DetailsDisclosure
+        storageKey="pato:details:sprzedaz"
+        summary="Zysk, kanały sprzedaży, nowi i stali klienci, droga do zakupu, plan na sezon i analiza AI"
       >
         <SectionBoundary name="sales/profit">
           <ProfitCard
@@ -248,38 +235,6 @@ export default async function SprzedazPage({
             isAgency={isAgency}
           />
         </SectionBoundary>
-      </StorySection>
-
-      <StorySection
-        step={3}
-        title="Co się sprzedaje"
-        description="Najpopularniejsze produkty i strony, które klienci oglądają najchętniej."
-      >
-        {/* Stacked, not side by side: ten products next to five pages left
-            a tall half-empty card. TopProducts splits into two columns itself. */}
-        <SectionBoundary name="sales/top-products">
-          <TopProducts
-            products={products}
-            tableMissing={itemsTableMissing}
-            isAgency={isAgency}
-          />
-        </SectionBoundary>
-        {website.hasData ? (
-          <SectionBoundary name="sales/top-pages">
-            <TopPages
-              pages={website.topPages.slice(0, 5)}
-              headingLevel={3}
-              periodNote={SNAPSHOT_30D_NOTE}
-            />
-          </SectionBoundary>
-        ) : null}
-      </StorySection>
-
-      <StorySection
-        step={4}
-        title="Skąd przychodzą kupujący"
-        description="Które kanały przynoszą zamówienia, ile kosztują i jak wizyty zamieniają się w zakupy."
-      >
         {channels ? (
           <SectionBoundary name="sales/channels">
             <ChannelEfficiency data={channels} settings={settings} />
@@ -301,114 +256,33 @@ export default async function SprzedazPage({
           </SectionBoundary>
           {website.hasData ? (
             <SectionBoundary name="sales/devices">
-              <Devices
-                devices={website.devices}
-                headingLevel={3}
-                periodNote={SNAPSHOT_30D_NOTE}
-              />
+              <Devices devices={website.devices} periodNote={SNAPSHOT_30D_NOTE} />
             </SectionBoundary>
           ) : null}
         </div>
-      </StorySection>
-
-      {season ? (
-        <StorySection
-          step={5}
-          title="Plan na sezon"
-          description="Co pokazał zeszłoroczny sezon i jak przygotować się na tegoroczne szczyty."
-        >
+        {website.hasData ? (
+          <SectionBoundary name="sales/top-pages">
+            <TopPages pages={website.topPages} periodNote={SNAPSHOT_30D_NOTE} />
+          </SectionBoundary>
+        ) : null}
+        {season ? (
           <SectionBoundary name="sales/season">
             <SeasonPlanner plan={season} clientSlug={params.clientSlug} isAgency={isAgency} />
           </SectionBoundary>
-        </StorySection>
-      ) : null}
-
-      {/* AI analysis - the narrative layer on top of the numbers above. */}
-      <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-              Analiza AI: co się dzieje i co dalej
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Twoje dane sprzedażowe zestawione z sezonowością branży i trendami na
-              rynku.
-            </p>
-          </div>
-          <EcomAnalysisButton clientSlug={params.clientSlug} hasAnalysis={Boolean(analysis)} />
-        </div>
-
-        {analysis ? (
-          <div className="mt-5 space-y-5">
-            <p className="text-lg font-semibold leading-snug">{analysis.headline}</p>
-            <p className="text-sm leading-relaxed text-foreground">
-              {analysis.performance}
-            </p>
-
-            {analysis.peaks.length ? (
-              <div>
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <TrendingUp className="h-3.5 w-3.5" /> Najmocniejsze momenty w Twoich danych
-                </p>
-                <ul className="space-y-1.5">
-                  {analysis.peaks.map((p, i) => (
-                    <li key={i} className="text-sm">
-                      <span className="font-medium">{p.label}</span>
-                      {p.note ? <span className="text-muted-foreground"> - {p.note}</span> : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {analysis.seasonality ? (
-              <div>
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <CalendarRange className="h-3.5 w-3.5" /> Jak zwykle wygląda sezon w branży
-                </p>
-                <p className="text-sm leading-relaxed text-foreground">{analysis.seasonality}</p>
-              </div>
-            ) : null}
-
-            {analysis.market ? (
-              <div>
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <LineChart className="h-3.5 w-3.5" /> Co dzieje się na rynku
-                </p>
-                <p className="text-sm leading-relaxed text-foreground">{analysis.market}</p>
-              </div>
-            ) : null}
-
-            {analysis.recommendations.length ? (
-              <div className="rounded-xl bg-emerald-500/5 p-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                  Co proponujemy
-                </p>
-                <ul className="list-inside list-disc space-y-1.5 text-sm">
-                  {analysis.recommendations.map((r, i) => (
-                    <li key={i}>{r}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {cached?.generated_at ? (
-              <p className="text-xs text-muted-foreground">
-                Przygotowano:{" "}
-                {formatDateWarsaw(String(cached.generated_at), "d MMMM yyyy, HH:mm")}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            Kliknij „Przygotuj analizę” - AI przejrzy Twoją sprzedaż, wskaże
-            najmocniejsze dni, opisze, jak zwykle wygląda sezon w Twojej branży i co
-            dzieje się na rynku (sprawdzając aktualne informacje w internecie), a na
-            koniec podpowie, jak przygotować się na nadchodzące szczyty.
-          </p>
-        )}
-      </section>
+        ) : null}
+        <SectionBoundary name="sales/ai-analysis">
+          <AiAnalysisCard
+            analysis={analysis}
+            generatedAt={cached?.generated_at ? String(cached.generated_at) : null}
+            action={
+              <EcomAnalysisButton
+                clientSlug={params.clientSlug}
+                hasAnalysis={Boolean(analysis)}
+              />
+            }
+          />
+        </SectionBoundary>
+      </DetailsDisclosure>
     </div>
   );
 }

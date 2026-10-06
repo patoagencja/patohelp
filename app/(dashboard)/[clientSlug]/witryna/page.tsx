@@ -1,21 +1,25 @@
 import { redirect } from "next/navigation";
 import { Globe } from "lucide-react";
 
+import { DetailsDisclosure } from "@/components/dashboard/details-disclosure";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { ActivityHeatmap } from "@/components/dashboard/website/activity-heatmap";
 import { Audience } from "@/components/dashboard/website/audience";
 import { Devices } from "@/components/dashboard/website/devices";
-import { EngagementMetrics } from "@/components/dashboard/website/engagement-metrics";
+import { WebsiteKpis } from "@/components/dashboard/website/engagement-metrics";
 import { NewVsReturning } from "@/components/dashboard/website/new-vs-returning";
 import { SessionsTrend } from "@/components/dashboard/website/sessions-trend";
 import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
+import { PageHeader } from "@/components/ui/page-header";
 import { getActivityHeatmap } from "@/lib/dashboard/activity";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDemographics } from "@/lib/dashboard/demographics";
 import { getGa4Status, getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 
 export const dynamic = "force-dynamic";
+
+const DESCRIPTION = "Kto odwiedza Twoją stronę, skąd przychodzi i co ogląda - ostatnie 30 dni.";
 
 export default async function WebsitePage({
   params,
@@ -82,16 +86,16 @@ export default async function WebsitePage({
     const g = guidance[status.reason];
 
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-semibold">Witryna - {client.name}</h1>
-        <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-12 text-center">
+      <div className="space-y-8 p-4 sm:p-6">
+        <PageHeader title="Strona internetowa" description={DESCRIPTION} />
+        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-border bg-card p-8 text-center sm:p-12">
           <Globe className="mb-3 h-8 w-8 text-muted-foreground" />
           <p className="text-sm font-medium">{g.title}</p>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">{g.body}</p>
           {g.href ? (
             <a
               href={g.href}
-              className="mt-4 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+              className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               {g.cta}
             </a>
@@ -101,49 +105,56 @@ export default async function WebsitePage({
     );
   }
 
+  const totalSessions = data.sessionsTrend.reduce((a, p) => a + p.sessions, 0);
+
+  // Top-level children are the presentation-mode slides: header, numbers,
+  // where visitors come from + what they read, details.
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Twoja strona internetowa</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Kto odwiedza stronę {client.name}, skąd przychodzi i co ogląda · ostatnie 30 dni
-        </p>
-      </div>
+    <div className="min-w-0 space-y-8 p-4 sm:p-6">
+      <PageHeader title="Strona internetowa" description={DESCRIPTION} />
 
       {/* Per-widget boundaries: one odd GA4 breakdown shouldn't blank the tab. */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <SectionBoundary name="website/kpis">
+        <WebsiteKpis
+          engagement={data.engagement}
+          totalSessions={totalSessions}
+          periodLabel="w ostatnich 30 dniach"
+        />
+      </SectionBoundary>
+
+      {/* grid-cols-1 (= minmax(0,1fr)) keeps long page names from widening
+          the track past a phone screen. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <SectionBoundary name="website/sources">
           <TrafficSources sources={data.sources} />
         </SectionBoundary>
-        <SectionBoundary name="website/devices">
-          <Devices devices={data.devices} />
-        </SectionBoundary>
-      </div>
-
-      <SectionBoundary name="website/engagement">
-        <EngagementMetrics engagement={data.engagement} />
-      </SectionBoundary>
-
-      <SectionBoundary name="website/sessions-trend">
-        <SessionsTrend trend={data.sessionsTrend} />
-      </SectionBoundary>
-
-      <SectionBoundary name="website/heatmap">
-        <ActivityHeatmap data={activity} />
-      </SectionBoundary>
-
-      <div className="grid gap-6 lg:grid-cols-2">
         <SectionBoundary name="website/top-pages">
           <TopPages pages={data.topPages} />
         </SectionBoundary>
-        <SectionBoundary name="website/new-vs-returning">
-          <NewVsReturning data={data.newVsReturning} />
-        </SectionBoundary>
       </div>
 
-      <SectionBoundary name="website/audience">
-        <Audience data={demographics} />
-      </SectionBoundary>
+      <DetailsDisclosure
+        storageKey="pato:details:witryna"
+        summary="Urządzenia, nowi i powracający, wizyty dzień po dniu, godziny aktywności i kim są odbiorcy"
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
+          <SectionBoundary name="website/devices">
+            <Devices devices={data.devices} />
+          </SectionBoundary>
+          <SectionBoundary name="website/new-vs-returning">
+            <NewVsReturning data={data.newVsReturning} />
+          </SectionBoundary>
+        </div>
+        <SectionBoundary name="website/sessions-trend">
+          <SessionsTrend trend={data.sessionsTrend} />
+        </SectionBoundary>
+        <SectionBoundary name="website/heatmap">
+          <ActivityHeatmap data={activity} />
+        </SectionBoundary>
+        <SectionBoundary name="website/audience">
+          <Audience data={demographics} />
+        </SectionBoundary>
+      </DetailsDisclosure>
     </div>
   );
 }

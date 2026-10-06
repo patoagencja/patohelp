@@ -1,6 +1,7 @@
-import { AlertTriangle, Radio } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 import { MetricLabel } from "@/components/dashboard/info-tip";
+import { Card } from "@/components/ui/card";
 import {
   computeProfit,
   dayLabelPl,
@@ -156,11 +157,10 @@ export function ChannelEfficiency({
     );
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
-      <h3 className="flex items-center gap-2 text-base font-semibold">
-        <Radio className="h-4 w-4 shrink-0 text-emerald-500" />
+    <Card className="p-5 sm:p-6">
+      <h2 className="text-section-title text-foreground">
         Które kanały sprzedają i ile to kosztuje
-      </h3>
+      </h2>
       {/* This card always shows a fixed 30-day window (GA4's per-channel
           snapshot), not the range picked at the top - say so, or its order
           total looks like it contradicts the KPI tiles above. */}
@@ -336,6 +336,6 @@ export function ChannelEfficiency({
         Łącznie {formatNumberPL(orders)}{" "}
         {plPlural(orders, "zamówienie", "zamówienia", "zamówień")}.
       </p>
-    </section>
+    </Card>
   );
 }
