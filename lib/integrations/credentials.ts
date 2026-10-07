@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { decrypt } from "@/lib/integrations/encryption";
+import type { GoogleOAuthCredentials } from "@/lib/integrations/google-identity";
 import type { IntegrationProvider } from "@/lib/types";
 
 // Shape of the decrypted credential blob per provider. Stored as encrypted
@@ -10,10 +11,11 @@ export interface MetaCredentials {
   /** null for Business Manager system user tokens, which never expire. */
   expires_at: string | null;
   kind?: "system_user";
+  /** /me of the token (person or system user); absent on older rows. Lets a
+   *  reconnect find every client authorised with the same login. */
+  identity?: { id: string; name: string | null } | null;
 }
-export interface GoogleAdsCredentials {
-  refresh_token: string;
-}
+export type GoogleAdsCredentials = GoogleOAuthCredentials;
 export interface TikTokCredentials {
   access_token: string;
 }

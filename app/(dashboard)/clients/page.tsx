@@ -42,6 +42,7 @@ import { isAgencyUser, type UserRole } from "@/lib/types";
 import { cn, formatMoneyPLN } from "@/lib/utils";
 
 import { BrandingFillButton } from "./branding-fill-button";
+import { ConnectionsPanel } from "./connections-panel";
 
 export const dynamic = "force-dynamic";
 // "Uzupełnij brandingi" fetches several client websites in one Server Action.
@@ -96,7 +97,13 @@ async function addClient(formData: FormData) {
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: { error?: string };
+  searchParams: {
+    error?: string;
+    /** Set by an OAuth callback started from the Połączenia panel. */
+    reconnected?: string;
+    fixed?: string;
+    conn_error?: string;
+  };
 }) {
   const supabase = createClient();
   const {
@@ -311,6 +318,17 @@ export default async function ClientsPage({
             ) : null}
           </Card>
         </div>
+
+        <ConnectionsPanel
+          clients={clientList.map((c) => ({
+            slug: c.slug as string,
+            name: c.name as string,
+            down: healthByClient.get(c.id as string)?.down ?? [],
+          }))}
+          reconnected={searchParams.reconnected}
+          fixed={searchParams.fixed}
+          connError={searchParams.conn_error}
+        />
 
         <section aria-labelledby="klienci-title" className="space-y-4">
           <div className="px-1">

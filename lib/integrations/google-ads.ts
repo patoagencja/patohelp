@@ -4,6 +4,7 @@
 // Math.round(micros / 10_000).
 import { GoogleAdsApi } from "google-ads-api";
 
+import { googleScopesFor } from "@/lib/integrations/google-identity";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -82,13 +83,18 @@ export interface GoogleCampaignMetric {
   conversions: number | null;
 }
 
-/** OAuth consent URL. `prompt=consent` guarantees a refresh_token every time. */
+/**
+ * OAuth consent URL. `prompt=consent` guarantees a refresh_token every time.
+ * Also asks for analytics.readonly when GA4 shares this OAuth client (one
+ * reconnect then revives both providers) and for `openid email`, so we know
+ * which Google account the token belongs to.
+ */
 export function getAuthorizationUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: redirectUri(),
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/adwords",
+    scope: googleScopesFor("google_ads"),
     access_type: "offline",
     prompt: "consent",
     state,
@@ -101,6 +107,10 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   refresh_token: string;
   access_token: string;
   expires_at: Date;
+  /** OpenID id_token (present when `openid` was granted). */
+  id_token: string | null;
+  /** Space-separated scopes actually granted. */
+  scope: string | null;
 }> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -133,7 +143,21 @@ export async function exchangeCodeForTokens(code: string): Promise<{
     refresh_token: body.refresh_token,
     access_token: body.access_token,
     expires_at: new Date(Date.now() + expiresInSeconds * 1000),
+    id_token: typeof body.id_token === "string" ? body.id_token : null,
+    scope: typeof body.scope === "string" ? body.scope : null,
   };
+}
+
+/**
+ * Ids of the customers the refresh token reaches directly - a single cheap
+ * call (no per-customer query), used to verify access before reusing a token
+ * for another client.
+ */
+export async function listAccessibleCustomerIds(
+  refreshToken: string
+): Promise<string[]> {
+  const { resource_names } = await apiClient().listAccessibleCustomers(refreshToken);
+  return resource_names.map((r) => r.split("/")[1]).filter(Boolean);
 }
 
 /** All customer accounts the refresh token can reach, with basic metadata. */

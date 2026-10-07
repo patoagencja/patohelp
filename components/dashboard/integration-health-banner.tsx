@@ -7,6 +7,7 @@ import {
   getUnhealthyIntegrations,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
+import { isMetaSessionInvalidated } from "@/lib/integrations/errors";
 import { cn } from "@/lib/utils";
 
 // Per-request memo: the layout starts the health read as soon as it knows the
@@ -45,8 +46,71 @@ export const RECONNECT_PATH: Partial<Record<ProviderHealth["provider"], string>>
   tiktok_ads: "/api/integrations/tiktok/connect",
 };
 
+const LINK = "font-medium text-foreground underline underline-offset-2";
+
 function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
   const reconnect = RECONNECT_PATH[h.provider];
+
+  if (h.provider === "meta_ads" && isMetaSessionInvalidated(h.lastError)) {
+    return (
+      <>
+        Facebook unieważnił sesję (ktoś zmienił hasło do konta, którym podpięto
+        klientów, albo Facebook zresetował ją ze względów bezpieczeństwa) - zwykły
+        token z logowania przestał działać i nie wróci sam. Rozwiązanie na stałe:{" "}
+        <Link href={`/${clientSlug}/settings#meta-system-token`} className={LINK}>
+          wklej token System User, który nie wygasa i nie zależy od hasła
+        </Link>
+        {reconnect ? (
+          <>
+            {" "}
+            (albo na szybko{" "}
+            <a href={`${reconnect}?client=${clientSlug}`} className={LINK}>
+              połącz ponownie
+            </a>{" "}
+            - naprawi też innych klientów z tym samym logowaniem)
+          </>
+        ) : null}
+        .
+      </>
+    );
+  }
+
+  // Google refresh tokens dying ~7 days after consent = OAuth app in Testing.
+  // Another reconnect only buys another week; say exactly where to fix it.
+  if (h.tokenExpired && h.testingModeSuspected) {
+    return (
+      <>
+        <b className="font-semibold text-foreground">
+          Aplikacja Google jest w trybie Testing - tokeny wygasają po 7 dniach.
+        </b>{" "}
+        Napraw: Google Cloud Console → APIs &amp; Services → OAuth consent screen →
+        Publish app (
+        <Link href={`/${clientSlug}/settings#google-stability`} className={LINK}>
+          który projekt
+        </Link>
+        ), potem{" "}
+        {reconnect ? (
+          <a href={`${reconnect}?client=${clientSlug}`} className={LINK}>
+            połącz ponownie
+          </a>
+        ) : (
+          "połącz ponownie"
+        )}{" "}
+        - naprawi to wszystkich klientów z tym samym kontem Google
+        {h.provider === "ga4" ? (
+          <>
+            {" "}
+            (albo{" "}
+            <Link href={`/${clientSlug}/settings/ga4-service-account`} className={LINK}>
+              podłącz GA4 przez konto usługi
+            </Link>
+            )
+          </>
+        ) : null}
+        .
+      </>
+    );
+  }
 
   // Reconnecting overwrites the stored credentials, so there is no need to
   // disconnect first - link straight at the OAuth flow.
@@ -55,28 +119,26 @@ function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
     // where one exists so this is the last time.
     const permanent =
       h.provider === "meta_ads"
-        ? "wklej token, który nie wygasa"
-        : h.testingModeSuspected
-          ? "Google kasuje token co 7 dni (aplikacja w trybie Testing) - napraw na stałe"
+        ? { text: "wklej token, który nie wygasa", href: `/${clientSlug}/settings#meta-system-token` }
+        : h.provider === "ga4"
+          ? {
+              text: "połącz przez konto usługi (nie wygasa)",
+              href: `/${clientSlug}/settings/ga4-service-account`,
+            }
           : null;
     return (
       <>
         token wygasł -{" "}
-        <a
-          href={`${reconnect}?client=${clientSlug}`}
-          className="font-medium text-foreground underline underline-offset-2"
-        >
+        <a href={`${reconnect}?client=${clientSlug}`} className={LINK}>
           połącz ponownie jednym kliknięciem
-        </a>
+        </a>{" "}
+        (naprawi też innych klientów z tym samym logowaniem)
         {permanent ? (
           <>
             {" "}
             albo{" "}
-            <Link
-              href={`/${clientSlug}/settings#polaczenia`}
-              className="font-medium text-foreground underline underline-offset-2"
-            >
-              {permanent}
+            <Link href={permanent.href} className={LINK}>
+              {permanent.text}
             </Link>
           </>
         ) : null}
@@ -219,7 +281,7 @@ export async function IntegrationHealthBanner({
               <span className="font-medium text-foreground">{e.label}</span>: token wygaśnie za{" "}
               {e.daysLeft} {e.daysLeft === 1 ? "dzień" : "dni"} -{" "}
               <Link
-                href={`/${clientSlug}/settings#polaczenia`}
+                href={`/${clientSlug}/settings#meta-system-token`}
                 className="font-medium text-foreground underline underline-offset-2"
               >
                 wklej token, który nie wygasa

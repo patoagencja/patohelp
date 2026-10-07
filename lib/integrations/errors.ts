@@ -37,7 +37,26 @@ export function isTokenError(message: string | null | undefined): boolean {
     m.includes("revoked") ||
     // Meta: "Error validating access token: Session has expired on ..."
     m.includes("session has expired") ||
+    // Meta: password change / security reset kills every token of the login.
+    m.includes("session has been invalidated") ||
     m.includes("error validating access token")
+  );
+}
+
+/**
+ * Meta kills every user token of a person when they change their Facebook
+ * password or Facebook resets the session "for security reasons" - all
+ * clients connected with that login break at the same moment. Only a System
+ * User token is immune, so name the cause instead of a generic "wygasł".
+ */
+export function isMetaSessionInvalidated(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return (
+    m.includes("session has been invalidated") ||
+    m.includes("changed their password") ||
+    m.includes("changed the session") ||
+    m.includes("password change")
   );
 }
 

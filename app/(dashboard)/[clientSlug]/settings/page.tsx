@@ -1,4 +1,5 @@
 import { revalidatePath, revalidateTag } from "next/cache";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 
@@ -15,6 +16,8 @@ import { getClientWebsite } from "@/lib/branding/website";
 import { getClientBranding } from "@/lib/dashboard/branding";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import { clientDataTag } from "@/lib/dashboard/sync-cache";
+import { decrypt } from "@/lib/integrations/encryption";
+import { isServiceAccountCredentials } from "@/lib/integrations/ga4";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -280,6 +283,27 @@ export default async function SettingsPage({
   const isEcommerce =
     (ct as { client_type?: string } | null)?.client_type === "ecommerce";
 
+  // GA4 auth mode (OAuth refresh token vs never-expiring service account)
+  // lives inside the encrypted credentials - service-role read, agency page.
+  let ga4ServiceAccount = false;
+  if (byProvider.has("ga4")) {
+    const { data: ga4Creds } = await createAdminClient()
+      .from("integrations")
+      .select("credentials_encrypted")
+      .eq("client_id", access.clientId)
+      .eq("provider", "ga4")
+      .maybeSingle();
+    try {
+      ga4ServiceAccount =
+        !!ga4Creds?.credentials_encrypted &&
+        isServiceAccountCredentials(
+          JSON.parse(decrypt(ga4Creds.credentials_encrypted as string))
+        );
+    } catch {
+      ga4ServiceAccount = false;
+    }
+  }
+
   // Separate read so a missing 0031 migration only disables this section.
   const [branding, brandedClient, website] = await Promise.all([
     getClientBranding(createAdminClient(), access.clientId),
@@ -490,6 +514,7 @@ export default async function SettingsPage({
                           <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden />
                           <span className="min-w-0 break-words">
                             Połączono · usługa {propName ?? ga4Ids.propertyId}
+                            {ga4ServiceAccount ? " · konto usługi (nie wygasa)" : ""}
                           </span>
                         </p>
                       ) : (
@@ -503,13 +528,26 @@ export default async function SettingsPage({
                           provider="ga4"
                           clientSlug={params.clientSlug}
                         />
-                        {multi ? (
+                        {multi && !ga4ServiceAccount ? (
                           <Button asChild variant="outline" size="pill">
                             <a href={`/${params.clientSlug}/settings/ga4-select`}>
                               Zmień usługę GA4
                             </a>
                           </Button>
                         ) : null}
+                        {!ga4ServiceAccount ? (
+                          <Button asChild variant="outline" size="pill">
+                            <Link href={`/${params.clientSlug}/settings/ga4-service-account`}>
+                              Połącz przez konto usługi (nie wygasa)
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button asChild variant="outline" size="pill">
+                            <Link href={`/${params.clientSlug}/settings/ga4-service-account`}>
+                              Zmień usługę GA4
+                            </Link>
+                          </Button>
+                        )}
                         <form action={disconnectIntegration}>
                           <input
                             type="hidden"
@@ -529,13 +567,20 @@ export default async function SettingsPage({
                       </div>
                     </>
                   ) : (
-                    <Button asChild className="w-fit">
-                      <a
-                        href={`/api/integrations/ga4/connect?client=${params.clientSlug}`}
-                      >
-                        Połącz GA4
-                      </a>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild className="w-fit">
+                        <a
+                          href={`/api/integrations/ga4/connect?client=${params.clientSlug}`}
+                        >
+                          Połącz GA4
+                        </a>
+                      </Button>
+                      <Button asChild variant="outline" className="w-fit">
+                        <Link href={`/${params.clientSlug}/settings/ga4-service-account`}>
+                          Połącz przez konto usługi (nie wygasa)
+                        </Link>
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>

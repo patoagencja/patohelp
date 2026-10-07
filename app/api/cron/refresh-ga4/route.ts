@@ -13,7 +13,9 @@ import {
   getSessionsByDevice,
   getSessionsBySourceMedium,
   getTopPages,
+  parseGa4Credentials,
   type DateRange,
+  type Ga4Auth,
 } from "@/lib/integrations/ga4";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -96,7 +98,7 @@ export async function GET(request: Request) {
   let rowsUpserted = 0;
   const snapshotJobs: Array<{
     clientId: string;
-    refreshToken: string;
+    auth: Ga4Auth;
     propertyId: string;
   }> = [];
 
@@ -129,7 +131,9 @@ export async function GET(request: Request) {
       .single();
 
     try {
-      const { refresh_token } = JSON.parse(
+      // Refresh-token OR service-account credentials - ga4.ts picks the
+      // auth client from the blob itself.
+      const ga4Auth = parseGa4Credentials(
         decrypt(integration.credentials_encrypted as string)
       );
 
@@ -184,11 +188,11 @@ export async function GET(request: Request) {
 
       const [daily, sourceMedium, devices, pages, newReturning] =
         await Promise.all([
-          getDailyMetrics(refresh_token, propertyId, dailyRange),
-          getSessionsBySourceMedium(refresh_token, propertyId, snapshotRange),
-          getSessionsByDevice(refresh_token, propertyId, snapshotRange),
-          getTopPages(refresh_token, propertyId, snapshotRange, 10),
-          getNewVsReturning(refresh_token, propertyId, snapshotRange),
+          getDailyMetrics(ga4Auth, propertyId, dailyRange),
+          getSessionsBySourceMedium(ga4Auth, propertyId, snapshotRange),
+          getSessionsByDevice(ga4Auth, propertyId, snapshotRange),
+          getTopPages(ga4Auth, propertyId, snapshotRange, 10),
+          getNewVsReturning(ga4Auth, propertyId, snapshotRange),
         ]);
 
       const newUsers =
@@ -312,7 +316,7 @@ export async function GET(request: Request) {
       // but never break the main daily sync.
       if (hasItemsTable) {
         try {
-          const items = await getItemsDaily(refresh_token, propertyId, dailyRange);
+          const items = await getItemsDaily(ga4Auth, propertyId, dailyRange);
           await admin
             .from("ga4_items_daily")
             .delete()
@@ -357,7 +361,7 @@ export async function GET(request: Request) {
       // sync_runs stuck on "running".
       snapshotJobs.push({
         clientId: integration.client_id as string,
-        refreshToken: refresh_token,
+        auth: ga4Auth,
         propertyId,
       });
     } catch (err) {
@@ -383,7 +387,7 @@ export async function GET(request: Request) {
         await syncActivityHeatmap(
           admin,
           job.clientId,
-          job.refreshToken,
+          job.auth,
           job.propertyId,
           until
         );
@@ -403,7 +407,7 @@ export async function GET(request: Request) {
         await syncNewVsReturning(
           admin,
           job.clientId,
-          job.refreshToken,
+          job.auth,
           job.propertyId,
           until
         );
@@ -433,7 +437,7 @@ const HEATMAP_KEEP_DAYS = 90;
 async function syncActivityHeatmap(
   admin: ReturnType<typeof createAdminClient>,
   clientId: string,
-  refreshToken: string,
+  auth: Ga4Auth,
   propertyId: string,
   today: string
 ) {
@@ -446,7 +450,7 @@ async function syncActivityHeatmap(
   if (existing.error) throw new Error(existing.error.message);
   if (existing.data?.length) return;
 
-  const cells = await getSessionsByDayHour(refreshToken, propertyId);
+  const cells = await getSessionsByDayHour(auth, propertyId);
 
   const grid = new Map<string, { sessions: number; engaged: number }>();
   for (const c of cells) {
@@ -499,7 +503,7 @@ async function syncActivityHeatmap(
 async function syncNewVsReturning(
   admin: ReturnType<typeof createAdminClient>,
   clientId: string,
-  refreshToken: string,
+  auth: Ga4Auth,
   propertyId: string,
   today: string
 ) {
@@ -512,7 +516,7 @@ async function syncNewVsReturning(
   if (existing.error) throw new Error(existing.error.message);
   if (existing.data?.length) return;
 
-  const segments = await getRevenueByNewVsReturning(refreshToken, propertyId);
+  const segments = await getRevenueByNewVsReturning(auth, propertyId);
 
   const totals = new Map<
     string,

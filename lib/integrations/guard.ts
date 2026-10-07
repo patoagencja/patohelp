@@ -17,6 +17,30 @@ export type GuardFailure = {
 };
 
 /**
+ * Agency-only guard without a specific client: logged-in admin/member. Used
+ * where one action touches many clients at once (credential propagation).
+ */
+export async function requireAgencyUser(): Promise<
+  { ok: true; user: User; role: UserRole } | GuardFailure
+> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, status: 401 };
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (!profile || !isAgencyUser(profile.role as UserRole)) {
+    return { ok: false, status: 403 };
+  }
+  return { ok: true, user, role: profile.role as UserRole };
+}
+
+/**
  * Session guard for integration routes and the settings page. Confirms the
  * caller is a logged-in agency user (admin/member) with access to the given
  * client. Uses the cookie-bound server client, so RLS still applies.

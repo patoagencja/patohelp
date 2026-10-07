@@ -152,6 +152,46 @@ export async function listAdAccounts(
   return body.data ?? [];
 }
 
+/** Who a token belongs to (a person, or a Business Manager system user). */
+export interface MetaIdentity {
+  id: string;
+  name: string | null;
+}
+
+/**
+ * /me for a token. Stored next to the token so a later reconnect with the same
+ * login can be matched to every client that used it.
+ */
+export async function getMetaIdentity(accessToken: string): Promise<MetaIdentity> {
+  const body = await graphGet<{ id?: string; name?: string }>("/me", {
+    fields: "id,name",
+    access_token: accessToken,
+  });
+  if (!body.id) throw new Error("Meta /me returned no id");
+  return { id: String(body.id), name: body.name ?? null };
+}
+
+/**
+ * Cheap access probe for one ad account (`act_<id>`): a field-less read that
+ * fails unless the token can see the account. Used before reusing a token for
+ * another client, so a login that lacks that client's accounts is never saved.
+ */
+export async function canAccessAdAccount(
+  accessToken: string,
+  adAccountId: string
+): Promise<boolean> {
+  const id = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  try {
+    const body = await graphGet<{ id?: string }>(`/${id}`, {
+      fields: "id",
+      access_token: accessToken,
+    });
+    return !!body.id;
+  } catch {
+    return false;
+  }
+}
+
 /** Inclusive list of yyyy-MM-dd strings between `since` and `until` (UTC). */
 function eachDay(since: string, until: string): string[] {
   const days: string[] = [];

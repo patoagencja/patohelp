@@ -9,6 +9,8 @@ import {
   getSessionsByDevice,
   getSessionsBySourceMedium,
   getTopPages,
+  isServiceAccountCredentials,
+  parseGa4Credentials,
   type DateRange,
 } from "@/lib/integrations/ga4";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
@@ -67,8 +69,10 @@ export async function GET(request: Request) {
   const propertyId = (integration.account_ids as { propertyId?: string })?.propertyId;
   if (!propertyId) return html("Brak zapisanego <b>propertyId</b> w account_ids.");
 
-  const { refresh_token } = JSON.parse(decrypt(integration.credentials_encrypted as string));
-  if (!refresh_token) return html("Brak <b>refresh_token</b> - połącz GA4 ponownie.");
+  const ga4Auth = parseGa4Credentials(decrypt(integration.credentials_encrypted as string));
+  if (!isServiceAccountCredentials(ga4Auth) && !ga4Auth.refresh_token) {
+    return html("Brak <b>refresh_token</b> - połącz GA4 ponownie.");
+  }
 
   const now = new Date();
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
@@ -93,7 +97,7 @@ export async function GET(request: Request) {
   // 1) Fetch (report per-call so we see which one, if any, fails).
   let daily, sourceMedium, devices, pages, newReturning;
   try {
-    daily = await getDailyMetrics(refresh_token, propertyId, dailyRange);
+    daily = await getDailyMetrics(ga4Auth, propertyId, dailyRange);
     const liveRevenue = daily.reduce((a, d) => a + (d.revenue ?? 0), 0);
     const livePurchase = daily.reduce((a, d) => a + (d.purchaseRevenue ?? 0), 0);
     const liveTx = daily.reduce((a, d) => a + (d.transactions ?? 0), 0);
@@ -155,10 +159,10 @@ export async function GET(request: Request) {
   }
   try {
     [sourceMedium, devices, pages, newReturning] = await Promise.all([
-      getSessionsBySourceMedium(refresh_token, propertyId, snapshotRange),
-      getSessionsByDevice(refresh_token, propertyId, snapshotRange),
-      getTopPages(refresh_token, propertyId, snapshotRange, 10),
-      getNewVsReturning(refresh_token, propertyId, snapshotRange),
+      getSessionsBySourceMedium(ga4Auth, propertyId, snapshotRange),
+      getSessionsByDevice(ga4Auth, propertyId, snapshotRange),
+      getTopPages(ga4Auth, propertyId, snapshotRange, 10),
+      getNewVsReturning(ga4Auth, propertyId, snapshotRange),
     ]);
     log.push(
       `✅ snapshoty: source=${sourceMedium.length}, device=${devices.length}, pages=${pages.length}`
@@ -223,7 +227,7 @@ export async function GET(request: Request) {
     );
   } else {
     try {
-      const items = await getItemsDaily(refresh_token, propertyId, dailyRange);
+      const items = await getItemsDaily(ga4Auth, propertyId, dailyRange);
       await admin
         .from("ga4_items_daily")
         .delete()

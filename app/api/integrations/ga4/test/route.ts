@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
-import {
-  loadIntegration,
-  type GoogleAdsCredentials,
-} from "@/lib/integrations/credentials";
+import { loadIntegration } from "@/lib/integrations/credentials";
 import { connectionTestError } from "@/lib/integrations/errors";
-import { listAccessibleProperties } from "@/lib/integrations/ga4";
+import {
+  isServiceAccountCredentials,
+  listAccessibleProperties,
+  verifyPropertyAccess,
+  type Ga4Credentials,
+} from "@/lib/integrations/ga4";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   let integration;
   try {
-    integration = await loadIntegration<GoogleAdsCredentials>(
+    integration = await loadIntegration<Ga4Credentials>(
       admin,
       access.clientId,
       "ga4"
@@ -40,9 +42,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const properties = await listAccessibleProperties(
-      integration.credentials.refresh_token
-    );
+    // Service account: the property the client shared with it is what
+    // matters - prove a report runs instead of listing summaries.
+    if (isServiceAccountCredentials(integration.credentials)) {
+      const propertyId = (integration.accountIds as { propertyId?: string | null } | null)
+        ?.propertyId;
+      if (!propertyId) {
+        return NextResponse.json({ ok: false, error: "Nie wybrano usługi GA4" });
+      }
+      await verifyPropertyAccess(integration.credentials, propertyId);
+      return NextResponse.json({
+        ok: true,
+        accounts_count: 1,
+        sample: [`konto usługi · usługa ${propertyId}`],
+      });
+    }
+    const properties = await listAccessibleProperties(integration.credentials);
     return NextResponse.json({
       ok: true,
       accounts_count: properties.length,

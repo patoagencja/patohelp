@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { getAuthorizationUrl } from "@/lib/integrations/meta-ads";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { newOAuthState } from "@/lib/integrations/oauth-flow";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -22,7 +22,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}${dest}`);
   }
 
-  const state = randomUUID();
+  // ?return=clients: started from the agency-wide "Połączenia" panel - the
+  // callback goes back there and repairs every client sharing the login.
+  const returnTo = searchParams.get("return") === "clients" ? "clients" : "settings";
+  const state = newOAuthState(returnTo);
   const admin = createAdminClient();
   const { error } = await admin.from("oauth_states").insert({
     state,

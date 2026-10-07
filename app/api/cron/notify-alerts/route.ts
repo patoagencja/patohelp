@@ -9,6 +9,7 @@ import {
   getExpiringTokens,
   getUnhealthyIntegrations,
 } from "@/lib/dashboard/integration-health";
+import { isMetaSessionInvalidated } from "@/lib/integrations/errors";
 import {
   buildDigest,
   sendEmail,
@@ -111,9 +112,11 @@ export async function GET(request: Request) {
           title: `${h.label} nie dostarcza danych`,
           detail: h.tokenExpired
             ? h.provider === "meta_ads"
-              ? `${downFor}. Token wygasł - połącz ponownie albo wklej w Ustawieniach token System User, który nie wygasa.`
+              ? isMetaSessionInvalidated(h.lastError)
+                ? `${downFor}. Facebook unieważnił sesję (zmiana hasła lub reset bezpieczeństwa) - wklej w Ustawieniach token System User, który nie zależy od hasła, albo połącz ponownie (naprawi wszystkich klientów z tym logowaniem).`
+                : `${downFor}. Token wygasł - połącz ponownie albo wklej w Ustawieniach token System User, który nie wygasa.`
               : h.testingModeSuspected
-                ? `${downFor}. Token wygasł po 7 dniach - aplikacja Google OAuth jest w trybie Testing. Opublikuj ją (instrukcja w Ustawieniach → Połączenia) i połącz ponownie.`
+                ? `${downFor}. Aplikacja Google jest w trybie Testing - tokeny wygasają po 7 dniach. Napraw: Google Cloud Console → APIs & Services → OAuth consent screen → Publish app, potem połącz ponownie.`
                 : `${downFor}. Token wygasł - połącz ponownie w Ustawieniach.`
             : `${downFor}.${h.lastError ? ` Błąd: ${h.lastError}` : ""}`,
           scope: "Integracje",

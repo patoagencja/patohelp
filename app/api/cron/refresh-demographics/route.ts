@@ -8,6 +8,7 @@ import {
   getAgeBrackets,
   getGenders,
   getRegions,
+  parseGa4Credentials,
   type DateRange,
 } from "@/lib/integrations/ga4";
 import { getDemographics } from "@/lib/integrations/meta-ads";
@@ -70,13 +71,14 @@ export async function GET(request: Request) {
       ?.propertyId;
     if (!propertyId) continue;
     try {
-      const { refresh_token } = JSON.parse(
+      // Refresh-token or service-account credentials (see ga4.ts).
+      const ga4Auth = parseGa4Credentials(
         decrypt(integration.credentials_encrypted as string)
       );
       const [age, gender, geo] = await Promise.all([
-        getAgeBrackets(refresh_token, propertyId, range),
-        getGenders(refresh_token, propertyId, range),
-        getRegions(refresh_token, propertyId, range),
+        getAgeBrackets(ga4Auth, propertyId, range),
+        getGenders(ga4Auth, propertyId, range),
+        getRegions(ga4Auth, propertyId, range),
       ]);
       for (const a of age)
         push(integration.client_id, {

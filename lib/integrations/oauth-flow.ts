@@ -1,7 +1,48 @@
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { encrypt } from "@/lib/integrations/encryption";
 import type { IntegrationProvider } from "@/lib/types";
+
+// The agency-wide "Połącz ponownie" on /clients reuses the per-client flow
+// (oauth_states.client_id is required, so one broken client anchors it) and
+// marks the state so the callback returns to /clients. The suffix is part of
+// the stored, single-use state, so it cannot be forged or swapped in transit.
+const RETURN_TO_CLIENTS = ".clients";
+
+export type OAuthReturnTo = "settings" | "clients";
+
+/** One-time OAuth state, optionally marked to return to the agency list. */
+export function newOAuthState(returnTo: OAuthReturnTo): string {
+  return `${randomUUID()}${returnTo === "clients" ? RETURN_TO_CLIENTS : ""}`;
+}
+
+export function oauthReturnTo(state: string | null): OAuthReturnTo {
+  return state?.endsWith(RETURN_TO_CLIENTS) ? "clients" : "settings";
+}
+
+/** Where a callback lands after a flow, with the propagation count. */
+export function oauthDoneUrl(
+  origin: string,
+  opts: {
+    returnTo: OAuthReturnTo;
+    slug: string | null;
+    provider: IntegrationProvider;
+    ok: boolean;
+    fixed?: number;
+  }
+): string {
+  const fixed = opts.fixed ? `&fixed=${opts.fixed}` : "";
+  if (opts.returnTo === "clients") {
+    return opts.ok
+      ? `${origin}/clients?reconnected=${opts.provider}${fixed}#polaczenia`
+      : `${origin}/clients?conn_error=${opts.provider}#polaczenia`;
+  }
+  const base = `${origin}/${opts.slug ?? "dre"}/settings`;
+  return opts.ok
+    ? `${base}?connected=${opts.provider}${fixed}`
+    : `${base}?error=${opts.provider}`;
+}
 
 /**
  * Validate a returned OAuth `state`: it must exist, match the provider, belong

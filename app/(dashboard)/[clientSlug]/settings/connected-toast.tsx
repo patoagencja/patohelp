@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { SYNC_CHECK_EVENT } from "@/components/dashboard/auto-refresh";
+import { fixedOthersLabel } from "@/lib/integrations/fixed-label";
 
 const PROVIDER_LABELS: Record<string, string> = {
   meta_ads: "Meta Ads",
@@ -14,7 +15,11 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 /** Saves that put fresh credentials in place - data should follow at once.
  *  Account/property picks (saved=<provider>) count too: new accounts. */
-const FRESH_CREDENTIALS = new Set(["meta_token", "meta_token_expiring"]);
+const FRESH_CREDENTIALS = new Set([
+  "meta_token",
+  "meta_token_expiring",
+  "ga4_service_account",
+]);
 
 /**
  * Fires a one-time toast based on the ?connected / ?error query params set by
@@ -27,11 +32,14 @@ export function ConnectedToast({
   connected,
   error,
   saved,
+  fixed,
 }: {
   clientSlug: string;
   connected?: string;
   error?: string;
   saved?: string;
+  /** Other clients' connections repaired with the same new token. */
+  fixed?: string;
 }) {
   const fired = useRef(false);
   const router = useRouter();
@@ -42,12 +50,20 @@ export function ConnectedToast({
     // Drop the one-shot params so a reload doesn't repeat the toast and sync.
     if (connected || error || saved) {
       const url = new URL(window.location.href);
-      for (const k of ["connected", "error", "saved"]) url.searchParams.delete(k);
+      for (const k of ["connected", "error", "saved", "fixed"]) url.searchParams.delete(k);
       window.history.replaceState(window.history.state, "", url);
     }
 
+    // "Napraw wszystkie naraz": the same new login was verified on, and
+    // applied to, other clients that broke with it.
+    const fixedCount = Number(fixed);
+    const fixedNote =
+      Number.isFinite(fixedCount) && fixedCount > 0 ? fixedOthersLabel(fixedCount) : null;
+
     if (connected) {
-      toast.success(`Połączono z ${PROVIDER_LABELS[connected] ?? connected}`);
+      toast.success(`Połączono z ${PROVIDER_LABELS[connected] ?? connected}`, {
+        description: fixedNote ?? undefined,
+      });
     } else if (error === "meta_token_invalid") {
       toast.error(
         "Meta odrzuciła ten token. Sprawdź, czy skopiowałeś cały token System User i czy ma uprawnienie ads_read."
@@ -71,11 +87,22 @@ export function ConnectedToast({
         `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
       );
     } else if (saved === "meta_token") {
-      toast.success("Meta połączona tokenem, który nie wygasa - koniec rozłączeń.");
+      toast.success("Meta połączona tokenem, który nie wygasa - koniec rozłączeń.", {
+        description: fixedNote ?? undefined,
+      });
+    } else if (saved === "meta_token_shared") {
+      toast.success(
+        fixedNote
+          ? `Token System User zastosowany u innych klientów. ${fixedNote}.`
+          : "Ten token nie ma dostępu do kont reklamowych innych klientów - nic nie zmieniono."
+      );
     } else if (saved === "meta_token_expiring") {
       toast.warning(
-        "Token zapisany, ale ma datę ważności. Przy generowaniu tokenu System User wybierz „Nigdy”."
+        "Token zapisany, ale ma datę ważności. Przy generowaniu tokenu System User wybierz „Nigdy”.",
+        { description: fixedNote ?? undefined }
       );
+    } else if (saved === "ga4_service_account") {
+      toast.success("GA4 połączone przez konto usługi - to połączenie nie wygasa.");
     } else if (saved === "goals") {
       toast.success("Zapisano cele miesięczne");
     } else if (saved === "ecommerce") {
@@ -132,7 +159,7 @@ export function ConnectedToast({
           router.refresh();
         });
     }
-  }, [clientSlug, connected, error, saved, router]);
+  }, [clientSlug, connected, error, saved, fixed, router]);
 
   return null;
 }
