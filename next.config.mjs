@@ -10,6 +10,11 @@ const nextConfig = {
   // facebook-nodejs-business-sdk and google-ads-api are server-only; keep them
   // out of the client bundle and let Next resolve their Node dependencies.
   experimental: {
+    // Tabs visited in the last 30 s come back from the client router cache
+    // instead of a new server render: hopping Przegląd <-> Reklamy is
+    // instant. Fresh data still lands - AutoRefresh calls router.refresh()
+    // when a sync stamp moves, and server actions revalidate as before.
+    staleTimes: { dynamic: 30, static: 180 },
     serverComponentsExternalPackages: [
       "facebook-nodejs-business-sdk",
       "google-ads-api",

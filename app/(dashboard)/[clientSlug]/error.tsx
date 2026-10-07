@@ -20,10 +20,13 @@ export default function DashboardError({
   // still rolling out). We recover with a cache-busting reload, retried gently
   // with delays so we keep trying until the rollout settles instead of burning
   // through attempts in a couple of seconds and getting stuck.
+  // A navigation whose server stream was cut (slow page hitting the function
+  // limit, flaky network) fails the same way and recovers the same way: a
+  // fresh load of the page.
   const isChunkError =
     error.name === "ChunkLoadError" ||
-    /loading (css )?chunk [\w-]+ failed|failed to fetch dynamically imported/i.test(
-      error.message
+    /loading (css )?chunk [\w-]+ failed|failed to fetch dynamically imported|connection closed|failed to fetch|load failed|networkerror|unexpected response was received from the server/i.test(
+      error.message ?? ""
     );
 
   // Once auto-retries are exhausted we stop hiding the problem and reveal the

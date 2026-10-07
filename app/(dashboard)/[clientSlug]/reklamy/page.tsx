@@ -40,11 +40,10 @@ export default async function AdsPage({
   const custom = parseCustomRange(searchParams.from, searchParams.to);
   // Top creatives used to be teased here too; they now live one tab over
   // (Kreacje), so the page no longer queries them.
-  const [data, searchTerms, impressionShare] = await Promise.all([
-    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
-    getSearchTerms(client.id),
-    getImpressionShare(client.id),
-  ]);
+  // Search terms and impression share sit behind "Pokaż szczegóły": they
+  // stream in after the first screen instead of holding the whole page back
+  // (the slowest part of this tab on big Google accounts).
+  const data = await loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null);
 
   // Keep the chosen range when hopping between the Kampanie/Kreacje tabs.
   const keep = new URLSearchParams();
@@ -101,10 +100,10 @@ export default async function AdsPage({
           <PlatformSplit split={data.platformSplit} />
         </SectionBoundary>
         <SectionBoundary name="ads/search-terms">
-          <SearchTerms terms={searchTerms} />
+          <SearchTermsSection clientId={client.id} />
         </SectionBoundary>
         <SectionBoundary name="ads/impression-share">
-          <ImpressionShare data={impressionShare} />
+          <ImpressionShareSection clientId={client.id} />
         </SectionBoundary>
         <SectionBoundary name="ads/campaigns-full">
           <CampaignPositions
@@ -116,4 +115,12 @@ export default async function AdsPage({
       </DetailsDisclosure>
     </div>
   );
+}
+
+async function SearchTermsSection({ clientId }: { clientId: string }) {
+  return <SearchTerms terms={await getSearchTerms(clientId)} />;
+}
+
+async function ImpressionShareSection({ clientId }: { clientId: string }) {
+  return <ImpressionShare data={await getImpressionShare(clientId)} />;
 }
