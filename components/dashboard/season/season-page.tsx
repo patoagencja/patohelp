@@ -68,8 +68,10 @@ export function SeasonPageView({
       .filter((d) => d.date <= view.asOf)
       .map((d) => pick(d) ?? 0)
       .slice(-30);
+  // Day 1 compares nothing yet (load.ts): no "last season: 0 zł" lines.
+  const comparable = hasPrev && (prevSamePoint.spend > 0 || prevSamePoint.clicks > 0);
   const compareFoot = (text: string) =>
-    hasPrev ? (
+    comparable ? (
       <>
         {running ? `${prevLabel} w tym momencie` : prevLabel}: <b className="font-medium text-ink-2">{text}</b>
       </>

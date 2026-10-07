@@ -154,6 +154,9 @@ export function computeSeasonView(
   const asOf = running ? (yesterday < cur.start ? cur.start : yesterday) : cur.end;
   // Same day of the previous season as `asOf` is of this one.
   const asOfIdx = diffDaysIso(cur.start, asOf);
+  // Day 1 has no finished day yet: `asOf` is today, half-synced, and a full
+  // day of last season next to it reads as a -50% crash. No comparison then.
+  const compareIdx = running && asOf === today ? -1 : asOfIdx;
   const prevLen = seasonLength(prev);
 
   const totals = empty();
@@ -193,7 +196,7 @@ export function computeSeasonView(
     if (i < 0 || i >= prevLen) continue;
     add(prevDayTotals[i], r);
     add(prevFull, r);
-    if (i <= asOfIdx) {
+    if (i <= compareIdx) {
       add(prevSamePoint, r);
       const code = marketOf(r.campaign_name ?? "");
       if (code) add(market(code).prev, r);
