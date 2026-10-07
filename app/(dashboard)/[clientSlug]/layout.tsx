@@ -205,7 +205,6 @@ export default async function ClientDashboardLayout({
             clients={allClients}
           />
           <GuidedTour isAgency={isAgency} overviewPath={base} />
-          {snowing ? <Snowfall /> : null}
         </>
       }
       banner={
@@ -226,7 +225,13 @@ export default async function ClientDashboardLayout({
       }
       // Pages pad themselves (px-4 sm:px-6); phones clear the floating tab bar.
       mainClassName="pb-32 md:pb-12"
-      after={<Toaster />}
+      after={
+        <>
+          {/* Not in `overlays`: the shell renders those inside a hidden div. */}
+          {snowing ? <Snowfall /> : null}
+          <Toaster />
+        </>
+      }
     >
       {children}
     </AppShell>
