@@ -116,13 +116,20 @@ export function describeThrottle(err: MetaThrottledError): string {
  */
 export const AD_ACCOUNT_TOO_MANY_CALLS = 2446079;
 
+/**
+ * Insights throttling of ONE ad account: code 4 (normally the app-wide
+ * limit) with these subcodes. Read as app-wide, one busy account stopped
+ * every client of the run.
+ */
+const INSIGHTS_ACCOUNT_SUBCODES = new Set([1504022, 1504039]);
+
 /** Null = not a throttle. Exported for the unit tests. */
 export function throttleScope(
   code: number,
   httpStatus: number,
   subcode: number | null = null
 ): MetaThrottleScope | null {
-  if (code === 4) return "app";
+  if (code === 4) return subcode != null && INSIGHTS_ACCOUNT_SUBCODES.has(subcode) ? "account" : "app";
   if (code === 17) return subcode === AD_ACCOUNT_TOO_MANY_CALLS ? "account" : "user";
   if (subcode === AD_ACCOUNT_TOO_MANY_CALLS) return "account";
   if (code === 32 || code === 613 || (code >= 80000 && code <= 80014)) return "account";

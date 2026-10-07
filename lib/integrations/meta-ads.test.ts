@@ -10,6 +10,9 @@ import {
 
 test("code 4 is the app-wide limit", () => {
   assert.equal(throttleScope(4, 400), "app");
+  // Insights throttling of one ad account rides on code 4 too.
+  assert.equal(throttleScope(4, 400, 1504022), "account");
+  assert.equal(throttleScope(4, 400, 1504039), "account");
 });
 
 test("code 17 without the per-account subcode is the token's limit", () => {
