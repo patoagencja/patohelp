@@ -105,3 +105,10 @@ test("converter: average over a period resolves every calendar day", async () =>
   assert.equal(await fx.averageRate("USD", "2026-04-02", "2026-04-05"), 13 / 4);
   assert.equal(await fx.averageRate("PLN", "2026-04-02", "2026-04-05"), 1);
 });
+
+test("converter: no currency at all keeps złoty (an existing PLN client's sync must not stop)", async () => {
+  const fx = createFxConverter({ fetch: fakeNbp({}, [], 503), today: "2026-10-07" });
+  assert.equal(await fx.rate(null, "2026-04-07"), 1);
+  assert.equal(await fx.rate(undefined, "2026-04-07"), 1);
+  assert.equal(await fx.rate("", "2026-04-07"), 1);
+});

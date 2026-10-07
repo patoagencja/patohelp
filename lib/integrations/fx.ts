@@ -157,7 +157,14 @@ export function createFxConverter(opts: { fetch?: FxFetch; today?: string } = {}
 
   async function rate(currency: string | null | undefined, day: string): Promise<number | null> {
     const code = normalizeCurrency(currency);
-    if (!code || !ISO_DAY.test(day)) return null;
+    if (!ISO_DAY.test(day)) return null;
+    // No currency at all (field missing from a response and none stored)
+    // keeps the pre-FX behaviour - złoty - instead of halting the sync of
+    // every existing client; an account in another currency reports it
+    // (Meta account_currency, Google customer.currency_code). A currency
+    // that IS given but unreadable still gets no rate.
+    if (currency == null || String(currency).trim() === "") return 1;
+    if (!code) return null;
     if (code === "PLN") return 1;
     // An account in a timezone ahead of Warsaw can report "tomorrow".
     const d = day > today ? today : day;
