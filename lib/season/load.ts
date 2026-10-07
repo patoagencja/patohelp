@@ -11,6 +11,8 @@ import {
   addDaysIso,
   diffDaysIso,
   parseSeason,
+  parseSeasonBudget,
+  type SeasonBudgetConfig,
   seasonLength,
   seasonMoments,
   seasonState,
@@ -35,6 +37,17 @@ export const getClientSeason = cache(async (clientId: string): Promise<SeasonCon
     .maybeSingle();
   if (error || !data) return null;
   return parseSeason((data as { season?: unknown }).season);
+});
+
+/** The season budget; null when unset or before migration 0040. */
+export const getClientSeasonBudget = cache(async (clientId: string): Promise<SeasonBudgetConfig | null> => {
+  const { data, error } = await createClient()
+    .from("clients")
+    .select("season_budget")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return parseSeasonBudget((data as { season_budget?: unknown }).season_budget);
 });
 
 export interface SeasonTotals {
@@ -66,6 +79,16 @@ export interface SeasonMarket {
   cur: SeasonTotals;
   /** The previous season up to the same day (in season) or in full. */
   prev: SeasonTotals;
+}
+
+/** One market's ads per season day (index = SeasonDay.i). */
+export interface SeasonMarketDays {
+  /** This season through `asOf`; null = not happened yet. */
+  spend: Array<number | null>;
+  value: Array<number | null>;
+  /** The previous season in full, on its own day index (its length). */
+  prevSpend: number[];
+  prevValue: number[];
 }
 
 export interface SeasonView {
@@ -101,6 +124,8 @@ export interface SeasonView {
   prevMoments: Array<SeasonMoment & { i: number }>;
   days: SeasonDay[];
   markets: SeasonMarket[];
+  /** Daily ads per market code (Rynki, the budget split by market). */
+  marketDays: Record<string, SeasonMarketDays>;
   /** Share of spend whose campaign names carry no market (0..1). */
   unmappedShare: number;
   moments: Array<SeasonMoment & { i: number }>;
@@ -190,6 +215,14 @@ export function computeSeasonView(
   };
   let mappedSpend = 0;
   let allSpend = 0;
+  const marketDays: Record<string, SeasonMarketDays> = {};
+  const marketDay = (code: string) =>
+    (marketDays[code] ??= {
+      spend: Array.from({ length: len }, () => null),
+      value: Array.from({ length: len }, () => null),
+      prevSpend: Array.from({ length: prevLen }, () => 0),
+      prevValue: Array.from({ length: prevLen }, () => 0),
+    });
 
   for (const r of curRows) {
     const i = diffDaysIso(cur.start, r.date);
@@ -204,6 +237,9 @@ export function computeSeasonView(
     if (code) {
       mappedSpend += spend;
       add(market(code).cur, r);
+      const md = marketDay(code);
+      md.spend[i] = (md.spend[i] ?? 0) + spend;
+      md.value[i] = (md.value[i] ?? 0) + Math.round((Number(r.purchase_value ?? 0) || 0) * 100);
     }
   }
   for (const r of prevRows) {
@@ -211,6 +247,12 @@ export function computeSeasonView(
     if (i < 0 || i >= prevLen) continue;
     add(prevDayTotals[i], r);
     add(prevFull, r);
+    const prevCode = marketOf(r.campaign_name ?? "");
+    if (prevCode) {
+      const md = marketDay(prevCode);
+      md.prevSpend[i] += Number(r.spend_minor_units ?? 0);
+      md.prevValue[i] += Math.round((Number(r.purchase_value ?? 0) || 0) * 100);
+    }
     if (i <= compareIdx) {
       add(prevSamePoint, r);
       const code = marketOf(r.campaign_name ?? "");
@@ -318,6 +360,7 @@ export function computeSeasonView(
     markets: [...markets.values()].sort(
       (a, b) => b.cur.value - a.cur.value || b.cur.spend - a.cur.spend || b.prev.value - a.prev.value
     ),
+    marketDays,
     unmappedShare: allSpend > 0 ? 1 - mappedSpend / allSpend : 0,
     moments: seasonMoments(cur).map((m) => ({ ...m, i: diffDaysIso(cur.start, m.date) })),
     prevMoments: seasonMoments(prev)

@@ -90,6 +90,12 @@ export function ConnectedToast({
       toast.error(
         "Zaznacz przynajmniej jedno konto. Bez zaznaczonych kont nic się nie pobiera - żeby wyłączyć źródło, użyj „Rozłącz”."
       );
+    } else if (error === "season_budget_bad") {
+      toast.error("Wpisz budżet w złotych, np. 1 500 000.");
+    } else if (error === "season_budget_migration") {
+      toast.warning(
+        "W bazie brakuje kolumny budżetu. Uruchom supabase/migrations/0040_season_budget.sql w Supabase SQL Editor."
+      );
     } else if (error === "season_migration") {
       toast.warning(
         "Typ klienta zapisany, ale sezon nie - w bazie brakuje kolumny. Uruchom supabase/migrations/ALL_RECENT_7.sql w Supabase SQL Editor."
@@ -131,6 +137,8 @@ export function ConnectedToast({
       toast.success("Zapisano marżę i cele sprzedaży");
     } else if (saved === "season") {
       toast.success("Zapisano typ klienta i sezon");
+    } else if (saved === "season_budget") {
+      toast.success("Zapisano budżet sezonu");
     } else if (saved === "notifications") {
       toast.success("Zapisano ustawienia powiadomień");
     } else if (saved?.startsWith("access")) {

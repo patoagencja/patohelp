@@ -41,6 +41,7 @@ export default async function SeasonPage({ params }: { params: { clientSlug: str
       view={view}
       showRevenue={client.clientType === "ecommerce"}
       isAgency={viewer.isAgency}
+      tabsBase={`/${params.clientSlug}/sezon`}
     />
   );
 }

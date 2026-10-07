@@ -54,10 +54,22 @@ export interface SeasonShop {
   pendingDays: Array<number | null>;
   /** Per market code ('' = the shop didn't say). */
   markets: Record<string, { cur: ShopTotals; prev: ShopTotals }>;
+  /**
+   * Per market, per season day (index = SeasonDay.i): this season through
+   * `asOf` and the previous season in full (null = nothing reported).
+   */
+  marketDays: Record<string, ShopMarketDays>;
   /** Products by this season's revenue; empty when the shop sends none. */
   products: SeasonShopProduct[];
   forecast: SeasonForecast | null;
   bestDay: { date: string; revenue: number } | null;
+}
+
+export interface ShopMarketDays {
+  revenue: Array<number | null>;
+  orders: Array<number | null>;
+  prevRevenue: Array<number | null>;
+  prevOrders: Array<number | null>;
 }
 
 const empty = (): ShopTotals => ({ orders: 0, revenue: 0 });
@@ -101,6 +113,10 @@ export function computeSeasonShop(
   const prevDays: Array<number | null> = Array.from({ length: len }, () => null);
   const markets: SeasonShop["markets"] = {};
   const market = (code: string) => (markets[code] ??= { cur: empty(), prev: empty() });
+  const marketDays: SeasonShop["marketDays"] = {};
+  const nulls = () => Array.from({ length: len }, () => null as number | null);
+  const marketDay = (code: string) =>
+    (marketDays[code] ??= { revenue: nulls(), orders: nulls(), prevRevenue: nulls(), prevOrders: nulls() });
   const pending = empty();
   const products = new Map<string, SeasonShopProduct>();
   const product = (name: string) => {
@@ -121,13 +137,21 @@ export function computeSeasonShop(
     if (i > asOfIdx) continue;
     add(totals, r);
     add(market(r.market).cur, r);
+    const md = marketDay(r.market);
+    md.revenue[i] = (md.revenue[i] ?? 0) + r.revenue;
+    md.orders[i] = (md.orders[i] ?? 0) + r.orders;
     if (r.product) add(product(r.product).cur, r);
   }
   for (const r of prevRows) {
     const i = diffDaysIso(prev.start, r.date);
     if (i < 0 || i >= prevLen) continue;
     add(prevFull, r);
-    if (i < len) prevDays[i] = (prevDays[i] ?? 0) + r.revenue;
+    if (i < len) {
+      prevDays[i] = (prevDays[i] ?? 0) + r.revenue;
+      const md = marketDay(r.market);
+      md.prevRevenue[i] = (md.prevRevenue[i] ?? 0) + r.revenue;
+      md.prevOrders[i] = (md.prevOrders[i] ?? 0) + r.orders;
+    }
     if (i <= cmpIdx) {
       add(prevSamePoint, r);
       add(market(r.market).prev, r);
@@ -171,6 +195,7 @@ export function computeSeasonShop(
     orderDays,
     pendingDays,
     markets,
+    marketDays,
     products: [...products.values()].sort(
       (a, b) => b.cur.revenue - a.cur.revenue || b.prev.revenue - a.prev.revenue
     ),

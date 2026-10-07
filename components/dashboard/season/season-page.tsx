@@ -14,6 +14,7 @@ import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
 import { coversWigilia } from "@/lib/season/festive";
 
 import { SantaHat } from "./festive";
+import { SeasonTabs } from "./season-tabs";
 import { SeasonChart } from "./season-chart";
 import { SeasonMarkets } from "./season-markets";
 import { SeasonProducts } from "./season-products";
@@ -42,8 +43,11 @@ export function SeasonPageView({
   showRevenue,
   isAgency,
   eyebrowExtra,
+  tabsBase,
 }: {
   view: SeasonView;
+  /** "/elfi/sezon": shows the Sezon | Budżet | Rynki switch. */
+  tabsBase?: string;
   /** Shop clients: sales and returns. Others see clicks and cost only. */
   showRevenue: boolean;
   isAgency: boolean;
@@ -286,7 +290,8 @@ export function SeasonPageView({
 
   return (
     <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
-      <div className="relative">
+      <div className="relative space-y-5">
+        {tabsBase ? <SeasonTabs base={tabsBase} active="sezon" /> : null}
         <PageHeader
           className="relative"
           eyebrow={

@@ -22,7 +22,7 @@ export default function DemoSeasonPage({
     <>
       {/* The real dashboard snows from its layout; the demo shell doesn't. */}
       {view.state.phase === "in" ? <Snowfall /> : null}
-      <SeasonPageView view={view} showRevenue isAgency={false} eyebrowExtra=" · dane przykładowe" />
+      <SeasonPageView view={view} showRevenue isAgency={false} eyebrowExtra=" · dane przykładowe" tabsBase="/demo-full/sezon" />
     </>
   );
 }

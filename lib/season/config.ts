@@ -187,3 +187,15 @@ export function dayMonthLong(iso: string): string {
 export function daysWord(n: number): string {
   return n === 1 ? "dzień" : "dni";
 }
+
+/** The season's ad budget (clients.season_budget, migration 0040). */
+export interface SeasonBudgetConfig {
+  /** Whole season, all platforms, in grosze. */
+  total: number;
+}
+
+export function parseSeasonBudget(raw: unknown): SeasonBudgetConfig | null {
+  if (!raw || typeof raw !== "object") return null;
+  const total = Number((raw as { total?: unknown }).total);
+  return Number.isFinite(total) && total > 0 ? { total: Math.round(total) } : null;
+}

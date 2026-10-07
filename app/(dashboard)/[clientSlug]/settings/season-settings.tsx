@@ -5,6 +5,7 @@ import {
   dayMonthLong,
   daysWord,
   parseSeason,
+  parseSeasonBudget,
   seasonLength,
   seasonWindow,
   type SeasonConfig,
@@ -12,7 +13,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 
 import { CHECKBOX_CLASS, FIELD_CLASS, RADIO_CLASS } from "./form-styles";
-import { saveSeasonSettings } from "./season-actions";
+import { saveSeasonBudget, saveSeasonSettings } from "./season-actions";
 import { SettingsHeading } from "./settings-heading";
 
 /** Christmas trade: the window the first seasonal client lives on. */
@@ -91,10 +92,13 @@ export async function SeasonSettingsSection({
   clientSlug: string;
 }) {
   const admin = createAdminClient();
-  const [typeRes, seasonRes] = await Promise.all([
+  const [typeRes, seasonRes, budgetRes] = await Promise.all([
     admin.from("clients").select("client_type").eq("id", clientId).maybeSingle(),
     admin.from("clients").select("season").eq("id", clientId).maybeSingle(),
+    admin.from("clients").select("season_budget").eq("id", clientId).maybeSingle(),
   ]);
+  const budgetAvailable = !budgetRes.error;
+  const budget = parseSeasonBudget((budgetRes.data as { season_budget?: unknown } | null)?.season_budget);
   const typeAvailable = !typeRes.error;
   const seasonAvailable = !seasonRes.error;
   const clientType =
@@ -228,6 +232,52 @@ export async function SeasonSettingsSection({
           </CardContent>
         </Card>
       )}
+
+      {season ? (
+        <Card className="max-w-2xl">
+          <CardContent className="pt-6">
+            <form action={saveSeasonBudget} className="flex flex-col gap-4">
+              <input type="hidden" name="client" value={clientSlug} />
+              <div className="space-y-1">
+                <label htmlFor="season-budget" className="text-sm font-medium">
+                  Budżet sezonu na reklamy
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Łącznie na wszystkie platformy i rynki, netto. Panel rozłoży go na dni tak, jak
+                  szły wydatki w zeszłym sezonie, i na rynki według ich udziału - klient zobaczy
+                  plan w zakładce Sezon → Budżet. Puste pole usuwa budżet.
+                </p>
+              </div>
+              {budgetAvailable ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative">
+                    <input
+                      id="season-budget"
+                      name="budget"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="np. 3 000 000"
+                      defaultValue={budget ? (budget.total / 100).toLocaleString("pl-PL") : ""}
+                      className={`${FIELD_CLASS} w-56 pr-10 tabular-nums`}
+                    />
+                    <span aria-hidden className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink-3">
+                      zł
+                    </span>
+                  </div>
+                  <Button type="submit" size="pill" className="w-fit">
+                    Zapisz budżet
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-warning">
+                  Najpierw uruchom <code className="rounded bg-muted px-1">0040_season_budget.sql</code> w
+                  Supabase SQL Editor.
+                </p>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

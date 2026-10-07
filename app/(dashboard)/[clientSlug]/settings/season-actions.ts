@@ -111,3 +111,39 @@ export async function saveSeasonSettings(formData: FormData) {
   revalidatePath(`/${clientSlug}`, "layout");
   redirect(back("saved=season"));
 }
+
+// "12 000", "12000,50", "1 200 000 zł" -> grosze; empty clears the budget.
+const BudgetZl = z
+  .string()
+  .max(40)
+  .transform((s) => s.replace(/zł/gi, "").replace(/[\s ]/g, "").replace(",", "."))
+  .refine((s) => s === "" || /^\d+(\.\d{1,2})?$/.test(s))
+  .transform((s) => (s === "" ? null : Math.round(Number(s) * 100)))
+  .refine((v) => v === null || (v > 0 && v <= 100_000_000_000));
+
+/**
+ * Save the season's ad budget (agency only). Drives "Budżet sezonu": the
+ * plan is spread over the days along last season's spending.
+ */
+export async function saveSeasonBudget(formData: FormData) {
+  const slug = z.string().min(1).max(100).safeParse(formData.get("client"));
+  if (!slug.success) return;
+  const clientSlug = slug.data;
+  const access = await requireAgencyClientAccess(clientSlug);
+  if (!access.ok) return;
+  const back = (param: string) => `/${clientSlug}/settings?${param}#sezon`;
+
+  const parsed = BudgetZl.safeParse(String(formData.get("budget") ?? ""));
+  if (!parsed.success) redirect(back("error=season_budget_bad"));
+
+  const { error } = await createAdminClient()
+    .from("clients")
+    .update({ season_budget: parsed.data === null ? null : { total: parsed.data } })
+    .eq("id", access.clientId);
+  if (error) {
+    if (!isMissingColumn(error)) console.error("[settings] season budget save failed", error);
+    redirect(back(isMissingColumn(error) ? "error=season_budget_migration" : "error=season_failed"));
+  }
+  revalidatePath(`/${clientSlug}`, "layout");
+  redirect(back("saved=season_budget"));
+}
