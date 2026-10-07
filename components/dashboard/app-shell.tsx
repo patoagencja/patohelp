@@ -107,7 +107,7 @@ export function AppShell({
             isEcommerce={isEcommerce}
             isAgency={isAgency}
             omit={omit}
-            className="order-last hidden w-full justify-between md:flex xl:order-none xl:w-auto xl:justify-start"
+            className="order-last hidden w-full justify-between md:flex xl:order-none xl:w-auto xl:min-w-0 xl:shrink xl:justify-start xl:overflow-x-auto xl:[scrollbar-width:none]"
           />
 
           <div className="ml-auto hidden items-center px-1.5 md:flex">{live}</div>

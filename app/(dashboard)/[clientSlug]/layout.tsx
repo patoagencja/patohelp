@@ -119,12 +119,9 @@ export default async function ClientDashboardLayout({
       live={
         <LiveStamp
           initialStamp={lastSyncAt}
-          // Agency extras (switcher, Odśwież) need the room below 2xl.
-          textClassName={
-            isAgency
-              ? "sr-only 2xl:not-sr-only 2xl:whitespace-nowrap"
-              : "sr-only xl:not-sr-only xl:whitespace-nowrap"
-          }
+          // Agency bars carry the client switcher and Odśwież: the dot alone
+          // (time in its tooltip) keeps every button inside the bar.
+          textClassName={isAgency ? "sr-only" : "sr-only xl:not-sr-only xl:whitespace-nowrap"}
         />
       }
       phoneLive={<LiveStamp initialStamp={lastSyncAt} className="gap-1.5 text-[11.5px]" textClassName="truncate" />}
@@ -151,11 +148,11 @@ export default async function ClientDashboardLayout({
       }
       presentation={
         <PresentationMode
-          className={isAgency ? "max-md:w-11 max-md:px-0 xl:max-2xl:w-11 xl:max-2xl:px-0" : "max-md:w-11 max-md:px-0"}
+          className={isAgency ? "max-md:w-11 max-md:px-0 xl:w-11 xl:px-0" : "max-md:w-11 max-md:px-0"}
           labelClassName={
             // Agency bars also carry Odśwież (+ the client switcher at 2xl):
             // the word only fits next to them on the widest screens.
-            isAgency ? "hidden md:max-xl:inline 2xl:inline" : "hidden md:max-xl:inline xl:inline"
+            isAgency ? "hidden md:max-xl:inline" : "hidden md:max-xl:inline xl:inline"
           }
           brand={
             client ? (

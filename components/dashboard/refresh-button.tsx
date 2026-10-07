@@ -50,7 +50,7 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
       title="Odśwież dane"
     >
       <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-      <span className="hidden 2xl:inline">{loading ? "Odświeżam…" : "Odśwież"}</span>
+      <span className="sr-only">{loading ? "Odświeżam…" : "Odśwież"}</span>
     </Button>
   );
 }
