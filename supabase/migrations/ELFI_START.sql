@@ -8,6 +8,7 @@
 --   2. ALL_RECENT_8  - sprzedaż ze sklepu (API + CSV)
 --   3. ALL_RECENT_9  - reklamy Meta dzień po dniu (testy kreacji)
 --   4. klient Elfi: sklep, sezon 1 października - 24 grudnia, adres /elfi
+--   5. usunięcie klienta MIRACLE (/themiraclemakers) razem z jego danymi
 --
 -- Po uruchomieniu Elfi jest na liście klientów w panelu. Dalej: Ustawienia
 -- Elfi -> podłącz Meta i Google -> zaznacz konta -> wygeneruj klucz API
@@ -330,4 +331,9 @@ on conflict (slug) do update
   set client_type = excluded.client_type,
       season = excluded.season;
 
-select id, name, slug, client_type, season from public.clients where slug = 'elfi';
+-- ===================================================== 5. usunięcie MIRACLE
+-- Kasuje klienta i wszystko, co do niego należy (integracje, dane reklam,
+-- cele, alerty). Konta logowania klienta zostają, ale bez dostępu do niczego.
+delete from public.clients where slug = 'themiraclemakers';
+
+select id, name, slug, client_type, season from public.clients order by name;
