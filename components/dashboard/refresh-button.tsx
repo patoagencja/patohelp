@@ -46,9 +46,11 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
       onClick={refresh}
       disabled={loading}
       className="gap-1.5"
+      aria-label={loading ? "Odświeżam dane" : "Odśwież dane"}
+      title="Odśwież dane"
     >
       <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-      <span className="hidden sm:inline">{loading ? "Odświeżam…" : "Odśwież"}</span>
+      <span className="hidden 2xl:inline">{loading ? "Odświeżam…" : "Odśwież"}</span>
     </Button>
   );
 }

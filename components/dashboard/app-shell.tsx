@@ -1,5 +1,6 @@
 import { PageName, TopNav } from "@/components/dashboard/top-nav";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { AgencySignature, AgencyWatermark } from "@/components/ui/agency-mark";
 import { Sky } from "@/components/ui/sky";
 import { Spotlight } from "@/components/ui/spotlight";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,7 @@ export function AppShell({
         Przejdź do treści
       </a>
       <Sky />
+      <AgencyWatermark />
       <Spotlight />
       <div className="hidden">{overlays}</div>
 
@@ -84,7 +86,7 @@ export function AppShell({
         data-present-hide
         className="pointer-events-none sticky top-0 z-30 mx-auto w-full max-w-[80rem] px-3 pt-2.5 sm:px-6 md:pt-3.5 print:hidden"
       >
-        <header className="glass glass-blur pointer-events-auto flex min-h-[62px] flex-wrap items-center gap-2 rounded-[31px] py-[7px] pl-4 pr-2 md:min-h-16 md:gap-2.5 md:rounded-[32px] md:py-2 md:pl-[18px] lg:flex-nowrap lg:rounded-full">
+        <header className="glass glass-blur pointer-events-auto flex min-h-[62px] flex-wrap items-center gap-2 rounded-[31px] py-[7px] pl-4 pr-2 md:min-h-16 md:gap-2.5 md:rounded-[32px] md:py-2 md:pl-[18px] xl:flex-nowrap xl:rounded-full">
           {/* Brand: the logo leads; phones get a smaller mark + page name. */}
           <div className="hidden min-w-0 shrink-0 items-center md:mr-1.5 md:flex">{brand}</div>
           <div className="flex min-w-0 flex-1 items-center gap-2.5 md:hidden">
@@ -105,7 +107,7 @@ export function AppShell({
             isEcommerce={isEcommerce}
             isAgency={isAgency}
             omit={omit}
-            className="order-last hidden w-full justify-between md:flex lg:order-none lg:w-auto lg:justify-start"
+            className="order-last hidden w-full justify-between md:flex xl:order-none xl:w-auto xl:justify-start"
           />
 
           <div className="ml-auto hidden items-center px-1.5 md:flex">{live}</div>
@@ -125,6 +127,7 @@ export function AppShell({
         {banner}
         {children}
       </main>
+      <AgencySignature />
       {after}
     </div>
   );

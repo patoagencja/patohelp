@@ -20,6 +20,7 @@ import {
   type CreativeRow,
 } from "@/components/dashboard/top-creatives";
 import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
+import { AgencySignature, AgencyWatermark } from "@/components/ui/agency-mark";
 import { Sky } from "@/components/ui/sky";
 import {
   RANGE_KEYS,
@@ -251,6 +252,7 @@ export default async function SharedOverviewPage({
       style={clientAccentStyle(branding.brandColor)}
     >
       <Sky />
+      <AgencyWatermark />
       <div
         data-present-hide
         className="pointer-events-none sticky top-0 z-30 mx-auto w-full max-w-6xl px-3 pt-2.5 sm:px-6 md:pt-3.5 print:hidden"
@@ -365,13 +367,7 @@ export default async function SharedOverviewPage({
         </div>
       </main>
 
-      <footer
-        data-present-hide
-        className="pb-8 text-center font-mono text-[11px] tracking-[0.06em] text-ink-3 print:hidden"
-      >
-        Dane z platform reklamowych i Google Analytics 4 · przygotowane przez
-        Pato
-      </footer>
+      <AgencySignature className="pb-10" />
     </div>
   );
 }

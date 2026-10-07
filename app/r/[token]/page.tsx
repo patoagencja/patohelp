@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
+import { AgencySignature, AgencyWatermark } from "@/components/ui/agency-mark";
 import { Sky } from "@/components/ui/sky";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
@@ -72,6 +73,7 @@ export default async function SharedReportPage({
     // relative + isolate: the pastel sky sits under the content.
     <div className="relative isolate min-h-screen bg-background">
       <Sky />
+      <AgencyWatermark />
       <div className="pointer-events-none sticky top-0 z-30 mx-auto w-full max-w-6xl px-3 pt-2.5 sm:px-6 md:pt-3.5 print:hidden">
         <header className="glass glass-blur pointer-events-auto flex min-h-[62px] items-center justify-between gap-3 rounded-full py-2 pl-5 pr-5 md:min-h-16">
           <span className="flex min-w-0 flex-col leading-tight">
@@ -97,10 +99,7 @@ export default async function SharedReportPage({
         </ReportDeck>
       </main>
 
-      <footer className="px-4 pb-8 text-center font-mono text-[11px] tracking-[0.06em] text-ink-3 print:hidden">
-        Raport wygenerowany automatycznie przez patoagencja · dane z Meta Ads,
-        Google Ads i TikTok Ads
-      </footer>
+      <AgencySignature className="pb-10" />
     </div>
   );
 }

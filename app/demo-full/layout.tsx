@@ -58,8 +58,8 @@ export default function DemoFullLayout({
       bell={<AlertsBell href={`${BASE}/alerty`} count={countAttentionAlerts(getDemoDashboard().alertsFull)} />}
       presentation={
         <PresentationMode
-          className="max-md:w-11 max-md:px-0 lg:max-xl:w-11 lg:max-xl:px-0"
-          labelClassName="hidden md:max-lg:inline xl:inline"
+          className="max-md:w-11 max-md:px-0"
+          labelClassName="hidden md:max-xl:inline xl:inline"
           brand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-8" />}
         />
       }

@@ -151,8 +151,12 @@ export default async function ClientDashboardLayout({
       }
       presentation={
         <PresentationMode
-          className="max-md:w-11 max-md:px-0 lg:max-xl:w-11 lg:max-xl:px-0"
-          labelClassName="hidden md:max-lg:inline xl:inline"
+          className={isAgency ? "max-md:w-11 max-md:px-0 xl:max-2xl:w-11 xl:max-2xl:px-0" : "max-md:w-11 max-md:px-0"}
+          labelClassName={
+            // Agency bars also carry Odśwież (+ the client switcher at 2xl):
+            // the word only fits next to them on the widest screens.
+            isAgency ? "hidden md:max-xl:inline 2xl:inline" : "hidden md:max-xl:inline xl:inline"
+          }
           brand={
             client ? (
               <ClientBrandMark

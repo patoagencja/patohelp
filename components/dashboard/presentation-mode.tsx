@@ -1,5 +1,6 @@
 "use client";
 
+import { AgencyMark } from "@/components/ui/agency-mark";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatInTimeZone } from "date-fns-tz";
@@ -433,6 +434,9 @@ export function PresentationMode({
                   · Raport · {month}
                 </span>
                 <span className="flex-1" />
+                <span className="hidden text-[clamp(.9rem,1vw,1.15rem)] text-ink-3 lg:inline">
+                  <AgencyMark />
+                </span>
                 <span className="font-mono text-[clamp(.8rem,.95vw,1.1rem)] tabular-nums text-ink-3" aria-live="polite">
                   <span className="sr-only">Slajd </span>
                   <b className="font-medium text-foreground">{position.total > 0 ? pad(position.index + 1) : "–"}</b>
