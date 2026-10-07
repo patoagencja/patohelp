@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { detectCreativeAlerts } from "@/lib/alerts/creative-tests";
-import { getPacing } from "@/lib/alerts/pacing";
+import { getPacing, type FlightMetric } from "@/lib/alerts/pacing";
 import { describeError } from "@/lib/integrations/errors";
 import {
   getExpiringTokens,
@@ -42,6 +42,26 @@ interface Settings {
   daily_spend_cap_minor_units: number | null;
   account_daily_spend_cap_minor_units: number | null;
   spike_multiplier: number | null;
+}
+
+const plusDaysIso = (iso: string, n: number) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const GOAL_UNIT: Record<FlightMetric, string> = {
+  clicks: "kliknięć w link",
+  clicks_all: "kliknięć",
+  impressions: "wyświetleń",
+  spend: "zł",
+  conversions: "konwersji",
+};
+
+/** "1 240 kliknięć w link", "5 300 zł" (spend is stored in grosze). */
+function goalValue(metric: FlightMetric, value: number): string {
+  const n = metric === "spend" ? Math.round(value / 100) : Math.round(value);
+  return `${n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ${GOAL_UNIT[metric]}`;
 }
 
 export async function GET(request: Request) {
@@ -207,8 +227,43 @@ export async function GET(request: Request) {
             scope: a.scopeLabel,
           });
         }
+        // Goal reached: once per goal ever (not once a day like the rest),
+        // the moment it crosses 100% - the agency wants to know an ad set
+        // has done its job so the budget can move. A goal that finished
+        // reached more than 2 days ago is old news, not sent.
+        for (const f of pacing) {
+          if (f.target <= 0 || f.realized < f.target) continue;
+          if (f.status === "upcoming") continue;
+          if (f.status === "ended" && f.endDate < plusDaysIso(today, -2)) continue;
+          const key = `goal-done-${f.id}`;
+          const { data: already } = await admin
+            .from("notifications_sent")
+            .select("id")
+            .eq("client_id", s.client_id)
+            .eq("alert_key", key)
+            .limit(1);
+          if (already && already.length > 0) continue;
+          const left = Math.max(f.daysLeft, 0);
+          items.push({
+            key,
+            success: true,
+            title: `Cel osiągnięty: ${f.adsetName ?? f.campaignName}`,
+            detail: `${goalValue(f.metric, f.realized)} z ${goalValue(f.metric, f.target)} (${Math.round(
+              f.realizedPct * 100
+            )}% celu)${
+              f.status === "ended"
+                ? "."
+                : left > 0
+                  ? `, ${left} ${left === 1 ? "dzień" : "dni"} przed końcem - można przesunąć budżet.`
+                  : " - ostatni dzień."
+            }`,
+            scope: f.adsetName ? `Zestaw w kampanii ${f.campaignName}` : "Cel kampanii",
+          });
+        }
         for (const f of pacing) {
           if (f.status !== "behind") continue;
+          // Reached goals are reported above, never as "nie dowozi".
+          if (f.target > 0 && f.realized >= f.target) continue;
           items.push({
             key: `pacing-${f.id}`,
             title: `Nie dowozi: ${f.adsetName ? `${f.adsetName} (${f.campaignName})` : f.campaignName}`,
@@ -235,7 +290,13 @@ export async function GET(request: Request) {
       if (fresh.length === 0) continue;
 
       const digest = buildDigest(clientName, fresh);
-      const subject = `Alerty — ${clientName} (${fresh.length})`;
+      const reached = fresh.filter((i) => i.success).length;
+      const subject =
+        reached === fresh.length
+          ? reached === 1
+            ? `Cel osiągnięty — ${clientName}: ${fresh[0].title.replace(/^Cel osiągnięty: /, "")}`
+            : `Cele osiągnięte — ${clientName} (${reached})`
+          : `Alerty — ${clientName} (${fresh.length})`;
 
       if (s.email_enabled) await sendEmail(s.emails ?? [], subject, digest.html);
       if (s.whatsapp_enabled)

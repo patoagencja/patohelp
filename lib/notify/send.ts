@@ -8,6 +8,8 @@ export interface AlertItem {
   detail: string;
   scope: string;
   critical?: boolean;
+  /** Good news (a goal reached): green row, never counted as a problem. */
+  success?: boolean;
 }
 
 // Escape for Telegram/HTML parse mode (only these three matter for HTML mode).
@@ -28,29 +30,32 @@ const stripLeadEmoji = (s: string) =>
 
 /** Build plaintext + email HTML + Telegram HTML digests (critical first). */
 export function buildDigest(clientName: string, items: AlertItem[]) {
-  const sorted = [...items].sort(
-    (a, b) => Number(Boolean(b.critical)) - Number(Boolean(a.critical))
-  );
+  // Critical first, good news last.
+  const rank = (i: AlertItem) => (i.critical ? 0 : i.success ? 2 : 1);
+  const sorted = [...items].sort((a, b) => rank(a) - rank(b));
   const hasCritical = sorted.some((i) => i.critical);
+  // Only goals reached: a congratulation, not an "Alerty" mail.
+  const allSuccess = sorted.length > 0 && sorted.every((i) => i.success);
+  const problems = sorted.filter((i) => !i.success).length;
 
   // Plaintext (WhatsApp / fallback).
   const lines = sorted.map(
-    (i) => `${i.critical ? "🚨 " : "• "}${i.title} - ${i.scope}: ${i.detail}`
+    (i) => `${i.critical ? "🚨 " : i.success ? "✅ " : "• "}${i.title} - ${i.scope}: ${i.detail}`
   );
-  const text = `${hasCritical ? "PILNE - " : ""}Alerty dla ${clientName} (${
+  const text = `${hasCritical ? "PILNE - " : ""}${allSuccess ? "Cele osiągnięte" : "Alerty"} dla ${clientName} (${
     sorted.length
   }):\n\n${lines.join("\n")}`;
 
   // Email HTML - table-based, inline styles (email-client safe): a coloured
   // header band, then one row per alert with an icon tile, title/scope/detail
   // and a severity pill.
-  const headerBg = hasCritical ? "#dc2626" : "#4f46e5";
+  const headerBg = hasCritical ? "#dc2626" : allSuccess ? "#16a34a" : "#4f46e5";
   const rowsHtml = sorted
     .map((i) => {
-      const icon = i.critical ? "🚨" : "⚠️";
-      const tileBg = i.critical ? "#fee2e2" : "#eef2ff";
-      const pillBg = i.critical ? "#dc2626" : "#f59e0b";
-      const pillText = i.critical ? "Pilne" : "Ważne";
+      const icon = i.critical ? "🚨" : i.success ? "✅" : "⚠️";
+      const tileBg = i.critical ? "#fee2e2" : i.success ? "#dcfce7" : "#eef2ff";
+      const pillBg = i.critical ? "#dc2626" : i.success ? "#16a34a" : "#f59e0b";
+      const pillText = i.critical ? "Pilne" : i.success ? "Cel osiągnięty" : "Ważne";
       return `
         <tr>
           <td style="padding:0 24px">
@@ -79,8 +84,12 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
     <table role="presentation" width="100%" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;border-collapse:separate;overflow:hidden">
       <tr>
         <td style="background:${headerBg};padding:22px 24px;color:#ffffff">
-          <div style="font-size:19px;font-weight:800;letter-spacing:-0.2px">${hasCritical ? "🚨 PILNE · " : "📊 "}Alerty - ${esc(clientName)}</div>
-          <div style="font-size:13px;margin-top:4px;color:#ffffff;opacity:0.9">Do sprawdzenia: ${sorted.length}</div>
+          <div style="font-size:19px;font-weight:800;letter-spacing:-0.2px">${hasCritical ? "🚨 PILNE · " : allSuccess ? "🎯 " : "📊 "}${allSuccess ? "Cel osiągnięty" : "Alerty"} - ${esc(clientName)}</div>
+          <div style="font-size:13px;margin-top:4px;color:#ffffff;opacity:0.9">${
+            allSuccess
+              ? `Osiągnięte cele: ${sorted.length}`
+              : `Do sprawdzenia: ${problems}${sorted.length > problems ? ` · osiągnięte cele: ${sorted.length - problems}` : ""}`
+          }</div>
         </td>
       </tr>
       ${rowsHtml}
@@ -99,12 +108,14 @@ export function buildDigest(clientName: string, items: AlertItem[]) {
 
   const tgHeader = hasCritical
     ? `🚨 <b>PILNE - Alerty ${esc(clientName)}</b>`
-    : `📊 <b>Alerty - ${esc(clientName)}</b>`;
+    : allSuccess
+      ? `🎯 <b>Cel osiągnięty - ${esc(clientName)}</b>`
+      : `📊 <b>Alerty - ${esc(clientName)}</b>`;
 
   const tgBody = sorted
     .slice(0, TG_MAX)
     .map((i) => {
-      const icon = i.critical ? "🔴" : "🟡";
+      const icon = i.critical ? "🔴" : i.success ? "✅" : "🟡";
       const scope = tidyScope(i.scope);
       const scopeLine =
         scope && scope !== "Całe konto"
