@@ -15,23 +15,61 @@ import { cn } from "@/lib/utils";
  */
 export function SeasonMarkets({
   markets,
+  shopMarkets,
   showRevenue,
   prevGen,
   unmappedShare,
   isAgency,
 }: {
   markets: SeasonMarket[];
+  /** The shop's own sales per market (SeasonShop.markets), when it sends them. */
+  shopMarkets?: Record<string, { cur: { revenue: number }; prev: { revenue: number } }> | null;
   showRevenue: boolean;
   /** "sezonu 2025" (genitive). */
   prevGen: string;
   unmappedShare: number;
   isAgency: boolean;
 }) {
-  const metric = (t: SeasonMarket["cur"]) => (showRevenue ? t.value : t.clicks);
-  const total = markets.reduce((a, m) => a + metric(m.cur), 0);
+  const adByCode = new Map(markets.map((m) => [m.code, m]));
+  const shopCodes = shopMarkets ? Object.keys(shopMarkets).filter((c) => c !== "") : [];
+  // With a shop feed split by country the table ranks markets by real sales
+  // and shows MER per market (that market's sales / its ad spend).
+  const byShop = showRevenue && shopCodes.length >= 2;
+  type Row = { code: string; v: number; prev: number; sub: string };
+  let rows: Row[];
+  if (byShop) {
+    const codes = Array.from(new Set([...shopCodes, ...markets.map((m) => m.code)]));
+    const total = codes.reduce((a, c) => a + (shopMarkets![c]?.cur.revenue ?? 0), 0);
+    rows = codes
+      .map((code) => {
+        const v = shopMarkets![code]?.cur.revenue ?? 0;
+        const spend = adByCode.get(code)?.cur.spend ?? 0;
+        const share = total > 0 ? Math.round((v / total) * 100) : 0;
+        const merText = spend > 0 && v > 0 ? `MER ${(v / spend).toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}×` : "bez reklam";
+        return {
+          code,
+          v,
+          prev: shopMarkets![code]?.prev.revenue ?? 0,
+          sub: `${share}% sprzedaży · ${merText}${spend > 0 ? ` · reklamy ${compactPln(spend)}` : ""}`,
+        };
+      })
+      .sort((a, b) => b.v - a.v);
+  } else {
+    const metric = (t: SeasonMarket["cur"]) => (showRevenue ? t.value : t.clicks);
+    const total = markets.reduce((a, m) => a + metric(m.cur), 0);
+    rows = markets.map((m) => ({
+      code: m.code,
+      v: metric(m.cur),
+      prev: metric(m.prev),
+      sub: `${total > 0 ? Math.round((metric(m.cur) / total) * 100) : 0}% sezonu${
+        showRevenue ? ` · ROAS ${roasText(m.cur.value, m.cur.spend)}` : ""
+      }`,
+    }));
+  }
+  const total = rows.reduce((a, r) => a + r.v, 0);
   const fmt = (v: number) => (showRevenue ? compactPln(v) : compactCount(v));
 
-  if (markets.length < 2) {
+  if (rows.length < 2) {
     // Nothing to split: say why to the agency (it's a naming fix), stay
     // quiet for the client.
     return isAgency ? (
@@ -50,16 +88,18 @@ export function SeasonMarkets({
       <SectionHeader
         title="Rynki"
         description={
-          showRevenue
-            ? `Sprzedaż z reklam w każdym kraju i zmiana względem ${prevGen} w tym samym momencie.`
-            : `Kliknięcia w każdym kraju i zmiana względem ${prevGen} w tym samym momencie.`
+          byShop
+            ? `Sprzedaż sklepu w każdym kraju, zwrot z reklam w tym kraju (MER) i zmiana względem ${prevGen} w tym samym momencie.`
+            : showRevenue
+              ? `Sprzedaż z reklam w każdym kraju i zmiana względem ${prevGen} w tym samym momencie.`
+              : `Kliknięcia w każdym kraju i zmiana względem ${prevGen} w tym samym momencie.`
         }
       />
       <ul className="divide-y divide-[var(--line)]">
-        {markets.map((m, idx) => {
-          const v = metric(m.cur);
+        {rows.map((m, idx) => {
+          const v = m.v;
           const share = total > 0 ? v / total : 0;
-          const ch = change(v, metric(m.prev));
+          const ch = change(v, m.prev);
           return (
             <li key={m.code} className="grid grid-cols-[2.75rem_1fr_auto] items-center gap-x-3 gap-y-1.5 py-3 sm:grid-cols-[2.75rem_minmax(8rem,1fr)_minmax(6rem,2fr)_auto_auto] sm:gap-x-5">
               <span className="grid h-9 w-11 place-items-center rounded-[12px] bg-chip font-mono text-[12px] font-medium tracking-[0.06em]">
@@ -67,10 +107,7 @@ export function SeasonMarkets({
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-[15px] font-medium">{marketLabel(m.code)}</span>
-                <span className="block text-[12.5px] text-ink-3 tabular-nums">
-                  {Math.round(share * 100)}% sezonu
-                  {showRevenue ? ` · ROAS ${roasText(m.cur.value, m.cur.spend)}` : ""}
-                </span>
+                <span className="block text-[12.5px] text-ink-3 tabular-nums">{m.sub}</span>
               </span>
               <span className="col-span-3 row-start-2 sm:col-span-1 sm:row-start-auto">
                 <span aria-hidden className="block h-2.5 overflow-hidden rounded-full bg-chip">

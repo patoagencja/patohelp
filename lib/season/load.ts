@@ -5,6 +5,7 @@ import { syncCached } from "@/lib/dashboard/sync-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
+import { getShopSales } from "@/lib/shop/sales";
 
 import {
   addDaysIso,
@@ -19,6 +20,7 @@ import {
   type SeasonWindow,
 } from "./config";
 import { marketOf } from "./markets";
+import { computeSeasonShop, type SeasonShop, type SeasonShopRow } from "./shop";
 
 /**
  * The client's season window, as the viewer may see it (RLS). null = not a
@@ -94,6 +96,8 @@ export interface SeasonView {
   moments: Array<SeasonMoment & { i: number }>;
   bestDay: { date: string; value: number } | null;
   prevBestDay: { date: string; value: number } | null;
+  /** The shop's own sales when it sends them (shop_sales_daily), else null. */
+  shop: SeasonShop | null;
 }
 
 /** One ads_daily row as the season maths reads it. */
@@ -144,7 +148,8 @@ export function computeSeasonView(
   cfg: SeasonConfig,
   today: string,
   curRows: SeasonRow[],
-  prevRows: SeasonRow[]
+  prevRows: SeasonRow[],
+  shopRows?: { cur: SeasonShopRow[]; prev: SeasonShopRow[] }
 ): SeasonView {
   const state = seasonState(cfg, today);
   const cur = state.current;
@@ -265,7 +270,21 @@ export function computeSeasonView(
     moments: seasonMoments(cur).map((m) => ({ ...m, i: diffDaysIso(cur.start, m.date) })),
     bestDay: best(dayTotals, cur.start, running ? asOfIdx : len - 1),
     prevBestDay: best(prevDayTotals, prev.start, prevLen - 1),
+    shop: shopRows
+      ? computeSeasonShop(state, today, asOf, compareIdx, shopRows.cur, shopRows.prev)
+      : null,
   };
+}
+
+/** Last shop push or CSV upload marker; null before migration 0038 / no key. */
+async function shopPushStamp(clientId: string): Promise<string | null> {
+  const { data, error } = await createAdminClient()
+    .from("shop_ingest_keys")
+    .select("last_used_at")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { last_used_at: string | null }).last_used_at;
 }
 
 const todayWarsaw = () => formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
@@ -280,14 +299,23 @@ export async function loadSeasonView(
   cfg: SeasonConfig,
   today = todayWarsaw()
 ): Promise<SeasonView> {
-  return syncCached("season-view", clientId, [cfg.start, cfg.end, today], async () => {
+  // Shop pushes don't move the ad sync stamp the cache is keyed on: their
+  // own last-push time joins the key, so new shop numbers show at once.
+  const shopStamp = await shopPushStamp(clientId);
+  return syncCached("season-view", clientId, [cfg.start, cfg.end, today, shopStamp], async () => {
     const state = seasonState(cfg, today);
     const curEnd: SeasonWindow["end"] =
       state.phase === "in" ? today : state.current.end;
-    const [curRows, prevRows] = await Promise.all([
+    const [curRows, prevRows, shopCur, shopPrev] = await Promise.all([
       readWindow(clientId, state.current.start, curEnd),
       readWindow(clientId, state.previous.start, state.previous.end),
+      getShopSales(clientId, state.current.start, curEnd),
+      getShopSales(clientId, state.previous.start, state.previous.end),
     ]);
-    return computeSeasonView(cfg, today, curRows, prevRows);
+    const shop =
+      shopCur.available && (shopCur.rows.length || shopPrev.rows.length)
+        ? { cur: shopCur.rows, prev: shopPrev.rows }
+        : undefined;
+    return computeSeasonView(cfg, today, curRows, prevRows, shop);
   });
 }

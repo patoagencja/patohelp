@@ -38,7 +38,8 @@ export function SeasonChart({
   days: allDays,
   moments: allMoments,
   todayIdx,
-  metric,
+  metric: baseMetric,
+  shop,
   seasonLabel,
   prevLabel,
 }: {
@@ -48,6 +49,12 @@ export function SeasonChart({
   todayIdx: number | null;
   /** What the lines show: sales from ads, or clicks for non-shop clients. */
   metric: "value" | "clicks";
+  /**
+   * The shop's own daily revenue (SeasonShop.days / prevDays by season day)
+   * - when present the chart leads with it and offers the ad-attributed line
+   * as the alternative.
+   */
+  shop?: { days: Array<number | null>; prevDays: Array<number | null>; lastDate: string | null; hasPrev: boolean } | null;
   seasonLabel: string;
   prevLabel: string;
 }) {
@@ -77,8 +84,20 @@ export function SeasonChart({
     return () => ro.disconnect();
   }, []);
 
-  const pick = (d: SeasonDay, prev: boolean) =>
-    metric === "value" ? (prev ? d.prevValue : d.value) : prev ? d.prevClicks : d.clicks;
+  const [metric, setMetric] = useState<"shop" | "value" | "clicks">(shop ? "shop" : baseMetric);
+  const pick = (d: SeasonDay, prev: boolean): number | null => {
+    if (metric === "shop" && shop) {
+      // A day the shop hasn't reported yet is unknown, not zero; earlier
+      // gaps are days without sales.
+      if (prev) return shop.hasPrev ? (shop.prevDays[d.i] ?? 0) : null;
+      return d.value === null && d.spend === null
+        ? null
+        : shop.lastDate && d.date <= shop.lastDate
+          ? (shop.days[d.i] ?? 0)
+          : null;
+    }
+    return metric === "value" ? (prev ? d.prevValue : d.value) : prev ? d.prevClicks : d.clicks;
+  };
 
   const { cur, prev } = useMemo(() => {
     const run = (prevSeries: boolean) => {
@@ -92,11 +111,12 @@ export function SeasonChart({
     };
     return { cur: run(false), prev: run(true) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, mode, metric]);
+  }, [days, mode, metric, shop]);
 
   const hasPrev = prev.some((v) => v != null && v > 0);
-  const fmt = (v: number) => (metric === "value" ? formatPlnWhole(v) : formatNumberPL(v));
-  const fmtAxis = (v: number) => (metric === "value" ? compactPln(v) : compactCount(v));
+  const money = metric !== "clicks";
+  const fmt = (v: number) => (money ? formatPlnWhole(v) : formatNumberPL(v));
+  const fmtAxis = (v: number) => (money ? compactPln(v) : compactCount(v));
 
   const n = days.length;
   const { ticks, top } = useMemo(() => {
@@ -179,11 +199,39 @@ export function SeasonChart({
   const lead =
     av != null && pv != null && pv > 0 ? Math.round((av / pv - 1) * 100) : null;
 
-  const unitWord = metric === "value" ? "Sprzedaż z reklam" : "Kliknięcia";
+  const unitWord =
+    metric === "shop" ? "Sprzedaż sklepu" : metric === "value" ? "Sprzedaż przypisana reklamom" : "Kliknięcia";
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-3">
+        {shop ? (
+          <div role="radiogroup" aria-label="Co pokazać" className="flex rounded-full bg-chip p-1 text-[13px]">
+            {(
+              [
+                ["shop", "Sklep"],
+                ["value", "Przypisana reklamom"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={metric === key}
+                onClick={() => {
+                  setMetric(key);
+                  setActive(null);
+                }}
+                className={cn(
+                  "min-h-9 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  metric === key ? "bg-anchor text-anchor-foreground" : "text-ink-2 hover:text-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div role="radiogroup" aria-label="Widok wykresu" className="flex rounded-full bg-chip p-1 text-[13px]">
           {(
             [
@@ -340,7 +388,7 @@ export function SeasonChart({
             ) : null}
             {line ? (
               <path
-                key={`${mode}-${span}`}
+                key={`${metric}-${mode}-${span}`}
                 d={line}
                 pathLength={1}
                 fill="none"

@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { clientDataTag } from "@/lib/dashboard/sync-cache";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import {
   generateIngestKey,
@@ -124,6 +125,9 @@ export async function uploadShopSalesCsv(formData: FormData) {
   }
 
   // Sales may feed any of the client's pages once wired in, not just settings.
+  // The season page caches per ad-sync stamp + last API push; a CSV upload
+  // moves neither, so drop this client's cached aggregates explicitly.
+  revalidateTag(clientDataTag(access.clientId));
   revalidatePath(`/${access.clientSlug}`, "layout");
   redirect(`${back}?saved=shop_csv&rows=${saved.rows}#sprzedaz-sklepu`);
 }

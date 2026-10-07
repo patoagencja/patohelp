@@ -27,11 +27,21 @@ export async function SeasonOverviewCard({
   const view = await loadSeasonView(clientId, season);
   const { state, totals, prevSamePoint, hasPrev, today } = view;
   const running = state.phase === "in";
-  const revenue = showRevenue && view.hasValue;
-  const ch = revenue
-    ? change(totals.value, prevSamePoint.value)
-    : change(totals.clicks, prevSamePoint.clicks);
-  const what = revenue ? compactPln(totals.value) : `${compactCount(totals.clicks)} kliknięć`;
+  const shop = showRevenue ? view.shop : null;
+  const revenue = showRevenue && (view.hasValue || !!shop);
+  const ch = shop
+    ? shop.hasPrev
+      ? change(shop.totals.revenue, shop.prevSamePoint.revenue)
+      : null
+    : revenue
+      ? change(totals.value, prevSamePoint.value)
+      : change(totals.clicks, prevSamePoint.clicks);
+  const what = shop
+    ? compactPln(shop.totals.revenue)
+    : revenue
+      ? compactPln(totals.value)
+      : `${compactCount(totals.clicks)} kliknięć`;
+  const salesWord = shop ? "sprzedaży w sklepie" : "sprzedaży z reklam";
   const next = view.moments.find((m) => m.date >= today);
   const progress = running ? Math.min(1, ((state.day ?? 0) - 0.5) / state.totalDays) : 1;
 
@@ -40,7 +50,7 @@ export async function SeasonOverviewCard({
     line = (
       <>
         <b className="font-semibold text-foreground">{what}</b>{" "}
-        {revenue ? "sprzedaży z reklam" : ""} od początku sezonu
+        {revenue ? salesWord : ""} od początku sezonu
         {hasPrev && ch ? (
           <>
             {" "}
@@ -68,7 +78,7 @@ export async function SeasonOverviewCard({
           {state.daysToNext} {daysWord(state.daysToNext ?? 0)}
         </b>{" "}
         ({dayMonthLong(state.next.start)}). Poprzedni sezon: <b className="font-semibold text-foreground">{what}</b>
-        {revenue ? " sprzedaży z reklam" : ""}.
+        {revenue ? ` ${salesWord}` : ""}.
       </>
     );
   } else {

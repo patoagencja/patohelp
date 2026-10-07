@@ -9,6 +9,8 @@ import {
   type SeasonWindow,
 } from "@/lib/season/config";
 import { computeSeasonView, type SeasonRow, type SeasonView } from "@/lib/season/load";
+import { marketOf } from "@/lib/season/markets";
+import type { SeasonShopRow } from "@/lib/season/shop";
 
 // Synthetic seasonal client for the public demo: an online seller of
 // personalised video greetings from Santa for children, sold in 7 markets
@@ -275,6 +277,38 @@ function seasonRows(w: SeasonWindow, through: string, today: string): SeasonRow[
   return rows;
 }
 
+// The shop panel's view of the same days: Meta and Google together claim
+// more than the shop really sold (the same order counted by both), while the
+// shop also sells to people who never clicked an ad - net, the shop books a
+// bit less than the platforms' sum. Products split the way gift-video shops
+// do: the film carries the season, letters and bundles follow.
+const SHOP_VS_PLATFORMS = 0.86;
+const DEMO_PRODUCTS: Array<{ name: string; share: number; price: number }> = [
+  { name: "Film od Mikołaja", share: 0.6, price: 4999 },
+  { name: "List od Mikołaja", share: 0.28, price: 3999 },
+  { name: "Pakiet film + list", share: 0.12, price: 7999 },
+];
+
+function shopRows(adRows: SeasonRow[]): SeasonShopRow[] {
+  const byDayMarket = new Map<string, number>();
+  for (const r of adRows) {
+    const market = marketOf(r.campaign_name ?? "") ?? "";
+    const key = `${r.date}|${market}`;
+    byDayMarket.set(key, (byDayMarket.get(key) ?? 0) + Math.round(Number(r.purchase_value ?? 0) * 100));
+  }
+  const out: SeasonShopRow[] = [];
+  for (const [key, value] of byDayMarket) {
+    const [date, market] = key.split("|");
+    const r = rng(`demo-shop:${key}`);
+    const revenue = value * SHOP_VS_PLATFORMS * jitter(r, 0.06);
+    for (const p of DEMO_PRODUCTS) {
+      const part = Math.round(revenue * p.share * jitter(r, 0.08));
+      out.push({ date, market, product: p.name, orders: Math.round(part / p.price), revenue: part });
+    }
+  }
+  return out;
+}
+
 const todayWarsaw = () => formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
 
 /**
@@ -285,10 +319,10 @@ const todayWarsaw = () => formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM
 export function getDemoSeasonView(today: string = todayWarsaw()): SeasonView {
   const state = seasonState(DEMO_SEASON_CONFIG, today);
   const curEnd = state.phase === "in" ? today : state.current.end;
-  return computeSeasonView(
-    DEMO_SEASON_CONFIG,
-    today,
-    seasonRows(state.current, curEnd, today),
-    seasonRows(state.previous, state.previous.end, today)
-  );
+  const cur = seasonRows(state.current, curEnd, today);
+  const prev = seasonRows(state.previous, state.previous.end, today);
+  return computeSeasonView(DEMO_SEASON_CONFIG, today, cur, prev, {
+    cur: shopRows(cur),
+    prev: shopRows(prev),
+  });
 }
