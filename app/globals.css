@@ -1214,3 +1214,55 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     transition: none !important;
   }
 }
+
+/* Christmas season (Sezon page, seasons through Wigilia): a few snowflakes
+   over the header band and a Santa hat on the title. Transform/opacity only,
+   kept out from under the frosted cards (see .sky-blob). */
+:root {
+  --snow: 210 30% 78%;
+  --festive-red: 356 70% 46%;
+  --festive-fur: 0 0% 100%;
+}
+.dark {
+  --snow: 0 0% 100%;
+  --festive-red: 356 72% 54%;
+  --festive-fur: 40 30% 96%;
+}
+.snowfall {
+  /* Placement comes from utility classes at the call site. */
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
+}
+.snowflake {
+  position: absolute;
+  top: -12px;
+  border-radius: 9999px;
+  background: hsl(var(--snow));
+  animation-name: snow-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes snow-fall {
+  to {
+    transform: translate3d(var(--drift, 0px), 340px, 0);
+  }
+}
+.santa-hat-red {
+  fill: hsl(var(--festive-red));
+}
+.santa-hat-fur {
+  fill: hsl(var(--festive-fur));
+}
+.santa-hat {
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.18));
+}
+@media (prefers-reduced-motion: reduce) {
+  .snowfall {
+    display: none;
+  }
+}

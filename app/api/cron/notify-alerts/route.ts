@@ -5,6 +5,7 @@ import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { detectCreativeAlerts } from "@/lib/alerts/creative-tests";
 import { getPacing, type FlightMetric } from "@/lib/alerts/pacing";
+import { distinctAdsetName } from "@/lib/dashboard/goal-names";
 import { describeError } from "@/lib/integrations/errors";
 import {
   getExpiringTokens,
@@ -247,7 +248,7 @@ export async function GET(request: Request) {
           items.push({
             key,
             success: true,
-            title: `Cel osiągnięty: ${f.adsetName ?? f.campaignName}`,
+            title: `Cel osiągnięty: ${f.adsetName ? distinctAdsetName(f.adsetName, f.campaignName) : f.campaignName}`,
             detail: `${goalValue(f.metric, f.realized)} z ${goalValue(f.metric, f.target)} (${Math.round(
               f.realizedPct * 100
             )}% celu)${

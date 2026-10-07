@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 
 import { CountUp } from "@/components/ui/count-up";
 import { Ping, type PingTone } from "@/components/ui/primitives";
 import type { FlightMetric } from "@/lib/alerts/pacing";
 import type { GoalTile, GoalTileStatus } from "@/lib/dashboard/campaign-goals";
+import { distinctAdsetName } from "@/lib/dashboard/goal-names";
 import { plPlural } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,10 @@ function kicker(g: GoalTile): string {
       : "Zestaw reklam";
   return `${level} · do ${shortDate(g.endDate)}`;
 }
+
+const URGENCY: Record<GoalTileStatus, number> = { at_risk: 0, behind: 1, done: 2, on_track: 3, ended: 4 };
+/** Tiles shown before "Pokaż wszystkie" - one row on desktop. */
+const SHOWN = 4;
 
 function secondary(g: GoalTile): string {
   if (g.adsetName) return `kampania ${g.campaignName}`;
@@ -142,7 +147,8 @@ const OVERLAY =
 
 function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) {
   const meta = STATUS[g.status];
-  const title = g.adsetName ?? g.campaignName;
+  const fullTitle = g.adsetName ?? g.campaignName;
+  const title = g.adsetName ? distinctAdsetName(g.adsetName, g.campaignName) : g.campaignName;
   const running = g.daysRemaining > 0;
   const pct = Math.min(g.realizedPct * 100, 100);
   const plan = g.expectedPct * 100;
@@ -162,7 +168,7 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
         : g.neededPerDay !== null
           ? `potrzeba ok. ${perDay(g.metric, g.neededPerDay, true)} dziennie (dotąd ${perDay(g.metric, g.avgPerDay)})`
           : null;
-  const summary = `${title}: ${figure(g.metric, g.realized)}${unit} z ${figure(g.metric, g.target)}${unit}, ${METRIC_LABEL[g.metric].toLowerCase()}, ${meta.label}`;
+  const summary = `${fullTitle}: ${figure(g.metric, g.realized)}${unit} z ${figure(g.metric, g.target)}${unit}, ${METRIC_LABEL[g.metric].toLowerCase()}, ${meta.label}`;
 
   return (
     <article
@@ -180,7 +186,7 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
       )}
       <div className="pointer-events-none relative min-w-0">
         <p className="kick truncate text-[11px] tracking-[0.08em] tabular-nums xl:tracking-[0.12em]">{kicker(g)}</p>
-        <h3 className="mt-2 truncate text-[15px] font-medium leading-snug tracking-[-0.01em]" title={title}>
+        <h3 className="mt-2 truncate text-[15px] font-medium leading-snug tracking-[-0.01em]" title={fullTitle}>
           {title}
         </h3>
         <p className="truncate text-[13px] text-ink-3" title={secondary(g)}>
@@ -245,6 +251,12 @@ export function GoalTiles({
   className?: string;
 }) {
   if (goals.length === 0) return null;
+  const ordered = goals
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => URGENCY[a.g.status] - URGENCY[b.g.status] || a.i - b.i)
+    .map(({ g }) => g);
+  const shown = ordered.slice(0, SHOWN);
+  const rest = ordered.slice(SHOWN);
   return (
     <section aria-labelledby="cele-teraz" className={cn("space-y-3", className)}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -258,16 +270,48 @@ export function GoalTiles({
           równe tempo
         </p>
       </div>
-      {/* Phones: a swipeable carousel (like the KPI tiles); sm+: a grid. */}
-      <div
-        role="list"
-        aria-label="Cele kampanii"
-        className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4 print:mx-0 print:grid print:grid-cols-2 print:overflow-visible print:px-0"
-      >
-        {goals.map((g, i) => (
-          <Tile key={g.id} g={g} index={i} href={`${baseHref}#cel-${g.id}`} />
-        ))}
-      </div>
+      {/* Phones: a swipeable carousel (like the KPI tiles); sm+: a grid.
+          The most urgent goals first; past one row the rest folds away -
+          OLX runs a goal per ad set and a dozen tiles pushed the page down. */}
+      <TileList goals={shown} baseHref={baseHref} offset={0} />
+      {rest.length ? (
+        <details className="group">
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full bg-chip px-4 text-sm font-medium text-foreground transition-colors hover:bg-[var(--chip-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">Pokaż wszystkie cele (+{rest.length})</span>
+            <span className="hidden group-open:inline">Zwiń cele</span>
+            <ChevronDown aria-hidden className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <TileList goals={rest} baseHref={baseHref} offset={SHOWN} className="mt-3 sm:mt-4" />
+        </details>
+      ) : null}
     </section>
+  );
+}
+
+function TileList({
+  goals,
+  baseHref,
+  offset,
+  className,
+}: {
+  goals: GoalTile[];
+  baseHref: string;
+  offset: number;
+  className?: string;
+}) {
+  return (
+    <div
+      role="list"
+      aria-label="Cele kampanii"
+      className={cn(
+        "-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4 print:mx-0 print:grid print:grid-cols-2 print:overflow-visible print:px-0",
+        className
+      )}
+    >
+      {goals.map((g, i) => (
+        // Only the first row animates in; folded tiles appear at once.
+        <Tile key={g.id} g={g} index={offset ? 0 : i} href={`${baseHref}#cel-${g.id}`} />
+      ))}
+    </div>
   );
 }

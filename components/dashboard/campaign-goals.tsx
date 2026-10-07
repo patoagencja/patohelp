@@ -7,6 +7,7 @@ import {
 } from "@/components/dashboard/goal-target-fields";
 import { Button } from "@/components/ui/button";
 import { StatusChip, type PingTone } from "@/components/ui/primitives";
+import { distinctAdsetName } from "@/lib/dashboard/goal-names";
 import type { FlightMetric, PacingFlight } from "@/lib/alerts/pacing";
 import { dayMonthPL, plPlural } from "@/lib/dashboard/story";
 import { cn, formatNumberPL } from "@/lib/utils";
@@ -105,7 +106,8 @@ function PacingCard({
   const realizedPct = Math.min(f.realizedPct * 100, 100);
   const expectedPct = Math.min(f.expectedPct * 100, 100);
   const running = f.status !== "upcoming" && f.status !== "ended";
-  const title = f.adsetName ?? f.campaignName;
+  // Ad sets that repeat their campaign's name show only the part that differs.
+  const title = f.adsetName ? distinctAdsetName(f.adsetName, f.campaignName) : f.campaignName;
 
   return (
     // #cel-<id>: the goal tiles (Alerty top row, overview) link here.
@@ -119,7 +121,10 @@ function PacingCard({
           <p className="kick tabular-nums">
             {METRIC_KICK[f.metric]} · {shortDate(f.startDate)} - {shortDate(f.endDate)}
           </p>
-          <h3 className="mt-2 break-words text-[17px] font-semibold leading-snug tracking-[-0.01em]">
+          <h3
+            className="mt-2 break-words text-[17px] font-semibold leading-snug tracking-[-0.01em]"
+            title={f.adsetName ?? undefined}
+          >
             {title}
           </h3>
           {f.adsetName ? (

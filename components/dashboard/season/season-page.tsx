@@ -11,6 +11,9 @@ import { change, compactCount, compactPln, roasText } from "@/lib/season/format"
 import type { SeasonTotals, SeasonView } from "@/lib/season/load";
 import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
+import { coversWigilia } from "@/lib/season/festive";
+
+import { SantaHat, Snowfall } from "./festive";
 import { SeasonChart } from "./season-chart";
 import { SeasonMarkets } from "./season-markets";
 import { SeasonProducts } from "./season-products";
@@ -48,6 +51,9 @@ export function SeasonPageView({
 }) {
   const { state, totals, prevSamePoint, prevFull, hasPrev, forecast, today } = view;
   const running = state.phase === "in";
+  // Seasons through Christmas Eve get snow and a Santa hat (the timeline
+  // already counts down to Wigilia) - only while the season runs.
+  const festive = running && coversWigilia(state.current);
   const prevYear = state.previous.year;
   const seasonLabel = `Sezon ${state.current.year}`;
   const prevLabel = `Sezon ${prevYear}`;
@@ -280,16 +286,29 @@ export function SeasonPageView({
 
   return (
     <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
-      <PageHeader
-        eyebrow={
-          <span className="kick">
-            {running ? `${seasonLabel} · dzień ${state.day} z ${state.totalDays}` : `${seasonLabel} · podsumowanie`}
-            {eyebrowExtra}
-          </span>
-        }
-        title="Sezon"
-        description={lead}
-      />
+      <div className="relative">
+        {festive ? <Snowfall className="-inset-x-4 -top-8 bottom-auto h-80 sm:-inset-x-6" /> : null}
+        <PageHeader
+          className="relative"
+          eyebrow={
+            <span className="kick">
+              {running ? `${seasonLabel} · dzień ${state.day} z ${state.totalDays}` : `${seasonLabel} · podsumowanie`}
+              {eyebrowExtra}
+            </span>
+          }
+          title={
+            festive ? (
+              <span className="relative inline-block">
+                <SantaHat className="absolute -left-3 -top-2.5 h-6 w-8 -rotate-[20deg] md:-top-3 md:h-7 md:w-9" />
+                Sezon
+              </span>
+            ) : (
+              "Sezon"
+            )
+          }
+          description={lead}
+        />
+      </div>
 
       {notes.length ? (
         <ul className="space-y-1.5 rounded-[18px] bg-chip px-4 py-3 text-[13.5px] leading-relaxed text-ink-2">
