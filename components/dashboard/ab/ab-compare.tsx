@@ -10,13 +10,13 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
-import { Check, LineChart, X } from "lucide-react";
+import { Check, LineChart, RotateCw, X } from "lucide-react";
 
 import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { monotonePath, niceStep } from "@/components/dashboard/trend-line-chart";
 import { useModalFocus } from "@/components/dashboard/use-modal-focus";
 import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
-import type { AbAd } from "@/lib/ab/types";
+import type { AbAd, AbSeries, AbVerdictKind } from "@/lib/ab/types";
 import { cn } from "@/lib/utils";
 
 import {
@@ -76,6 +76,22 @@ const money = (v: number | null) => (v == null ? "-" : fmtMoney(v));
 const oneDecimal = (v: number | null) =>
   v == null ? "-" : v.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
+/** Too few purchases (or today's partial day): purchase figures are noise. */
+const UNJUDGED: ReadonlySet<AbVerdictKind> = new Set(["too_early", "preview"]);
+
+function BestLegend() {
+  return (
+    <>
+      Najlepszą wartość w wierszu oznaczamy{" "}
+      <span className="inline-flex translate-y-[1px] items-center rounded-full bg-lime-soft px-1 text-foreground">
+        <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
+        <span className="sr-only">znaczkiem</span>
+      </span>
+      . Wydatków nie oceniamy - to decyzja, nie wynik.
+    </>
+  );
+}
+
 /** Indices holding the best value of a row (ties all win; all equal = none). */
 function bestOf(ads: AbAd[], row: Row): Set<number> {
   if (!row.better) return new Set();
@@ -83,7 +99,7 @@ function bestOf(ads: AbAd[], row: Row): Set<number> {
     .map((a, i) => ({ i, v: row.value(a) }))
     .filter(
       (x): x is { i: number; v: number } =>
-        x.v != null && Number.isFinite(x.v) && !(row.purchaseBased && ads[x.i].verdict.kind === "too_early")
+        x.v != null && Number.isFinite(x.v) && !(row.purchaseBased && UNJUDGED.has(ads[x.i].verdict.kind))
     );
   if (vals.length < 2) return new Set();
   const pick = row.better === "higher" ? Math.max : Math.min;
@@ -102,20 +118,20 @@ const MODE_LABEL: Record<Mode, string> = {
 const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /**
- * The window day by day for the compared ads: cumulative return (sales so
+ * The period day by day for the compared ads: cumulative return (sales so
  * far / spend so far - settles as data builds up, so a lucky first day
  * doesn't dominate) or plain daily purchases. Hand-built SVG in the
  * TrendLineChart idiom: hairline guides, mono labels, crosshair + glass
  * tooltip; arrows step days when focused.
  */
-function CompareChart({ ads, mode }: { ads: AbAd[]; mode: Mode }) {
+function CompareChart({ ads, data, mode }: { ads: AbAd[]; data: AbSeries[]; mode: Mode }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [active, setActive] = useState<number | null>(null);
 
   const dates = useMemo(
-    () => Array.from(new Set(ads.flatMap((a) => a.daily.map((d) => d.date)))).sort(),
-    [ads]
+    () => Array.from(new Set(data.flatMap((s) => s.days.map((d) => d.date)))).sort(),
+    [data]
   );
   const plottable = dates.length >= 2;
 
@@ -132,7 +148,8 @@ function CompareChart({ ads, mode }: { ads: AbAd[]; mode: Mode }) {
   const series = useMemo(
     () =>
       ads.map((a) => {
-        const byDate = new Map(a.daily.map((d) => [d.date, d]));
+        const days = data.find((s) => s.adId === a.adId)?.days ?? [];
+        const byDate = new Map(days.map((d) => [d.date, d]));
         let spend = 0;
         let value = 0;
         return dates.map((date) => {
@@ -143,7 +160,7 @@ function CompareChart({ ads, mode }: { ads: AbAd[]; mode: Mode }) {
           return mode === "roas" ? value / spend : d?.purchases ?? 0;
         });
       }),
-    [ads, dates, mode]
+    [ads, data, dates, mode]
   );
 
   const fmt = (v: number) => (mode === "roas" ? fmtRoas(v) : fmtCount(v));
@@ -164,7 +181,7 @@ function CompareChart({ ads, mode }: { ads: AbAd[]; mode: Mode }) {
     return (
       <p className="flex items-center gap-3 rounded-[20px] bg-chip px-4 py-4 text-sm text-ink-2">
         <LineChart className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
-        Wykres pokazuje kolejne dni - wybierz okno dłuższe niż jeden dzień.
+        Wykres pokazuje kolejne dni - wybierz okres dłuższy niż jeden dzień.
       </p>
     );
   }
@@ -222,7 +239,7 @@ function CompareChart({ ads, mode }: { ads: AbAd[]; mode: Mode }) {
   };
 
   const lastOf = (vals: Array<number | null>) => [...vals].reverse().find((v) => v != null) ?? null;
-  const summary = `${MODE_LABEL[mode]} na koniec okna: ${ads
+  const summary = `${MODE_LABEL[mode]} na koniec okresu: ${ads
     .map((a, i) => {
       const last = lastOf(series[i]);
       return `${a.adName} ${last == null ? "brak danych" : fmt(last)}`;
@@ -404,11 +421,14 @@ function CompareChart({ ads, mode }: { ads: AbAd[]; mode: Mode }) {
 export function AbCompare({
   ads,
   windowLabel,
+  getSeries,
   onClose,
   onRemove,
 }: {
   ads: AbAd[];
   windowLabel: string;
+  /** Day-by-day numbers of these ads, read on demand (null = not available). */
+  getSeries: (adIds: string[]) => Promise<AbSeries[] | null>;
   onClose: () => void;
   onRemove: (adId: string) => void;
 }) {
@@ -416,6 +436,26 @@ export function AbCompare({
   const titleId = useId();
   const [mode, setMode] = useState<Mode>("roas");
   useModalFocus(panelRef, true, onClose);
+
+  // The chart's series come from the server when the panel opens (the page
+  // ships totals only); the table above needs none of it.
+  const idsKey = ads.map((a) => a.adId).join(",");
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState<{ key: string; data: AbSeries[] | null; failed: boolean } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getSeries(idsKey.split(","))
+      .then((data) => {
+        if (alive) setLoaded({ key: idsKey, data, failed: data == null });
+      })
+      .catch(() => {
+        if (alive) setLoaded({ key: idsKey, data: null, failed: true });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [getSeries, idsKey, attempt]);
+  const current = loaded?.key === idsKey ? loaded : null;
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -448,11 +488,11 @@ export function AbCompare({
         purchaseBased: true,
       },
       { label: "Klikalność", value: (a) => a.rates.ctr, fmt: (v) => fmtRate(v), better: "higher" },
-      { label: "Ile razy 1 osoba ją widziała", value: (a) => a.totals.frequency, fmt: oneDecimal, better: null },
+      { label: "Ile razy średnio widziała ją jedna osoba", value: (a) => a.totals.frequency, fmt: oneDecimal, better: null },
     ];
     if (ads.some((a) => a.rates.hookRate != null)) {
       list.push({
-        label: "Obejrzało 3 s filmu",
+        label: "Obejrzało min. 3 s filmu (% wyświetleń)",
         value: (a) => a.rates.hookRate,
         fmt: (v) => fmtRate(v, 0),
         better: "higher",
@@ -497,15 +537,14 @@ export function AbCompare({
         </header>
 
         <div className="flex-1 space-y-8 overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-7 sm:pb-7 sm:pt-6">
+          {/* Phones have no label column: the legend goes above the table. */}
+          <p className="-mb-4 text-[13px] leading-snug text-ink-3 sm:hidden">
+            <BestLegend />
+          </p>
           <div role="table" aria-label="Porównanie liczb" style={cols}>
             <div role="row" className={cn(grid, "items-start pb-4")}>
               <span role="columnheader" className="hidden text-[13px] leading-snug text-ink-3 sm:block">
-                Najlepsza wartość w wierszu ma znaczek{" "}
-                <span className="inline-flex items-center gap-1 rounded-full bg-lime-soft px-1.5 font-medium text-foreground">
-                  <Check className="h-3 w-3" strokeWidth={3} aria-hidden />
-                  tak
-                </span>
-                . Wydatków nie oceniamy - to decyzja, nie wynik.
+                <BestLegend />
               </span>
               {ads.map((a, i) => (
                 <div role="columnheader" key={a.adId} className="min-w-0 space-y-2">
@@ -524,7 +563,7 @@ export function AbCompare({
                   <button
                     type="button"
                     onClick={() => onRemove(a.adId)}
-                    className="-ml-2 inline-flex min-h-9 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium text-ink-3 hover:bg-chip hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="-ml-2 inline-flex min-h-11 min-w-11 items-center gap-1 rounded-full px-2 text-[12.5px] font-medium text-ink-3 hover:bg-chip hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <X className="h-3.5 w-3.5" aria-hidden />
                     Usuń<span className="sr-only"> z porównania: {a.adName}</span>
@@ -563,7 +602,7 @@ export function AbCompare({
                   {ads.map((a, i) => {
                     const v = row.value(a);
                     const isBest = best.has(i);
-                    const noisy = row.purchaseBased && a.verdict.kind === "too_early" && v != null;
+                    const noisy = row.purchaseBased && UNJUDGED.has(a.verdict.kind) && v != null;
                     return (
                       <div role="cell" key={a.adId} className="min-w-0">
                         <span
@@ -594,7 +633,7 @@ export function AbCompare({
                 <h3 className="text-[17px] font-medium tracking-[-0.015em]">Dzień po dniu</h3>
                 <p className="mt-0.5 text-[13px] text-ink-3">
                   {mode === "roas"
-                    ? "Sprzedaż od początku okna podzielona przez wydatki - im wyżej, tym lepiej."
+                    ? "Sprzedaż od początku okresu podzielona przez wydatki - im wyżej, tym lepiej."
                     : "Ile zakupów przyniosła każda reklama danego dnia."}
                 </p>
               </div>
@@ -625,7 +664,29 @@ export function AbCompare({
                 </li>
               ))}
             </ul>
-            <CompareChart ads={ads} mode={mode} />
+            {current?.data ? (
+              <CompareChart ads={ads} data={current.data} mode={mode} />
+            ) : current?.failed ? (
+              <p className="flex flex-wrap items-center gap-3 rounded-[20px] bg-chip px-4 py-4 text-sm text-ink-2">
+                <LineChart className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+                <span className="min-w-0 flex-1">Nie udało się wczytać dni dla tych reklam.</span>
+                <button
+                  type="button"
+                  onClick={() => setAttempt((n) => n + 1)}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-background px-4 font-medium text-foreground hover:bg-[var(--chip-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <RotateCw className="h-4 w-4" aria-hidden />
+                  Spróbuj ponownie
+                </button>
+              </p>
+            ) : (
+              <div
+                role="status"
+                className="grid h-60 w-full place-items-center rounded-[20px] bg-chip text-sm text-ink-3 sm:h-72 motion-safe:animate-pulse"
+              >
+                Wczytujemy dzień po dniu…
+              </div>
+            )}
           </section>
         </div>
       </div>

@@ -17,11 +17,11 @@ export interface WindowLink {
 }
 
 /**
- * The comparison window (Dziś · 3 dni · ... · Cały sezon) as real links, so
- * each window has its own URL and works before hydration. A plain click
+ * The period (Dziś · 3 dni · ... · Cały sezon) as real links, so each
+ * period has its own URL and works before hydration. A plain click
  * navigates in a transition instead: the current tests stay on screen,
- * dimmed (data-pending, as in DateRangePicker), until the new window has
- * streamed in - no skeleton flash between two windows.
+ * dimmed (data-pending, as in DateRangePicker), until the new period has
+ * streamed in - no skeleton flash between two periods.
  */
 export function AbWindowLinks({ items, current }: { items: WindowLink[]; current: string }) {
   const router = useRouter();
@@ -51,10 +51,14 @@ export function AbWindowLinks({ items, current }: { items: WindowLink[]; current
 
   return (
     // A block, not a flex row: as a flex item the track would refuse to
-    // shrink below its six segments and widen the whole phone layout;
-    // capped at 100% it scrolls sideways instead.
-    <nav aria-label="Okno porównania" className="min-w-0 max-w-full">
-      <SegmentedTrack as="ul" className={cn(segmentedTrack, "min-w-0")}>
+    // shrink below its six segments and widen the whole phone layout. On
+    // phones it wraps to two rows: sideways scrolling hid "Cały sezon"
+    // off-screen with no cue that it was there.
+    <nav aria-label="Okres porównania" className="min-w-0 max-w-full">
+      <SegmentedTrack
+        as="ul"
+        className={cn(segmentedTrack, "min-w-0 max-sm:flex-wrap max-sm:overflow-visible max-sm:rounded-[24px]")}
+      >
         {items.map((item) => {
           const active = (target ?? current) === item.key;
           return (

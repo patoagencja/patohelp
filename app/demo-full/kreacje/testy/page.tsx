@@ -2,6 +2,7 @@ import { AbPageView } from "@/components/dashboard/ab/ab-page";
 import { parseAbWindow } from "@/components/dashboard/ab/ab-window";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
 import { getDemoAbView } from "@/lib/demo/ab";
+import { loadDemoAbSeries } from "@/lib/demo/ab-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ const ISO_DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 /**
  * Demo of "Testy kreacji" (the Santa video shop from /demo-full/sezon, ad
  * by ad). `?dzien=` pins "today" like the season demo, e.g. 2025-12-05 for
- * the Mikołajki peak; `?okno=` picks the window.
+ * the Mikołajki peak; `?okno=` picks the period.
  */
 export default function DemoCreativeTests({
   searchParams,
@@ -26,6 +27,8 @@ export default function DemoCreativeTests({
       keep={day ? { dzien: day } : {}}
       seasonAllowed
       tabs={<AdsSectionTabs base="/demo-full" active="testy" showTests />}
+      // Same shape as the live page's loadAbSeries, bound to the pinned day.
+      loadSeries={loadDemoAbSeries.bind(null, day ?? "")}
       kickerExtra=" · dane przykładowe"
     />
   );

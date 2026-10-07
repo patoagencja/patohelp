@@ -1,13 +1,42 @@
 import type { ReactNode } from "react";
-import { ChevronDown, Clock, FlaskConical, Info, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ChevronDown, Clock, Eye, FlaskConical, Info, WalletCards } from "lucide-react";
 
 import { AdsPageHeader } from "@/components/dashboard/ads-page-intro";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { StatTile } from "@/components/dashboard/stat-tile";
 import { Pill } from "@/components/ui/pill";
-import { AB_WINDOW_LABEL, type AbAd, type AbView, type AbWindowKey } from "@/lib/ab/types";
-import { addDaysIso } from "@/lib/season/config";
+import {
+  addDaysIso,
+  BIG_SPENDER_DAILY,
+  FATIGUE_BEFORE_DAYS,
+  FATIGUE_FREQ_RISE,
+  FATIGUE_HIGH_FREQUENCY,
+  FATIGUE_MIN_HISTORY_DAYS,
+  FATIGUE_MIN_PURCHASES,
+  FATIGUE_RECENT_DAYS,
+  FATIGUE_RELATIVE_RATIO,
+  formatPct,
+  formatZl,
+  LEADER_MIN_PROB,
+  LOSER_MIN_SPEND_SHARE,
+  LOSER_RATE_RATIO,
+  LOSER_ROAS_RATIO,
+  LOSER_SIGNIFICANCE_BIG,
+  MIN_CLICKS,
+  MIN_DECISION_DAYS,
+  MIN_PURCHASES,
+  MOMENT_MARGIN_DAYS,
+  SCALE_DIMINISHING,
+  SCALE_STEP,
+  SIGNIFICANCE,
+  WINNER_LIFT_PROB,
+  WINNER_MIN_LIFT,
+  WINNER_ROAS_RATIO,
+} from "@/lib/ab/stats";
+import { AB_WINDOW_LABEL, type AbAd, type AbSeriesLoader, type AbView, type AbWindowKey } from "@/lib/ab/types";
+import { plPlural } from "@/lib/dashboard/story";
 import { formatDateWarsaw } from "@/lib/utils";
 
 import { AbActions } from "./ab-actions";
@@ -24,11 +53,11 @@ import {
 import { AbTestsExplorer } from "./ab-tests";
 import { AbWindowLinks, type WindowLink } from "./window-links";
 
-const WINDOW_DAYS: Partial<Record<AbWindowKey, number>> = { today: 1, "3d": 3, "7d": 7, "14d": 14, "30d": 30 };
+const WINDOW_DAYS: Partial<Record<AbWindowKey, number>> = { "3d": 3, "7d": 7, "14d": 14, "30d": 30 };
 
 const inSets = (n: number) => `w ${n} ${n === 1 ? "zestawie" : "zestawach"}`;
 
-/** "1-7 paź" / "28 wrz - 7 paź" for a window's tooltip. */
+/** "1-7 paź" / "28 wrz - 7 paź" / "9 gru". */
 function rangeText(start: string, end: string): string {
   const s = new Date(`${start}T12:00:00Z`);
   const e = new Date(`${end}T12:00:00Z`);
@@ -38,43 +67,41 @@ function rangeText(start: string, end: string): string {
     : `${formatDateWarsaw(s, "d MMM")} - ${formatDateWarsaw(e, "d MMM")}`;
 }
 
+/** A period that ended before yesterday (a finished season): nothing to do today. */
+const isFinished = (view: AbView) => !view.monitor && view.end < addDaysIso(view.today, -1);
+
 /** The one sentence the owner reads first: how many calls, and the biggest. */
 function leadOf(view: AbView, ads: Record<string, AbAd>): string {
-  const decisions = view.actions
-    .filter((a) => a.kind !== "watch")
-    .sort((a, b) => b.impactPerDay - a.impactPerDay);
+  if (view.monitor) return "Dziś tylko podgląd - decyzje liczymy na pełnych dniach.";
+  if (isFinished(view)) return "Ten okres już się skończył: werdykty za cały okres, bez decyzji na dziś.";
+  // Already in order: most sales at stake first, ads to watch last.
+  const decisions = view.actions.filter((a) => a.kind !== "watch");
   if (decisions.length === 0) {
-    return `Nic pilnego - ${view.adCount} ${adsWord(view.adCount)} ${inSets(view.tests.length)} idzie równo.`;
+    const n = view.adCount;
+    return `Nic pilnego - ${n} ${adsWord(n)} ${inSets(view.tests.length)} ${plPlural(n, "idzie", "idą", "idzie")} równo.`;
   }
   const top = decisions[0];
   const name = ads[top.adId]?.adName;
   const head = `${decisions.length} ${adsWord(decisions.length)} do decyzji dziś`;
   if (!name) return `${head}.`;
   const money = fmtEstimate(top.impactPerDay);
-  if (top.kind === "cut") return `${head} - najwięcej do oszczędzenia na «${name}» (${money} dziennie).`;
-  if (top.kind === "scale") return `${head} - najwięcej do zyskania na «${name}» (ok. ${money} sprzedaży dziennie).`;
-  return `${head} - najpilniej do odświeżenia «${name}» (ok. ${money} sprzedaży dziennie do odzyskania).`;
+  if (top.kind === "cut") {
+    return `${head} - najwięcej zyskasz, wyłączając „${name}” (ok. +${money} sprzedaży dziennie po przesunięciu budżetu).`;
+  }
+  if (top.kind === "scale") {
+    return `${head} - najwięcej zyskasz, dając więcej budżetu „${name}” (ok. +${money} sprzedaży dziennie).`;
+  }
+  return `${head} - najpilniej do odświeżenia „${name}” (ok. ${money} sprzedaży dziennie do odzyskania).`;
 }
 
-/** Daily sums over every ad, oldest -> newest (tile sparklines). */
-function dailyTotals(view: AbView) {
-  const byDate = new Map<string, { spend: number; value: number; purchases: number }>();
-  for (const t of view.tests)
-    for (const a of t.ads)
-      for (const d of a.daily) {
-        const cur = byDate.get(d.date) ?? { spend: 0, value: 0, purchases: 0 };
-        cur.spend += d.spend;
-        cur.value += d.value;
-        cur.purchases += d.purchases;
-        byDate.set(d.date, cur);
-      }
-  return Array.from(byDate.entries())
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([, v]) => v);
-}
+const times = (x: number) => `${x.toLocaleString("pl-PL")}×`;
 
-/** How "Szansa" and the verdicts are worked out, in plain Polish. */
-function AbMethod() {
+/**
+ * How "Szansa" and the verdicts are worked out, in plain Polish. Every
+ * threshold comes from lib/ab/stats, so the note can't drift from the rules.
+ */
+function AbMethod({ seasonal }: { seasonal: boolean }) {
+  const b = (s: string) => <b className="font-semibold text-foreground">{s}</b>;
   return (
     <details data-print-open className="group glass min-w-0 rounded-card p-5 sm:p-6">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[16px] text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
@@ -88,34 +115,107 @@ function AbMethod() {
       </summary>
       <div className="mt-4 max-w-3xl space-y-3 text-sm leading-relaxed text-ink-2">
         <p>
-          <b className="font-semibold text-foreground">Szansa, że najlepsza.</b> Dla każdej reklamy liczymy, ile
-          zakupów przypada na jej kliknięcia, i porównujemy to z resztą reklam w tym samym zestawie - one
-          trafiają do tych samych ludzi i dzielą ten sam budżet. Szansa mówi, na ile pewne jest, że reklama
-          naprawdę sprzedaje lepiej, a nie miała po prostu szczęścia.
+          {b("Tylko pełne dni.")} Każdy okres kończy się wczoraj. Dzisiejszy dzień jeszcze trwa, a Meta dopisuje
+          zakupy do reklam z opóźnieniem (zwykle liczy zakup do 7 dni po kliknięciu i do 1 dnia po obejrzeniu
+          reklamy), więc ostatnie godziny zawsze wyglądają gorzej, niż wypadną. „Dziś” to tylko podgląd - bez
+          werdyktów i decyzji.
         </p>
         <p>
-          <b className="font-semibold text-foreground">Kiedy oceniamy.</b> Poniżej 10 zakupów nie oceniamy reklamy
-          („Za wcześnie”) - przy tak małych liczbach wynik to jeszcze przypadek.
+          {b("Z czym porównujemy.")} Każdą reklamę porównujemy z resztą reklam jej zestawu - bez niej samej i tylko
+          w dniach, w których sama się wyświetlała. Reklamy zestawu trafiają do tych samych ludzi i dzielą budżet,
+          ale Meta nie dzieli ruchu po równo (chętniej pokazuje te, które wcześnie dobrze wypadły), więc to
+          rozsądna reguła, a nie eksperyment naukowy.
         </p>
         <p>
-          <b className="font-semibold text-foreground">Werdykty.</b> „Wygrywa”: co najmniej 90% szans, że sprzedaje
-          lepiej niż reszta zestawu. „Przegrywa”: równie pewne, że sprzedaje gorzej, a wciąż wydaje pieniądze.
-          „Męczy się”: ostatnie 3 dni są wyraźnie słabsze niż tydzień wcześniej, a te same osoby widzą ją coraz
-          częściej. „Na równi”: bez wyraźnej różnicy.
+          {b("Szansa.")} Liczymy, ile zakupów przypada na kliknięcia w link, i jak pewne jest, że różnica to nie
+          przypadek. „Szansa, że najlepsza” porównuje reklamy zestawu, które mają co najmniej {MIN_CLICKS} kliknięć;
+          reklama „prowadzi” od {formatPct(LEADER_MIN_PROB)} szans.
         </p>
         <p>
-          <b className="font-semibold text-foreground">Skąd liczby.</b> Zakupy i sprzedaż to dane Meta - jej własne
-          przypisanie zakupów do reklam (np. zakup do 7 dni po kliknięciu). Mogą się różnić od zamówień w
-          sklepie. Dzisiejszy dzień jest jeszcze niepełny.
+          {b("Kiedy oceniamy.")} Najwcześniej po {MIN_DECISION_DAYS} pełnych dniach emisji, {MIN_CLICKS} kliknięciach
+          i {MIN_PURCHASES} zakupach - wcześniej to „Za wcześnie”. Reklamę, która mimo wielu kliknięć prawie nie
+          sprzedaje, oceniamy, gdy w tempie reszty zestawu miałaby już {MIN_PURCHASES} zakupów.
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>
+            {b("Wygrywa:")} co najmniej {formatPct(SIGNIFICANCE)} szans, że sprzedaje częściej niż reszta zestawu,{" "}
+            {formatPct(WINNER_LIFT_PROB)} szans, że częściej o ponad {formatPct(WINNER_MIN_LIFT)}, i zwrot co najmniej{" "}
+            {times(WINNER_ROAS_RATIO)} zwrotu reszty zestawu.
+          </li>
+          <li>
+            {b("Przegrywa:")} co najmniej {formatPct(SIGNIFICANCE)} szans, że sprzedaje rzadziej (
+            {formatPct(LOSER_SIGNIFICANCE_BIG)} przy reklamach wydających ponad {formatZl(BIG_SPENDER_DAILY)}{" "}
+            dziennie), zwrot najwyżej {times(LOSER_ROAS_RATIO)} zwrotu reszty zestawu i co najmniej{" "}
+            {formatPct(LOSER_MIN_SPEND_SHARE)} budżetu zestawu. Gdy Meta nie zna wartości zakupów - ta sama pewność,
+            że sprzedaje o ponad {formatPct(1 - LOSER_RATE_RATIO)} rzadziej.
+          </li>
+          <li>
+            {b("Męczy się:")} zwrot z ostatnich {FATIGUE_RECENT_DAYS} pełnych dni wobec {FATIGUE_BEFORE_DAYS} dni
+            wcześniej spadł do najwyżej {formatPct(FATIGUE_RELATIVE_RATIO)} tego, jak w tym czasie zmienił się zwrot
+            reszty zestawu, a częstotliwość wzrosła o co najmniej {formatPct(FATIGUE_FREQ_RISE)} (albo wynosi już co
+            najmniej {FATIGUE_HIGH_FREQUENCY}). Potrzeba {FATIGUE_MIN_HISTORY_DAYS} dni emisji i {FATIGUE_MIN_PURCHASES} zakupów
+            w tamtym tygodniu. Nie oceniamy tego w okolicach{" "}
+            {seasonal
+              ? "świąt zakupowych Twojego sezonu (np. Black Friday, Cyber Monday, Mikołajki, Wigilia)"
+              : "Black Friday, Mikołajek i Wigilii"}{" "}
+            (±{MOMENT_MARGIN_DAYS} dzień) - po szczycie zwrot zawsze spada.
+          </li>
+          <li>
+            {b("Na równi:")} bez wyraźnej różnicy albo z różnicą za małą, by przesuwać budżet.
+          </li>
+        </ul>
+        <p>
+          {b("Kwoty w decyzjach")} to sprzedaż dziennie. „Wyłącz”: dzienne wydatki reklamy z ostatnich{" "}
+          {FATIGUE_RECENT_DAYS} dni razy różnica zwrotu wobec reszty zestawu - po wyłączeniu Meta wyda te pieniądze
+          na pozostałe reklamy, więc nic się nie „oszczędza”, ale sprzedaje się więcej. „Zwiększ budżet”: +
+          {formatPct(SCALE_STEP)} budżetu reklamy, liczone z {formatPct(SCALE_DIMINISHING)} różnicy zwrotu (dodatkowy
+          budżet sprzedaje gorzej); najwyżej jedna taka podpowiedź na zestaw. „Odśwież”: sprzedaż tracona dziennie
+          wobec tego, jak idzie reszta zestawu.
+        </p>
+        <p>
+          {b("Skąd liczby.")} Zakupy i sprzedaż to dane Meta - jej własne przypisanie zakupów do reklam. Mogą się
+          różnić od zamówień w sklepie.
         </p>
       </div>
     </details>
   );
 }
 
+/** "Dziś": what the preview is, and the way to the decisions. */
+function PreviewNote({ href }: { href: string }) {
+  return (
+    <section aria-label="Podgląd dnia" className="glass min-w-0 rounded-glass p-5 sm:p-7">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex min-w-0 items-start gap-3.5">
+          <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] bg-chip text-ink-2">
+            <Eye className="h-[18px] w-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-[19px] font-medium leading-snug tracking-[-0.02em] text-foreground">
+              Dziś tylko podgląd - decyzje liczymy na pełnych dniach
+            </h2>
+            <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-3">
+              Dzień jeszcze trwa, a Meta dopisuje zakupy do reklam z opóźnieniem, więc dzisiejsze liczby zawsze
+              wyglądają gorzej, niż wypadną. Tu widać, jak reklamy idą od rana - bez werdyktów.
+            </p>
+          </div>
+        </div>
+        <Link
+          href={href}
+          scroll={false}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-start rounded-full bg-anchor px-5 text-sm font-medium text-anchor-foreground transition-transform duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-anchor-dot motion-reduce:active:scale-100 sm:self-center"
+        >
+          Decyzje z 7 dni
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 /**
  * "Testy kreacji" for shops that A/B test many ads per ad set: what to do
- * today, the window's totals, every test with its verdicts, and a compare
+ * today, the period's totals, every test with its verdicts, and a compare
  * panel. Shared by the client page and the demo; returns the slides as a
  * fragment so each is its own presentation slide.
  */
@@ -125,49 +225,58 @@ export function AbPageView({
   keep = {},
   seasonAllowed,
   tabs,
+  loadSeries,
   kickerExtra = "",
 }: {
   view: AbView;
   /** This page's path, e.g. "/dre/kreacje/testy". */
   path: string;
-  /** Other query params the window links carry along (range, demo day). */
+  /** Other query params the period links carry along (range, demo day). */
   keep?: Record<string, string>;
-  /** "Cały sezon" only for clients with a season window. */
+  /** "Cały sezon" only for clients with a season (their sales moments too). */
   seasonAllowed: boolean;
   /** The Reklamy section tabs. */
   tabs: ReactNode;
+  /** The compare chart's series, read on demand (a bound server action). */
+  loadSeries: AbSeriesLoader;
   kickerExtra?: string;
 }) {
   const windowLabel = AB_WINDOW_LABEL[view.windowKey];
   const ads: Record<string, AbAd> = {};
   for (const t of view.tests) for (const a of t.ads) ads[a.adId] = a;
 
-  const links: WindowLink[] = AB_WINDOWS.filter((k) => k !== "season" || seasonAllowed).map((key) => {
+  const hrefOf = (key: AbWindowKey) => {
     const params = new URLSearchParams(keep);
     params.set("okno", key);
+    return `${path}?${params.toString()}`;
+  };
+  const yesterday = addDaysIso(view.today, -1);
+  const links: WindowLink[] = AB_WINDOWS.filter((k) => k !== "season" || seasonAllowed).map((key) => {
     const days = WINDOW_DAYS[key];
     return {
       key,
-      href: `${path}?${params.toString()}`,
+      href: hrefOf(key),
       label: AB_WINDOW_LABEL[key],
       title:
         key === view.windowKey
           ? rangeText(view.start, view.end)
-          : days
-            ? rangeText(addDaysIso(view.end, -(days - 1)), view.end)
-            : undefined,
+          : key === "today"
+            ? rangeText(view.today, view.today)
+            : days
+              ? rangeText(addDaysIso(view.today, -days), yesterday)
+              : undefined,
     };
   });
 
   const stamp = view.updatedAt
-    ? formatDateWarsaw(view.updatedAt, "yyyy-MM-dd") === view.end
+    ? formatDateWarsaw(view.updatedAt, "yyyy-MM-dd") === view.today
       ? formatDateWarsaw(view.updatedAt, "HH:mm")
       : formatDateWarsaw(view.updatedAt, "d MMM, HH:mm")
     : null;
 
   const header = (lead: string, controls: boolean) => (
     <AdsPageHeader
-      kicker={`Meta · testy kreacji · ${windowLabel.toLowerCase()}${kickerExtra}`}
+      kicker={`Meta · testy kreacji · ${windowLabel.toLowerCase()} (${rangeText(view.start, view.end)})${kickerExtra}`}
       title="Testy kreacji"
       lead={lead}
       actions={
@@ -194,11 +303,11 @@ export function AbPageView({
   if (!view.available) {
     return (
       <>
-        {header("Która reklama wygrywa, która przepala budżet, a która się męczy - test po teście.", false)}
+        {header("Która reklama sprzedaje lepiej, która drożej niż reszta, a która się męczy - test po teście.", false)}
         <EmptyState
           icon={FlaskConical}
           title="Testy kreacji jeszcze się nie pojawiły"
-          description="Testy kreacji pojawią się po pierwszej synchronizacji reklam na poziomie pojedynczych reklam (do 30 min po włączeniu)."
+          description="Pierwsze wyniki pojawią się ok. 30 minut po włączeniu - zobaczysz tu każdą reklamę osobno."
         />
       </>
     );
@@ -207,20 +316,24 @@ export function AbPageView({
   if (view.tests.length === 0) {
     return (
       <>
-        {header("W tym oknie żadna reklama nie wydała pieniędzy.", true)}
+        {header(
+          view.monitor ? "Dziś reklamy jeszcze nic nie wydały." : "W tym okresie żadna reklama nie wydała pieniędzy.",
+          true
+        )}
         <EmptyState
           icon={WalletCards}
-          title="Brak wydatków w tym oknie"
-          description="Wybierz dłuższe okno u góry - testy pokażą się, gdy reklamy zaczną wydawać."
+          title={view.monitor ? "Dziś jeszcze bez wydatków" : "Brak wydatków w tym okresie"}
+          description={
+            view.monitor
+              ? "Zajrzyj za godzinę albo wybierz pełne dni u góry."
+              : "Wybierz dłuższy okres u góry - testy pokażą się, gdy reklamy zaczną wydawać."
+          }
         />
       </>
     );
   }
 
-  // The window ends today, which is still filling up: a sparkline ending on
-  // it would always "crash" on the last point.
-  const all = dailyTotals(view);
-  const days = all.length > 2 ? all.slice(0, -1) : all;
+  const days = view.days;
   const { totals, rates } = view;
 
   return (
@@ -228,15 +341,19 @@ export function AbPageView({
       {header(leadOf(view, ads), true)}
 
       <SectionBoundary name="ab/actions">
-        <AbActions actions={[...view.actions].sort((a, b) => b.impactPerDay - a.impactPerDay)} ads={ads} />
+        {view.monitor ? (
+          <PreviewNote href={hrefOf("7d")} />
+        ) : (
+          <AbActions actions={view.actions} ads={ads} finished={isFinished(view)} />
+        )}
       </SectionBoundary>
 
       <SectionBoundary name="ab/kpis">
-        <section aria-label="Wyniki reklam w oknie" className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+        <section aria-label="Wyniki reklam w okresie" className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           <StatTile
             index={0}
             label="Wydatki"
-            explain="Ile kosztowały wszystkie testowane reklamy Meta w wybranym oknie."
+            explain="Ile kosztowały wszystkie testowane reklamy Meta w wybranym okresie."
             value={fmtMoney(totals.spend)}
             spark={days.map((d) => d.spend)}
             sub={`${view.adCount} ${adsWord(view.adCount)} ${inSets(view.tests.length)}`}
@@ -278,10 +395,17 @@ export function AbPageView({
       </SectionBoundary>
 
       <SectionBoundary name="ab/tests">
-        <AbTestsExplorer tests={view.tests} windowLabel={windowLabel} end={view.end} />
+        <AbTestsExplorer
+          tests={view.tests}
+          windowLabel={windowLabel}
+          today={view.today}
+          range={{ start: view.start, end: view.end }}
+          monitor={view.monitor}
+          loadSeries={loadSeries}
+        />
       </SectionBoundary>
 
-      <AbMethod />
+      <AbMethod seasonal={seasonAllowed} />
     </>
   );
 }

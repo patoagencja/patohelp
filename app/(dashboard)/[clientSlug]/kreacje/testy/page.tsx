@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AbPageView } from "@/components/dashboard/ab/ab-page";
 import { parseAbWindow } from "@/components/dashboard/ab/ab-window";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
+import { loadAbSeries } from "@/lib/ab/compare-actions";
 import { loadAbView } from "@/lib/ab/load";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import { getClientSeason } from "@/lib/season/load";
@@ -45,6 +46,8 @@ export default async function CreativeTestsPage({
         keep={keep}
         seasonAllowed={season != null}
         tabs={<AdsSectionTabs base={base} active="testy" query={query} showTests />}
+        // The action re-checks the slug through RLS: the bound value comes back from the browser.
+        loadSeries={loadAbSeries.bind(null, params.clientSlug)}
       />
     </div>
   );

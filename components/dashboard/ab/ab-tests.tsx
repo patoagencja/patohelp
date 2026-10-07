@@ -15,7 +15,9 @@ import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Input } from "@/components/ui/input";
 import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
-import type { AbAd, AbTest, AbVerdictKind } from "@/lib/ab/types";
+import { LEADER_MIN_PROB } from "@/lib/ab/stats";
+import type { AbAd, AbDay, AbSeries, AbSeriesLoader, AbTest, AbVerdictKind } from "@/lib/ab/types";
+import { plPlural } from "@/lib/dashboard/story";
 import { marketLabel } from "@/lib/season/markets";
 import { cn } from "@/lib/utils";
 
@@ -28,20 +30,35 @@ import {
   fmtCpa,
   fmtMoney,
   fmtProb,
+  fmtProbText,
   fmtRate,
   fmtRoas,
   formatOf,
-  setsWord,
 } from "./ab-meta";
 import { KindChip } from "./kind-chip";
 
 /** Ad sets open on arrival; the rest wait behind one button. */
 const SHOWN_SETS = 4;
 const MAX_COMPARE = 4;
-/** "Tylko z werdyktem": the verdicts that ask for a move. */
+/** "Tylko z oceną": the verdicts that ask for a move. */
 const CALLED: ReadonlySet<AbVerdictKind> = new Set(["winner", "loser", "fatigue"]);
 
 const H2 = "mt-2 text-[22px] font-medium tracking-[-0.03em] text-foreground";
+
+const COUNT_WORD = ["", "Jedna", "Dwie", "Trzy", "Cztery"];
+
+/**
+ * Winners beat the REST of their set; the leader is the single BEST ad. Two
+ * winners close to each other both beat the rest but neither leads - say so,
+ * or "Wygrywa" next to "jeszcze bez lidera" reads as a contradiction.
+ */
+function winnersText(winners: AbAd[]): string {
+  const n = winners.length;
+  if (n === 1) {
+    return `„${winners[0].adName}” wyraźnie wygrywa z resztą zestawu, ale nie ma jeszcze ${fmtProb(LEADER_MIN_PROB)} szans, że to najlepsza reklama.`;
+  }
+  return `${COUNT_WORD[n] ?? n} ${adsWord(n)} wyraźnie ${plPlural(n, "wygrywa", "wygrywają", "wygrywa")} z resztą, ale żadna jeszcze nie odskoczyła od ${n === 2 ? "drugiej" : "pozostałych"}.`;
+}
 
 // One grid for the column header and every row on wide screens (xl): check,
 // thumb, ad, spend, purchases, cost per purchase, return, click rate, chance.
@@ -88,7 +105,7 @@ function Cell({
 
 const AdRow = memo(function AdRow({
   ad,
-  end,
+  today,
   leader,
   selected,
   disabled,
@@ -96,7 +113,7 @@ const AdRow = memo(function AdRow({
   onToggle,
 }: {
   ad: AbAd;
-  end: string;
+  today: string;
   leader: boolean;
   selected: boolean;
   disabled: boolean;
@@ -105,8 +122,10 @@ const AdRow = memo(function AdRow({
 }) {
   const v = VERDICT[ad.verdict.kind];
   const paused = ad.status != null && ad.status !== "ACTIVE";
-  const age = ageText(ad.firstDate, end);
-  const early = ad.verdict.kind === "too_early";
+  const age = ageText(ad, today);
+  const preview = ad.verdict.kind === "preview";
+  // A too-early ad's (or a partial day's) purchase figures are noise: greyed.
+  const early = ad.verdict.kind === "too_early" || preview;
   return (
     <li
       id={`ad-${ad.adId}`}
@@ -174,7 +193,8 @@ const AdRow = memo(function AdRow({
             {age ? <span className="text-ink-3">· {age}</span> : null}
           </span>
         </div>
-        <p className="mt-1.5 text-[13px] leading-snug text-ink-2">{ad.verdict.text}</p>
+        {/* The preview says the same for every ad: the banner above says it once. */}
+        {preview ? null : <p className="mt-1.5 text-[13px] leading-snug text-ink-2">{ad.verdict.text}</p>}
       </div>
 
       {/* Phones and tablets: the figures as a labelled grid under the ad;
@@ -182,11 +202,11 @@ const AdRow = memo(function AdRow({
       <div className="col-span-3 grid grid-cols-3 gap-x-3 gap-y-3 rounded-[16px] bg-chip p-3 sm:grid-cols-6 xl:contents">
         <Cell label="Wydatki" className="col-span-1">
           {fmtMoney(ad.totals.spend)}
-          <span className="mt-1 flex items-center gap-1.5 xl:justify-end">
+          <span className="mt-1.5 flex xl:justify-end">
             <Meter value={ad.spendShare} />
-            <span className="text-[11.5px] font-normal text-ink-3">
-              {Math.round(ad.spendShare * 100)}%<span className="sr-only"> wydatków zestawu</span>
-            </span>
+          </span>
+          <span className="mt-1 block text-[11.5px] font-normal leading-tight text-ink-3">
+            {Math.round(ad.spendShare * 100)}% budżetu zestawu
           </span>
         </Cell>
         <Cell label="Zakupy">{fmtCount(ad.totals.purchases)}</Cell>
@@ -201,7 +221,9 @@ const AdRow = memo(function AdRow({
             the row and push its figure below the others. */}
         <Cell label="Szansa, że najlepsza" className="col-span-3 sm:col-span-1">
           {ad.probBest == null ? (
-            <span className="text-[13px] font-normal text-ink-3">{early ? "za mało danych" : "-"}</span>
+            <span className="text-[13px] font-normal text-ink-3">
+              {preview ? "po pełnym dniu" : early ? "za mało danych" : "-"}
+            </span>
           ) : (
             <span className="flex items-center gap-2 xl:justify-end">
               <span className="w-10 shrink-0 text-left xl:order-2 xl:text-right">{fmtProb(ad.probBest)}</span>
@@ -217,7 +239,8 @@ const AdRow = memo(function AdRow({
 const TestCard = memo(function TestCard({
   test,
   ads,
-  end,
+  today,
+  monitor,
   selectedKey,
   full,
   flashId,
@@ -227,7 +250,8 @@ const TestCard = memo(function TestCard({
   test: AbTest;
   /** The ads that pass the filters (all of them when none is on). */
   ads: AbAd[];
-  end: string;
+  today: string;
+  monitor: boolean;
   /** Comma-joined ids of this card's selected ads (cheap memo key). */
   selectedKey: string;
   full: boolean;
@@ -237,6 +261,7 @@ const TestCard = memo(function TestCard({
 }) {
   const selected = useMemo(() => new Set(selectedKey ? selectedKey.split(",") : []), [selectedKey]);
   const leader = test.leaderAdId ? test.ads.find((a) => a.adId === test.leaderAdId) ?? null : null;
+  const winners = test.ads.filter((a) => a.verdict.kind === "winner");
   const headingId = `test-${test.adsetId}-name`;
   const hidden = test.ads.length - ads.length;
   return (
@@ -284,13 +309,23 @@ const TestCard = memo(function TestCard({
       </header>
 
       <p className="mx-1.5 mt-4 flex items-start gap-2 rounded-[18px] bg-chip px-3.5 py-2.5 text-[13.5px] leading-snug text-ink-2 sm:mx-0">
-        {leader ? (
+        {monitor ? (
+          <>
+            <Scale className="mt-px h-4 w-4 shrink-0" aria-hidden />
+            <span>Dziś tylko podgląd - kto prowadzi, liczymy na pełnych dniach.</span>
+          </>
+        ) : leader ? (
           <>
             <Trophy className="mt-px h-4 w-4 shrink-0 text-positive" aria-hidden />
             <span>
-              Prowadzi <b className="font-semibold text-foreground">«{leader.adName}»</b> -{" "}
-              {fmtProb(leader.probBest)} szans, że to najlepsza reklama w tym zestawie.
+              Prowadzi <b className="font-semibold text-foreground">„{leader.adName}”</b> -{" "}
+              {fmtProbText(leader.probBest)} szans, że to najlepsza reklama w tym zestawie.
             </span>
+          </>
+        ) : winners.length > 0 ? (
+          <>
+            <Trophy className="mt-px h-4 w-4 shrink-0" aria-hidden />
+            <span>{winnersText(winners)}</span>
           </>
         ) : test.ads.length < 2 ? (
           <>
@@ -300,7 +335,7 @@ const TestCard = memo(function TestCard({
         ) : (
           <>
             <Scale className="mt-px h-4 w-4 shrink-0" aria-hidden />
-            <span>Jeszcze bez lidera - żadna reklama nie ma 90% szans, że jest najlepsza.</span>
+            <span>Jeszcze bez lidera - żadna reklama nie ma {fmtProb(LEADER_MIN_PROB)} szans, że jest najlepsza.</span>
           </>
         )}
       </p>
@@ -326,7 +361,7 @@ const TestCard = memo(function TestCard({
           <AdRow
             key={ad.adId}
             ad={ad}
-            end={end}
+            today={today}
             leader={ad.adId === test.leaderAdId}
             selected={selected.has(ad.adId)}
             disabled={full && !selected.has(ad.adId)}
@@ -342,18 +377,26 @@ const TestCard = memo(function TestCard({
 /**
  * The tests themselves: one card per ad set (biggest spend first), its ads
  * as rows with the verdict, and a checkbox on each to compare 2-4 ads side
- * by side. Filters (market, "tylko z werdyktem", search) and the compare
- * selection are client state; the window is the page's (URL).
+ * by side. Filters (market, "tylko z oceną", search) and the compare
+ * selection are client state; the period is the page's (URL).
  */
 export function AbTestsExplorer({
   tests,
   windowLabel,
-  end,
+  today,
+  range,
+  monitor,
+  loadSeries,
 }: {
   tests: AbTest[];
   windowLabel: string;
-  /** Last day of the window (yyyy-MM-dd), for "od 12 dni". */
-  end: string;
+  /** Warsaw today (yyyy-MM-dd), for "od 12 dni". */
+  today: string;
+  /** The period's days, which the compare chart asks for. */
+  range: { start: string; end: string };
+  /** "Dziś" preview: no verdicts to filter on, no leaders. */
+  monitor: boolean;
+  loadSeries: AbSeriesLoader;
 }) {
   const [market, setMarket] = useState<string | null>(null);
   const [calledOnly, setCalledOnly] = useState(false);
@@ -370,7 +413,7 @@ export function AbTestsExplorer({
     return m;
   }, [tests]);
 
-  // A new window can drop ads that were selected (no spend in it).
+  // A new period can drop ads that were selected (no spend in it).
   useEffect(() => {
     setSelected((prev) => {
       const next = prev.filter((id) => adById.has(id));
@@ -409,6 +452,27 @@ export function AbTestsExplorer({
   const visible = showAll || q !== "" ? filtered : filtered.slice(0, SHOWN_SETS);
   const rest = filtered.length - visible.length;
   const shownAds = filtered.reduce((n, f) => n + f.ads.length, 0);
+
+  // Day-by-day series per ad for this period, kept while the page lives:
+  // re-opening the panel or removing an ad doesn't ask the server again.
+  const { start, end } = range;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new period or loader starts a new cache
+  const seriesCache = useMemo(() => new Map<string, AbDay[]>(), [start, end, loadSeries]);
+  const getSeries = useCallback(
+    async (adIds: string[]): Promise<AbSeries[] | null> => {
+      // One day has no line to draw (the chart says so): no round trip.
+      if (start === end) return adIds.map((adId) => ({ adId, days: [] }));
+      const missing = adIds.filter((id) => !seriesCache.has(id));
+      if (missing.length > 0) {
+        const got = await loadSeries({ adIds: missing, start, end });
+        for (const s of got) seriesCache.set(s.adId, s.days);
+      }
+      // An ad the server didn't return (no access, gone): no chart rather than a flat zero line.
+      if (adIds.some((id) => !seriesCache.has(id))) return null;
+      return adIds.map((adId) => ({ adId, days: seriesCache.get(adId)! }));
+    },
+    [seriesCache, loadSeries, start, end]
+  );
 
   const toggle = useCallback((adId: string) => {
     setSelected((prev) =>
@@ -523,30 +587,33 @@ export function AbTestsExplorer({
           </SegmentedTrack>
         ) : null}
 
-        <button
-          type="button"
-          aria-pressed={calledOnly}
-          onClick={() => setCalledOnly((v) => !v)}
-          title="Reklamy, które wygrywają, przegrywają albo się męczą"
-          className={cn(
-            "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium transition-[background-color,color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            calledOnly
-              ? "bg-anchor text-anchor-foreground"
-              : "bg-chip text-ink-2 hover:bg-[var(--chip-hover)] hover:text-foreground"
-          )}
-        >
-          <span
-            aria-hidden
+        {/* The preview has no verdicts to filter on. */}
+        {monitor ? null : (
+          <button
+            type="button"
+            aria-pressed={calledOnly}
+            onClick={() => setCalledOnly((v) => !v)}
+            title="Reklamy, które wygrywają, przegrywają albo się męczą"
             className={cn(
-              "grid h-4 w-4 place-items-center rounded-[5px] border-[1.5px]",
-              calledOnly ? "border-anchor-foreground/70" : "border-[color:var(--ink-3)]"
+              "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-medium transition-[background-color,color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              calledOnly
+                ? "bg-anchor text-anchor-foreground"
+                : "bg-chip text-ink-2 hover:bg-[var(--chip-hover)] hover:text-foreground"
             )}
           >
-            {calledOnly ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-          </span>
-          Tylko z werdyktem
-          <span className={cn("tabular-nums", calledOnly ? "opacity-70" : "text-ink-3")}>· {calledCount}</span>
-        </button>
+            <span
+              aria-hidden
+              className={cn(
+                "grid h-4 w-4 place-items-center rounded-[5px] border-[1.5px]",
+                calledOnly ? "border-anchor-foreground/70" : "border-[color:var(--ink-3)]"
+              )}
+            >
+              {calledOnly ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+            </span>
+            Tylko z oceną
+            <span className={cn("tabular-nums", calledOnly ? "opacity-70" : "text-ink-3")}>· {calledCount}</span>
+          </button>
+        )}
 
         <div className="relative min-w-[13rem] flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -557,14 +624,14 @@ export function AbTestsExplorer({
             placeholder="Szukaj reklamy lub zestawu"
             aria-label="Szukaj reklamy lub zestawu"
             autoComplete="off"
-            className="rounded-full bg-chip pl-10 pr-11 hover:bg-[var(--chip-hover)] [&::-webkit-search-cancel-button]:hidden"
+            className="rounded-full bg-chip pl-10 pr-12 hover:bg-[var(--chip-hover)] [&::-webkit-search-cancel-button]:hidden"
           />
           {query ? (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Wyczyść wyszukiwanie"
-              className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-ink-3 hover:bg-chip hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute right-0 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full text-ink-3 hover:bg-chip hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-4 w-4" aria-hidden />
             </button>
@@ -575,7 +642,9 @@ export function AbTestsExplorer({
       {filtering ? (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[13.5px] text-ink-3" aria-live="polite" data-print-hide>
           <span>
-            Pasuje {filtered.length} z {tests.length} {setsWord(tests.length)} · {shownAds} {adsWord(shownAds)}
+            {/* After "z" the genitive: "z 1 zestawu", "z 2 zestawów", never "z 2 zestawy". */}
+            {plPlural(filtered.length, "Pasuje", "Pasują", "Pasuje")} {filtered.length} z {tests.length}{" "}
+            {tests.length === 1 ? "zestawu" : "zestawów"} · {shownAds} {adsWord(shownAds)}
           </span>
           <button
             type="button"
@@ -591,7 +660,7 @@ export function AbTestsExplorer({
         <EmptyState
           icon={SearchX}
           title="Nic nie pasuje do filtrów"
-          description="Zmień rynek, wyłącz „Tylko z werdyktem” albo wpisz inną nazwę."
+          description="Zmień rynek, wyłącz „Tylko z oceną” albo wpisz inną nazwę."
           action={
             <button
               type="button"
@@ -609,7 +678,8 @@ export function AbTestsExplorer({
               key={test.adsetId}
               test={test}
               ads={ads}
-              end={end}
+              today={today}
+              monitor={monitor}
               index={i}
               selectedKey={ads
                 .filter((a) => selected.includes(a.adId))
@@ -644,7 +714,8 @@ export function AbTestsExplorer({
           className="pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom))] z-40 !mt-0 flex justify-center px-3.5 md:bottom-6 print:hidden"
         >
           <div className="glass glass-blur pointer-events-auto flex w-full max-w-xl items-center gap-2 rounded-full bg-[var(--tip)] bg-none p-1.5 pl-2 shadow-raised animate-rise [--d:0s]">
-            <div className="flex shrink-0 -space-x-2.5" aria-hidden>
+            {/* Phones: no thumbnails, so the count isn't cut to "Wyb…". */}
+            <div className="hidden shrink-0 -space-x-2.5 sm:flex" aria-hidden>
               {selectedAds.map((a) => (
                 <CreativeThumb
                   key={a.adId}
@@ -656,10 +727,15 @@ export function AbTestsExplorer({
                 />
               ))}
             </div>
-            <p className="min-w-0 flex-1 truncate pl-1 text-[13.5px] text-ink-2" aria-live="polite">
-              {selectedAds.length < 2
-                ? "Zaznacz jeszcze 1 reklamę"
-                : `Wybrane ${selectedAds.length} z ${MAX_COMPARE}`}
+            <p className="min-w-0 flex-1 truncate pl-2 text-[13.5px] text-ink-2 sm:pl-1" aria-live="polite">
+              <span className="sm:hidden">
+                {selectedAds.length} z {MAX_COMPARE}
+              </span>
+              <span className="hidden sm:inline">
+                {selectedAds.length < 2
+                  ? "Zaznacz jeszcze 1 reklamę"
+                  : `Wybrane ${selectedAds.length} z ${MAX_COMPARE}`}
+              </span>
             </p>
             <button
               type="button"
@@ -685,6 +761,7 @@ export function AbTestsExplorer({
         <AbCompare
           ads={selectedAds}
           windowLabel={windowLabel}
+          getSeries={getSeries}
           onClose={closeCompare}
           onRemove={removeFromCompare}
         />

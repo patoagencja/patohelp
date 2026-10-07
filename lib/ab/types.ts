@@ -2,12 +2,18 @@
 // refresh-ads-meta-ads cron) and the creative test UI ("Testy kreacji").
 // Advertisers who A/B test heavily (dozens of ads per ad set, tens of
 // thousands of złoty a day in season) need to know within hours which ad
-// wins, which burns money and which is wearing out - so everything here is
-// per ad per day, with purchases and their value, not a 30-day snapshot.
+// wins, which sells too expensively and which is wearing out - so everything
+// here is per ad per day, with purchases and their value, not a 30-day
+// snapshot.
 //
 // Money is minor units (grosze). Rates are plain ratios (0.0123 = 1.23%).
 
-/** Comparison windows offered in the UI. "season" needs a season config. */
+/**
+ * Periods offered in the UI. Every period but "today" is made of FINISHED
+ * days (it ends yesterday): today is still filling up and Meta keeps adding
+ * purchases to the last day or two for a while. "today" is a preview only.
+ * "season" needs a season config.
+ */
 export type AbWindowKey = "today" | "3d" | "7d" | "14d" | "30d" | "season";
 
 export const AB_WINDOW_LABEL: Record<AbWindowKey, string> = {
@@ -52,27 +58,30 @@ export interface AbRates {
 }
 
 export type AbVerdictKind =
-  /** Significantly better than the rest of its ad set: scale it. */
+  /** Clearly sells better than the rest of its ad set: give it more budget. */
   | "winner"
-  /** Significantly worse and spending: switch it off / cut budget. */
+  /** Clearly sells worse, more expensively, and still spends: switch it off. */
   | "loser"
-  /** Was good, its own recent days fell off (with rising frequency). */
+  /** Its return fell much faster than the rest of its set's, frequency up. */
   | "fatigue"
-  /** Not enough purchases yet to call it. */
+  /** Not enough purchases, clicks or finished days yet to call it. */
   | "too_early"
   /** In line with its ad set. */
-  | "steady";
+  | "steady"
+  /** "Dziś": today's numbers only, never judged. */
+  | "preview";
 
 export interface AbVerdict {
   kind: AbVerdictKind;
   /**
    * Probability (0..1) that this ad's purchase rate per click beats the rest
-   * of its ad set (winner/steady) or is below it (loser). null for too_early.
+   * of its ad set (winner/steady) or is below it (loser). null for
+   * too_early and preview.
    */
   probability: number | null;
-  /** One plain Polish sentence for the UI, e.g. "93% szans, że sprzedaje lepiej niż reszta zestawu". */
+  /** One plain Polish sentence for the UI, e.g. "97% szans, że sprzedaje lepiej niż reszta zestawu". */
   text: string;
-  /** For too_early: roughly how many more purchases before a call. */
+  /** For too_early: roughly how many more purchases before a call (null when purchases are not what's missing). */
   purchasesNeeded?: number | null;
 }
 
@@ -93,6 +102,8 @@ export interface AbAd {
   /** First / last day with spend inside the loaded history. */
   firstDate: string | null;
   lastDate: string | null;
+  /** Days of the period with spend. */
+  deliveryDays: number;
   totals: AbAdTotals;
   rates: AbRates;
   /** Share of the ad set's spend in the window (0..1). */
@@ -100,8 +111,9 @@ export interface AbAd {
   /** Probability this ad is the best in its ad set by purchases per click. */
   probBest: number | null;
   verdict: AbVerdict;
-  /** Daily series over the window (oldest -> newest), zero-filled. */
-  daily: AbDay[];
+  // No per-day series here on purpose: on a busy account it was ~86% of the
+  // payload and pushed the cached view over 2 MB. The compare chart asks for
+  // its few ads on demand (AbSeriesLoader).
 }
 
 /** One ad set = one test: its ads compete for the same audience and budget. */
@@ -126,13 +138,16 @@ export interface AbAction {
   kind: AbActionKind;
   adId: string;
   adsetId: string;
-  /** Headline, e.g. "Wyłącz: «Elf Fajtłapa 15s» przepala 1 240 zł dziennie". */
+  /** Headline, e.g. "Wyłącz „Elf 15s”: zakup 2,1× droższy niż w reszcie zestawu". */
   title: string;
   /** Why, in one sentence with the numbers. */
   detail: string;
   /**
-   * Rough money at stake per day (grosze): spend that would be saved (cut)
-   * or extra value expected (scale). Used to sort the list.
+   * Rough sales value per day at stake (grosze) for cut / scale / refresh -
+   * the same unit, so they sort together: extra sales if the budget went to
+   * the rest of the set (cut), extra sales from moving budget onto the ad
+   * (scale), sales lost to wear-out (refresh). For watch: the ad's spend per
+   * day (listed after every decision).
    */
   impactPerDay: number;
 }
@@ -141,14 +156,36 @@ export interface AbView {
   windowKey: AbWindowKey;
   start: string;
   end: string;
+  /** Warsaw today the view was computed for. */
+  today: string;
+  /** true = the "Dziś" preview: today's numbers, no verdicts or actions. */
+  monitor: boolean;
   /** Newest synced timestamp of ad-level data (ISO), null when none. */
   updatedAt: string | null;
   /** false = migration missing or no ad-level data synced yet. */
   available: boolean;
   totals: AbAdTotals;
   rates: AbRates;
+  /** Every ad together, day by day over the window (tile sparklines). */
+  days: AbDay[];
   tests: AbTest[];
   actions: AbAction[];
   /** Ads with spend in the window (flat list for the compare picker). */
   adCount: number;
 }
+
+/** The compare chart's on-demand request: up to 4 ads over the view's days. */
+export interface AbSeriesRequest {
+  adIds: string[];
+  start: string;
+  end: string;
+}
+
+/** One ad's days over the request (oldest -> newest, zero-filled). */
+export interface AbSeries {
+  adId: string;
+  days: AbDay[];
+}
+
+/** A server action reading series: production by slug, the demo by its pinned day. */
+export type AbSeriesLoader = (req: AbSeriesRequest) => Promise<AbSeries[]>;

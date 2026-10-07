@@ -3,6 +3,7 @@ import {
   BookOpen,
   CalendarRange,
   FileText,
+  FlaskConical,
   Globe,
   Image as ImageIcon,
   LayoutDashboard,
@@ -82,7 +83,12 @@ export function buildNav({
       href: `${base}/reklamy`,
       label: "Reklamy",
       icon: Megaphone,
-      children: [{ href: `${base}/kreacje`, label: "Kreacje", icon: ImageIcon }],
+      children: [
+        { href: `${base}/kreacje`, label: "Kreacje", icon: ImageIcon },
+        // Judged on purchases and sales value: shops only (engagement
+        // clients never see ROAS).
+        ...(isEcommerce ? [{ href: `${base}/kreacje/testy`, label: "Testy kreacji", icon: FlaskConical }] : []),
+      ],
     },
     { href: `${base}/witryna`, label: "Strona www", short: "Strona", icon: Globe },
     ...(isEcommerce ? [] : [reports]),
