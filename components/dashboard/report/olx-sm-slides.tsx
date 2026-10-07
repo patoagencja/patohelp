@@ -452,7 +452,7 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
           </span>
         </div>
         <p className="mt-1 text-sm text-slate-400">
-          Machine-readable - generowane automatycznie z Kalejdo.
+          Machine-readable - generowane automatycznie z Kaleido.
         </p>
         <div className="mt-6 grid flex-1 grid-cols-[auto_1fr] content-start gap-x-8 gap-y-2.5 font-mono text-[13px]">
           {(

@@ -116,7 +116,7 @@ export default function LoginPage() {
               <Sparkles className="h-[18px] w-[18px]" aria-hidden />
               <span aria-hidden className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-anchor-dot" />
             </span>
-            <p className="text-[15px] font-semibold tracking-[-0.02em]">Kalejdo</p>
+            <p className="text-[15px] font-semibold tracking-[-0.02em]">Kaleido</p>
           </div>
 
           {status === "sent" ? (
