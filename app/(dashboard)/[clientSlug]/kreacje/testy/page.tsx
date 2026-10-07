@@ -20,10 +20,11 @@ export default async function CreativeTestsPage({
   if (!client) redirect("/login");
 
   const base = `/${params.clientSlug}`;
-  const season = await getClientSeason(client.id);
   // Tests are judged on purchases and sales value. Engagement clients have
-  // neither and must never see ROAS (CLAUDE.md), so they get Kreacje.
-  if (client.clientType !== "ecommerce" && !season) redirect(`${base}/kreacje`);
+  // neither and must never see ROAS (CLAUDE.md) - seasonal or not - so they
+  // get Kreacje.
+  if (client.clientType !== "ecommerce") redirect(`${base}/kreacje`);
+  const season = await getClientSeason(client.id);
 
   const windowKey = parseAbWindow(searchParams.okno, season != null);
   const view = await loadAbView(client.id, windowKey);

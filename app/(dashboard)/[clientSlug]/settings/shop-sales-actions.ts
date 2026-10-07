@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { clientDataTag } from "@/lib/dashboard/sync-cache";
@@ -85,33 +84,39 @@ export async function disableShopIngestKey(input: {
   return { ok: true };
 }
 
+/** Rows one upload may hold: ~10 seasons x 7 markets x a few products. */
+const MAX_CSV_ROWS = 50_000;
+
+export type CsvUploadResult = { ok: true; rows: number } | { ok: false; error: string };
+
 /**
  * CSV history upload (e.g. last season exported from the shop's panel).
- * Same validation and upsert as the API, source 'csv'. Redirects back with
- * ?saved=shop_csv&rows=N, or ?error=shop_csv&msg=<Polish message naming the
- * first bad line> for the settings toast.
+ * Same validation and upsert as the API, source 'csv'. Returns the result to
+ * the calling component, which shows the toast - the message used to ride
+ * back in the URL, where anyone could craft a convincing fake one.
  */
-export async function uploadShopSalesCsv(formData: FormData) {
+export async function uploadShopSalesCsv(formData: FormData): Promise<CsvUploadResult> {
   const clientSlug = String(formData.get("client") ?? "");
   const access = await requireAgencyClientAccess(clientSlug);
-  if (!access.ok) return;
-
-  const back = `/${access.clientSlug}/settings`;
-  function fail(message: string): never {
-    redirect(`${back}?error=shop_csv&msg=${encodeURIComponent(message.slice(0, 300))}#sprzedaz-sklepu`);
-  }
+  if (!access.ok) return { ok: false, error: "Brak dostępu do tego klienta." };
 
   const file = formData.get("file");
-  if (!file || typeof file === "string" || file.size === 0) fail("Wybierz plik CSV.");
+  if (!file || typeof file === "string" || file.size === 0) return { ok: false, error: "Wybierz plik CSV." };
   if (file.size > MAX_CSV_BYTES) {
-    fail("Plik jest za duży (maks. 4 MB). Podziel go na kilka części, np. po sezonach.");
+    return { ok: false, error: "Plik jest za duży (maks. 4 MB). Podziel go na kilka części, np. po sezonach." };
   }
 
   const parsed = parseSalesCsv(decodeCsvBytes(new Uint8Array(await file.arrayBuffer())));
-  if (!parsed.ok) fail(parsed.error);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  if (parsed.records.length > MAX_CSV_ROWS) {
+    return {
+      ok: false,
+      error: `Plik ma ${parsed.records.length} wierszy (maks. ${MAX_CSV_ROWS}). Podziel go na kilka części, np. po sezonach.`,
+    };
+  }
 
   const validated = validateCsvRecords(parsed.records);
-  if (!validated.ok) fail(validated.error);
+  if (!validated.ok) return { ok: false, error: validated.error };
 
   const saved = await upsertShopSales(
     createAdminClient(),
@@ -121,13 +126,12 @@ export async function uploadShopSalesCsv(formData: FormData) {
   );
   if (!saved.ok) {
     console.error(`[shop-sales] CSV upsert failed for client ${access.clientId}: ${saved.message}`);
-    fail(saved.missingTable ? MIGRATION_HINT : "Nie udało się zapisać danych. Spróbuj ponownie.");
+    return { ok: false, error: saved.missingTable ? MIGRATION_HINT : "Nie udało się zapisać danych. Spróbuj ponownie." };
   }
 
-  // Sales may feed any of the client's pages once wired in, not just settings.
   // The season page caches per ad-sync stamp + last API push; a CSV upload
   // moves neither, so drop this client's cached aggregates explicitly.
   revalidateTag(clientDataTag(access.clientId));
   revalidatePath(`/${access.clientSlug}`, "layout");
-  redirect(`${back}?saved=shop_csv&rows=${saved.rows}#sprzedaz-sklepu`);
+  return { ok: true, rows: saved.rows };
 }

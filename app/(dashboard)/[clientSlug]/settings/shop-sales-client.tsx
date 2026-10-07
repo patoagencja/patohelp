@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { FileUp, KeyRound, Loader2, TriangleAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -139,10 +140,11 @@ export function ShopSalesKey({
 /**
  * CSV history upload. Submits through a transition instead of a bare form
  * action so the button can show progress (a season file takes a few
- * seconds); the action redirects back with the result for the toast.
+ * seconds); the action returns the result for the toast.
  */
 export function ShopCsvUpload({ clientSlug }: { clientSlug: string }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,11 +159,16 @@ export function ShopCsvUpload({ clientSlug }: { clientSlug: string }) {
       return;
     }
     startTransition(async () => {
-      // The action's redirect() is applied by the router and resolves this
-      // call; only transport failures (network, body limit) throw.
       try {
-        await uploadShopSalesCsv(form);
+        const res = await uploadShopSalesCsv(form);
+        if (!res.ok) {
+          toast.error(res.error, { duration: 15000 });
+          return;
+        }
+        toast.success(`Wczytano sprzedaż z CSV: ${res.rows} ${res.rows === 1 ? "wiersz" : "wierszy"}.`);
+        router.refresh();
       } catch {
+        // Transport failures only (network, body limit).
         toast.error("Nie udało się wysłać pliku. Spróbuj ponownie.");
       }
     });

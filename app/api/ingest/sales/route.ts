@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   findClientByIngestKey,
   markIngestKeyUsed,
+  takeIngestSlot,
   toSaleRows,
   upsertShopSales,
   validateApiPayload,
@@ -70,6 +71,11 @@ export async function POST(request: Request) {
   }
   if (lookup.status === "unknown") return unauthorized();
   const clientId = lookup.clientId;
+  if (!(await takeIngestSlot(admin, clientId))) {
+    return json({ ok: false, error: "Za dużo żądań - maks. 120 na godzinę. Wysyłaj dane raz na godzinę." }, 429, {
+      "Retry-After": "600",
+    });
+  }
 
   const text = await readBodyCapped(request, MAX_BODY_BYTES);
   if (text === null) return tooLarge();

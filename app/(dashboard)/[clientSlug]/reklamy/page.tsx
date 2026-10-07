@@ -18,7 +18,6 @@ import {
 import { getClientBySlug } from "@/lib/dashboard/context";
 import { getImpressionShare } from "@/lib/dashboard/impression-share";
 import { getSearchTerms } from "@/lib/dashboard/search-terms";
-import { getClientSeason } from "@/lib/season/load";
 
 export const dynamic = "force-dynamic";
 
@@ -44,13 +43,9 @@ export default async function AdsPage({
   // Search terms and impression share sit behind "Pokaż szczegóły": they
   // stream in after the first screen instead of holding the whole page back
   // (the slowest part of this tab on big Google accounts).
-  // The season lookup (for the "Testy kreacji" tab) rides beside the data;
-  // shops always get the tab, so they skip it.
-  const [data, season] = await Promise.all([
-    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
-    client.clientType === "ecommerce" ? null : getClientSeason(client.id),
-  ]);
-  const showTests = client.clientType === "ecommerce" || season != null;
+  const data = await loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null);
+  // Shops only (ROAS-based tests; engagement clients never see ROAS).
+  const showTests = client.clientType === "ecommerce";
 
   // Keep the chosen range when hopping between the Kampanie/Kreacje tabs.
   const keep = new URLSearchParams();

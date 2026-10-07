@@ -188,10 +188,31 @@ const MAX_REPORTED_ISSUES = 20;
  * Reports up to 20 issues so one systematic mistake (a wrong field name)
  * doesn't turn into 5000 lines of error.
  */
+/**
+ * The API only takes recent days: an hourly push re-sends the last ~14 days
+ * (pay-later orders land up to 10 days late). Older history goes through the
+ * CSV upload, by the agency - so a leaked key can't rewrite past seasons
+ * that the season comparison and forecast stand on.
+ */
+export const API_MAX_AGE_DAYS = 45;
+/** Distinct values one push may carry - bounds what a leaked key can bloat. */
+const API_MAX_PRODUCTS = 100;
+const API_MAX_MARKETS = 30;
+
 export function validateApiPayload(
   body: unknown,
   now: Date = new Date()
 ): { ok: true; rows: ShopRow[] } | { ok: false; error: string; issues: ValidationIssue[] } {
+  // Count before validating: zod checks every element before applying
+  // .max(), so a huge array of junk cost seconds of CPU and hundreds of MB.
+  const raw = (body as { rows?: unknown } | null)?.rows;
+  if (Array.isArray(raw) && raw.length > MAX_API_ROWS) {
+    return {
+      ok: false,
+      error: "Nieprawidłowe dane",
+      issues: [{ path: "rows", message: `maks. ${MAX_API_ROWS} wierszy na żądanie - podziel dane na kilka żądań` }],
+    };
+  }
   const schema = z.object(
     {
       rows: z
@@ -204,7 +225,38 @@ export function validateApiPayload(
     { invalid_type_error: "oczekiwano obiektu JSON { \"rows\": [...] }" }
   );
   const parsed = schema.safeParse(body);
-  if (parsed.success) return { ok: true, rows: parsed.data.rows };
+  if (parsed.success) {
+    const rows = parsed.data.rows;
+    const cutoff = new Date(now.getTime() - API_MAX_AGE_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const old = rows.findIndex((r) => r.date < cutoff);
+    if (old >= 0) {
+      return {
+        ok: false,
+        error: "Nieprawidłowe dane",
+        issues: [
+          {
+            path: `rows.${old}.date`,
+            message: `API przyjmuje dane z ostatnich ${API_MAX_AGE_DAYS} dni (od ${cutoff}); starszą historię wgraj plikiem CSV w ustawieniach`,
+          },
+        ],
+      };
+    }
+    if (new Set(rows.map((r) => r.product)).size > API_MAX_PRODUCTS) {
+      return {
+        ok: false,
+        error: "Nieprawidłowe dane",
+        issues: [{ path: "rows", message: `maks. ${API_MAX_PRODUCTS} różnych produktów w jednym żądaniu` }],
+      };
+    }
+    if (new Set(rows.map((r) => r.market)).size > API_MAX_MARKETS) {
+      return {
+        ok: false,
+        error: "Nieprawidłowe dane",
+        issues: [{ path: "rows", message: `maks. ${API_MAX_MARKETS} różnych rynków w jednym żądaniu` }],
+      };
+    }
+    return { ok: true, rows };
+  }
   const issues = parsed.error.issues.slice(0, MAX_REPORTED_ISSUES).map((i) => ({
     path: i.path.join("."),
     message: i.message,
@@ -292,6 +344,38 @@ export async function upsertShopSales(
     }
   }
   return { ok: true, rows: rows.length };
+}
+
+/** Pushes one key may make per hour (an hourly push needs a handful). */
+const RATE_PER_HOUR = 120;
+
+/**
+ * Per-key hourly budget. Not atomic - two racing requests may both pass at
+ * the edge - which is fine: the point is to stop a leaked key from looping
+ * thousands of writes, not to count exactly. Unavailable columns (migration
+ * not applied) let the request through rather than block a real shop.
+ */
+export async function takeIngestSlot(admin: Admin, clientId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from("shop_ingest_keys")
+    .select("rate_window_start, rate_count")
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (error || !data) return true;
+  const row = data as { rate_window_start: string | null; rate_count: number | null };
+  const now = Date.now();
+  const start = row.rate_window_start ? Date.parse(row.rate_window_start) : 0;
+  const fresh = !start || now - start > 3_600_000;
+  const count = fresh ? 1 : (row.rate_count ?? 0) + 1;
+  if (!fresh && count > RATE_PER_HOUR) return false;
+  await admin
+    .from("shop_ingest_keys")
+    .update({
+      rate_window_start: fresh ? new Date(now).toISOString() : row.rate_window_start,
+      rate_count: count,
+    })
+    .eq("client_id", clientId);
+  return true;
 }
 
 /** Stamp the key after a successful push ("ostatnie dane z API" in settings). */

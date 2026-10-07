@@ -33,7 +33,10 @@ export async function listAbClients(admin: SupabaseClient, ids?: string[]): Prom
         season: parseSeason(r.season),
         ecommerce: r.client_type === "ecommerce",
       }))
-      .filter((c) => c.season != null || c.ecommerce);
+      // Shops only: tests are judged on purchases and sales value, and an
+      // engagement client must never see ROAS (CLAUDE.md) - not even when
+      // it also runs in seasons.
+      .filter((c) => c.ecommerce);
   }
   return [];
 }

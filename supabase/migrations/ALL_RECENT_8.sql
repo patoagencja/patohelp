@@ -89,6 +89,11 @@ create table if not exists public.shop_ingest_keys (
   last_rows integer
 );
 
+-- Per-key hourly request budget (lib/shop/ingest.ts takeIngestSlot): a leaked
+-- key must not be able to loop thousands of writes.
+alter table public.shop_ingest_keys add column if not exists rate_window_start timestamptz;
+alter table public.shop_ingest_keys add column if not exists rate_count integer not null default 0;
+
 -- No policies on purpose: a key hash is still a credential lookup table.
 alter table public.shop_ingest_keys enable row level security;
 

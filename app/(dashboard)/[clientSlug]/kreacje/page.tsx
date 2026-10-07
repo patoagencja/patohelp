@@ -8,7 +8,6 @@ import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
 import { Pill } from "@/components/ui/pill";
 import { getClientBySlug } from "@/lib/dashboard/context";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
-import { getClientSeason } from "@/lib/season/load";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -42,22 +41,18 @@ export default async function KreacjePage({
   }
 
   const supabase = createClient();
-  // "Testy kreacji" is a tab for shops and seasonal sellers only; the season
-  // lookup runs beside the creatives query (and is skipped for shops).
-  const [{ data }, season] = await Promise.all([
-    supabase
-      .from("creatives")
-      // "*" rather than a column list: naming the 0025 metric columns would
-      // make the whole query fail (and the tab look empty) until that
-      // migration has run. Missing columns simply read as undefined.
-      .select("*")
-      .eq("client_id", client.id)
-      .eq("provider", "meta_ads")
-      .order("spend_minor_units", { ascending: false })
-      .limit(300),
-    client.clientType === "ecommerce" ? null : getClientSeason(client.id),
-  ]);
-  const showTests = client.clientType === "ecommerce" || season != null;
+  const { data } = await supabase
+    .from("creatives")
+    // "*" rather than a column list: naming the 0025 metric columns would
+    // make the whole query fail (and the tab look empty) until that
+    // migration has run. Missing columns simply read as undefined.
+    .select("*")
+    .eq("client_id", client.id)
+    .eq("provider", "meta_ads")
+    .order("spend_minor_units", { ascending: false })
+    .limit(300);
+  // Shops only (ROAS-based tests; engagement clients never see ROAS).
+  const showTests = client.clientType === "ecommerce";
 
   const rows = data ?? [];
   const creatives: CreativeItem[] = rows.map((c) => ({
