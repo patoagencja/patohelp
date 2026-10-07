@@ -20,6 +20,7 @@ import {
   type SeasonWindow,
 } from "./config";
 import { marketOf } from "./markets";
+import { projectSeason, type SeasonForecast } from "./forecast";
 import { computeSeasonShop, type SeasonShop, type SeasonShopRow } from "./shop";
 
 /**
@@ -88,7 +89,16 @@ export interface SeasonView {
   /** Whether either season reports purchase values. */
   hasValue: boolean;
   /** Projected season total if it keeps last season's shape (in only). */
-  forecast: { value: number; spend: number } | null;
+  forecast: (SeasonForecast & { spend: number }) | null;
+  /** Last 7 finished days vs the same weekdays a year earlier (in only). */
+  last7: { cur: SeasonTotals; prev: SeasonTotals } | null;
+  /**
+   * First synced day of the previous season when it starts more than a week
+   * after that season did - its numbers are partial and say so.
+   */
+  prevPartialFrom: string | null;
+  /** Previous season's sales moments on this season's axis (Black Friday moves). */
+  prevMoments: Array<SeasonMoment & { i: number }>;
   days: SeasonDay[];
   markets: SeasonMarket[];
   /** Share of spend whose campaign names carry no market (0..1). */
@@ -211,20 +221,60 @@ export function computeSeasonView(
   const hasPrev = prevRows.length > 0;
   const hasValue = prevFull.value > 0 || totals.value > 0 || (todayTotals?.value ?? 0) > 0;
 
-  // Forecast: the share of last season's sales that had come in by this day
-  // scales this season's total. Too early (under ~5% of last season in) the
-  // ratio swings wildly - no forecast rather than a silly one.
-  let forecast: SeasonView["forecast"] = null;
-  if (running && hasPrev && prevFull.value > 0 && prevSamePoint.value > 0) {
-    const share = prevSamePoint.value / prevFull.value;
-    const spendShare = prevFull.spend > 0 ? prevSamePoint.spend / prevFull.spend : 0;
-    if (share >= 0.05 && totals.value > 0) {
-      forecast = {
-        value: Math.round(totals.value / share),
-        spend: spendShare > 0 ? Math.round(totals.spend / spendShare) : 0,
-      };
+  // Recent two weeks (finished days) against the same days of last season:
+  // what the forecast projects forward (lib/season/forecast.ts).
+  const recentFrom = Math.max(0, compareIdx - 13);
+  const sumRange = (list: SeasonTotals[], from: number, to: number, pick: (t: SeasonTotals) => number) => {
+    let total = 0;
+    for (let i = from; i <= Math.min(to, list.length - 1); i++) total += pick(list[i]);
+    return total;
+  };
+  const projection =
+    running && hasPrev && compareIdx >= 0
+      ? projectSeason({
+          soFar: totals.value,
+          prevSoFar: prevSamePoint.value,
+          prevFull: prevFull.value,
+          recent: sumRange(dayTotals, recentFrom, compareIdx, (t) => t.value),
+          prevRecent: sumRange(prevDayTotals, recentFrom, compareIdx, (t) => t.value),
+        })
+      : null;
+  const spendShare = prevFull.spend > 0 ? prevSamePoint.spend / prevFull.spend : 0;
+  const forecast: SeasonView["forecast"] = projection
+    ? { ...projection, spend: spendShare > 0 ? Math.round(totals.spend / spendShare) : 0 }
+    : null;
+
+  // Last 7 finished days against the same WEEKDAYS a year earlier (364
+  // days back): the calendar-aligned season comparison puts Friday next to
+  // Thursday when the year shifts, and Black Friday lands a day apart.
+  let last7: SeasonView["last7"] = null;
+  if (running && hasPrev && compareIdx >= 6) {
+    const curWeek = empty();
+    const prevWeek = empty();
+    let prevCovered = 0;
+    for (let i = compareIdx - 6; i <= compareIdx; i++) {
+      const t = dayTotals[i];
+      curWeek.spend += t.spend;
+      curWeek.value += t.value;
+      curWeek.purchases += t.purchases;
+      curWeek.clicks += t.clicks;
+      const j = diffDaysIso(prev.start, addDaysIso(addDaysIso(cur.start, i), -364));
+      if (j >= 0 && j < prevLen) {
+        const p = prevDayTotals[j];
+        prevWeek.spend += p.spend;
+        prevWeek.value += p.value;
+        prevWeek.purchases += p.purchases;
+        prevWeek.clicks += p.clicks;
+        prevCovered += 1;
+      }
     }
+    if (prevCovered === 7) last7 = { cur: curWeek, prev: prevWeek };
   }
+
+  // A previous season that only partly synced (client connected mid-way,
+  // history window too short) compared in full would read as huge growth.
+  const prevFirst = prevRows.reduce<string | null>((m, r) => (!m || r.date < m ? r.date : m), null);
+  const prevPartialFrom = prevFirst && prevFirst > addDaysIso(prev.start, 7) ? prevFirst : null;
 
   const days: SeasonDay[] = dayTotals.map((t, i) => {
     const date = addDaysIso(cur.start, i);
@@ -262,12 +312,18 @@ export function computeSeasonView(
     hasPrev,
     hasValue,
     forecast,
+    last7,
+    prevPartialFrom,
     days,
     markets: [...markets.values()].sort(
       (a, b) => b.cur.value - a.cur.value || b.cur.spend - a.cur.spend || b.prev.value - a.prev.value
     ),
     unmappedShare: allSpend > 0 ? 1 - mappedSpend / allSpend : 0,
     moments: seasonMoments(cur).map((m) => ({ ...m, i: diffDaysIso(cur.start, m.date) })),
+    prevMoments: seasonMoments(prev)
+      .map((m) => ({ ...m, i: diffDaysIso(prev.start, m.date) }))
+      // Only the ones that moved: fixed dates sit under this season's ticks.
+      .filter((m) => !seasonMoments(cur).some((c) => diffDaysIso(cur.start, c.date) === m.i)),
     bestDay: best(dayTotals, cur.start, running ? asOfIdx : len - 1),
     prevBestDay: best(prevDayTotals, prev.start, prevLen - 1),
     shop: shopRows

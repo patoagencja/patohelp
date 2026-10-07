@@ -11,6 +11,7 @@ import {
   isIsoDate,
   isMissingTableError,
   MAX_API_ROWS,
+  mixedGranularityDate,
   normalizeDateInput,
   normalizeMarket,
   normalizeProduct,
@@ -170,6 +171,25 @@ export function shopRowSchema(now: Date = new Date()) {
         .min(0, "przychód nie może być ujemny")
         .max(1_000_000_000, "przychód nierealnie duży - podaj PLN, nie grosze")
     ),
+    // Optional pay-later figures: orders placed that day but not paid yet.
+    pending_orders: z.preprocess(
+      toNumberLoose,
+      z
+        .number({ invalid_type_error: "pending_orders ma być liczbą" })
+        .int("pending_orders ma być liczbą całkowitą")
+        .min(0, "pending_orders nie może być ujemne")
+        .max(10_000_000, "pending_orders nierealnie duże")
+        .optional()
+    ),
+    pending_revenue_pln: z.preprocess(
+      toNumberLoose,
+      z
+        .number({ invalid_type_error: "pending_revenue_pln ma być liczbą (PLN brutto)" })
+        .finite()
+        .min(0, "pending_revenue_pln nie może być ujemne")
+        .max(1_000_000_000, "pending_revenue_pln nierealnie duże - podaj PLN, nie grosze")
+        .optional()
+    ),
   });
 }
 
@@ -241,6 +261,19 @@ export function validateApiPayload(
         ],
       };
     }
+    const mixed = mixedGranularityDate(rows);
+    if (mixed) {
+      return {
+        ok: false,
+        error: "Nieprawidłowe dane",
+        issues: [
+          {
+            path: "rows",
+            message: `dzień ${mixed} ma jednocześnie wiersze z produktem/rynkiem i bez - wyślij każdy dzień na jednym poziomie szczegółów`,
+          },
+        ],
+      };
+    }
     if (new Set(rows.map((r) => r.product)).size > API_MAX_PRODUCTS) {
       return {
         ok: false,
@@ -299,6 +332,8 @@ export function toSaleRows(rows: readonly ShopRow[]): SaleRow[] {
       product: r.product,
       orders: r.orders,
       revenueMinor: toMinorUnits(r.revenue_pln),
+      pendingOrders: r.pending_orders ?? 0,
+      pendingRevenueMinor: toMinorUnits(r.pending_revenue_pln ?? 0),
     }))
   );
 }
@@ -333,6 +368,8 @@ export async function upsertShopSales(
       product: r.product,
       orders: r.orders,
       revenue_minor_units: r.revenueMinor,
+      pending_orders: r.pendingOrders ?? 0,
+      pending_revenue_minor_units: r.pendingRevenueMinor ?? 0,
       source,
       updated_at: updatedAt,
     }));
@@ -344,6 +381,23 @@ export async function upsertShopSales(
     }
   }
   return { ok: true, rows: rows.length };
+}
+
+/**
+ * An API push is the truth for the days it carries: rows those days had
+ * before but the push no longer contains (a refunded order's product, a
+ * market with no sales left) are removed, or they'd stay forever. Called
+ * before the upsert; a failure leaves the old rows (re-sent next hour).
+ */
+export async function clearPushedDays(admin: Admin, clientId: string, dates: readonly string[]): Promise<void> {
+  const unique = Array.from(new Set(dates));
+  for (let i = 0; i < unique.length; i += 100) {
+    await admin
+      .from("shop_sales_daily")
+      .delete()
+      .eq("client_id", clientId)
+      .in("date", unique.slice(i, i + 100));
+  }
 }
 
 /** Pushes one key may make per hour (an hourly push needs a handful). */

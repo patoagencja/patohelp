@@ -75,7 +75,22 @@ export function SeasonTimeline({
         ) : null}
       </div>
 
-      <div className="relative mt-5 pb-7">
+      {/* The bar and its tags are decoration for sighted users; one plain
+          sentence says the same to a screen reader. */}
+      <p className="sr-only">
+        {running
+          ? `Minęło ${state.day} z ${totalDays} dni sezonu.`
+          : `Pasek pokazuje cały sezon ${current.year}.`}{" "}
+        {moments.length
+          ? `Ważne dni: ${moments.map((m) => `${m.label} ${dayMonthLong(m.date)}`).join(", ")}.`
+          : ""}
+      </p>
+      {!running ? (
+        <p aria-hidden className="mt-4 font-mono text-[11px] uppercase tracking-[0.08em] text-ink-3">
+          Sezon {current.year}
+        </p>
+      ) : null}
+      <div aria-hidden className="relative mt-5 pb-7">
         <div aria-hidden className="h-3 overflow-hidden rounded-full bg-chip">
           <div
             className="share-fill h-full origin-left rounded-full animate-grow"

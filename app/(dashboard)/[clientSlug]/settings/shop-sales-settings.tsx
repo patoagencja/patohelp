@@ -33,7 +33,7 @@ function plural(n: number, one: string, few: string, many: string): string {
 
 const EXAMPLE_JSON = `{
   "rows": [
-    { "date": "2025-12-01", "market": "PL", "product": "Film od Mikołaja", "orders": 42, "revenue_pln": 2058.00 },
+    { "date": "2025-12-01", "market": "PL", "product": "Film od Mikołaja", "orders": 42, "revenue_pln": 2058.00, "pending_orders": 5, "pending_revenue_pln": 249.95 },
     { "date": "2025-12-01", "market": "DE", "product": "Film od Mikołaja", "orders": 9, "revenue_pln": 611.55 },
     { "date": "2025-12-01", "market": "PL", "product": "List od Mikołaja", "orders": 31, "revenue_pln": 1209.00 }
   ]
@@ -244,7 +244,8 @@ export async function ShopSalesSettings({
               <p>
                 Wysyłaj co godzinę ostatnie 14 dni (zamówienia opłacone, wg daty złożenia
                 zamówienia; kwoty brutto w PLN). 14 dni, bo płatności „kup teraz, zapłać później”
-                spływają do 10 dni po zamówieniu - każde wysłanie nadpisuje liczby tamtych dni.
+                spływają do 10 dni po zamówieniu. Każde wysłanie zastępuje w całości dni, które
+                zawiera. API przyjmuje ostatnie 45 dni - starszą historię wgraj plikiem CSV poniżej.
               </p>
 
               <div className="flex flex-col gap-2">
@@ -281,7 +282,7 @@ export async function ShopSalesSettings({
                 <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                   <li>
                     <code>date</code> - dzień złożenia zamówienia, RRRR-MM-DD (czas polski). Najpóźniej
-                    jutro, najwcześniej 3 lata wstecz.
+                    jutro, najwcześniej 45 dni wstecz.
                   </li>
                   <li>
                     <code>market</code> - kod kraju: PL, DE, IT, UK, FR, BR, US… (GB → UK, USA/COM →
@@ -299,9 +300,15 @@ export async function ShopSalesSettings({
                     1234.50.
                   </li>
                   <li>
-                    Jeden wiersz = data + rynek + produkt. Ponowne wysłanie nadpisuje liczby (nie
-                    dodaje); powtórzenia w jednym żądaniu sumujemy. Gdy wszystkie zamówienia wiersza
-                    zostały anulowane, wyślij go z zerami - pominięty wiersz zachowa stare liczby.
+                    <code>pending_orders</code>, <code>pending_revenue_pln</code> (opcjonalne) -
+                    zamówienia złożone tego dnia, jeszcze nieopłacone. Panel pokaże, ile sprzedaży
+                    czeka na płatność.
+                  </li>
+                  <li>
+                    Jeden wiersz = data + rynek + produkt; powtórzenia w jednym żądaniu sumujemy.
+                    Każdy dzień w żądaniu zastępuje wszystko, co było zapisane dla tego dnia - wyślij
+                    więc zawsze komplet wierszy dnia. Jeden dzień wysyłaj na jednym poziomie
+                    szczegółów (albo z produktami, albo bez).
                   </li>
                   <li>
                     Maks. {formatNumberPL(MAX_API_ROWS)} wierszy i 2 MB na żądanie.
@@ -325,7 +332,8 @@ export async function ShopSalesSettings({
                   </li>
                   <li>
                     <code>401</code> zły lub wyłączony klucz · <code>413</code> za duże żądanie ·{" "}
-                    <code>5xx</code> ponów przy następnym uruchomieniu.
+                    <code>429</code> więcej niż 120 żądań na godzinę · <code>5xx</code> ponów przy
+                    następnym uruchomieniu.
                   </li>
                 </ul>
               </div>

@@ -5,6 +5,7 @@
 // over all ad spend.
 
 import { addDaysIso, diffDaysIso, seasonLength, type SeasonState } from "./config";
+import { projectSeason, type SeasonForecast } from "./forecast";
 
 /** One shop_sales_daily row as the season maths reads it (revenue in grosze). */
 export interface SeasonShopRow {
@@ -13,6 +14,9 @@ export interface SeasonShopRow {
   product: string;
   orders: number;
   revenue: number;
+  /** Placed but not yet paid (pay-later), when the shop sends it. */
+  pendingOrders?: number;
+  pendingRevenue?: number;
 }
 
 export interface ShopTotals {
@@ -27,8 +31,15 @@ export interface SeasonShopProduct {
 }
 
 export interface SeasonShop {
-  /** Through the same `asOf` as the ad numbers. */
+  /**
+   * Last day the shop's numbers are compared through: the ad numbers'
+   * `asOf`, or earlier when the shop's feed lags - comparing a missing day
+   * with a full one last year would read as a slump.
+   */
+  asOf: string;
   totals: ShopTotals;
+  /** Placed-but-unpaid orders over the season so far (pay-later). */
+  pending: ShopTotals;
   today: ShopTotals | null;
   prevSamePoint: ShopTotals;
   prevFull: ShopTotals;
@@ -43,7 +54,7 @@ export interface SeasonShop {
   markets: Record<string, { cur: ShopTotals; prev: ShopTotals }>;
   /** Products by this season's revenue; empty when the shop sends none. */
   products: SeasonShopProduct[];
-  forecast: number | null;
+  forecast: SeasonForecast | null;
   bestDay: { date: string; revenue: number } | null;
 }
 
@@ -69,7 +80,14 @@ export function computeSeasonShop(
   const running = state.phase === "in";
   const len = seasonLength(cur);
   const prevLen = seasonLength(prev);
-  const asOfIdx = diffDaysIso(cur.start, asOf);
+  let lastDate: string | null = null;
+  for (const r of curRows) {
+    if (r.date >= cur.start && r.date <= today && (!lastDate || r.date > lastDate)) lastDate = r.date;
+  }
+  const shopAsOf = running && lastDate && lastDate < asOf ? lastDate : asOf;
+  const asOfIdx = diffDaysIso(cur.start, shopAsOf);
+  // The ad comparison index, pulled back with a lagging feed.
+  const cmpIdx = Math.min(compareIdx, asOfIdx);
 
   const totals = empty();
   const todayTotals = running ? empty() : null;
@@ -80,21 +98,22 @@ export function computeSeasonShop(
   const prevDays: Array<number | null> = Array.from({ length: len }, () => null);
   const markets: SeasonShop["markets"] = {};
   const market = (code: string) => (markets[code] ??= { cur: empty(), prev: empty() });
+  const pending = empty();
   const products = new Map<string, SeasonShopProduct>();
   const product = (name: string) => {
     let p = products.get(name);
     if (!p) products.set(name, (p = { product: name, cur: empty(), prev: empty() }));
     return p;
   };
-  let lastDate: string | null = null;
 
   for (const r of curRows) {
     const i = diffDaysIso(cur.start, r.date);
     if (i < 0 || i >= len || r.date > today) continue;
     days[i] = (days[i] ?? 0) + r.revenue;
     orderDays[i] = (orderDays[i] ?? 0) + r.orders;
-    if (!lastDate || r.date > lastDate) lastDate = r.date;
     if (r.date === today && todayTotals) add(todayTotals, r);
+    pending.orders += r.pendingOrders ?? 0;
+    pending.revenue += r.pendingRevenue ?? 0;
     if (i > asOfIdx) continue;
     add(totals, r);
     add(market(r.market).cur, r);
@@ -105,19 +124,29 @@ export function computeSeasonShop(
     if (i < 0 || i >= prevLen) continue;
     add(prevFull, r);
     if (i < len) prevDays[i] = (prevDays[i] ?? 0) + r.revenue;
-    if (i <= compareIdx) {
+    if (i <= cmpIdx) {
       add(prevSamePoint, r);
       add(market(r.market).prev, r);
       if (r.product) add(product(r.product).prev, r);
     }
   }
 
-  // Same shape-based forecast as the ad numbers (lib/season/load.ts).
-  let forecast: number | null = null;
-  if (running && prevFull.revenue > 0 && prevSamePoint.revenue > 0 && totals.revenue > 0) {
-    const share = prevSamePoint.revenue / prevFull.revenue;
-    if (share >= 0.05) forecast = Math.round(totals.revenue / share);
-  }
+  const recentFrom = Math.max(0, cmpIdx - 13);
+  const sum = (list: Array<number | null>, from: number, to: number) => {
+    let total = 0;
+    for (let i = from; i <= Math.min(to, list.length - 1); i++) total += list[i] ?? 0;
+    return total;
+  };
+  const forecast =
+    running && cmpIdx >= 0
+      ? projectSeason({
+          soFar: totals.revenue,
+          prevSoFar: prevSamePoint.revenue,
+          prevFull: prevFull.revenue,
+          recent: sum(days, recentFrom, cmpIdx),
+          prevRecent: sum(prevDays, recentFrom, cmpIdx),
+        })
+      : null;
 
   let best = -1;
   for (let i = 0; i <= Math.min(asOfIdx, len - 1); i++) {
@@ -125,7 +154,9 @@ export function computeSeasonShop(
   }
 
   return {
+    asOf: shopAsOf,
     totals,
+    pending,
     today: todayTotals,
     prevSamePoint,
     prevFull,

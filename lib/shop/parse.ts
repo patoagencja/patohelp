@@ -42,8 +42,9 @@ export function normalizeProduct(value: unknown): string {
 /**
  * Lenient number parsing for spreadsheet exports and JSON strings:
  * "1 234,56", "1234.56", "1.234,56", "1,234.56", "99 zł" -> number.
- * A lone separator is the decimal one (Polish exports use a comma); when
- * both appear, the last one is. Returns null for anything else.
+ * A lone separator is the decimal one (Polish exports use a comma) unless
+ * three digits follow it; when both appear, the last one is. Returns null
+ * for anything else.
  */
 export function parseDecimal(input: string): number | null {
   let s = input
@@ -60,8 +61,13 @@ export function parseDecimal(input: string): number | null {
   } else if (lastComma !== -1 || lastDot !== -1) {
     const sep = lastComma !== -1 ? "," : ".";
     const count = s.split(sep).length - 1;
-    // "1,234,567" is grouping; a single separator is the decimal point.
-    s = count > 1 ? s.split(sep).join("") : s.replace(sep, ".");
+    const [int, frac = ""] = s.split(sep);
+    // "1,234,567" is grouping. A single separator is the decimal point -
+    // except before exactly three digits ("1,234" / "1.234" = 1 234 zł):
+    // money has two decimals, so three digits after it are a thousands
+    // group, and reading it as 1,23 zł silently lost a thousand.
+    const thousandsGroup = count === 1 && frac.length === 3 && !/^-?0$/.test(int);
+    s = count > 1 || thousandsGroup ? s.split(sep).join("") : s.replace(sep, ".");
   }
   if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
   const n = Number(s);
@@ -126,6 +132,9 @@ export interface SaleRow {
   product: string;
   orders: number;
   revenueMinor: number;
+  /** Placed but not yet paid (pay-later), when the shop sends it. */
+  pendingOrders?: number;
+  pendingRevenueMinor?: number;
 }
 
 /**
@@ -142,6 +151,12 @@ export function aggregateSales(rows: readonly SaleRow[]): SaleRow[] {
     if (hit) {
       hit.orders += r.orders;
       hit.revenueMinor += r.revenueMinor;
+      if (hit.pendingOrders !== undefined || r.pendingOrders !== undefined) {
+        hit.pendingOrders = (hit.pendingOrders ?? 0) + (r.pendingOrders ?? 0);
+      }
+      if (hit.pendingRevenueMinor !== undefined || r.pendingRevenueMinor !== undefined) {
+        hit.pendingRevenueMinor = (hit.pendingRevenueMinor ?? 0) + (r.pendingRevenueMinor ?? 0);
+      }
     } else {
       byKey.set(key, { ...r });
     }
@@ -348,4 +363,23 @@ export function decodeCsvBytes(bytes: Uint8Array): string {
 export function isMissingTableError(error: { code?: string | null } | null | undefined): boolean {
   const code = error?.code ?? "";
   return code === "42P01" || code === "PGRST205" || code === "PGRST204";
+}
+
+/**
+ * One push must describe each of its days at ONE level of detail: a day
+ * sent both as per-product rows and as an "all products" row ('') would be
+ * counted twice. Returns the first offending date, or null.
+ */
+export function mixedGranularityDate(rows: readonly { date: string; market: string; product: string }[]): string | null {
+  const seen = new Map<string, { blankProduct: boolean; namedProduct: boolean; blankMarket: boolean; namedMarket: boolean }>();
+  for (const r of rows) {
+    const s = seen.get(r.date) ?? { blankProduct: false, namedProduct: false, blankMarket: false, namedMarket: false };
+    if (r.product) s.namedProduct = true;
+    else s.blankProduct = true;
+    if (r.market) s.namedMarket = true;
+    else s.blankMarket = true;
+    seen.set(r.date, s);
+    if ((s.blankProduct && s.namedProduct) || (s.blankMarket && s.namedMarket)) return r.date;
+  }
+  return null;
 }

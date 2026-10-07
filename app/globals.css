@@ -36,7 +36,7 @@
     --lime-hex: #A9D97A;
     --lime-glow: rgba(169, 217, 122, 0.35);
     --violet-hex: #B7A8F0;
-    --prev: rgba(29, 30, 33, 0.3);
+    --prev: rgba(29, 30, 33, 0.5);
     --chip: rgba(29, 30, 33, 0.045);
     --chip-hover: rgba(29, 30, 33, 0.08);
     --spot: rgba(255, 255, 255, 0.75);
@@ -156,7 +156,7 @@
     --lime-hex: #B9E08F;
     --lime-glow: rgba(185, 224, 143, 0.25);
     --violet-hex: #C4B8F2;
-    --prev: rgba(244, 243, 238, 0.34);
+    --prev: rgba(244, 243, 238, 0.5);
     --chip: rgba(255, 255, 255, 0.07);
     --chip-hover: rgba(255, 255, 255, 0.12);
     --spot: rgba(255, 255, 255, 0.08);
@@ -1118,6 +1118,13 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
   50% {
     rotate: 1.5deg;
   }
+}
+
+/* Zen login: the Buddha and palms must not show through the cards behind
+   the form text - the cards go solid. */
+[data-zen] .glass {
+  background-image: none;
+  background-color: hsl(var(--card));
 }
 
 /* All 2026 motion is decorative: reduced motion turns it off entirely and

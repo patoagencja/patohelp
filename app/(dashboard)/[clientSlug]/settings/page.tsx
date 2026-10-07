@@ -147,6 +147,21 @@ async function saveAccounts(formData: FormData) {
     .delete()
     .eq("client_id", access.clientId)
     .eq("provider", provider);
+  // Ad-level rows (creative tests) of a deselected Meta account would keep
+  // showing up in tests, actions and alerts. Errors (migration 0039 not
+  // applied yet) are fine to ignore - there is nothing to purge then.
+  if (provider === "meta_ads") {
+    const deselected = ((data?.account_ids ?? []) as Account[])
+      .filter((a) => !selectedIds.includes(String(a.id)))
+      .map((a) => String(a.id));
+    if (deselected.length) {
+      await admin
+        .from("ads_ad_daily")
+        .delete()
+        .eq("client_id", access.clientId)
+        .in("account_id", deselected);
+    }
+  }
 
   // Auto-sync the newly selected accounts so data repopulates immediately
   // (no manual cron run needed).
@@ -346,7 +361,7 @@ export default async function SettingsPage({
         <SettingsNav
           links={[
             { id: "integracje", label: "Integracje" },
-            { id: "sprzedaz-sklepu", label: "Sprzedaż sklepu" },
+            ...(isEcommerce ? [{ id: "sprzedaz-sklepu", label: "Sprzedaż sklepu" }] : []),
             { id: "polaczenia", label: "Połączenia" },
             { id: "sezon", label: "Sezon i typ" },
             ...(isEcommerce
@@ -609,7 +624,8 @@ export default async function SettingsPage({
         </div>
       </section>
 
-      <ShopSalesSettings clientId={access.clientId} clientSlug={params.clientSlug} />
+      {/* Shop sales feed: shops only - an engagement client has no sales. */}
+      {isEcommerce ? <ShopSalesSettings clientId={access.clientId} clientSlug={params.clientSlug} /> : null}
 
       <ConnectionStability clientId={access.clientId} clientSlug={params.clientSlug} />
 

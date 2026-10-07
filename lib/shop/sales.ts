@@ -17,6 +17,9 @@ export interface ShopSalesRow {
   orders: number;
   /** Gross PLN, minor units (grosze). */
   revenue: number;
+  /** Placed but not yet paid (pay-later); 0 when the shop doesn't send it. */
+  pendingOrders: number;
+  pendingRevenue: number;
   source: "api" | "csv";
 }
 
@@ -90,11 +93,15 @@ export async function getShopSales(clientId: string, start: string, end: string)
     product: string;
     orders: number;
     revenue_minor_units: number | string;
+    pending_orders?: number | null;
+    pending_revenue_minor_units?: number | string | null;
     source: string;
   }>(start, end, CHUNK_DAYS, (chunkStart, chunkEnd) => (from, to) =>
     admin
       .from("shop_sales_daily")
-      .select("date, market, product, orders, revenue_minor_units, source")
+      // "*": the pending (pay-later) columns came in a later revision of
+      // 0038; a database migrated before that still reads fine.
+      .select("*")
       .eq("client_id", clientId)
       .gte("date", chunkStart)
       .lte("date", chunkEnd)
@@ -110,6 +117,8 @@ export async function getShopSales(clientId: string, start: string, end: string)
     product: r.product ?? "",
     orders: Number(r.orders) || 0,
     revenue: Number(r.revenue_minor_units) || 0,
+    pendingOrders: Number(r.pending_orders) || 0,
+    pendingRevenue: Number(r.pending_revenue_minor_units) || 0,
     source: r.source === "csv" ? "csv" : "api",
   }));
 

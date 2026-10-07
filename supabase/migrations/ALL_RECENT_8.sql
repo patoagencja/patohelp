@@ -89,6 +89,12 @@ create table if not exists public.shop_ingest_keys (
   last_rows integer
 );
 
+-- Pay-later orders (placed, not paid yet) per day, when the shop sends them:
+-- recent days keep growing for ~10 days and the page says how much is
+-- still waiting for payment.
+alter table public.shop_sales_daily add column if not exists pending_orders integer not null default 0;
+alter table public.shop_sales_daily add column if not exists pending_revenue_minor_units bigint not null default 0;
+
 -- Per-key hourly request budget (lib/shop/ingest.ts takeIngestSlot): a leaked
 -- key must not be able to loop thousands of writes.
 alter table public.shop_ingest_keys add column if not exists rate_window_start timestamptz;

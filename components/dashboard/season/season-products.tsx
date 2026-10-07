@@ -3,6 +3,7 @@ import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/page-header";
+import { plPlural } from "@/lib/dashboard/story";
 import { change, compactPln } from "@/lib/season/format";
 import type { SeasonShopProduct } from "@/lib/season/shop";
 import { cn, formatNumberPL } from "@/lib/utils";
@@ -16,22 +17,28 @@ export function SeasonProducts({
   products,
   prevGen,
   hasPrev,
+  running = true,
 }: {
   products: SeasonShopProduct[];
   /** "sezonu 2025" (genitive). */
   prevGen: string;
   hasPrev: boolean;
+  running?: boolean;
 }) {
-  const list = products.filter((p) => p.cur.revenue > 0 || p.prev.revenue > 0).slice(0, 8);
+  const all = products.filter((p) => p.cur.revenue > 0 || p.prev.revenue > 0);
+  const list = all.slice(0, 8);
   if (list.length < 2) return null;
-  const total = list.reduce((a, p) => a + p.cur.revenue, 0);
+  // Shares against every product, not just the eight shown.
+  const total = all.reduce((a, p) => a + p.cur.revenue, 0);
   return (
     <Card className="space-y-5 p-5 sm:p-6">
       <SectionHeader
         title="Produkty"
         description={
           hasPrev
-            ? `Sprzedaż sklepu według produktu i zmiana względem ${prevGen} w tym samym momencie.`
+            ? running
+              ? `Sprzedaż sklepu według produktu i zmiana względem ${prevGen} w tym samym momencie.`
+              : `Sprzedaż sklepu według produktu i zmiana względem całego ${prevGen}.`
             : "Sprzedaż sklepu według produktu."
         }
       />
@@ -42,16 +49,17 @@ export function SeasonProducts({
           return (
             <li
               key={p.product}
-              className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 py-3 sm:grid-cols-[minmax(10rem,1.2fr)_minmax(6rem,2fr)_auto_auto] sm:gap-x-5"
+              className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-1.5 py-3 sm:grid-cols-[minmax(10rem,1.2fr)_minmax(6rem,2fr)_auto_auto] sm:gap-x-5"
             >
               <span className="min-w-0">
                 <span className="block truncate text-[15px] font-medium">{p.product}</span>
                 <span className="block text-[12.5px] text-ink-3 tabular-nums">
-                  {Math.round(share * 100)}% sprzedaży · {formatNumberPL(p.cur.orders)} zamówień
-                  {p.cur.orders > 0 ? ` · śr. ${formatNumberPL(p.cur.revenue / p.cur.orders / 100)} zł` : ""}
+                  {Math.round(share * 100)}%{"\u00a0"}sprzedaży · {formatNumberPL(p.cur.orders)}{"\u00a0"}
+                  {plPlural(p.cur.orders, "zamówienie", "zamówienia", "zamówień")}
+                  {p.cur.orders > 0 ? ` · śr.\u00a0${formatNumberPL(p.cur.revenue / p.cur.orders / 100)}\u00a0zł` : ""}
                 </span>
               </span>
-              <span className="col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto">
+              <span className="col-span-3 row-start-2 sm:col-span-1 sm:row-start-auto">
                 <span aria-hidden className="block h-2.5 overflow-hidden rounded-full bg-chip">
                   <span
                     className="share-fill block h-full origin-left rounded-full animate-grow"
@@ -62,7 +70,7 @@ export function SeasonProducts({
               <b className="text-right text-[15px] font-semibold tabular-nums">{compactPln(p.cur.revenue)}</b>
               <span
                 className={cn(
-                  "hidden min-w-[4.5rem] items-center justify-end gap-0.5 text-[13px] font-semibold tabular-nums sm:inline-flex",
+                  "inline-flex min-w-[3.5rem] items-center justify-end gap-0.5 text-[13px] font-semibold tabular-nums sm:min-w-[4.5rem]",
                   !ch ? "text-ink-3" : ch.tone === "good" ? "text-positive" : ch.tone === "bad" ? "text-negative" : "text-ink-2"
                 )}
               >

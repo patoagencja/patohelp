@@ -8,6 +8,7 @@ import {
   decodeCsvBytes,
   isIsoDate,
   isMissingTableError,
+  mixedGranularityDate,
   normalizeDateInput,
   normalizeMarket,
   normalizeProduct,
@@ -286,5 +287,31 @@ describe("isMissingTableError", () => {
     assert.equal(isMissingTableError({ code: "PGRST204" }), true);
     assert.equal(isMissingTableError({ code: "23505" }), false);
     assert.equal(isMissingTableError(null), false);
+  });
+});
+
+describe("review fixes", () => {
+  it("a lone separator before exactly three digits is a thousands group", () => {
+    assert.equal(parseDecimal("1,234"), 1234);
+    assert.equal(parseDecimal("12.345"), 12345);
+    assert.equal(parseDecimal("0,500"), 0.5);
+    assert.equal(parseDecimal("49,99"), 49.99);
+  });
+
+  it("a day sent both per product and as all products is rejected", () => {
+    assert.equal(
+      mixedGranularityDate([
+        { date: "2026-12-01", market: "PL", product: "Film" },
+        { date: "2026-12-01", market: "PL", product: "" },
+      ]),
+      "2026-12-01"
+    );
+    assert.equal(
+      mixedGranularityDate([
+        { date: "2026-12-01", market: "PL", product: "Film" },
+        { date: "2026-12-02", market: "PL", product: "" },
+      ]),
+      null
+    );
   });
 });

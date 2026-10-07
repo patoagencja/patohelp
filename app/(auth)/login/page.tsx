@@ -92,7 +92,7 @@ export default function LoginPage() {
     // Logowanie board in the 2026 pastel system: the drifting sky, one
     // frosted card with the single field (or "check your inbox"), and a
     // quieter card with what the client gets.
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center gap-7 overflow-hidden bg-background px-4 pb-12 pt-20 sm:px-6">
+    <main data-zen={zenMode.zen || undefined} className="relative isolate flex min-h-screen flex-col items-center justify-center gap-7 overflow-hidden bg-background px-4 pb-12 pt-20 sm:px-6">
       {zenMode.zen ? <ZenScene /> : <Sky />}
       <ZenControls
         zen={zenMode.zen}

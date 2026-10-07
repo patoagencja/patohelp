@@ -220,7 +220,7 @@ function campaignSeason(c: DemoCampaign, w: SeasonWindow): CampaignSeason {
   if (cached) return cached;
   const m = MARKETS[c.market];
   // Black Friday always falls inside an October-December season.
-  const bf = seasonMoments(w).find((x) => x.key === "bf")!.date;
+  const bf = seasonMoments(w).find((x) => x.key.startsWith("bf-"))!.date;
   const start = c.from ? `${w.year}-${c.from}` : w.start;
   const days: CampaignSeason["days"] = [];
   let valueNorm = 0;
@@ -244,7 +244,7 @@ function seasonRows(w: SeasonWindow, through: string, today: string): SeasonRow[
     const m = MARKETS[c.market];
     const baseValue = BASE_SEASON_VALUE * m.share * c.share;
     const seasonValue = baseValue * m.valueGrowth ** years;
-    const seasonSpend = (baseValue / (m.roas * c.roas)) * m.spendGrowth ** years;
+    const seasonSpend = ((baseValue / (m.roas * c.roas)) * m.spendGrowth ** years) * SPEND_SCALE;
     const s = campaignSeason(c, w);
     for (const { date, demand: dem } of s.days) {
       if (date > through) break;
@@ -282,14 +282,22 @@ function seasonRows(w: SeasonWindow, through: string, today: string): SeasonRow[
 // shop also sells to people who never clicked an ad - net, the shop books a
 // bit less than the platforms' sum. Products split the way gift-video shops
 // do: the film carries the season, letters and bundles follow.
-const SHOP_VS_PLATFORMS = 0.86;
+// Scale of a big gift-video seller: ~3 mln zł of ads a season, platforms
+// claiming ~3.7x and the shop really booking ~3.3x on that spend.
+const SPEND_SCALE = 2.4;
+const SHOP_VS_PLATFORMS = 0.9;
+/**
+ * Pay-later: part of a recent day's orders is still unpaid (up to 10 days).
+ * Share unpaid by the day's age in days - 30% of today's, ~3% at 9 days.
+ */
+const UNPAID_BY_AGE = [0.3, 0.22, 0.16, 0.12, 0.09, 0.07, 0.05, 0.04, 0.03, 0.03];
 const DEMO_PRODUCTS: Array<{ name: string; share: number; price: number }> = [
   { name: "Film od Mikołaja", share: 0.6, price: 4999 },
   { name: "List od Mikołaja", share: 0.28, price: 3999 },
   { name: "Pakiet film + list", share: 0.12, price: 7999 },
 ];
 
-function shopRows(adRows: SeasonRow[]): SeasonShopRow[] {
+function shopRows(adRows: SeasonRow[], today: string): SeasonShopRow[] {
   const byDayMarket = new Map<string, number>();
   for (const r of adRows) {
     const market = marketOf(r.campaign_name ?? "") ?? "";
@@ -301,9 +309,21 @@ function shopRows(adRows: SeasonRow[]): SeasonShopRow[] {
     const [date, market] = key.split("|");
     const r = rng(`demo-shop:${key}`);
     const revenue = value * SHOP_VS_PLATFORMS * jitter(r, 0.06);
+    const age = diffDaysIso(date, today);
+    const unpaid = age >= 0 && age < UNPAID_BY_AGE.length ? UNPAID_BY_AGE[age] : 0;
     for (const p of DEMO_PRODUCTS) {
-      const part = Math.round(revenue * p.share * jitter(r, 0.08));
-      out.push({ date, market, product: p.name, orders: Math.round(part / p.price), revenue: part });
+      const part = revenue * p.share * jitter(r, 0.08);
+      const paid = Math.round(part * (1 - unpaid));
+      const pending = Math.round(part * unpaid);
+      out.push({
+        date,
+        market,
+        product: p.name,
+        orders: Math.round(paid / p.price),
+        revenue: paid,
+        pendingOrders: Math.round(pending / p.price),
+        pendingRevenue: pending,
+      });
     }
   }
   return out;
@@ -322,7 +342,7 @@ export function getDemoSeasonView(today: string = todayWarsaw()): SeasonView {
   const cur = seasonRows(state.current, curEnd, today);
   const prev = seasonRows(state.previous, state.previous.end, today);
   return computeSeasonView(DEMO_SEASON_CONFIG, today, cur, prev, {
-    cur: shopRows(cur),
-    prev: shopRows(prev),
+    cur: shopRows(cur, today),
+    prev: shopRows(prev, today),
   });
 }

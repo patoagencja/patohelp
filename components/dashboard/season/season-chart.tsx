@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import { monotonePath, niceStep } from "@/components/dashboard/trend-line-chart";
+import { dayMonthLong } from "@/lib/season/config";
 import type { SeasonDay } from "@/lib/season/load";
 import { compactCount, compactPln } from "@/lib/season/format";
 import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
@@ -37,14 +38,18 @@ type Mode = "cum" | "daily";
 export function SeasonChart({
   days: allDays,
   moments: allMoments,
+  prevMoments: allPrevMoments = [],
   todayIdx,
   metric: baseMetric,
   shop,
   seasonLabel,
   prevLabel,
+  prevGen,
 }: {
   days: SeasonDay[];
   moments: Array<{ key: string; label: string; short: string; i: number }>;
+  /** Last season's moments that fell on other days (Black Friday moves). */
+  prevMoments?: Array<{ key: string; label: string; short: string; i: number }>;
   /** Today's position while the season runs. */
   todayIdx: number | null;
   /** What the lines show: sales from ads, or clicks for non-shop clients. */
@@ -57,6 +62,8 @@ export function SeasonChart({
   shop?: { days: Array<number | null>; prevDays: Array<number | null>; lastDate: string | null; hasPrev: boolean } | null;
   seasonLabel: string;
   prevLabel: string;
+  /** "sezonu 2025" for "na tle …". */
+  prevGen: string;
 }) {
   const [mode, setMode] = useState<Mode>("cum");
   // Early in a season the whole-season scale squashes this season into a
@@ -69,6 +76,7 @@ export function SeasonChart({
     span === "toDate" && todayIdx !== null ? Math.min(allDays.length, todayIdx + 8) : allDays.length;
   const days = useMemo(() => allDays.slice(0, visible), [allDays, visible]);
   const moments = allMoments.filter((m) => m.i < visible);
+  const prevMoments = allPrevMoments.filter((m) => m.i < visible);
   const gradId = useId();
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -116,7 +124,12 @@ export function SeasonChart({
   const hasPrev = prev.some((v) => v != null && v > 0);
   const money = metric !== "clicks";
   const fmt = (v: number) => (money ? formatPlnWhole(v) : formatNumberPL(v));
-  const fmtAxis = (v: number) => (money ? compactPln(v) : compactCount(v));
+  // On a phone "zł" on every tick eats a third of the plot; the unit is in
+  // the card's title there.
+  const fmtAxis = (v: number) => {
+    const t = money ? compactPln(v) : compactCount(v);
+    return size.w > 0 && size.w < 520 ? t.replace(/\u00a0zł$/, "").replace(/ zł$/, "") : t;
+  };
 
   const n = days.length;
   const { ticks, top } = useMemo(() => {
@@ -196,8 +209,11 @@ export function SeasonChart({
           ? "translate(-50%, 22px)"
           : "translate(-50%, calc(-100% - 22px))";
   const move = { transition: `left .2s ${EASE}, top .2s ${EASE}` };
+  // Today is half-synced: show its number, but no "% more than then" - a
+  // morning reading would always look like a slump.
+  const activeIsToday = active !== null && todayIdx !== null && active === todayIdx;
   const lead =
-    av != null && pv != null && pv > 0 ? Math.round((av / pv - 1) * 100) : null;
+    !activeIsToday && av != null && pv != null && pv > 0 ? Math.round((av / pv - 1) * 100) : null;
 
   const unitWord =
     metric === "shop" ? "Sprzedaż sklepu" : metric === "value" ? "Sprzedaż przypisana reklamom" : "Kliknięcia";
@@ -210,7 +226,7 @@ export function SeasonChart({
             {(
               [
                 ["shop", "Sklep"],
-                ["value", "Przypisana reklamom"],
+                ["value", "Wg Meta i Google"],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -223,7 +239,7 @@ export function SeasonChart({
                   setActive(null);
                 }}
                 className={cn(
-                  "min-h-9 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "min-h-11 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   metric === key ? "bg-anchor text-anchor-foreground" : "text-ink-2 hover:text-foreground"
                 )}
               >
@@ -246,7 +262,7 @@ export function SeasonChart({
               aria-checked={mode === key}
               onClick={() => setMode(key)}
               className={cn(
-                "min-h-9 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "min-h-11 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 mode === key ? "bg-anchor text-anchor-foreground" : "text-ink-2 hover:text-foreground"
               )}
             >
@@ -272,7 +288,7 @@ export function SeasonChart({
                   setActive(null);
                 }}
                 className={cn(
-                  "min-h-9 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "min-h-11 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   span === key ? "bg-anchor text-anchor-foreground" : "text-ink-2 hover:text-foreground"
                 )}
               >
@@ -304,7 +320,7 @@ export function SeasonChart({
             width={width}
             height={H}
             role="img"
-            aria-label={`${unitWord} ${mode === "cum" ? "narastająco" : "dzień po dniu"}: ${seasonLabel} na tle ${prevLabel}`}
+            aria-label={`${unitWord} ${mode === "cum" ? "narastająco" : "dzień po dniu"}: ${seasonLabel} na tle ${prevGen}`}
             tabIndex={0}
             onKeyDown={onKey}
             onBlur={() => setActive(null)}
@@ -368,6 +384,23 @@ export function SeasonChart({
                   <title>{m.label}</title>
                   {m.short}
                 </text>
+              </g>
+            ))}
+
+            {/* Last season's moments that fell on another day (Black
+                Friday moves by a weekday a year): faint ticks at the
+                bottom so last year's peak isn't read as "one day late". */}
+            {prevMoments.map((m) => (
+              <g key={`prev-${m.key}`}>
+                <line
+                  x1={x(m.i)}
+                  x2={x(m.i)}
+                  y1={pad.top + plotH - 18}
+                  y2={pad.top + plotH}
+                  stroke="var(--prev)"
+                  strokeWidth={1.5}
+                />
+                <title>{`${m.label} w poprzednim sezonie`}</title>
               </g>
             ))}
 
@@ -460,7 +493,7 @@ export function SeasonChart({
             >
               <span className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.08em] text-ink-3">
                 {dayMonth(ad.date)} · dzień {ad.i + 1}
-                {mode === "cum" ? " · łącznie" : ""}
+                {activeIsToday ? " · dziś, dzień niepełny" : mode === "cum" ? " · łącznie" : ""}
               </span>
               <b className="whitespace-nowrap text-lg font-medium tracking-[-0.02em] tabular-nums">
                 {av != null ? fmt(av) : "jeszcze przed nami"}
@@ -481,7 +514,7 @@ export function SeasonChart({
 
         <p className="sr-only" aria-live="polite">
           {ad
-            ? `${dayMonth(ad.date)}: ${seasonLabel} ${av != null ? fmt(av) : "brak danych"}${
+            ? `${dayMonthLong(ad.date)}: ${seasonLabel} ${av != null ? fmt(av) : "brak danych"}${
                 hasPrev && pv != null ? `, ${prevLabel} ${fmt(pv)}` : ""
               }`
             : ""}

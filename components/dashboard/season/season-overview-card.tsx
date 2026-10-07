@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarRange } from "lucide-react";
 
+import { plPlural } from "@/lib/dashboard/story";
 import { dayMonthLong, daysWord, diffDaysIso } from "@/lib/season/config";
 import { change, compactCount, compactPln } from "@/lib/season/format";
 import { getClientSeason, loadSeasonView } from "@/lib/season/load";
@@ -40,7 +41,7 @@ export async function SeasonOverviewCard({
     ? compactPln(shop.totals.revenue)
     : revenue
       ? compactPln(totals.value)
-      : `${compactCount(totals.clicks)} kliknięć`;
+      : `${compactCount(totals.clicks)} ${plPlural(totals.clicks, "kliknięcie", "kliknięcia", "kliknięć")}`;
   const salesWord = shop ? "sprzedaży w sklepie" : "sprzedaży z reklam";
   const next = view.moments.find((m) => m.date >= today);
   const progress = running ? Math.min(1, ((state.day ?? 0) - 0.5) / state.totalDays) : 1;

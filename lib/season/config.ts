@@ -12,11 +12,21 @@ export interface SeasonConfig {
 
 const MMDD = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
+/** Days per month in a non-leap year: 29 February would vanish 3 years in 4. */
+const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const realDay = (mmdd: string) => {
+  const [m, d] = mmdd.split("-").map(Number);
+  return d <= MONTH_DAYS[m - 1];
+};
+
 export function parseSeason(raw: unknown): SeasonConfig | null {
   if (!raw || typeof raw !== "object") return null;
   const { start, end } = raw as { start?: unknown; end?: unknown };
   if (typeof start !== "string" || typeof end !== "string") return null;
   if (!MMDD.test(start) || !MMDD.test(end) || start === end) return null;
+  // The DB check only tests the shape; "02-30" would make every date query
+  // on the Sezon page fail.
+  if (!realDay(start) || !realDay(end)) return null;
   return { start, end };
 }
 
@@ -135,15 +145,20 @@ export interface SeasonMoment {
  * don't apply, so a spring season simply gets none.
  */
 export function seasonMoments(w: SeasonWindow): SeasonMoment[] {
-  const y = w.year;
-  const bf = blackFriday(y);
-  const all: SeasonMoment[] = [
-    { key: "bf", label: "Black Friday", short: "BF", date: bf },
-    { key: "cm", label: "Cyber Monday", short: "CM", date: addDaysIso(bf, 3) },
-    { key: "mikolajki", label: "Mikołajki", short: "6.12", date: `${y}-12-06` },
-    { key: "wigilia", label: "Wigilia", short: "24.12", date: `${y}-12-24` },
-    { key: "befana", label: "Befana (Włochy)", short: "6.01", date: `${y + 1}-01-06` },
-  ];
+  // Both calendar years the window may touch: a season starting in January
+  // still needs that January's Befana, one starting late still gets
+  // Christmas of its own year.
+  const all: SeasonMoment[] = [];
+  for (const y of [w.year - 1, w.year]) {
+    const bf = blackFriday(y);
+    all.push(
+      { key: `bf-${y}`, label: "Black Friday", short: "BF", date: bf },
+      { key: `cm-${y}`, label: "Cyber Monday", short: "CM", date: addDaysIso(bf, 3) },
+      { key: `mikolajki-${y}`, label: "Mikołajki", short: "6.12", date: `${y}-12-06` },
+      { key: `wigilia-${y}`, label: "Wigilia", short: "24.12", date: `${y}-12-24` },
+      { key: `befana-${y + 1}`, label: "Befana (Włochy)", short: "6.01", date: `${y + 1}-01-06` }
+    );
+  }
   return all.filter((m) => m.date >= w.start && m.date <= w.end);
 }
 

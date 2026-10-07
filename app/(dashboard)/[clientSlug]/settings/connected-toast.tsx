@@ -97,7 +97,7 @@ export function ConnectedToast({
     } else if (error === "season_same_day") {
       toast.error("Początek i koniec sezonu muszą być różnymi dniami.");
     } else if (error === "season_bad_date") {
-      toast.error("Taki dzień nie istnieje (np. 31 listopada) - popraw daty sezonu.");
+      toast.error("Taki dzień nie istnieje co roku (np. 31 listopada albo 29 lutego) - popraw daty sezonu.");
     } else if (error === "season_failed") {
       toast.error("Nie udało się zapisać typu i sezonu. Spróbuj ponownie.");
     } else if (error) {

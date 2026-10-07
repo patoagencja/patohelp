@@ -72,7 +72,7 @@ export function ZenControls({
         >
           <span
             className={cn(
-              "absolute left-1 top-1 h-5 w-5 rounded-full bg-card shadow transition-transform",
+              "absolute left-1 top-1 h-5 w-5 rounded-full bg-card shadow transition-transform dark:bg-foreground/70",
               zen && "translate-x-5 bg-anchor-dot"
             )}
           />

@@ -111,7 +111,17 @@ export function StatTile({
           </span>
         ) : null}
       </div>
-      <p className="relative truncate text-[2.25rem] font-light leading-none tracking-[-0.055em] tabular-nums sm:text-[2.5rem] xl:text-[2.875rem]">
+      <p
+        className={cn(
+          "relative truncate font-light leading-none tracking-[-0.055em] tabular-nums",
+          // Eight-digit złoty amounts ("10 621 160 zł") in a four-column row
+          // were cut to "10 621 16…": long values step down a size.
+          value.length >= 11
+            ? "text-[2rem] sm:text-[2.25rem] xl:text-[2.25rem]"
+            : "text-[2.25rem] sm:text-[2.5rem] xl:text-[2.875rem]"
+        )}
+        title={value}
+      >
         {unit ? (
           <>
             <CountUp text={unit[1]} delayMs={200 + index * 80} />

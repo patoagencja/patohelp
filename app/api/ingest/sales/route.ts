@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  clearPushedDays,
   findClientByIngestKey,
   markIngestKeyUsed,
   takeIngestSlot,
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
   }
 
   const rows = toSaleRows(validated.rows);
+  await clearPushedDays(admin, clientId, rows.map((r) => r.date));
   const saved = await upsertShopSales(admin, clientId, rows, "api");
   if (!saved.ok) {
     // The client id is enough to find the shop; the key never goes to logs.

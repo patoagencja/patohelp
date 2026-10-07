@@ -264,11 +264,11 @@ function QuietNotes({
             {idle.map((s, i) => (
               <Fragment key={s.provider}>
                 {i > 0 ? "; " : null}
-                <span className="font-medium text-foreground">{s.label}</span>: brak
-                aktywnych kampanii od {s.daysIdle} dni
+                <span className="font-medium text-foreground">{s.label}</span>: od {s.daysIdle}{" "}
+                dni żadna reklama się nie wyświetla
               </Fragment>
             ))}{" "}
-            - synchronizacja działa, po prostu nic nie jest emitowane.
+            - dane spływają normalnie, kampanie są po prostu wstrzymane.
           </p>
         </HealthNote>
       ) : null}
