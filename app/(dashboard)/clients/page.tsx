@@ -28,8 +28,10 @@ import { Pill } from "@/components/ui/pill";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
 import {
+  AD_PROVIDERS,
   getExpiringTokens,
   getUnhealthyIntegrations,
+  type AdProviderKey,
   type ExpiringToken,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
@@ -42,7 +44,7 @@ import { isAgencyUser, type UserRole } from "@/lib/types";
 import { cn, formatMoneyPLN } from "@/lib/utils";
 
 import { BrandingFillButton } from "./branding-fill-button";
-import { ConnectionsPanel } from "./connections-panel";
+import { ConnectionsPanel, type UnselectedIntegration } from "./connections-panel";
 
 export const dynamic = "force-dynamic";
 // "Uzupełnij brandingi" fetches several client websites in one Server Action.
@@ -152,6 +154,20 @@ export default async function ClientsPage({
   // Awaited below; this only stops Node flagging an early rejection.
   spendPromise.catch(() => {});
 
+  // Ad integrations with nothing ticked: connected, yet every sync pulls
+  // nothing (DRE sat at "0 of 46 selected" after a token change). Agency
+  // viewer verified above; account lists only, never credentials. `.then`
+  // starts the request now, alongside the per-client checks; a failed read
+  // just hides the list instead of breaking the page.
+  const selectionPromise = admin
+    .from("integrations")
+    .select("client_id, provider, account_ids")
+    .in("provider", [...AD_PROVIDERS])
+    .then(
+      (r) => r.data ?? [],
+      () => []
+    );
+
   // Live CRITICAL alert count per client (spend spikes + anomalies), in
   // parallel. Only critical severity is surfaced on the picker.
   const alertCounts = new Map<string, number>();
@@ -191,6 +207,28 @@ export default async function ClientsPage({
   );
 
   const spendByClient = await spendPromise;
+
+  const selectionRows = await selectionPromise;
+  // In client-name order, so the panel lists them the way the tiles do.
+  const nothingSelected: UnselectedIntegration[] = clientList.flatMap((c) =>
+    selectionRows
+      .filter((row) => row.client_id === c.id)
+      .flatMap((row) => {
+        const accounts = Array.isArray(row.account_ids)
+          ? (row.account_ids as Array<{ selected?: unknown } | null>)
+          : [];
+        const selected = accounts.filter((a) => a?.selected === true).length;
+        if (accounts.length === 0 || selected > 0) return [];
+        return [
+          {
+            slug: c.slug as string,
+            name: c.name as string,
+            provider: row.provider as AdProviderKey,
+            total: accounts.length,
+          },
+        ];
+      })
+  );
 
   // Not awaited: the to-do checks stream in under Suspense, so the tiles
   // (already computed above) render without waiting for them. Health and
@@ -325,6 +363,7 @@ export default async function ClientsPage({
             name: c.name as string,
             down: healthByClient.get(c.id as string)?.down ?? [],
           }))}
+          nothingSelected={nothingSelected}
           reconnected={searchParams.reconnected}
           fixed={searchParams.fixed}
           connError={searchParams.conn_error}

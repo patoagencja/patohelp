@@ -1,10 +1,20 @@
-import { cache } from "react";
+import { cache, Fragment } from "react";
 import Link from "next/link";
-import { AlertTriangle, RefreshCw, type LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  CircleAlert,
+  PauseCircle,
+  RefreshCw,
+  type LucideIcon,
+} from "lucide-react";
 
 import {
   getExpiringTokens,
+  getIdleAdSources,
+  getPartialSyncFailures,
   getUnhealthyIntegrations,
+  type IdleAdSource,
+  type PartialSyncFailure,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
 import { isMetaSessionInvalidated } from "@/lib/integrations/errors";
@@ -13,11 +23,13 @@ import { cn } from "@/lib/utils";
 // Per-request memo: the layout starts the health read as soon as it knows the
 // client (preloadIntegrationHealth), and the banner - which only renders after
 // the layout's own awaits - picks up the same promise instead of starting late.
-// Both helpers swallow their own errors.
+// The helpers swallow their own errors.
 const getUnhealthyForRequest = cache(getUnhealthyIntegrations);
+const getIdleForRequest = cache(getIdleAdSources);
 
 export function preloadIntegrationHealth(clientId: string): void {
   void getUnhealthyForRequest(clientId);
+  void getIdleForRequest(clientId);
 }
 
 function since(h: ProviderHealth): string {
@@ -226,6 +238,54 @@ export function HealthNote({
   );
 }
 
+/** Provider errors can be long (five accounts joined); one line is enough. */
+function shortError(message: string): string {
+  return message.length > 160 ? `${message.slice(0, 160)}…` : message;
+}
+
+/**
+ * The calm notes about WORKING sources: an ad platform with nothing running
+ * (so an empty chart doesn't read as a broken sync) and, for us, accounts that
+ * error inside an otherwise fine sync.
+ */
+function QuietNotes({
+  idle,
+  partial,
+}: {
+  idle: IdleAdSource[];
+  partial: PartialSyncFailure[];
+}) {
+  return (
+    <>
+      {idle.length ? (
+        // One strip however many sources are quiet: reassurance, not an alarm.
+        <HealthNote tone="neutral" icon={PauseCircle}>
+          <p>
+            {idle.map((s, i) => (
+              <Fragment key={s.provider}>
+                {i > 0 ? "; " : null}
+                <span className="font-medium text-foreground">{s.label}</span>: brak
+                aktywnych kampanii od {s.daysIdle} dni
+              </Fragment>
+            ))}{" "}
+            - synchronizacja działa, po prostu nic nie jest emitowane.
+          </p>
+        </HealthNote>
+      ) : null}
+      {partial.length ? (
+        <HealthNote tone="neutral" icon={CircleAlert} chip="Widzi tylko agencja">
+          {partial.map((p) => (
+            <p key={p.provider} className="break-words">
+              <span className="font-medium text-foreground">{p.label}</span>: część
+              kont zwraca błąd: {shortError(p.error)}
+            </p>
+          ))}
+        </HealthNote>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Warns when a configured integration has stopped delivering data. The header's
  * "Zaktualizowano X temu" shows the newest success across ALL providers, so one
@@ -240,10 +300,13 @@ export async function IntegrationHealthBanner({
   clientSlug: string;
   isAgency?: boolean;
 }) {
-  const [health, expiring] = await Promise.all([
+  const [health, expiring, idleSources, partialFailures] = await Promise.all([
     getUnhealthyForRequest(clientId),
     // Upcoming expiry is our housekeeping - clients don't need to see it.
     isAgency ? getExpiringTokens(clientId) : Promise.resolve([]),
+    getIdleForRequest(clientId),
+    // Which of the client's accounts error is ours to chase, not theirs.
+    isAgency ? getPartialSyncFailures(clientId) : Promise.resolve([]),
   ]);
   // Just reconnected: the failure is fixed, the data just hasn't arrived yet.
   // Say that calmly instead of repeating the old "token wygasł".
@@ -251,6 +314,13 @@ export async function IntegrationHealthBanner({
   const catchingUp = health.filter((h) => h.reconnected);
   const upcoming = expiring.filter(
     (e) => !health.some((u) => u.provider === e.provider)
+  );
+  // A provider already named as broken or catching up gets just that message.
+  const quietNotes = (
+    <QuietNotes
+      idle={idleSources.filter((s) => !health.some((u) => u.provider === s.provider))}
+      partial={partialFailures.filter((p) => !health.some((u) => u.provider === p.provider))}
+    />
   );
 
   const catchingUpNote = catchingUp.length ? (
@@ -266,7 +336,14 @@ export async function IntegrationHealthBanner({
   ) : null;
 
   if (!unhealthy.length) {
-    if (!upcoming.length) return catchingUpNote;
+    if (!upcoming.length) {
+      return (
+        <>
+          {catchingUpNote}
+          {quietNotes}
+        </>
+      );
+    }
     return (
       <>
         {catchingUpNote}
@@ -290,6 +367,7 @@ export async function IntegrationHealthBanner({
             </p>
           ))}
         </HealthNote>
+        {quietNotes}
       </>
     );
   }
@@ -333,6 +411,7 @@ export async function IntegrationHealthBanner({
           ))}
         </ul>
       </HealthNote>
+      {quietNotes}
     </>
   );
 }

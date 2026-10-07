@@ -1,3 +1,6 @@
+import { cache } from "react";
+import { formatInTimeZone } from "date-fns-tz";
+
 import { decrypt } from "@/lib/integrations/encryption";
 import { isTokenError } from "@/lib/integrations/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -177,6 +180,140 @@ export async function getUnhealthyIntegrations(
 
     // Same order as the configured providers, as before.
     return checks.filter((h): h is ProviderHealth => h !== null);
+  } catch {
+    return [];
+  }
+}
+
+/** Ad providers: the ones with spend in ads_daily and a per-account selection. */
+export const AD_PROVIDERS = ["meta_ads", "google_ads", "tiktok_ads"] as const;
+export type AdProviderKey = (typeof AD_PROVIDERS)[number];
+
+/**
+ * Days without spend before a healthy ad source reads as "nothing running".
+ * Ads data lands with a day's lag and some campaigns pause over a weekend, so
+ * one or two quiet days are routine.
+ */
+const IDLE_DAYS = 3;
+
+/**
+ * Connected ad providers whose newest run succeeded within STALE_HOURS - the
+ * ones getUnhealthyIntegrations stays silent about. The newest run being a
+ * success makes it the last success too, so one query per provider is enough.
+ * Memoised per request: the idle note and the partial-failure note both read
+ * these rows.
+ */
+const readHealthyAdRuns = cache(
+  async (
+    clientId: string
+  ): Promise<Array<{ provider: AdProviderKey; errorMessage: string | null }>> => {
+    const admin = createAdminClient();
+    const { data: integrations, error } = await admin
+      .from("integrations")
+      .select("provider")
+      .eq("client_id", clientId)
+      .in("provider", [...AD_PROVIDERS]);
+    if (error) throw new Error(error.message);
+
+    const runs = await Promise.all(
+      (integrations ?? []).map(async (i) => {
+        const provider = i.provider as AdProviderKey;
+        const { data: newest } = await admin
+          .from("sync_runs")
+          .select("status, finished_at, error_message")
+          .eq("client_id", clientId)
+          .eq("provider", provider)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (newest?.status !== "success" || !newest.finished_at) return null;
+        const hours =
+          (Date.now() - new Date(newest.finished_at as string).getTime()) / 3_600_000;
+        if (hours > STALE_HOURS) return null;
+        return { provider, errorMessage: (newest.error_message as string | null) ?? null };
+      })
+    );
+    return runs.filter((r): r is NonNullable<typeof r> => r !== null);
+  }
+);
+
+export interface IdleAdSource {
+  provider: AdProviderKey;
+  label: string;
+  /** Whole days between the last day with spend and today (Europe/Warsaw). */
+  daysIdle: number;
+  /** yyyy-MM-dd of the newest ads_daily row with spend > 0. */
+  lastSpendDate: string;
+}
+
+/**
+ * Healthy ad sources that have spent nothing for IDLE_DAYS or more. Paused
+ * campaigns write no rows, which used to look identical to a broken sync;
+ * this lets the dashboard say "nothing is running" calmly instead. A source
+ * that never spent at all is skipped - that is a client still being set up.
+ * Returns [] on any error, like the other health helpers.
+ */
+export async function getIdleAdSources(clientId: string): Promise<IdleAdSource[]> {
+  try {
+    const healthy = await readHealthyAdRuns(clientId);
+    if (!healthy.length) return [];
+
+    const admin = createAdminClient();
+    const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+    const idle = await Promise.all(
+      healthy.map(async ({ provider }): Promise<IdleAdSource | null> => {
+        const { data, error } = await admin
+          .from("ads_daily")
+          .select("date")
+          .eq("client_id", clientId)
+          .eq("provider", provider)
+          .gt("spend_minor_units", 0)
+          .order("date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error || !data?.date) return null;
+
+        const lastSpendDate = data.date as string;
+        // Both sides are plain calendar dates parsed as UTC midnight, so the
+        // difference is a whole number of days with no DST drift.
+        const daysIdle = Math.round(
+          (Date.parse(today) - Date.parse(lastSpendDate)) / 86_400_000
+        );
+        if (!(daysIdle >= IDLE_DAYS)) return null;
+        return { provider, label: PROVIDER_LABEL[provider], daysIdle, lastSpendDate };
+      })
+    );
+    return idle.filter((s): s is IdleAdSource => s !== null);
+  } catch {
+    return [];
+  }
+}
+
+export interface PartialSyncFailure {
+  provider: AdProviderKey;
+  label: string;
+  /** The run's joined per-account errors ("act_1: ... | act_2: ..."). */
+  error: string;
+}
+
+/**
+ * Healthy ad sources whose newest run still reported per-account errors (some
+ * accounts broke, the rest synced - see resolveSyncOutcome). Deliberately NOT
+ * part of getUnhealthyIntegrations: one disabled account among dozens must
+ * not flip a working integration to "broken" everywhere.
+ */
+export async function getPartialSyncFailures(
+  clientId: string
+): Promise<PartialSyncFailure[]> {
+  try {
+    const healthy = await readHealthyAdRuns(clientId);
+    return healthy
+      .filter((r) => r.errorMessage)
+      .map((r) => ({
+        provider: r.provider,
+        label: PROVIDER_LABEL[r.provider],
+        error: r.errorMessage as string,
+      }));
   } catch {
     return [];
   }

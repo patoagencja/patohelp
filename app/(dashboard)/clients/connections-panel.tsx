@@ -4,7 +4,12 @@ import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
-import type { ProviderHealth } from "@/lib/dashboard/integration-health";
+import {
+  AD_PROVIDERS,
+  PROVIDER_LABEL,
+  type AdProviderKey,
+  type ProviderHealth,
+} from "@/lib/dashboard/integration-health";
 import { isMetaSessionInvalidated } from "@/lib/integrations/errors";
 import { fixedOthersLabel } from "@/lib/integrations/fixed-label";
 import {
@@ -37,6 +42,64 @@ export interface ConnectionsPanelClient {
   slug: string;
   name: string;
   down: ProviderHealth[];
+}
+
+/** A connected ad integration with accounts listed but none ticked. */
+export interface UnselectedIntegration {
+  slug: string;
+  name: string;
+  provider: AdProviderKey;
+  /** Accounts on the list, all of them unticked. */
+  total: number;
+}
+
+/**
+ * Connected but syncing nothing: the token works, the account list is there,
+ * nothing is ticked. Easy to miss because the integration still shows as
+ * connected. Only points at the settings - picking accounts stays a human
+ * decision.
+ */
+function NothingSelectedBlock({ list }: { list: UnselectedIntegration[] }) {
+  return (
+    <div
+      role="status"
+      className="space-y-3 rounded-[22px] bg-warning-soft px-4 py-3.5 text-sm text-foreground sm:px-5"
+    >
+      <div className="space-y-1">
+        <p className="flex items-center gap-2 text-[15px] font-semibold">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden />
+          Połączone, ale 0 wybranych kont
+        </p>
+        <p className="text-ink-2">
+          Integracja jest podpięta, ale żadne konto reklamowe nie jest zaznaczone, więc
+          synchronizacja niczego nie pobiera. Zaznacz konta w Ustawieniach klienta.
+        </p>
+      </div>
+      <ul className="space-y-1.5">
+        {AD_PROVIDERS.map((provider) => {
+          const items = list.filter((u) => u.provider === provider);
+          if (!items.length) return null;
+          return (
+            <li key={provider}>
+              <span className="font-medium">{PROVIDER_LABEL[provider]}:</span>{" "}
+              {items.map((u, i) => (
+                <span key={u.slug}>
+                  {i > 0 ? ", " : null}
+                  <Link
+                    href={`/${u.slug}/settings#integracje`}
+                    className="font-medium underline underline-offset-2"
+                  >
+                    {u.name}
+                  </Link>{" "}
+                  <span className="text-muted-foreground tabular-nums">(0 z {u.total})</span>
+                </span>
+              ))}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 /** First client to anchor the one-time OAuth flow: prefer a dead token. */
@@ -123,11 +186,13 @@ function ProviderBlock({ provider, broken }: { provider: Provider; broken: Broke
  */
 export function ConnectionsPanel({
   clients,
+  nothingSelected = [],
   reconnected,
   fixed,
   connError,
 }: {
   clients: ConnectionsPanelClient[];
+  nothingSelected?: UnselectedIntegration[];
   reconnected?: string;
   fixed?: string;
   connError?: string;
@@ -263,7 +328,9 @@ export function ConnectionsPanel({
         </Card>
       </div>
 
-      {totalBroken === 0 && !reconnected ? (
+      {nothingSelected.length ? <NothingSelectedBlock list={nothingSelected} /> : null}
+
+      {totalBroken === 0 && !nothingSelected.length && !reconnected ? (
         <p className={cn("flex items-center gap-1.5 px-1 text-sm text-muted-foreground")}>
           <CheckCircle2 className="h-4 w-4 text-positive" aria-hidden />
           Wszystkie połączenia Meta i Google działają.

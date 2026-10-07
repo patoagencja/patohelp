@@ -1,3 +1,6 @@
+// Keep this file import-free: its unit tests run it directly under Node's
+// type stripping, which can't resolve the "@/" alias.
+
 export interface SyncOutcome {
   status: "success" | "failed";
   error_message: string | null;
