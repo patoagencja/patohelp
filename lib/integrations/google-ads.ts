@@ -81,8 +81,15 @@ export interface GoogleCampaignMetric {
   ctr: number | null;
   average_cpc: number | null;
   conversions: number | null;
-  /** Value of those conversions (account currency, major units). */
+  /**
+   * Value of those conversions (account currency, major units). Every
+   * PRIMARY conversion action counts here - micro conversions, engaged
+   * views, an imported GA4 purchase next to the tag's own - so it is NOT a
+   * shop's purchase value; see getPurchaseMetrics.
+   */
   conversions_value: number | null;
+  /** customer.currency_code - every money field above is in it. */
+  currency: string | null;
 }
 
 /**
@@ -215,6 +222,7 @@ export async function getCampaignMetrics(
   // the rest of the Google account and we must not report their spend.
   const gaql = `
     SELECT
+      customer.currency_code,
       campaign.id,
       campaign.name,
       campaign.status,
@@ -249,7 +257,99 @@ export async function getCampaignMetrics(
       row.metrics?.conversions != null ? Number(row.metrics.conversions) : null,
     conversions_value:
       row.metrics?.conversions_value != null ? Number(row.metrics.conversions_value) : null,
+    currency: row.customer?.currency_code ? String(row.customer.currency_code) : null,
   }));
+}
+
+export interface GooglePurchaseMetric {
+  campaign_id: string;
+  date: string;
+  /** Primary purchase conversions (fractional under data-driven attribution). */
+  purchases: number;
+  /** Their value, account currency, major units. */
+  value: number;
+}
+
+/**
+ * Purchases only, per campaign and day: conversions / conversions_value
+ * segmented by conversion_action_category = PURCHASE. Conversion segments
+ * only combine with conversion metrics, hence a query of its own. Unlike
+ * getCampaignMetrics it keeps REMOVED campaigns: their rows stay in
+ * ads_daily from before the removal and need the same purchase-only value.
+ */
+export async function getPurchaseMetrics(
+  refreshToken: string,
+  customerId: string,
+  since: string,
+  until: string,
+  videoOnly = false
+): Promise<GooglePurchaseMetric[]> {
+  const gaql = `
+    SELECT
+      campaign.id,
+      segments.date,
+      segments.conversion_action_category,
+      metrics.conversions,
+      metrics.conversions_value
+    FROM campaign
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+      AND segments.conversion_action_category = 'PURCHASE'
+      ${videoOnly ? "AND campaign.advertising_channel_type = 'VIDEO'" : ""}
+  `;
+  const rows = await queryWithFallback(apiClient(), refreshToken, customerId, gaql);
+  const byKey = new Map<string, GooglePurchaseMetric>();
+  for (const row of rows as Array<Record<string, any>>) {
+    const campaignId = String(row.campaign?.id ?? "");
+    const date = String(row.segments?.date ?? "");
+    if (!campaignId || !date) continue;
+    const key = `${campaignId}|${date}`;
+    const cur = byKey.get(key) ?? { campaign_id: campaignId, date, purchases: 0, value: 0 };
+    cur.purchases += Number(row.metrics?.conversions ?? 0) || 0;
+    cur.value += Number(row.metrics?.conversions_value ?? 0) || 0;
+    byKey.set(key, cur);
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * Days in [since, until] on which the account delivered - the light probe
+ * behind the gap logic: account level, at most one row per day. Video-only
+ * accounts ask at campaign level for their VIDEO campaigns instead, since
+ * the rest of such an account is another agency's and must not make days
+ * look active. (A day where only a since-REMOVED campaign ran still counts
+ * as active here; the cron remembers such days once fetched empty.)
+ */
+export async function getDeliveryDays(
+  refreshToken: string,
+  customerId: string,
+  since: string,
+  until: string,
+  videoOnly = false
+): Promise<Set<string>> {
+  const gaql = videoOnly
+    ? `
+    SELECT
+      segments.date,
+      metrics.impressions
+    FROM campaign
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+      AND campaign.status != 'REMOVED'
+      AND campaign.advertising_channel_type = 'VIDEO'
+  `
+    : `
+    SELECT
+      segments.date,
+      metrics.impressions
+    FROM customer
+    WHERE segments.date BETWEEN '${since}' AND '${until}'
+  `;
+  const rows = await queryWithFallback(apiClient(), refreshToken, customerId, gaql);
+  const days = new Set<string>();
+  for (const row of rows as Array<Record<string, any>>) {
+    const d = row.segments?.date;
+    if (d && Number(row.metrics?.impressions ?? 0) > 0) days.add(String(d));
+  }
+  return days;
 }
 
 export interface GoogleAdGroupMetric {
@@ -398,7 +498,13 @@ export async function syncSearchTermsSnapshot(
   clientId: string,
   refreshToken: string,
   accounts: Array<{ id: string; video_only?: boolean }>,
-  periodEnd: string
+  periodEnd: string,
+  /**
+   * PLN per account-currency unit over the 30-day period, per account id.
+   * null = foreign currency without a rate: that account is skipped rather
+   * than stored as złoty. Absent = PLN (the old behaviour).
+   */
+  pricePerUnit?: Map<string, number | null>
 ): Promise<number | null> {
   // Doubles as a probe: an error here means migration 0023 hasn't run.
   const existing = await admin
@@ -416,6 +522,11 @@ export async function syncSearchTermsSnapshot(
     // video_only accounts are run by another agency except for YouTube, which
     // has no search terms - pulling them would leak someone else's campaigns.
     if (account.video_only === true) continue;
+    const rate = pricePerUnit?.has(account.id) ? pricePerUnit.get(account.id) ?? null : 1;
+    if (rate == null) {
+      console.error("[google-ads] search terms skipped: no exchange rate", account.id);
+      continue;
+    }
     try {
       const terms = await getSearchTermMetrics(refreshToken, account.id);
       succeeded += 1;
@@ -427,7 +538,7 @@ export async function syncSearchTermsSnapshot(
           campaign_name: t.campaign_name,
           impressions: t.impressions,
           clicks: t.clicks,
-          cost_minor_units: Math.round(t.cost_micros / 10_000),
+          cost_minor_units: Math.round((t.cost_micros * rate) / 10_000),
           conversions: t.conversions,
           period_end: periodEnd,
         });
@@ -553,7 +664,9 @@ export async function syncImpressionShareSnapshot(
   clientId: string,
   refreshToken: string,
   accounts: Array<{ id: string; video_only?: boolean }>,
-  periodEnd: string
+  periodEnd: string,
+  /** As in syncSearchTermsSnapshot. */
+  pricePerUnit?: Map<string, number | null>
 ): Promise<number | null> {
   // Doubles as a probe: an error here means migration 0027 hasn't run.
   const existing = await admin
@@ -571,6 +684,11 @@ export async function syncImpressionShareSnapshot(
     // video_only accounts are run by another agency except for YouTube; their
     // Search campaigns aren't ours to report on.
     if (account.video_only === true) continue;
+    const rate = pricePerUnit?.has(account.id) ? pricePerUnit.get(account.id) ?? null : 1;
+    if (rate == null) {
+      console.error("[google-ads] impression share skipped: no exchange rate", account.id);
+      continue;
+    }
     try {
       const metrics = await getImpressionShareMetrics(refreshToken, account.id);
       succeeded += 1;
@@ -585,7 +703,7 @@ export async function syncImpressionShareSnapshot(
           rank_lost: m.rank_lost,
           impressions: m.impressions,
           clicks: m.clicks,
-          cost_minor_units: Math.round(m.cost_micros / 10_000),
+          cost_minor_units: Math.round((m.cost_micros * rate) / 10_000),
           period_end: periodEnd,
         });
       }

@@ -2,21 +2,42 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { seasonalOrShopIds } from "@/lib/ab/eligibility";
+import {
+  AccountErrors,
+  datesMissingRawKey,
+  eachDay,
+  patchRowsMissingRawKey,
+} from "@/lib/integrations/ads-daily-history";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
+import { createFxConverter, normalizeCurrency } from "@/lib/integrations/fx";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import { hasClicksAllColumnStrict, metaClickColumns } from "@/lib/integrations/link-clicks";
 import {
+  describeThrottle,
   extractConversions,
   extractPurchases,
   getActiveDays,
   getCampaignInsights,
+  MetaThrottledError,
+  type MetaCampaignInsight,
 } from "@/lib/integrations/meta-ads";
+import {
+  cachedActiveDays,
+  isDue,
+  readSyncState,
+  rememberActiveDays,
+  writeSyncState,
+  type ActiveDayCache,
+} from "@/lib/integrations/sync-state";
+import { addDaysIso } from "@/lib/season/config";
 import { historyDaysFor } from "@/lib/season/history";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull Meta Ads campaign insights for yesterday+today into
-// ads_daily. Auth via `Authorization: Bearer <CRON_SECRET>`.
+// ads_daily, plus whatever history is due. Auth via
+// `Authorization: Bearer <CRON_SECRET>`.
 export const dynamic = "force-dynamic";
 // Per-day insight fetching for a large account (DRE ~1900 campaigns) is many
 // sequential paginated requests, so give the backfill plenty of headroom.
@@ -31,21 +52,46 @@ const WARSAW_TZ = "Europe/Warsaw";
 // It also stays under the scheduler's 90s curl timeout, which otherwise
 // counted the run as failed and fired a second, overlapping one.
 const BACKFILL_BUDGET_MS = 60_000;
+// Cap historical work per run (BACKFILL_BUDGET_MS cuts it shorter on big
+// accounts); successive runs (cron / manual refresh) continue.
+const MAX_BACKFILL_PER_RUN = 150;
+/**
+ * Seasonal clients and shops pull D-7..D-2 again once a day: Meta keeps
+ * attributing purchases to past days for its whole attribution window, and
+ * days synced only as "yesterday" made this season read low next to a
+ * fully matured previous one.
+ */
+const MATURE_FROM = 7;
+const MATURE_TO = 2;
+const MATURE_EVERY_MS = 20 * 3_600_000;
+/** A scan that found no rows without purchase values is trusted this long. */
+const PURCHASE_SCAN_TTL_MS = 7 * 24 * 3_600_000;
+const STATE_KEY = "meta_ads";
+/** Days fetched side by side per account (sequential was the bottleneck). */
+const CONCURRENCY = 4;
 
 interface MetaAccount {
   id: string;
   selected?: boolean;
+  /** Account currency saved at connect time (fallback only). */
+  currency?: string;
 }
 
-/** Inclusive list of yyyy-MM-dd between two dates. */
-function eachDay(since: string, until: string): string[] {
-  const days: string[] = [];
-  const start = new Date(`${since}T00:00:00Z`);
-  const end = new Date(`${until}T00:00:00Z`);
-  for (let d = start; d <= end; d = new Date(d.getTime() + 86_400_000)) {
-    days.push(d.toISOString().slice(0, 10));
-  }
-  return days;
+interface MetaSyncState {
+  /** Days each account delivered on, learned once a Warsaw day. */
+  active?: ActiveDayCache;
+  /** account id -> when its D-7..D-2 re-pull last completed. */
+  mature?: Record<string, string>;
+  /** Last purchase_value scan that found nothing left to re-pull. */
+  purchaseScanCleanAt?: string;
+}
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+/** 03:00-04:59 Warsaw: the fallback slot for once-a-day work. */
+function isNightlyWindow(now: Date): boolean {
+  const hour = Number(formatInTimeZone(now, WARSAW_TZ, "H"));
+  return hour === 3 || hour === 4;
 }
 
 /** All dates with at least one row for client+provider since `fromDate`
@@ -151,6 +197,63 @@ async function closeStaleClickRows(
   }
 }
 
+/**
+ * One ads_daily row from a campaign-day insight, money converted to PLN at
+ * `rate` (1 for PLN accounts). Foreign accounts keep their own currency and
+ * amounts in raw_data.
+ */
+function buildRow(
+  clientId: string,
+  insight: MetaCampaignInsight,
+  rate: number,
+  currency: string | null,
+  eligible: boolean,
+  withClicksAll: boolean
+): Record<string, unknown> {
+  const foreign = currency !== "PLN";
+  const scale = (v?: string) =>
+    v != null && v !== "" && foreign ? String(parseFloat(v) * rate) : v;
+  // metaClickColumns turns the CPC strings into grosze; scaled first, it
+  // rounds once, on the PLN amount.
+  const clickInput = foreign
+    ? { ...insight, cpc: scale(insight.cpc), link_cpc: scale(insight.link_cpc) }
+    : insight;
+  const sale = eligible ? extractPurchases(insight.actions, insight.action_values) : null;
+  const spend = parseFloat(insight.spend) || 0;
+  return {
+    client_id: clientId,
+    provider: "meta_ads",
+    campaign_id: insight.campaign_id,
+    campaign_name: insight.campaign_name,
+    date: insight.date,
+    spend_minor_units: Math.round(spend * rate * 100),
+    impressions: parseInt(insight.impressions, 10) || 0,
+    // clicks = link clicks, clicks_all = clicks (all), CTR/CPC per link
+    // click - or the pre-0034 shape without the column.
+    ...metaClickColumns(clickInput, withClicksAll),
+    reach: insight.reach != null ? parseInt(insight.reach, 10) : null,
+    frequency: insight.frequency != null ? parseFloat(insight.frequency) : null,
+    conversions: extractConversions(insight.actions),
+    raw_data: {
+      ...insight,
+      // purchases / purchase_value (PLN, major units): sales from ads for
+      // seasonal clients and shops (lib/season), same keys as the Google
+      // rows. Left out for everyone else - without action_values they would
+      // read 0, and a missing key is what marks a day for re-pull once the
+      // client becomes seasonal or a shop.
+      ...(sale ? { purchases: sale.purchases, purchase_value: round2(sale.value * rate) } : {}),
+      ...(foreign
+        ? {
+            currency,
+            fx_rate: rate,
+            spend_original: spend,
+            ...(sale ? { purchase_value_original: sale.value } : {}),
+          }
+        : {}),
+    } as unknown as Record<string, unknown>,
+  };
+}
+
 export async function GET(request: Request) {
   if (
     !process.env.CRON_SECRET ||
@@ -164,6 +267,7 @@ export async function GET(request: Request) {
   const now = new Date();
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
   const since = formatInTimeZone(subDays(now, 1), WARSAW_TZ, "yyyy-MM-dd");
+  const backfillEnd = addDaysIso(until, -2);
 
   // Optional ?client=<id> scopes the run to a single client (used by on-demand
   // refresh) so large accounts don't time out competing with other clients.
@@ -189,16 +293,35 @@ export async function GET(request: Request) {
     );
   }
 
+  // Seasonal clients and shops: purchase values, the mature re-pull.
+  const eligibleIds = await seasonalOrShopIds(
+    admin,
+    (integrations ?? []).map((i) => i.client_id as string)
+  );
+  // One converter per run: each NBP block is fetched once for all clients.
+  const fx = createFxConverter();
+
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
   let accountsFailed = 0;
+  let accountsThrottled = 0;
   let staleDaysQueued = 0;
+  // An app-wide limit (code 4) blocks every client: stop calling Meta for
+  // the rest of the run instead of hammering it with doomed requests.
+  let appThrottle: MetaThrottledError | null = null;
+  let clientsSkipped = 0;
 
   for (const integration of integrations ?? []) {
+    if (appThrottle) {
+      // No sync_runs row: nothing was attempted; the next tick retries.
+      clientsSkipped += 1;
+      continue;
+    }
+    const clientId = integration.client_id as string;
     const { data: run } = await admin
       .from("sync_runs")
       .insert({
-        client_id: integration.client_id,
+        client_id: clientId,
         provider: "meta_ads",
         status: "running",
       })
@@ -209,13 +332,13 @@ export async function GET(request: Request) {
       const { access_token } = JSON.parse(
         decrypt(integration.credentials_encrypted as string)
       );
+      const eligible = eligibleIds.has(clientId);
 
       // Keep a full year of history (clients compare year-over-year).
-      // Fresh days first, then backfill CONTIGUOUSLY BACKWARDS from the
-      // earliest row we already have - so a timeout mid-backfill just means
-      // the next run resumes where this one stopped, with no gaps.
+      // Fresh days first, then backfill newest first - so a timeout
+      // mid-backfill just means the next run resumes where this one stopped.
       // Seasonal clients: ~15 months, a whole previous season (lib/season).
-      const HISTORY_DAYS = await historyDaysFor(admin, integration.client_id as string);
+      const HISTORY_DAYS = await historyDaysFor(admin, clientId);
       const windowStart = formatInTimeZone(
         subDays(now, HISTORY_DAYS - 1),
         WARSAW_TZ,
@@ -224,87 +347,146 @@ export async function GET(request: Request) {
       // Always refresh yesterday+today; then fill every day in the window we
       // don't have yet (newest first). This covers both extending history
       // backwards AND holes in the middle left by killed runs.
-      const present = await presentDates(
-        admin,
-        integration.client_id as string,
-        "meta_ads",
-        windowStart
-      );
-      // Cap historical work per run (BACKFILL_BUDGET_MS cuts it shorter on big
-      // accounts); successive runs (cron / manual refresh) continue.
-      const MAX_BACKFILL_PER_RUN = 150;
+      const present = await presentDates(admin, clientId, "meta_ads", windowStart);
       // One-time history re-pull after migration 0034: days whose rows still
       // carry clicks (all) count as missing, newest first, within the same
       // per-run cap - a year converts over a few runs.
       const stale = withClicksAll
-        ? await staleClickDates(
-            admin,
-            integration.client_id as string,
-            windowStart,
-            since,
-            MAX_BACKFILL_PER_RUN
-          )
+        ? await staleClickDates(admin, clientId, windowStart, since, MAX_BACKFILL_PER_RUN)
         : new Set<string>();
-      const backfillEnd = formatInTimeZone(subDays(now, 2), WARSAW_TZ, "yyyy-MM-dd");
-      let candidates = eachDay(windowStart, backfillEnd).filter(
-        (d) => !present.has(d) || stale.has(d)
-      );
+
+      const stateRead = await readSyncState<MetaSyncState>(admin, clientId, STATE_KEY);
+      const state: MetaSyncState = { ...(stateRead.value ?? {}) };
+      let stateChanged = false;
+
+      // Days synced before purchase values existed (or while the client was
+      // neither seasonal nor a shop) read 0 sales from ads - the previous
+      // season looked empty. Re-pulled once, newest first, like stale clicks.
+      let noPurchase = new Set<string>();
+      if (
+        eligible &&
+        Date.now() - startedAt <= BACKFILL_BUDGET_MS &&
+        isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)
+      ) {
+        const found = await datesMissingRawKey(
+          admin,
+          clientId,
+          "meta_ads",
+          "purchase_value",
+          windowStart,
+          since,
+          MAX_BACKFILL_PER_RUN
+        );
+        if (found) {
+          noPurchase = found;
+          if (found.size === 0) {
+            state.purchaseScanCleanAt = new Date().toISOString();
+            stateChanged = true;
+          }
+        }
+      }
+
+      let candidates = windowStart <= backfillEnd
+        ? eachDay(windowStart, backfillEnd).filter(
+            (d) => !present.has(d) || stale.has(d) || noPurchase.has(d)
+          )
+        : [];
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).
-      const accounts = (
-        (integration.account_ids ?? []) as MetaAccount[]
-      ).filter((a) => a.selected === true);
+      const accounts = ((integration.account_ids ?? []) as MetaAccount[]).filter(
+        (a) => a.selected === true
+      );
+
+      const errors = new AccountErrors();
+      const throttled = new Set<string>();
+      // A per-user limit (code 17) covers every account of this token.
+      let clientThrottle: MetaThrottledError | null = null;
+      const onThrottle = (accountId: string, err: MetaThrottledError) => {
+        accountsThrottled += 1;
+        throttled.add(accountId);
+        errors.add(accountId, describeThrottle(err));
+        if (err.scope === "app") appThrottle = err;
+        else if (err.scope === "user") clientThrottle = err;
+      };
+      const blockedBy = (): MetaThrottledError | null => appThrottle ?? clientThrottle;
 
       // A day with no rows is either a hole or a day with no delivery at all
-      // (history shorter than a year, a paused month). The latter used to be
-      // re-pulled on EVERY run, forever - up to 150 empty requests per
-      // account per run, starving real backfill. Ask Meta once which days had
-      // any delivery and only treat those as missing. Unknown (call failed)
-      // -> keep the old behaviour.
-      if (
-        candidates.some((d) => !stale.has(d)) &&
-        accounts.length &&
-        Date.now() - startedAt <= BACKFILL_BUDGET_MS
-      ) {
-        try {
-          const active = new Set<string>();
-          for (const account of accounts) {
-            const days = await getActiveDays(
-              access_token,
-              account.id,
-              candidates[0],
-              backfillEnd
-            );
-            days.forEach((d) => active.add(d));
+      // (history shorter than the window, an off-season month). The latter
+      // used to be re-pulled on EVERY run, forever. Meta is asked once which
+      // days had any delivery - and the answer is kept for the rest of the
+      // Warsaw day (sync-state), so the 470-day probe of a seasonal client
+      // runs once a day, not every 30 minutes. Unknown (call failed) -> keep
+      // the old behaviour.
+      const unknown = candidates.filter((d) => !present.has(d));
+      if (unknown.length && accounts.length && Date.now() - startedAt <= BACKFILL_BUDGET_MS) {
+        const active = new Set<string>();
+        let probeOk = true;
+        for (const account of accounts) {
+          if (blockedBy()) break;
+          let days = cachedActiveDays(state.active, until, account.id, unknown[0], backfillEnd);
+          if (!days) {
+            try {
+              days = await getActiveDays(access_token, account.id, unknown[0], backfillEnd);
+              state.active = rememberActiveDays(
+                state.active,
+                until,
+                account.id,
+                unknown[0],
+                backfillEnd,
+                days
+              );
+              stateChanged = true;
+            } catch (activeErr) {
+              if (activeErr instanceof MetaThrottledError) {
+                onThrottle(account.id, activeErr);
+                continue;
+              }
+              probeOk = false;
+              console.warn(
+                "[cron/refresh-ads-meta] active-day probe failed, backfilling every missing day",
+                describeError(activeErr)
+              );
+              break;
+            }
           }
-          candidates = candidates.filter((d) => stale.has(d) || active.has(d));
-        } catch (activeErr) {
-          console.warn(
-            "[cron/refresh-ads-meta] active-day probe failed, backfilling every missing day",
-            describeError(activeErr)
-          );
+          days.forEach((d) => active.add(d));
         }
+        if (probeOk) candidates = candidates.filter((d) => present.has(d) || active.has(d));
       }
 
       const backfill = candidates.reverse().slice(0, MAX_BACKFILL_PER_RUN);
       staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
       const freshDays = eachDay(since, until);
-      const dayList: string[] = [...freshDays, ...backfill];
+      // Unreadable state would make every run look due: then only at night.
+      const matureAllowed = eligible && (stateRead.ok || isNightlyWindow(now));
+      const matureDays = matureAllowed
+        ? eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO))
+        : [];
 
-      const accountErrors: string[] = [];
       // Per-integration count: campaignsUpserted spans every client, so it
       // can't tell us whether THIS client actually received any data.
       let writtenForClient = 0;
+      // day -> accounts that fetched (and, if it had rows, wrote) it.
+      const doneBy = new Map<string, number>();
 
       // Isolate each ad account so one disabled/error account doesn't sink all.
-      for (const [accountIndex, account] of accounts.entries()) {
-        const isLastAccount = accountIndex === accounts.length - 1;
+      for (const account of accounts) {
+        if (throttled.has(account.id)) continue;
+        const blocked = blockedBy();
+        if (blocked) {
+          errors.add(account.id, describeThrottle(blocked));
+          continue;
+        }
+        const matureDue = matureDays.length > 0 && isDue(state.mature?.[account.id], MATURE_EVERY_MS);
+        // Fresh days, then the due mature days, then the backfill.
+        const dayList = [
+          ...new Set([...freshDays, ...(matureDue ? matureDays : []), ...backfill]),
+        ];
+        const doneDays = new Set<string>();
         try {
-          // Fetch days in small parallel batches (sequential was the wall-clock
-          // bottleneck on year-long backfills), upserting per day so progress
-          // persists even if the function is killed mid-backfill.
-          const CONCURRENCY = 4;
+          // Fetch days in small parallel batches, upserting per day so
+          // progress persists even if the function is killed mid-backfill.
           for (let i = 0; i < dayList.length; i += CONCURRENCY) {
             // Past the budget only the fresh days (first batch) still run;
             // the remaining backfill continues on the next tick.
@@ -315,63 +497,79 @@ export async function GET(request: Request) {
             const results = await Promise.all(
               batch.map(async (day) => ({
                 day,
-                insights: await getCampaignInsights(
-                  access_token,
-                  account.id,
-                  day,
-                  day
-                ),
+                insights: await getCampaignInsights(access_token, account.id, day, day, {
+                  actionValues: eligible,
+                }),
               }))
             );
-            for (const { insights } of results) {
-              if (!insights.length) continue;
-              const dayRows = insights.map((insight) => ({
-                client_id: integration.client_id,
-                provider: "meta_ads",
-                campaign_id: insight.campaign_id,
-                campaign_name: insight.campaign_name,
-                date: insight.date,
-                spend_minor_units: Math.round(parseFloat(insight.spend) * 100),
-                impressions: parseInt(insight.impressions, 10) || 0,
-                // clicks = link clicks, clicks_all = clicks (all), CTR/CPC
-                // per link click - or the pre-0034 shape without the column.
-                ...metaClickColumns(insight, withClicksAll),
-                reach: insight.reach != null ? parseInt(insight.reach, 10) : null,
-                frequency:
-                  insight.frequency != null ? parseFloat(insight.frequency) : null,
-                conversions: extractConversions(insight.actions),
-                // purchases / purchase_value: sales from ads for shop clients
-                // (lib/season), same keys as the Google rows.
-                raw_data: {
-                  ...insight,
-                  purchases: extractPurchases(insight.actions, insight.action_values).purchases,
-                  purchase_value: extractPurchases(insight.actions, insight.action_values).value,
-                } as unknown as Record<string, unknown>,
-              }));
+            for (const { day, insights } of results) {
+              if (!insights.length) {
+                doneDays.add(day);
+                continue;
+              }
+              const currency =
+                normalizeCurrency(insights.find((r) => r.account_currency)?.account_currency) ??
+                normalizeCurrency(account.currency);
+              const rate = await fx.rate(currency, day);
+              if (rate == null) {
+                // Never store foreign money as złoty: this day waits for a rate.
+                errors.add(
+                  account.id,
+                  currency ? `brak kursu NBP ${currency} dla ${day}` : "nieznana waluta konta"
+                );
+                continue;
+              }
+              const dayRows = insights.map((insight) =>
+                buildRow(clientId, insight, rate, currency, eligible, withClicksAll)
+              );
               const { error } = await admin
                 .from("ads_daily")
                 .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
               if (error) throw new Error(error.message);
               campaignsUpserted += dayRows.length;
               writtenForClient += dayRows.length;
-            }
-            // Every account has now re-pulled these days (accounts run in
-            // order), so leftover pre-0034 rows are ones Meta no longer
-            // reports. Skipped when an account failed - its rows may still be
-            // re-pulled on the next run.
-            if (withClicksAll && isLastAccount && accountErrors.length === 0) {
-              await closeStaleClickRows(admin, integration.client_id as string, batch);
+              doneDays.add(day);
             }
           }
         } catch (accErr) {
-          accountsFailed += 1;
-          accountErrors.push(`${account.id}: ${describeError(accErr)}`);
-          console.error(
-            `[cron/refresh-ads-meta] account ${account.id} failed`,
-            describeError(accErr)
-          );
+          if (accErr instanceof MetaThrottledError) {
+            // Skip the rest of this account for this run: retrying right
+            // away only extends the block.
+            onThrottle(account.id, accErr);
+          } else {
+            accountsFailed += 1;
+            errors.add(account.id, describeError(accErr));
+            console.error(
+              `[cron/refresh-ads-meta] account ${account.id} failed`,
+              describeError(accErr)
+            );
+          }
+        }
+        for (const d of doneDays) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
+        if (matureDue && matureDays.every((d) => doneDays.has(d))) {
+          state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
+          stateChanged = true;
         }
       }
+
+      // Days every account re-pulled: leftover rows are campaigns Meta no
+      // longer reports for that day. Close them so the day stops counting
+      // as due (a day with an account error stays open for the next run).
+      const closable = (set: Set<string>) =>
+        backfill.filter((d) => set.has(d) && accounts.length > 0 && (doneBy.get(d) ?? 0) >= accounts.length);
+      if (withClicksAll) await closeStaleClickRows(admin, clientId, closable(stale));
+      if (noPurchase.size) {
+        await patchRowsMissingRawKey(
+          admin,
+          clientId,
+          "meta_ads",
+          "purchase_value",
+          closable(noPurchase),
+          () => ({ purchases: 0, purchase_value: 0 })
+        );
+      }
+
+      if (stateChanged) await writeSyncState(admin, clientId, STATE_KEY, state);
 
       await admin
         .from("sync_runs")
@@ -379,13 +577,12 @@ export async function GET(request: Request) {
           ...resolveSyncOutcome({
             accountsSelected: accounts.length,
             rowsWritten: writtenForClient,
-            accountErrors,
+            accountErrors: errors.list(),
           }),
           finished_at: new Date().toISOString(),
         })
         .eq("id", run?.id);
       integrationsProcessed += 1;
-
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ads-meta] integration failed", message);
@@ -405,6 +602,8 @@ export async function GET(request: Request) {
     integrations_processed: integrationsProcessed,
     campaigns_upserted: campaignsUpserted,
     accounts_failed: accountsFailed,
+    accounts_throttled: accountsThrottled,
+    clients_skipped: clientsSkipped,
     link_clicks: withClicksAll,
     stale_click_days_queued: staleDaysQueued,
   });

@@ -42,14 +42,161 @@ export interface MetaCampaignInsight {
   reach?: string;
   frequency?: string;
   actions?: Array<{ action_type: string; value: string }>;
-  /** Value per action type (account currency) - purchase value for shops. */
+  /**
+   * Value per action type (account currency) - purchase value for shops.
+   * Only requested for seasonal / shop clients (see getCampaignInsights).
+   */
   action_values?: Array<{ action_type: string; value: string }>;
+  /** ISO code of the ad account's currency; every amount above is in it. */
+  account_currency?: string;
 }
 
-/** Paging URLs are fetched raw (not via graphGet): surface their errors too. */
-function throwOnPageError(body: unknown): void {
-  const err = (body as { error?: { message?: string } } | null)?.error;
-  if (err) throw new Error(err.message ?? "Meta Graph API paging error");
+// ---------------------------------------------------------------- errors
+
+/**
+ * Who a throttle applies to. Meta counts some limits per app (code 4), some
+ * per user token (17) and most per ad account / business (business use case
+ * 80000-80014, 613 call-type limits, 32 page limits). The crons stop only
+ * what the limit covers: one throttled market account must not cost the
+ * other six their fresh numbers.
+ */
+export type MetaThrottleScope = "app" | "user" | "account";
+
+/**
+ * Meta said "too many calls". Retrying right away only extends the block,
+ * so callers skip the remaining work it covers for the rest of the run.
+ */
+export class MetaThrottledError extends Error {
+  readonly code: number;
+  readonly scope: MetaThrottleScope;
+  /** When Meta expects access back (headers), in ms; null if it didn't say. */
+  readonly retryAfterMs: number | null;
+  constructor(message: string, code: number, scope: MetaThrottleScope, retryAfterMs: number | null) {
+    super(message);
+    this.name = "MetaThrottledError";
+    this.code = code;
+    this.scope = scope;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/**
+ * "Please reduce the amount of data you're asking for, then retry your
+ * request": the query itself is too big. Narrower slices go through.
+ */
+export class MetaDataVolumeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MetaDataVolumeError";
+  }
+}
+
+/** Short, log-safe text for a throttle (no ids, no token). */
+export function describeThrottle(err: MetaThrottledError): string {
+  const wait =
+    err.retryAfterMs != null && err.retryAfterMs > 0
+      ? `, dostęp za ~${Math.max(1, Math.round(err.retryAfterMs / 60_000))} min`
+      : "";
+  return `limit zapytań Meta (kod ${err.code}${wait}) - pominięte do następnego przebiegu`;
+}
+
+function throttleScope(code: number, httpStatus: number): MetaThrottleScope | null {
+  if (code === 4) return "app";
+  if (code === 17) return "user";
+  if (code === 32 || code === 613 || (code >= 80000 && code <= 80014)) return "account";
+  if (httpStatus === 429) return "account";
+  return null;
+}
+
+/**
+ * Wait time from Meta's usage headers: x-business-use-case-usage carries
+ * estimated_time_to_regain_access (minutes) per business use case,
+ * x-ad-account-usage a reset_time_duration (seconds). The longest wins.
+ */
+function retryAfterFromHeaders(headers: Headers): number | null {
+  let best: number | null = null;
+  const take = (ms: number) => {
+    if (Number.isFinite(ms) && ms > 0) best = Math.max(best ?? 0, ms);
+  };
+  const buc = headers.get("x-business-use-case-usage");
+  if (buc) {
+    try {
+      const parsed = JSON.parse(buc) as Record<string, Array<{ estimated_time_to_regain_access?: unknown }>>;
+      for (const list of Object.values(parsed ?? {})) {
+        for (const entry of Array.isArray(list) ? list : []) {
+          take(Number(entry?.estimated_time_to_regain_access) * 60_000);
+        }
+      }
+    } catch {
+      /* malformed header: no hint */
+    }
+  }
+  const account = headers.get("x-ad-account-usage");
+  if (account) {
+    try {
+      take(Number((JSON.parse(account) as { reset_time_duration?: unknown })?.reset_time_duration) * 1000);
+    } catch {
+      /* malformed header: no hint */
+    }
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------- transport
+
+/**
+ * Per request. Without it one hung insights call held a cron until Vercel
+ * killed it - sync_runs stuck on "running", every later client skipped.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+/** Page size retried when Meta asks for less data per request. */
+const SMALL_PAGE = 100;
+
+/**
+ * GET one Graph URL (built by graphGet, or a `paging.next` link, which
+ * already carries the token). `context` is what gets logged - never the URL,
+ * it contains the access token.
+ */
+async function graphFetch<T>(url: string, context: string): Promise<T> {
+  const timedOut = (err: unknown) => (err as { name?: string })?.name === "TimeoutError";
+  const timeoutError = () =>
+    new Error(`Meta Graph API timeout after ${REQUEST_TIMEOUT_MS / 1000}s (${context})`);
+  let res: Response;
+  try {
+    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (err) {
+    throw timedOut(err) ? timeoutError() : err;
+  }
+  let body: { error?: { message?: string; code?: unknown; error_subcode?: unknown } } | null = null;
+  try {
+    body = await res.json();
+  } catch (err) {
+    // The timeout also covers reading the body.
+    if (timedOut(err)) throw timeoutError();
+    body = null; // an HTML error page from a proxy: handled below
+  }
+
+  if (!res.ok || !body || body.error) {
+    const err = body?.error ?? {};
+    const code = Number(err.code ?? 0);
+    const message = err.message ?? `Meta Graph API error (${res.status})`;
+    const scope = throttleScope(code, res.status);
+    if (scope) {
+      const retryAfterMs = retryAfterFromHeaders(res.headers);
+      console.warn("[meta-ads] Graph API throttled", { context, status: res.status, code, scope, retryAfterMs });
+      throw new MetaThrottledError(message, code, scope, retryAfterMs);
+    }
+    console.error("[meta-ads] Graph API error", {
+      path: context,
+      status: res.status,
+      message: err.message,
+      code: err.code,
+      error_subcode: err.error_subcode,
+    });
+    if (/reduce the amount of data/i.test(message)) throw new MetaDataVolumeError(message);
+    throw new Error(message);
+  }
+  return body as T;
 }
 
 /** Link-click insight fields, requested next to `clicks` everywhere. */
@@ -71,22 +218,56 @@ export function getAuthorizationUrl(state: string): string {
 // Meta returns rich error bodies - surface them instead of swallowing.
 async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const url = `${GRAPH_BASE}${path}?${new URLSearchParams(params).toString()}`;
-  const res = await fetch(url, { cache: "no-store" });
-  const body = await res.json();
+  return graphFetch<T>(url, path);
+}
 
-  if (!res.ok || body?.error) {
-    const err = body?.error ?? {};
-    console.error("[meta-ads] Graph API error", {
-      path,
-      status: res.status,
-      message: err.message,
-      code: err.code,
-      error_subcode: err.error_subcode,
-    });
-    throw new Error(err.message ?? `Meta Graph API error (${res.status})`);
+type GraphRow = Record<string, unknown>;
+interface GraphPage {
+  data?: GraphRow[];
+  paging?: { next?: string };
+}
+
+/**
+ * The first page of `path` and every `paging.next` after it.
+ * - maxPages: pages read at most, the first included;
+ * - onCap "throw" where a partial result would be stored as complete (a
+ *   day with half its spend is never re-pulled), "stop" where partial is
+ *   fine - `complete` then says so;
+ * - done: checked before each further page; true ends the listing early
+ *   (e.g. every wanted ad seen). `complete` is false then too.
+ * Any failed page throws: rows of a rate-limited page used to vanish
+ * silently and the day was stored as if whole.
+ */
+async function graphGetAll(
+  path: string,
+  params: Record<string, string>,
+  opts: { maxPages: number; onCap: "throw" | "stop"; done?: (rows: GraphRow[]) => boolean }
+): Promise<{ rows: GraphRow[]; complete: boolean }> {
+  let body: GraphPage;
+  try {
+    body = await graphGet<GraphPage>(path, params);
+  } catch (err) {
+    // A smaller page is often enough for "reduce the amount of data".
+    if (err instanceof MetaDataVolumeError && Number(params.limit ?? 0) > SMALL_PAGE) {
+      body = await graphGet<GraphPage>(path, { ...params, limit: String(SMALL_PAGE) });
+    } else {
+      throw err;
+    }
   }
-
-  return body as T;
+  const rows: GraphRow[] = [...(body.data ?? [])];
+  let pages = 1;
+  while (body.paging?.next) {
+    if (opts.done?.(rows)) return { rows, complete: false };
+    if (pages >= opts.maxPages) {
+      if (opts.onCap === "throw") throw new Error(`Meta ${path}: more than ${opts.maxPages} pages`);
+      return { rows, complete: false };
+    }
+    pages += 1;
+    body = await graphFetch<GraphPage>(body.paging.next, `${path} (page ${pages})`);
+    if (body?.data?.length) rows.push(...body.data);
+    else break;
+  }
+  return { rows, complete: true };
 }
 
 /**
@@ -213,44 +394,40 @@ function eachDay(since: string, until: string): string[] {
  * caps the row count of a wide multi-day query, so a 30-day pull returned only a
  * fraction of the spend. A single-day, fully-paginated query is small enough to
  * come back complete, and we tag every row with that day's date.
+ *
+ * `actionValues` adds purchase values (action_values): only seasonal and
+ * shop clients use them, and for an engagement client with ~1900 campaigns
+ * they only bloated every stored raw_data row.
  */
 export async function getCampaignInsights(
   accessToken: string,
   adAccountId: string,
   since: string,
-  until: string
+  until: string,
+  opts: { actionValues?: boolean } = {}
 ): Promise<MetaCampaignInsight[]> {
   const rows: MetaCampaignInsight[] = [];
 
   for (const day of eachDay(since, until)) {
-    let body = await graphGet<{
-      data: Array<Record<string, unknown>>;
-      paging?: { next?: string };
-    }>(`/${adAccountId}/insights`, {
-      fields:
-        "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions,action_values," +
-        LINK_CLICK_FIELDS,
-      level: "campaign",
-      time_range: JSON.stringify({ since: day, until: day }),
-      access_token: accessToken,
-      limit: "500",
-    });
-
-    const dayRows: Array<Record<string, unknown>> = [...(body.data ?? [])];
-
-    // One day of a big account can still span several pages - follow them all.
-    let guard = 0;
-    while (body.paging?.next && guard < 50) {
-      guard += 1;
-      const res = await fetch(body.paging.next, { cache: "no-store" });
-      body = await res.json();
-      // A failed page (rate limit mid-pagination) used to end the loop with a
-      // partial day that was upserted as if complete - and a backfilled day
-      // with rows is never re-pulled, so its spend stayed too low for good.
-      throwOnPageError(body);
-      if (body?.data?.length) dayRows.push(...body.data);
-      else break;
-    }
+    // One day of a big account can still span several pages - follow them
+    // all. A failed page throws (it used to end the loop with a partial day
+    // that was upserted as if complete - and a backfilled day with rows is
+    // never re-pulled, so its spend stayed too low for good); so does a day
+    // past the page cap.
+    const { rows: dayRows } = await graphGetAll(
+      `/${adAccountId}/insights`,
+      {
+        fields:
+          "campaign_id,campaign_name,account_currency,spend,impressions,clicks,ctr,cpc,reach,frequency,actions," +
+          (opts.actionValues ? "action_values," : "") +
+          LINK_CLICK_FIELDS,
+        level: "campaign",
+        time_range: JSON.stringify({ since: day, until: day }),
+        access_token: accessToken,
+        limit: "500",
+      },
+      { maxPages: 51, onCap: "throw" }
+    );
 
     for (const row of dayRows) {
       rows.push({
@@ -268,7 +445,10 @@ export async function getCampaignInsights(
         reach: row.reach != null ? String(row.reach) : undefined,
         frequency: row.frequency != null ? String(row.frequency) : undefined,
         actions: row.actions as MetaCampaignInsight["actions"],
-        action_values: row.action_values as MetaCampaignInsight["action_values"],
+        ...(opts.actionValues
+          ? { action_values: row.action_values as MetaCampaignInsight["action_values"] }
+          : {}),
+        account_currency: strOrUndef(row.account_currency),
       });
     }
   }
@@ -292,32 +472,42 @@ export async function getActiveDays(
   const active = new Set<string>();
   for (let i = 0; i < days.length; i += 92) {
     const slice = days.slice(i, i + 92);
-    let body = await graphGet<{
-      data: Array<Record<string, unknown>>;
-      paging?: { next?: string };
-    }>(`/${adAccountId}/insights`, {
-      fields: "impressions,spend",
-      level: "account",
-      time_increment: "1",
-      time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
-      access_token: accessToken,
-      limit: "500",
-    });
-    const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
-    let guard = 0;
-    while (body.paging?.next && guard < 10) {
-      guard += 1;
-      const res = await fetch(body.paging.next, { cache: "no-store" });
-      body = await res.json();
-      throwOnPageError(body);
-      if (body?.data?.length) raw.push(...body.data);
-      else break;
-    }
+    const { rows: raw } = await graphGetAll(
+      `/${adAccountId}/insights`,
+      {
+        fields: "impressions,spend",
+        level: "account",
+        time_increment: "1",
+        time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
+        access_token: accessToken,
+        limit: "500",
+      },
+      { maxPages: 11, onCap: "stop" }
+    );
     for (const row of raw) {
       if (row.date_start) active.add(String(row.date_start));
     }
   }
   return active;
+}
+
+/**
+ * Rows for a multi-day slice. When Meta answers "reduce the amount of data"
+ * the same days go out one by one - a single day is the narrowest a daily
+ * query gets, so if that still fails the error stands.
+ */
+async function bySliceOrDay(
+  days: string[],
+  fetchRange: (since: string, until: string) => Promise<GraphRow[]>
+): Promise<GraphRow[]> {
+  try {
+    return await fetchRange(days[0], days[days.length - 1]);
+  } catch (err) {
+    if (!(err instanceof MetaDataVolumeError) || days.length <= 1) throw err;
+    const out: GraphRow[] = [];
+    for (const day of days) out.push(...(await fetchRange(day, day)));
+    return out;
+  }
 }
 
 export interface MetaAdsetInsight {
@@ -357,35 +547,30 @@ export async function getAdsetInsights(
   for (let i = 0; i < days.length; i += 7) {
     if (shouldStop()) break;
     const slice = days.slice(i, i + 7);
-    let body = await graphGet<{
-      data: Array<Record<string, unknown>>;
-      paging?: { next?: string };
-    }>(`/${adAccountId}/insights`, {
-      fields: "adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks,inline_link_clicks,reach,actions",
-      level: "adset",
-      time_increment: "1",
-      time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
-      ...(campaignId
-        ? {
-            filtering: JSON.stringify([
-              { field: "campaign.id", operator: "IN", value: [campaignId] },
-            ]),
-          }
-        : {}),
-      access_token: accessToken,
-      limit: "500",
-    });
-    const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
-    let guard = 0;
-    while (body.paging?.next && guard < 50) {
-      guard += 1;
-      const res = await fetch(body.paging.next, { cache: "no-store" });
-      body = await res.json();
-      // A failed page used to end the loop silently with partial data.
-      throwOnPageError(body);
-      if (body?.data?.length) raw.push(...body.data);
-      else break;
-    }
+    const raw = await bySliceOrDay(slice, async (from, to) =>
+      (
+        await graphGetAll(
+          `/${adAccountId}/insights`,
+          {
+            fields:
+              "adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks,inline_link_clicks,reach,actions",
+            level: "adset",
+            time_increment: "1",
+            time_range: JSON.stringify({ since: from, until: to }),
+            ...(campaignId
+              ? {
+                  filtering: JSON.stringify([
+                    { field: "campaign.id", operator: "IN", value: [campaignId] },
+                  ]),
+                }
+              : {}),
+            access_token: accessToken,
+            limit: "500",
+          },
+          { maxPages: 51, onCap: "stop" }
+        )
+      ).rows
+    );
     for (const row of raw) {
       if (!row.adset_id) continue;
       rows.push({
@@ -440,11 +625,13 @@ export interface MetaAdInsight {
   video_p100: number | null;
   /** Seconds. */
   video_avg_watch_seconds: number | null;
+  /** ISO code of the ad account's currency (spend / CPC are in it). */
+  account_currency: string | null;
 }
 
 type MetaActionList = Array<{ action_type?: string; value?: string }>;
 
-const AD_BASE_FIELDS = `ad_id,ad_name,campaign_id,spend,impressions,clicks,ctr,cpc,${LINK_CLICK_FIELDS}`;
+const AD_BASE_FIELDS = `ad_id,ad_name,campaign_id,account_currency,spend,impressions,clicks,ctr,cpc,${LINK_CLICK_FIELDS}`;
 
 // `video_play_actions` only counts plays *started* (autoplay included), so it
 // cannot measure a "hook". Meta exposes 3-second plays as the `video_view`
@@ -498,29 +685,19 @@ async function fetchAdInsightRows(
   until: string,
   fields: string
 ): Promise<Array<Record<string, unknown>>> {
-  let body = await graphGet<{
-    data: Array<Record<string, unknown>>;
-    paging?: { next?: string };
-  }>(`/${adAccountId}/insights`, {
-    fields,
-    level: "ad",
-    time_range: JSON.stringify({ since, until }),
-    access_token: accessToken,
-    limit: "500",
-  });
-  const rows: Array<Record<string, unknown>> = [...(body.data ?? [])];
-
   // Accounts with many ads span several pages; a single page silently
   // dropped every ad past the 500th.
-  let guard = 0;
-  while (body.paging?.next && guard < 50) {
-    guard += 1;
-    const res = await fetch(body.paging.next, { cache: "no-store" });
-    body = await res.json();
-    throwOnPageError(body);
-    if (body?.data?.length) rows.push(...body.data);
-    else break;
-  }
+  const { rows } = await graphGetAll(
+    `/${adAccountId}/insights`,
+    {
+      fields,
+      level: "ad",
+      time_range: JSON.stringify({ since, until }),
+      access_token: accessToken,
+      limit: "500",
+    },
+    { maxPages: 51, onCap: "stop" }
+  );
   return rows;
 }
 
@@ -535,6 +712,8 @@ export async function getAdInsights(
   try {
     raw = await fetchAdInsightRows(accessToken, adAccountId, since, until, AD_EXTENDED_FIELDS);
   } catch (err) {
+    // Throttled: the base fields would only be one more rejected call.
+    if (err instanceof MetaThrottledError) throw err;
     // A renamed/deprecated diagnostic field must not cost the client their
     // whole Kreacje tab: retry with the fields that have always worked.
     console.warn(
@@ -572,6 +751,7 @@ export async function getAdInsights(
     video_avg_watch_seconds: Array.isArray(row.video_avg_time_watched_actions)
       ? num((row.video_avg_time_watched_actions as MetaActionList)[0]?.value)
       : null,
+    account_currency: strOrUndef(row.account_currency) ?? null,
   }));
 }
 
@@ -598,6 +778,8 @@ export interface MetaAdDailyInsight {
   purchase_value: number;
   /** actions[video_view] (3-second plays); null for non-video ads. */
   video_3s_views: number | null;
+  /** ISO code of the ad account's currency (spend / purchase value). */
+  currency: string | null;
 }
 
 /**
@@ -609,14 +791,15 @@ export interface MetaAdDailyInsight {
 const AD_DAILY_SLICE_DAYS = 3;
 
 const AD_DAILY_FIELDS =
-  "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks," +
+  "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,account_currency,spend,impressions,clicks," +
   "inline_link_clicks,reach,frequency,actions,action_values";
 
 /**
  * Ad-level DAILY insights (time_increment=1) for [since, until], with
  * purchases and their value - the input of the creative test view. Every
  * slice is fully paginated and a failed page throws: a partial day stored
- * as complete would make a losing ad look like it stopped selling.
+ * as complete would make a losing ad look like it stopped selling. A slice
+ * Meta finds too big ("reduce the amount of data") is retried day by day.
  * `shouldStop` lets a cron end between slices; slices already fetched are
  * returned.
  */
@@ -632,30 +815,25 @@ export async function getAdDailyInsights(
   for (let i = 0; i < days.length; i += AD_DAILY_SLICE_DAYS) {
     if (i > 0 && shouldStop()) break;
     const slice = days.slice(i, i + AD_DAILY_SLICE_DAYS);
-    let body = await graphGet<{
-      data: Array<Record<string, unknown>>;
-      paging?: { next?: string };
-    }>(`/${adAccountId}/insights`, {
-      fields: AD_DAILY_FIELDS,
-      level: "ad",
-      time_increment: "1",
-      time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
-      access_token: accessToken,
-      limit: "500",
-    });
-    const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
-    let pages = 1;
-    while (body.paging?.next) {
-      // 200 pages x 500 rows = 100 000 ad-days in 3 days: far past any real
-      // account. Stopping there would store a partial slice as complete.
-      if (pages >= 200) throw new Error("Meta ad insights: too many pages in one slice");
-      pages += 1;
-      const res = await fetch(body.paging.next, { cache: "no-store" });
-      body = await res.json();
-      throwOnPageError(body);
-      if (body?.data?.length) raw.push(...body.data);
-      else break;
-    }
+    const raw = await bySliceOrDay(slice, async (from, to) =>
+      (
+        await graphGetAll(
+          `/${adAccountId}/insights`,
+          {
+            fields: AD_DAILY_FIELDS,
+            level: "ad",
+            time_increment: "1",
+            time_range: JSON.stringify({ since: from, until: to }),
+            access_token: accessToken,
+            limit: "500",
+          },
+          // 200 pages x 500 rows = 100 000 ad-days in 3 days: far past any
+          // real account. Stopping there would store a partial slice as
+          // complete, so the cap throws.
+          { maxPages: 200, onCap: "throw" }
+        )
+      ).rows
+    );
     for (const row of raw) {
       if (!row.ad_id) continue;
       const actions = row.actions as Array<{ action_type: string; value: string }> | undefined;
@@ -678,6 +856,7 @@ export async function getAdDailyInsights(
         purchases: sale.purchases,
         purchase_value: sale.value,
         video_3s_views: sumActions(row.actions, "video_view"),
+        currency: strOrUndef(row.account_currency) ?? null,
       });
     }
   }
@@ -725,7 +904,8 @@ function bestStaticUrl(c?: Creative): string | undefined {
  * Resolve a full-resolution cover frame for a video by asking the video node
  * directly. Meta exposes several thumbnail sizes here; the small `thumbnail_url`
  * on the creative is not one we want. Prefer the `is_preferred` frame, else the
- * widest. Returns undefined on any error so the caller can fall back.
+ * widest. Returns undefined on any error so the caller can fall back - except
+ * a throttle, which must stop the remaining lookups instead of hammering.
  */
 async function resolveVideoThumbnail(
   accessToken: string,
@@ -758,33 +938,16 @@ async function resolveVideoThumbnail(
     if (widest?.uri) return widest.uri;
 
     return body.picture || undefined;
-  } catch {
+  } catch (err) {
+    if (err instanceof MetaThrottledError) throw err;
     return undefined;
   }
 }
 
-/** Run async tasks with a small concurrency cap (Meta rate-limits hard). */
-async function mapLimit<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let cursor = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const i = cursor++;
-      results[i] = await fn(items[i]);
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
-
-/** Cap for paged /ads listings: 20 x 500 = the newest 10 000 ads. */
-// 5 x 500 ads: past that the delivering ads we still miss are old ones whose
-// stored picture is kept anyway; a 20-page walk took minutes on big accounts.
-const ADS_LIST_MAX_PAGES = 5;
+/** Ids per `GET /?ids=` request - the Graph API's batch read limit. */
+const IDS_PER_REQUEST = 50;
+/** Failed by-id requests one thumbnail pass tolerates before giving up. */
+const MAX_FAILED_LOOKUPS = 8;
 
 /**
  * Map of ad_id -> creative thumbnail URL for an ad account.
@@ -794,23 +957,34 @@ const ADS_LIST_MAX_PAGES = 5;
  * (`/{video_id}?fields=thumbnails`). Static ads keep using `image_url` /
  * story-spec picture, which are already full-size.
  *
- * Without `onlyAdIds` only the first page (500 ads) is read, as always. With
- * it the listing follows paging up to ADS_LIST_MAX_PAGES - a shop testing
- * dozens of ads per ad set has far more than 500 ads, and every ad past the
- * 500th had no thumbnail - but only the wanted ads are kept, so the costly
- * per-video lookups stay bounded by the ads that actually delivered. It may
- * be a promise: the listing then runs alongside the insights call and only
- * the video pass waits for the ids.
+ * Reads only the FIRST page of the ad listing (the newest 500 ads), as it
+ * always did. Paging up to 10 000 ads for every client made accounts with
+ * thousands of ads (OLX) take minutes and starve the clients after them.
+ * - onlyAdIds: only these ads get a URL (those that delivered). May be a
+ *   promise: the listing then runs alongside the insights call.
+ * - keep: ads whose stored thumbnail is still valid. Their video frames are
+ *   not looked up again (one call per video was most of the cost) and no
+ *   blurry fallback replaces the stored frame; static ads on the first page
+ *   still get their (free) fresh URL.
+ * - lookupMissing: wanted ads beyond the first page and not in `keep` are
+ *   read by id, 50 per call - for shops, which test far more than 500 ads.
+ * - shouldStop: ends the by-id and video lookups at the caller's budget.
  */
 export async function getAdThumbnails(
   accessToken: string,
   adAccountId: string,
-  opts: { onlyAdIds?: Set<string> | Promise<Set<string>> } = {}
+  opts: {
+    onlyAdIds?: Set<string> | Promise<Set<string>>;
+    keep?: Set<string>;
+    lookupMissing?: boolean;
+    shouldStop?: () => boolean;
+  } = {}
 ): Promise<Map<string, string>> {
   const wantedPromise = opts.onlyAdIds ? Promise.resolve(opts.onlyAdIds) : null;
   // If the listing throws first, nobody would await a rejected id promise.
   wantedPromise?.catch(() => undefined);
-  const maxPages = wantedPromise ? ADS_LIST_MAX_PAGES : 1;
+  const keep = opts.keep ?? new Set<string>();
+  const shouldStop = opts.shouldStop ?? (() => false);
 
   // Rich query first. We request object_story_spec WHOLESALE (not sub-selected)
   // because sub-selecting a field Meta doesn't recognise makes the entire query
@@ -827,61 +1001,36 @@ export async function getAdThumbnails(
   const BASIC = `id,${MOD}{id,image_url,thumbnail_url}`;
 
   type AdRow = { id?: string; creative?: Creative };
-  const listAds = async (fields: string): Promise<AdRow[]> => {
-    let body = await graphGet<{ data: AdRow[]; paging?: { next?: string } }>(
-      `/${adAccountId}/ads`,
-      { fields, access_token: accessToken, limit: "500" }
-    );
-    const rows: AdRow[] = [...(body.data ?? [])];
-    for (let page = 1; body.paging?.next && page < maxPages; page += 1) {
-      // Stop as soon as every ad we need a picture for is listed: a huge
-      // account (thousands of ads) otherwise pages for minutes and starves
-      // the other clients in the same cron run.
-      const want = wantedPromise ? await wantedPromise.catch(() => null) : null;
-      if (want) {
-        const seen = new Set(rows.map((r) => String(r.id)));
-        if ([...want].every((id) => seen.has(id))) break;
-      }
-      // Thumbnails are cosmetic: a failed later page keeps what we have
-      // instead of costing every ad its picture.
-      try {
-        const res = await fetch(body.paging.next, { cache: "no-store" });
-        const next = await res.json();
-        throwOnPageError(next);
-        body = next;
-      } catch (err) {
-        console.warn(
-          "[meta-ads] ad thumbnail page failed, keeping earlier pages",
-          err instanceof Error ? err.message : err
-        );
-        break;
-      }
-      if (body?.data?.length) rows.push(...body.data);
-      else break;
-    }
-    return rows;
-  };
+  const firstPage = (fields: string) =>
+    graphGet<{ data?: AdRow[] }>(`/${adAccountId}/ads`, {
+      fields,
+      access_token: accessToken,
+      limit: "500",
+    });
 
+  let fields = RICH;
   let data: AdRow[] = [];
   try {
-    data = await listAds(RICH);
-  } catch {
-    data = await listAds(BASIC);
+    data = (await firstPage(RICH)).data ?? [];
+  } catch (err) {
+    if (err instanceof MetaThrottledError) throw err;
+    fields = BASIC;
+    data = (await firstPage(BASIC)).data ?? [];
   }
   const wanted = wantedPromise ? await wantedPromise : null;
 
   const map = new Map<string, string>();
-
-  // First pass: static sources we already have, and collect the video ads that
-  // need a follow-up lookup (dedup by video id to avoid re-fetching shared
-  // videos across many ads).
+  // Video ads that need a follow-up lookup (dedup by video id to avoid
+  // re-fetching shared videos across many ads).
   const videoAds: Array<{ adId: string; videoId: string }> = [];
   const seenVideoIds = new Set<string>();
-  for (const ad of data) {
-    if (!ad.id) continue;
-    if (wanted && !wanted.has(ad.id)) continue;
+  const take = (ad: AdRow) => {
+    if (!ad.id) return;
+    if (wanted && !wanted.has(ad.id)) return;
     const videoId = creativeVideoId(ad.creative);
     if (videoId) {
+      // A valid stored frame beats both the lookup and the blurry fallback.
+      if (keep.has(ad.id)) return;
       videoAds.push({ adId: ad.id, videoId });
       seenVideoIds.add(videoId);
       // Seed with the static fallback in case the video lookup fails.
@@ -891,18 +1040,58 @@ export async function getAdThumbnails(
       const url = bestStaticUrl(ad.creative);
       if (url) map.set(ad.id, url);
     }
+  };
+  for (const ad of data) take(ad);
+
+  let halted = false;
+  if (opts.lookupMissing && wanted) {
+    const listed = new Set(data.map((a) => a.id).filter(Boolean) as string[]);
+    const missing = [...wanted].filter((id) => !listed.has(id) && !keep.has(id)).sort();
+    let failures = 0;
+    // A batch with one deleted / foreign ad fails as a whole: split it until
+    // the bad id stands alone, within a small failure budget (a systematic
+    // error must not turn into one call per ad).
+    const lookup = async (ids: string[]): Promise<AdRow[]> => {
+      if (!ids.length || halted || failures >= MAX_FAILED_LOOKUPS) return [];
+      try {
+        const body = await graphGet<Record<string, AdRow>>("/", {
+          ids: ids.join(","),
+          fields,
+          access_token: accessToken,
+        });
+        return Object.values(body ?? {}).filter((n): n is AdRow => !!n && typeof n === "object");
+      } catch (err) {
+        if (err instanceof MetaThrottledError) {
+          halted = true;
+          return [];
+        }
+        failures += 1;
+        if (ids.length === 1) return [];
+        const mid = Math.ceil(ids.length / 2);
+        return [...(await lookup(ids.slice(0, mid))), ...(await lookup(ids.slice(mid)))];
+      }
+    };
+    for (let i = 0; i < missing.length && !halted && !shouldStop(); i += IDS_PER_REQUEST) {
+      for (const ad of await lookup(missing.slice(i, i + IDS_PER_REQUEST))) take(ad);
+    }
   }
 
-  // Second pass: resolve sharp frames for each unique video, then apply to ads.
-  const uniqueVideoIds = [...seenVideoIds];
-  const resolved = await mapLimit(uniqueVideoIds, 6, async (videoId) => ({
-    videoId,
-    uri: await resolveVideoThumbnail(accessToken, videoId),
-  }));
+  // Sharp frames for each unique video, 6 at a time; a throttle or the
+  // budget ends the pass and the remaining ads keep their fallback.
+  const queue = [...seenVideoIds];
   const videoThumb = new Map<string, string>();
-  for (const { videoId, uri } of resolved) {
-    if (uri) videoThumb.set(videoId, uri);
-  }
+  const worker = async () => {
+    while (queue.length && !halted && !shouldStop()) {
+      const videoId = queue.shift() as string;
+      try {
+        const uri = await resolveVideoThumbnail(accessToken, videoId);
+        if (uri) videoThumb.set(videoId, uri);
+      } catch {
+        halted = true; // throttled
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, queue.length) }, worker));
   for (const { adId, videoId } of videoAds) {
     const sharp = videoThumb.get(videoId);
     if (sharp) map.set(adId, sharp);
@@ -910,6 +1099,9 @@ export async function getAdThumbnails(
 
   return map;
 }
+
+/** Cap for paged /ads listings: 20 x 500 = the newest 10 000 ads. */
+const ADS_LIST_MAX_PAGES = 20;
 
 export interface MetaAdMeta {
   id: string;
@@ -925,38 +1117,40 @@ export interface MetaAdMeta {
 /**
  * Light metadata for the ads of an account (no creative, no insights): ad
  * set, delivery status and creation time - so the creative test view can
- * leave out ads the owner already switched off. Follows paging up to
- * ADS_LIST_MAX_PAGES (the first 500 used to be all we ever saw). Meta lists
- * non-archived, non-deleted ads by default; `complete` is false when the cap
- * cut the listing short, so a caller must not read "absent" as "archived".
+ * leave out ads the owner already switched off. Meta lists non-archived,
+ * non-deleted ads by default.
+ * - wanted: the ads the caller needs; the listing stops as soon as all of
+ *   them were seen (the newest ads come first, so usually page 1-2).
+ * - maxPages: cap, ADS_LIST_MAX_PAGES by default.
+ * `complete` is true only when the listing ran to its end - then an ad
+ * missing from it really is archived or deleted; otherwise "absent" means
+ * nothing.
  */
 export async function getAdsMeta(
   accessToken: string,
-  adAccountId: string
+  adAccountId: string,
+  opts: { wanted?: Set<string>; maxPages?: number } = {}
 ): Promise<{ ads: MetaAdMeta[]; complete: boolean }> {
-  let body = await graphGet<{
-    data: Array<Record<string, unknown>>;
-    paging?: { next?: string };
-  }>(`/${adAccountId}/ads`, {
-    fields: "id,name,adset_id,campaign_id,effective_status,created_time",
-    access_token: accessToken,
-    limit: "500",
-  });
-  const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
-  let pages = 1;
-  let complete = true;
-  while (body.paging?.next) {
-    if (pages >= ADS_LIST_MAX_PAGES) {
-      complete = false;
-      break;
+  const unseen = opts.wanted ? new Set(opts.wanted) : null;
+  let checked = 0;
+  const { rows: raw, complete } = await graphGetAll(
+    `/${adAccountId}/ads`,
+    {
+      fields: "id,name,adset_id,campaign_id,effective_status,created_time",
+      access_token: accessToken,
+      limit: "500",
+    },
+    {
+      maxPages: opts.maxPages ?? ADS_LIST_MAX_PAGES,
+      onCap: "stop",
+      done: unseen
+        ? (rows) => {
+            for (; checked < rows.length; checked += 1) unseen.delete(String(rows[checked].id));
+            return unseen.size === 0;
+          }
+        : undefined,
     }
-    pages += 1;
-    const res = await fetch(body.paging.next, { cache: "no-store" });
-    body = await res.json();
-    throwOnPageError(body);
-    if (body?.data?.length) raw.push(...body.data);
-    else break;
-  }
+  );
   const str = (v: unknown): string | null => (v != null && v !== "" ? String(v) : null);
   return {
     ads: raw

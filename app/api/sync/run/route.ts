@@ -39,15 +39,15 @@ export async function POST(request: Request) {
     );
   }
 
-  // Build an in-process request carrying the cron auth + client scope, then call
-  // each handler directly.
-  const mkReq = (job: string) =>
+  // Build an in-process request carrying the cron auth + client scope (plus
+  // any job-specific parameters), then call each handler directly.
+  const mkReq = (job: string, extra = "") =>
     new Request(
-      `https://internal/api/cron/${job}?client=${encodeURIComponent(access.clientId)}`,
+      `https://internal/api/cron/${job}?client=${encodeURIComponent(access.clientId)}${extra}`,
       { headers: { Authorization: `Bearer ${secret}` } }
     );
 
-  const jobs: Array<[string, (r: Request) => Promise<Response>]> = [
+  const jobs: Array<[string, (r: Request) => Promise<Response>, string?]> = [
     ["refresh-ads-meta", refreshMeta],
     ["refresh-ads-google", refreshGoogle],
     ["refresh-ads-tiktok", refreshTiktok],
@@ -55,14 +55,16 @@ export async function POST(request: Request) {
     ["refresh-demographics", refreshDemographics],
     ["refresh-creatives-meta", refreshCreatives],
     ["refresh-adsets", refreshAdsets],
-    // Creative tests: the handler itself skips clients that are neither
-    // seasonal nor e-commerce (answers `skipped`), so it is cheap for them.
-    ["refresh-ads-meta-ads", refreshAdsMetaAds],
+    // Creative tests: the handler itself skips clients that aren't shops
+    // (answers `skipped`), so it is cheap for them. Fresh mode: today,
+    // yesterday and ad statuses only - "Odśwież" must answer in seconds,
+    // the backfill stays with the 30-minute cron.
+    ["refresh-ads-meta-ads", refreshAdsMetaAds, "&mode=fresh"],
   ];
 
   const results = await Promise.allSettled(
-    jobs.map(async ([name, fn]) => {
-      const res = await fn(mkReq(name));
+    jobs.map(async ([name, fn, extra]) => {
+      const res = await fn(mkReq(name, extra));
       const body = await res.json().catch(() => ({ ok: res.ok }));
       return [name, body] as const;
     })

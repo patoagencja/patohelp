@@ -6,16 +6,25 @@
 -- cannot answer "since when" or "in the last 3 days".
 --
 -- 1. ads_ad_daily: one row per ad per Warsaw day. Synced by
---    /api/cron/refresh-ads-meta-ads every ~30 min, ONLY for seasonal
---    (clients.season) or e-commerce clients - engagement clients with huge
---    media accounts must not pay for ad-level daily pulls. Money in PLN
---    minor units (grosze), like ads_daily. `clicks` = link clicks
---    (inline_link_clicks), `clicks_all` = clicks (all).
+--    /api/cron/refresh-ads-meta-ads every ~30 min, ONLY for e-commerce
+--    clients - engagement clients with huge media accounts must not pay for
+--    ad-level daily pulls. Money in PLN minor units (grosze), like
+--    ads_daily: accounts billed in another currency are converted at the
+--    NBP mid rate of the day, and their own currency, rate and original
+--    amounts kept in raw_data (null for PLN accounts). `clicks` = link
+--    clicks (inline_link_clicks), `clicks_all` = clicks (all).
+--    fillfactor 85: the fresh days' rows are rewritten every run; free room
+--    on each page lets Postgres update them in place (HOT - updated_at is
+--    deliberately in no index) instead of bloating table and indexes.
 -- 2. creatives: ad set, campaign name, delivery status and creation time per
 --    ad, so the test view can group ads and skip the ones already switched off.
--- 3. ads_ad_daily_days(): per-day newest sync stamp for one client, so the
---    cron finds missing / stale days in one round trip instead of reading
---    every ad row. Service role only.
+-- 3. ads_ad_daily_days(): per ad account and day, the newest sync stamp for
+--    one client, so the cron finds missing / stale days in one round trip
+--    instead of reading every ad row - per account, so one failed account
+--    can't make a day look done. ads_ad_daily_account_ads(): the ads each
+--    account delivered since a day, to tell which known ads an account's
+--    (complete) ad listing no longer has - archived or deleted. Service role
+--    only.
 --
 -- Idempotent: safe to run more than once. The cron and the test view probe
 -- for the table and simply do nothing until this has run.
@@ -41,9 +50,14 @@ create table if not exists public.ads_ad_daily (
   purchases integer not null default 0,
   purchase_value_minor_units bigint not null default 0,
   video_3s_views bigint,
+  raw_data jsonb,
   updated_at timestamptz not null default now(),
   primary key (client_id, provider, ad_id, date)
-);
+) with (fillfactor = 85);
+
+-- A table created by an earlier draft of this file gets the same shape.
+alter table public.ads_ad_daily add column if not exists raw_data jsonb;
+alter table public.ads_ad_daily set (fillfactor = 85);
 
 -- Reads page through a date window ordered by (date, ad_id); with ad_id in
 -- the index every page comes back in order instead of being re-sorted
@@ -51,8 +65,8 @@ create table if not exists public.ads_ad_daily (
 create index if not exists ads_ad_daily_client_date_idx
   on public.ads_ad_daily (client_id, date, ad_id);
 
-create index if not exists ads_ad_daily_client_adset_date_idx
-  on public.ads_ad_daily (client_id, adset_id, date);
+-- Nothing reads by ad set first; the index only cost every write.
+drop index if exists public.ads_ad_daily_client_adset_date_idx;
 
 alter table public.ads_ad_daily enable row level security;
 
@@ -71,23 +85,43 @@ alter table public.creatives add column if not exists effective_status text;
 alter table public.creatives add column if not exists created_time timestamptz;
 
 -- ---------------------------------------------------------------- 3. sync state
+-- Dropped first: an earlier draft returned (day_date, newest), and
+-- "create or replace" cannot change a function's result columns.
+drop function if exists public.ads_ad_daily_days(uuid, date);
 create or replace function public.ads_ad_daily_days(p_client_id uuid, p_since date)
-returns table (day_date date, newest timestamptz)
+returns table (account_id text, day_date date, newest timestamptz)
 language sql
 stable
 security invoker
 set search_path = public
 as $$
-  select d.date as day_date, max(d.updated_at) as newest
+  select coalesce(d.account_id, '') as account_id, d.date as day_date, max(d.updated_at) as newest
   from public.ads_ad_daily d
   where d.client_id = p_client_id
     and d.provider = 'meta_ads'
     and d.date >= p_since
-  group by d.date
+  group by coalesce(d.account_id, ''), d.date
 $$;
 
 revoke all on function public.ads_ad_daily_days(uuid, date) from public, anon, authenticated;
 grant execute on function public.ads_ad_daily_days(uuid, date) to service_role;
+
+create or replace function public.ads_ad_daily_account_ads(p_client_id uuid, p_since date)
+returns table (account_id text, ad_id text)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select distinct coalesce(d.account_id, '') as account_id, d.ad_id
+  from public.ads_ad_daily d
+  where d.client_id = p_client_id
+    and d.provider = 'meta_ads'
+    and d.date >= p_since
+$$;
+
+revoke all on function public.ads_ad_daily_account_ads(uuid, date) from public, anon, authenticated;
+grant execute on function public.ads_ad_daily_account_ads(uuid, date) to service_role;
 
 -- PostgREST picks up the new table, columns and function without a restart.
 notify pgrst, 'reload schema';
