@@ -17,6 +17,7 @@ import {
 } from "@/components/dashboard/ecom/top-products";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
+import { SeasonOverviewCard } from "@/components/dashboard/season/season-overview-card";
 import { Devices } from "@/components/dashboard/website/devices";
 import { SNAPSHOT_30D_NOTE } from "@/components/dashboard/website/share-bars";
 import { TopPages } from "@/components/dashboard/website/top-pages";
@@ -185,6 +186,13 @@ export default async function SprzedazPage({
           />
         }
       />
+
+      {/* Seasonal shops: the season page holds the shop's own sales and the
+          ad platforms' - a shop without GA4 revenue would otherwise meet an
+          empty tab here. Renders nothing for other clients. */}
+      <SectionBoundary name="sales/season">
+        <SeasonOverviewCard clientId={client.id} clientSlug={params.clientSlug} showRevenue />
+      </SectionBoundary>
 
       {/* One boundary per widget: a shop with odd data (no revenue
           tracking, a few days of history) must still see the rest. */}
