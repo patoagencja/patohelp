@@ -13,7 +13,7 @@ import { formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import { coversWigilia } from "@/lib/season/festive";
 
-import { SantaHat, Snowfall } from "./festive";
+import { SantaHat } from "./festive";
 import { SeasonChart } from "./season-chart";
 import { SeasonMarkets } from "./season-markets";
 import { SeasonProducts } from "./season-products";
@@ -51,8 +51,8 @@ export function SeasonPageView({
 }) {
   const { state, totals, prevSamePoint, prevFull, hasPrev, forecast, today } = view;
   const running = state.phase === "in";
-  // Seasons through Christmas Eve get snow and a Santa hat (the timeline
-  // already counts down to Wigilia) - only while the season runs.
+  // Seasons through Christmas Eve get a Santa hat (the snow is the
+  // layout's, the timeline counts down to Wigilia) - while the season runs.
   const festive = running && coversWigilia(state.current);
   const prevYear = state.previous.year;
   const seasonLabel = `Sezon ${state.current.year}`;
@@ -287,7 +287,6 @@ export function SeasonPageView({
   return (
     <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
       <div className="relative">
-        {festive ? <Snowfall className="-inset-x-4 -top-8 bottom-auto h-80 sm:-inset-x-6" /> : null}
         <PageHeader
           className="relative"
           eyebrow={

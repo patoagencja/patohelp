@@ -1251,6 +1251,23 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     transform: translate3d(var(--drift, 0px), 340px, 0);
   }
 }
+/* The whole-dashboard variant: a fixed viewport layer above the cards (but
+   under menus and dialogs), flakes falling the full screen height. */
+.snowfall-page {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.snowfall-page .snowflake {
+  animation-name: snow-fall-page;
+}
+@keyframes snow-fall-page {
+  to {
+    transform: translate3d(var(--drift, 0px), calc(100vh + 24px), 0);
+  }
+}
 .santa-hat-red {
   fill: hsl(var(--festive-red));
 }

@@ -1,3 +1,4 @@
+import { formatInTimeZone } from "date-fns-tz";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LayoutDashboard } from "lucide-react";
@@ -17,6 +18,7 @@ import { AlertsBellLive } from "@/components/dashboard/alerts-bell-live";
 import { AlertsBell, HeaderMenu, SearchButton } from "@/components/dashboard/header-menu";
 import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
+import { Snowfall } from "@/components/dashboard/season/festive";
 import { Toaster } from "@/components/ui/toaster";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
 import {
@@ -24,6 +26,8 @@ import {
   getLastSyncAt,
   getViewer,
 } from "@/lib/dashboard/context";
+import { seasonState } from "@/lib/season/config";
+import { coversWigilia } from "@/lib/season/festive";
 import { getClientSeason } from "@/lib/season/load";
 import { createClient } from "@/lib/supabase/server";
 
@@ -75,6 +79,11 @@ export default async function ClientDashboardLayout({
   const isAgency = viewer.isAgency;
   const isEcommerce = client?.clientType === "ecommerce";
   const isSeasonal = season !== null;
+  // Christmas-season clients (Elfi) get falling snow while their season runs.
+  const seasonNow = season
+    ? seasonState(season, formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd"))
+    : null;
+  const snowing = !!seasonNow && seasonNow.phase === "in" && coversWigilia(seasonNow.current);
   const user = viewer.email ? { email: viewer.email } : null;
   const allClients = isAgency ? clientList : null;
   const checkStamp = getSyncStamp.bind(null, params.clientSlug);
@@ -196,6 +205,7 @@ export default async function ClientDashboardLayout({
             clients={allClients}
           />
           <GuidedTour isAgency={isAgency} overviewPath={base} />
+          {snowing ? <Snowfall /> : null}
         </>
       }
       banner={

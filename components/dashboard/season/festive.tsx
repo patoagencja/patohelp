@@ -1,18 +1,20 @@
 import { cn } from "@/lib/utils";
 import { snowflakes } from "@/lib/season/festive";
 
-const FLAKES = snowflakes(18);
+const PAGE_FLAKES = snowflakes(34);
 
 /**
- * Light snowfall over the Sezon header of a Christmas season. Kept to the
- * header band on purpose: animation under the frosted cards made every one
- * of them re-blur its backdrop each frame (see .sky-blob in globals.css).
- * Transform-only, decorative, off for reduced motion and in print.
+ * Snow falling across the whole dashboard of a Christmas-season client
+ * (Elfi), in a fixed layer IN FRONT of the content: animation under the
+ * frosted cards would make every one of them re-blur its backdrop each frame
+ * (see .sky-blob in globals.css) and scrolling stutters. Small, translucent,
+ * never catches a click; transform-only. Off for reduced motion, in print
+ * and on the TV (presentation mode).
  */
 export function Snowfall({ className }: { className?: string }) {
   return (
-    <div aria-hidden className={cn("snowfall print:hidden", className)}>
-      {FLAKES.map((f, i) => (
+    <div aria-hidden data-present-hide className={cn("snowfall snowfall-page print:hidden", className)}>
+      {PAGE_FLAKES.map((f, i) => (
         <span
           key={i}
           className="snowflake"

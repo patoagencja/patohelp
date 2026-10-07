@@ -1,3 +1,4 @@
+import { Snowfall } from "@/components/dashboard/season/festive";
 import { SeasonPageView } from "@/components/dashboard/season/season-page";
 import { getDemoSeasonView } from "@/lib/demo/season";
 
@@ -16,12 +17,12 @@ export default function DemoSeasonPage({
   searchParams: { dzien?: string };
 }) {
   const day = searchParams.dzien && ISO_DAY.test(searchParams.dzien) ? searchParams.dzien : undefined;
+  const view = getDemoSeasonView(day);
   return (
-    <SeasonPageView
-      view={getDemoSeasonView(day)}
-      showRevenue
-      isAgency={false}
-      eyebrowExtra=" · dane przykładowe"
-    />
+    <>
+      {/* The real dashboard snows from its layout; the demo shell doesn't. */}
+      {view.state.phase === "in" ? <Snowfall /> : null}
+      <SeasonPageView view={view} showRevenue isAgency={false} eyebrowExtra=" · dane przykładowe" />
+    </>
   );
 }
