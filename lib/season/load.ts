@@ -96,7 +96,8 @@ export interface SeasonView {
   prevBestDay: { date: string; value: number } | null;
 }
 
-interface Row {
+/** One ads_daily row as the season maths reads it. */
+export interface SeasonRow {
   date: string;
   campaign_name: string | null;
   spend_minor_units: number | null;
@@ -107,7 +108,7 @@ interface Row {
 
 const empty = (): SeasonTotals => ({ spend: 0, value: 0, purchases: 0, clicks: 0 });
 
-function add(t: SeasonTotals, r: Row) {
+function add(t: SeasonTotals, r: SeasonRow) {
   t.spend += Number(r.spend_minor_units ?? 0);
   t.clicks += Number(r.clicks ?? 0);
   t.purchases += Number(r.purchases ?? 0) || 0;
@@ -115,10 +116,10 @@ function add(t: SeasonTotals, r: Row) {
   t.value += Math.round((Number(r.purchase_value ?? 0) || 0) * 100);
 }
 
-async function readWindow(clientId: string, start: string, end: string): Promise<Row[]> {
+async function readWindow(clientId: string, start: string, end: string): Promise<SeasonRow[]> {
   if (start > end) return [];
   const admin = createAdminClient();
-  return fetchAllByDateChunks<Row>(start, end, 14, (chunkStart, chunkEnd) => (from, to) =>
+  return fetchAllByDateChunks<SeasonRow>(start, end, 14, (chunkStart, chunkEnd) => (from, to) =>
     admin
       .from("ads_daily")
       .select(
@@ -134,11 +135,16 @@ async function readWindow(clientId: string, start: string, end: string): Promise
   );
 }
 
-function compute(
+/**
+ * The season page's numbers from raw ad rows - pure, no I/O. Exported so the
+ * public demo runs its synthetic rows through exactly the maths a live client
+ * gets, instead of hand-building a SeasonView that could drift from it.
+ */
+export function computeSeasonView(
   cfg: SeasonConfig,
   today: string,
-  curRows: Row[],
-  prevRows: Row[]
+  curRows: SeasonRow[],
+  prevRows: SeasonRow[]
 ): SeasonView {
   const state = seasonState(cfg, today);
   const cur = state.current;
@@ -279,6 +285,6 @@ export async function loadSeasonView(
       readWindow(clientId, state.current.start, curEnd),
       readWindow(clientId, state.previous.start, state.previous.end),
     ]);
-    return compute(cfg, today, curRows, prevRows);
+    return computeSeasonView(cfg, today, curRows, prevRows);
   });
 }
