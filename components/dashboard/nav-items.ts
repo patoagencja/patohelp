@@ -155,5 +155,9 @@ export function topNavItems(groups: NavGroup[]): NavItem[] {
   const main = groups.find((g) => g.id === "main")?.items ?? [];
   const more = groups.find((g) => g.id === "more")?.items ?? [];
   const alerts = more.find((i) => i.href.endsWith("/alerty"));
-  return [...main.filter((i) => !i.href.endsWith("/raport")), ...(alerts ? [alerts] : [])];
+  const tabs = main.filter((i) => !i.href.endsWith("/raport"));
+  // A seasonal shop has five main tabs; a sixth (Alerty) no longer fits the
+  // bar next to the header controls and was cut to "Al…". The bell right
+  // beside it opens the same page.
+  return [...tabs, ...(alerts && tabs.length < 5 ? [alerts] : [])];
 }

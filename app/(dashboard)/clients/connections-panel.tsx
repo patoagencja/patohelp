@@ -198,8 +198,12 @@ export function ConnectionsPanel({
   connError?: string;
 }) {
   const broken: Record<Provider, Broken[]> = { meta_ads: [], google_ads: [], ga4: [] };
+  // "0 selected" has its own block below; its failed runs ("Brak wybranych
+  // kont") would otherwise list the same client a second time here.
+  const unselected = new Set(nothingSelected.map((u) => `${u.slug}:${u.provider}`));
   for (const c of clients) {
     for (const h of c.down) {
+      if (unselected.has(`${c.slug}:${h.provider}`)) continue;
       if (h.provider in broken) {
         broken[h.provider as Provider].push({ slug: c.slug, name: c.name, health: h });
       }
