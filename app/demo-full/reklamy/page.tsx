@@ -110,6 +110,7 @@ export default function DemoFullReklamy({
             active="kampanie"
             query={en ? "?lang=en" : ""}
             lang={lang}
+            showTests
           />
         }
       />

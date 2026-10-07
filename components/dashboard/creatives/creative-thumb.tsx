@@ -37,10 +37,13 @@ export function CreativeThumb({
   className,
   fit = "cover",
   compact = false,
+  format: formatHint,
   children,
 }: {
   src: string | null;
   name: string;
+  /** Known format (e.g. from 3-second video plays); else guessed from the name. */
+  format?: CreativeFormat;
   lang?: Lang;
   className?: string;
   fit?: "cover" | "contain";
@@ -62,7 +65,7 @@ export function CreativeThumb({
     if (img && img.complete && img.naturalWidth === 0) setFailed(true);
   }, [src]);
 
-  const format = guessFormat(name);
+  const format = formatHint ?? guessFormat(name);
   const Icon = FORMAT_ICON[format];
 
   return (

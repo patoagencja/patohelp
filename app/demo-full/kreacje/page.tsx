@@ -122,6 +122,7 @@ export default function DemoFullKreacje({
             active="kreacje"
             query={en ? "?lang=en" : ""}
             lang={lang}
+            showTests
           />
         }
       />

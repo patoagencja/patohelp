@@ -54,21 +54,25 @@ export function SectionTabs({
 }
 
 /**
- * The Reklamy place's two tabs. `query` is appended to both links so the
- * demo's ?lang=en (or the chosen date range) survives switching tabs.
+ * The Reklamy place's tabs. `query` is appended to every link so the demo's
+ * ?lang=en (or the chosen date range) survives switching tabs. "Testy
+ * kreacji" judges ads by purchases and sales, so only shops and seasonal
+ * sellers get it (`showTests`); engagement clients never see ROAS.
  */
 export function AdsSectionTabs({
   base,
   active,
   query = "",
   lang = "pl",
+  showTests = false,
 }: {
   /** Client root, e.g. "/dre" or "/demo-full". */
   base: string;
-  active: "kampanie" | "kreacje";
+  active: "kampanie" | "kreacje" | "testy";
   /** Search string including the leading "?", or "". */
   query?: string;
   lang?: "pl" | "en";
+  showTests?: boolean;
 }) {
   const en = lang === "en";
   return (
@@ -85,6 +89,15 @@ export function AdsSectionTabs({
           label: en ? "Creatives" : "Kreacje",
           active: active === "kreacje",
         },
+        ...(showTests || active === "testy"
+          ? [
+              {
+                href: `${base}/kreacje/testy${query}`,
+                label: en ? "Creative tests" : "Testy kreacji",
+                active: active === "testy",
+              },
+            ]
+          : []),
       ]}
     />
   );
