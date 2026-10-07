@@ -38,6 +38,8 @@ export function SeasonPageView({
   const running = state.phase === "in";
   const seasonLabel = `Sezon ${state.current.year}`;
   const prevLabel = `Sezon ${state.previous.year}`;
+  // Genitive for "na tle / względem sezonu 2025".
+  const prevGen = `sezonu ${state.previous.year}`;
   const revenue = showRevenue && view.hasValue;
   const asOfLabel = running
     ? view.asOf < today
@@ -56,7 +58,7 @@ export function SeasonPageView({
       ? `${seasonLabel}: ${what} - ${ch.ratio >= 0 ? `o ${ch.text} więcej` : `o ${ch.text} mniej`} niż ${prevLabel.toLowerCase()}.`
       : `${seasonLabel}: ${what}.`;
   } else if (state.day === 1) {
-    lead = `Pierwszy dzień sezonu - pierwsze liczby pojawią się tu jutro, porównane z ${prevLabel.toLowerCase()} dzień w dzień.`;
+    lead = `Pierwszy dzień sezonu - pierwsze liczby pojawią się tu jutro, porównane z sezonem ${state.previous.year} dzień w dzień.`;
   } else if (hasPrev && ch) {
     lead = `Sezon idzie ${ch.ratio >= 0 ? `o ${ch.text} lepiej` : `o ${ch.text} słabiej`} niż ${prevLabel.toLowerCase()} w tym samym momencie: ${what} ${asOfLabel}.`;
   } else {
@@ -198,7 +200,7 @@ export function SeasonPageView({
             title={revenue ? "Sprzedaż z reklam przez cały sezon" : "Kliknięcia przez cały sezon"}
             description={
               hasPrev
-                ? `${seasonLabel} na tle ${prevLabel.toLowerCase()}, dzień w dzień. Najedź na wykres, żeby porównać konkretny dzień.`
+                ? `${seasonLabel} na tle ${prevGen}, dzień w dzień. Najedź na wykres, żeby porównać konkretny dzień.`
                 : "Pierwszy sezon w panelu - za rok zobaczysz tu porównanie dzień w dzień."
             }
           />
@@ -226,7 +228,7 @@ export function SeasonPageView({
         <SeasonMarkets
           markets={view.markets}
           showRevenue={revenue}
-          prevLabel={prevLabel}
+          prevGen={prevGen}
           unmappedShare={view.unmappedShare}
           isAgency={isAgency}
         />

@@ -16,13 +16,14 @@ import { cn } from "@/lib/utils";
 export function SeasonMarkets({
   markets,
   showRevenue,
-  prevLabel,
+  prevGen,
   unmappedShare,
   isAgency,
 }: {
   markets: SeasonMarket[];
   showRevenue: boolean;
-  prevLabel: string;
+  /** "sezonu 2025" (genitive). */
+  prevGen: string;
   unmappedShare: number;
   isAgency: boolean;
 }) {
@@ -50,8 +51,8 @@ export function SeasonMarkets({
         title="Rynki"
         description={
           showRevenue
-            ? `Sprzedaż z reklam w każdym kraju i zmiana względem ${prevLabel.toLowerCase()} w tym samym momencie.`
-            : `Kliknięcia w każdym kraju i zmiana względem ${prevLabel.toLowerCase()} w tym samym momencie.`
+            ? `Sprzedaż z reklam w każdym kraju i zmiana względem ${prevGen} w tym samym momencie.`
+            : `Kliknięcia w każdym kraju i zmiana względem ${prevGen} w tym samym momencie.`
         }
       />
       <ul className="divide-y divide-[var(--line)]">

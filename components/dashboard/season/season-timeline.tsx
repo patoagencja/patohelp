@@ -82,9 +82,13 @@ export function SeasonTimeline({
             style={{ width: `${progress * 100}%`, "--d": ".3s" } as CSSProperties}
           />
         </div>
-        {moments.map((m) => {
+        {moments.map((m, k) => {
           const left = ((m.i + 0.5) / totalDays) * 100;
           const past = m.date < today;
+          // Black Friday and Cyber Monday are 3 days apart: on a phone their
+          // tags would print over each other. Tag only moments with room.
+          const labelled =
+            k === 0 || (m.i - moments[k - 1].i) / totalDays >= 0.06;
           return (
             <span
               key={m.key}
@@ -101,7 +105,8 @@ export function SeasonTimeline({
               <span
                 className={cn(
                   "mt-1.5 whitespace-nowrap font-mono text-[10.5px] tracking-[0.04em]",
-                  past ? "text-ink-3" : "text-ink-2"
+                  past ? "text-ink-3" : "text-ink-2",
+                  !labelled && "sr-only"
                 )}
                 title={`${m.label} - ${dayMonthLong(m.date)}`}
               >
@@ -113,9 +118,12 @@ export function SeasonTimeline({
         <span className="absolute left-0 top-5 font-mono text-[10.5px] text-ink-3">
           {dayMonthLong(current.start)}
         </span>
-        <span className="absolute right-0 top-5 font-mono text-[10.5px] text-ink-3">
-          {dayMonthLong(current.end)}
-        </span>
+        {/* A moment on the last days (Wigilia) already labels the end. */}
+        {moments.some((m) => m.i >= totalDays - 4) ? null : (
+          <span className="absolute right-0 top-5 font-mono text-[10.5px] text-ink-3">
+            {dayMonthLong(current.end)}
+          </span>
+        )}
       </div>
     </div>
   );

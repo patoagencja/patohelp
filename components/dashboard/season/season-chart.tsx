@@ -35,8 +35,8 @@ type Mode = "cum" | "daily";
  * Wigilia) are marked, since that is where seasons are won.
  */
 export function SeasonChart({
-  days,
-  moments,
+  days: allDays,
+  moments: allMoments,
   todayIdx,
   metric,
   seasonLabel,
@@ -52,6 +52,16 @@ export function SeasonChart({
   prevLabel: string;
 }) {
   const [mode, setMode] = useState<Mode>("cum");
+  // Early in a season the whole-season scale squashes this season into a
+  // flat line in the corner; "do dziś" zooms to the days that happened
+  // (plus a week ahead of last season's line). Default follows progress.
+  const [span, setSpan] = useState<"season" | "toDate">(() =>
+    todayIdx !== null && todayIdx < allDays.length * 0.5 ? "toDate" : "season"
+  );
+  const visible =
+    span === "toDate" && todayIdx !== null ? Math.min(allDays.length, todayIdx + 8) : allDays.length;
+  const days = useMemo(() => allDays.slice(0, visible), [allDays, visible]);
+  const moments = allMoments.filter((m) => m.i < visible);
   const gradId = useId();
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -119,7 +129,10 @@ export function SeasonChart({
     : "";
 
   // Month starts as x labels ("1 paź"), thinned on narrow plots.
-  const monthStarts = days.filter((d) => d.date.endsWith("-01") || d.i === 0).map((d) => d.i);
+  // A zoomed (short) range gets weekly labels too, or it shows one label.
+  const monthStarts = days
+    .filter((d) => d.date.endsWith("-01") || d.i === 0 || (days.length <= 45 && d.i % 7 === 0))
+    .map((d) => d.i);
   const minGap = 54;
   const xLabels = monthStarts.filter(
     (i, k) => k === 0 || x(i) - x(monthStarts[k - 1]) >= minGap
@@ -170,7 +183,7 @@ export function SeasonChart({
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-3">
         <div role="radiogroup" aria-label="Widok wykresu" className="flex rounded-full bg-chip p-1 text-[13px]">
           {(
             [
@@ -193,7 +206,34 @@ export function SeasonChart({
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-2">
+        {todayIdx !== null ? (
+          <div role="radiogroup" aria-label="Zakres wykresu" className="flex rounded-full bg-chip p-1 text-[13px]">
+            {(
+              [
+                ["toDate", "Do dziś"],
+                ["season", "Cały sezon"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={span === key}
+                onClick={() => {
+                  setSpan(key);
+                  setActive(null);
+                }}
+                className={cn(
+                  "min-h-9 rounded-full px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  span === key ? "bg-anchor text-anchor-foreground" : "text-ink-2 hover:text-foreground"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-2 sm:ml-auto">
           <span className="inline-flex items-center gap-2">
             <i
               aria-hidden
@@ -258,7 +298,7 @@ export function SeasonChart({
             ))}
 
             {/* Sales moments: a hairline and a short tag above the plot. */}
-            {moments.map((m) => (
+            {moments.map((m, k) => (
               <g key={m.key}>
                 <line
                   x1={x(m.i)}
@@ -272,6 +312,8 @@ export function SeasonChart({
                 <text
                   x={x(m.i)}
                   y={pad.top - 10}
+                  // Moments a few days apart (BF / CM) share one tag on narrow plots.
+                  visibility={k > 0 && x(m.i) - x(moments[k - 1].i) < 30 ? "hidden" : undefined}
                   textAnchor={x(m.i) > width - 40 ? "end" : "middle"}
                   className="fill-[var(--ink-2)] font-mono text-[10.5px] tracking-[0.04em]"
                 >
@@ -298,7 +340,7 @@ export function SeasonChart({
             ) : null}
             {line ? (
               <path
-                key={mode}
+                key={`${mode}-${span}`}
                 d={line}
                 pathLength={1}
                 fill="none"
