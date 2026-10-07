@@ -81,9 +81,15 @@ export async function GET(request: Request) {
 
       for (const account of accounts) {
         try {
+          // Thumbnails page past the first 500 ads, but only for the ads
+          // that delivered in the window: the listing runs alongside the
+          // insights call, the per-video lookups wait for its ad ids.
+          const insightsPromise = getAdInsights(access_token, account.id, since, until);
           const [insights, thumbnails] = await Promise.all([
-            getAdInsights(access_token, account.id, since, until),
-            getAdThumbnails(access_token, account.id),
+            insightsPromise,
+            getAdThumbnails(access_token, account.id, {
+              onlyAdIds: insightsPromise.then((rows) => new Set(rows.map((r) => r.ad_id))),
+            }),
           ]);
 
           // getAdInsights falls back to the base fields on ANY error (rate

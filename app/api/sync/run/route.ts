@@ -8,6 +8,7 @@ import { GET as refreshGa4 } from "@/app/api/cron/refresh-ga4/route";
 import { GET as refreshDemographics } from "@/app/api/cron/refresh-demographics/route";
 import { GET as refreshCreatives } from "@/app/api/cron/refresh-creatives-meta/route";
 import { GET as refreshAdsets } from "@/app/api/cron/refresh-adsets/route";
+import { GET as refreshAdsMetaAds } from "@/app/api/cron/refresh-ads-meta-ads/route";
 
 // On-demand data refresh triggered from the dashboard (agency users only).
 // Runs each provider's refresh IN-PROCESS by calling the cron route handlers
@@ -54,6 +55,9 @@ export async function POST(request: Request) {
     ["refresh-demographics", refreshDemographics],
     ["refresh-creatives-meta", refreshCreatives],
     ["refresh-adsets", refreshAdsets],
+    // Creative tests: the handler itself skips clients that are neither
+    // seasonal nor e-commerce (answers `skipped`), so it is cheap for them.
+    ["refresh-ads-meta-ads", refreshAdsMetaAds],
   ];
 
   const results = await Promise.allSettled(

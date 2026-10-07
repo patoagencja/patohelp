@@ -1,8 +1,9 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
-import { detectAnomalies } from "@/lib/alerts/anomalies";
+import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
+import { detectCreativeAlerts } from "@/lib/alerts/creative-tests";
 import { getPacing } from "@/lib/alerts/pacing";
 import { describeError } from "@/lib/integrations/errors";
 import {
@@ -88,10 +89,22 @@ export async function GET(request: Request) {
         multiplier: s.spike_multiplier && s.spike_multiplier > 0 ? s.spike_multiplier : 3,
       };
 
-      const [spikes, anomalies, pacing] = await Promise.all([
+      const [spikes, anomalies, pacing, creativeAlerts] = await Promise.all([
         detectBudgetSpikes(s.client_id, admin, budgetConfig),
         detectAnomalies(s.client_id, admin),
         getPacing(s.client_id),
+        // Creative tests (seasonal / e-commerce clients only - the detector
+        // checks); warnings only, so not even read in quiet hours. Best
+        // effort: a failure here must not cost the client every other alert.
+        inWindow
+          ? detectCreativeAlerts(s.client_id, admin).catch((err): Anomaly[] => {
+              console.warn(
+                `[cron/notify-alerts] creative tests for ${s.client_id} failed`,
+                describeError(err)
+              );
+              return [];
+            })
+          : Promise.resolve([] as Anomaly[]),
       ]);
 
       const items: AlertItem[] = [];
@@ -176,6 +189,16 @@ export async function GET(request: Request) {
       if (inWindow) {
         for (const a of anomalies) {
           if (a.severity === "critical") continue; // already queued above
+          if (s.min_severity === "high" && a.severity !== "high") continue;
+          items.push({
+            key: a.id,
+            title: a.title,
+            detail: a.description,
+            scope: a.scopeLabel,
+          });
+        }
+        // Losing / wearing-out ads: warnings, so they respect quiet hours.
+        for (const a of creativeAlerts) {
           if (s.min_severity === "high" && a.severity !== "high") continue;
           items.push({
             key: a.id,

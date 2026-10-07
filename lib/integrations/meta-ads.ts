@@ -575,6 +575,115 @@ export async function getAdInsights(
   }));
 }
 
+export interface MetaAdDailyInsight {
+  ad_id: string;
+  ad_name: string;
+  adset_id: string;
+  adset_name: string;
+  campaign_id: string;
+  campaign_name: string;
+  /** yyyy-MM-dd (the row's date_start). */
+  date: string;
+  /** Major units (account currency), as Meta sends it. */
+  spend: number;
+  impressions: number;
+  /** clicks (all). */
+  clicks_all: number;
+  /** inline_link_clicks - 0 when Meta omits it (no link clicks that day). */
+  link_clicks: number;
+  reach: number | null;
+  frequency: number | null;
+  purchases: number;
+  /** Purchase value, major units. */
+  purchase_value: number;
+  /** actions[video_view] (3-second plays); null for non-video ads. */
+  video_3s_views: number | null;
+}
+
+/**
+ * Days per ad-level daily request. A shop running dozens of ads per ad set
+ * has thousands of ad-days a week; wide ad x day queries are where Meta
+ * truncates silently or times out ("reduce the amount of data"), so ad
+ * level goes out in much narrower slices than ad sets (7 days).
+ */
+const AD_DAILY_SLICE_DAYS = 3;
+
+const AD_DAILY_FIELDS =
+  "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,impressions,clicks," +
+  "inline_link_clicks,reach,frequency,actions,action_values";
+
+/**
+ * Ad-level DAILY insights (time_increment=1) for [since, until], with
+ * purchases and their value - the input of the creative test view. Every
+ * slice is fully paginated and a failed page throws: a partial day stored
+ * as complete would make a losing ad look like it stopped selling.
+ * `shouldStop` lets a cron end between slices; slices already fetched are
+ * returned.
+ */
+export async function getAdDailyInsights(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string,
+  shouldStop: () => boolean = () => false
+): Promise<MetaAdDailyInsight[]> {
+  const days = eachDay(since, until);
+  const rows: MetaAdDailyInsight[] = [];
+  for (let i = 0; i < days.length; i += AD_DAILY_SLICE_DAYS) {
+    if (i > 0 && shouldStop()) break;
+    const slice = days.slice(i, i + AD_DAILY_SLICE_DAYS);
+    let body = await graphGet<{
+      data: Array<Record<string, unknown>>;
+      paging?: { next?: string };
+    }>(`/${adAccountId}/insights`, {
+      fields: AD_DAILY_FIELDS,
+      level: "ad",
+      time_increment: "1",
+      time_range: JSON.stringify({ since: slice[0], until: slice[slice.length - 1] }),
+      access_token: accessToken,
+      limit: "500",
+    });
+    const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
+    let pages = 1;
+    while (body.paging?.next) {
+      // 200 pages x 500 rows = 100 000 ad-days in 3 days: far past any real
+      // account. Stopping there would store a partial slice as complete.
+      if (pages >= 200) throw new Error("Meta ad insights: too many pages in one slice");
+      pages += 1;
+      const res = await fetch(body.paging.next, { cache: "no-store" });
+      body = await res.json();
+      throwOnPageError(body);
+      if (body?.data?.length) raw.push(...body.data);
+      else break;
+    }
+    for (const row of raw) {
+      if (!row.ad_id) continue;
+      const actions = row.actions as Array<{ action_type: string; value: string }> | undefined;
+      const values = row.action_values as Array<{ action_type: string; value: string }> | undefined;
+      const sale = extractPurchases(actions, values);
+      rows.push({
+        ad_id: String(row.ad_id),
+        ad_name: String(row.ad_name ?? ""),
+        adset_id: String(row.adset_id ?? ""),
+        adset_name: String(row.adset_name ?? ""),
+        campaign_id: String(row.campaign_id ?? ""),
+        campaign_name: String(row.campaign_name ?? ""),
+        date: String(row.date_start ?? slice[0]),
+        spend: num(row.spend) ?? 0,
+        impressions: Math.round(num(row.impressions) ?? 0),
+        clicks_all: Math.round(num(row.clicks) ?? 0),
+        link_clicks: Math.round(num(row.inline_link_clicks) ?? 0),
+        reach: num(row.reach),
+        frequency: num(row.frequency),
+        purchases: sale.purchases,
+        purchase_value: sale.value,
+        video_3s_views: sumActions(row.actions, "video_view"),
+      });
+    }
+  }
+  return rows;
+}
+
 interface Creative {
   image_url?: string;
   thumbnail_url?: string;
@@ -672,6 +781,9 @@ async function mapLimit<T, R>(
   return results;
 }
 
+/** Cap for paged /ads listings: 20 x 500 = the newest 10 000 ads. */
+const ADS_LIST_MAX_PAGES = 20;
+
 /**
  * Map of ad_id -> creative thumbnail URL for an ad account.
  *
@@ -679,11 +791,25 @@ async function mapLimit<T, R>(
  * `thumbnail_url`, so we resolve a sharp cover frame from the video node
  * (`/{video_id}?fields=thumbnails`). Static ads keep using `image_url` /
  * story-spec picture, which are already full-size.
+ *
+ * Without `onlyAdIds` only the first page (500 ads) is read, as always. With
+ * it the listing follows paging up to ADS_LIST_MAX_PAGES - a shop testing
+ * dozens of ads per ad set has far more than 500 ads, and every ad past the
+ * 500th had no thumbnail - but only the wanted ads are kept, so the costly
+ * per-video lookups stay bounded by the ads that actually delivered. It may
+ * be a promise: the listing then runs alongside the insights call and only
+ * the video pass waits for the ids.
  */
 export async function getAdThumbnails(
   accessToken: string,
-  adAccountId: string
+  adAccountId: string,
+  opts: { onlyAdIds?: Set<string> | Promise<Set<string>> } = {}
 ): Promise<Map<string, string>> {
+  const wantedPromise = opts.onlyAdIds ? Promise.resolve(opts.onlyAdIds) : null;
+  // If the listing throws first, nobody would await a rejected id promise.
+  wantedPromise?.catch(() => undefined);
+  const maxPages = wantedPromise ? ADS_LIST_MAX_PAGES : 1;
+
   // Rich query first. We request object_story_spec WHOLESALE (not sub-selected)
   // because sub-selecting a field Meta doesn't recognise makes the entire query
   // throw - which previously dropped us to BASIC and left every video ad on its
@@ -698,22 +824,41 @@ export async function getAdThumbnails(
   const RICH = `id,${MOD}{id,object_type,image_url,thumbnail_url,video_id,object_story_spec}`;
   const BASIC = `id,${MOD}{id,image_url,thumbnail_url}`;
 
-  let data: Array<{ id?: string; creative?: Creative }> = [];
+  type AdRow = { id?: string; creative?: Creative };
+  const listAds = async (fields: string): Promise<AdRow[]> => {
+    let body = await graphGet<{ data: AdRow[]; paging?: { next?: string } }>(
+      `/${adAccountId}/ads`,
+      { fields, access_token: accessToken, limit: "500" }
+    );
+    const rows: AdRow[] = [...(body.data ?? [])];
+    for (let page = 1; body.paging?.next && page < maxPages; page += 1) {
+      // Thumbnails are cosmetic: a failed later page keeps what we have
+      // instead of costing every ad its picture.
+      try {
+        const res = await fetch(body.paging.next, { cache: "no-store" });
+        const next = await res.json();
+        throwOnPageError(next);
+        body = next;
+      } catch (err) {
+        console.warn(
+          "[meta-ads] ad thumbnail page failed, keeping earlier pages",
+          err instanceof Error ? err.message : err
+        );
+        break;
+      }
+      if (body?.data?.length) rows.push(...body.data);
+      else break;
+    }
+    return rows;
+  };
+
+  let data: AdRow[] = [];
   try {
-    const body = await graphGet<{ data: typeof data }>(`/${adAccountId}/ads`, {
-      fields: RICH,
-      access_token: accessToken,
-      limit: "500",
-    });
-    data = body.data ?? [];
+    data = await listAds(RICH);
   } catch {
-    const body = await graphGet<{ data: typeof data }>(`/${adAccountId}/ads`, {
-      fields: BASIC,
-      access_token: accessToken,
-      limit: "500",
-    });
-    data = body.data ?? [];
+    data = await listAds(BASIC);
   }
+  const wanted = wantedPromise ? await wantedPromise : null;
 
   const map = new Map<string, string>();
 
@@ -724,6 +869,7 @@ export async function getAdThumbnails(
   const seenVideoIds = new Set<string>();
   for (const ad of data) {
     if (!ad.id) continue;
+    if (wanted && !wanted.has(ad.id)) continue;
     const videoId = creativeVideoId(ad.creative);
     if (videoId) {
       videoAds.push({ adId: ad.id, videoId });
@@ -753,6 +899,68 @@ export async function getAdThumbnails(
   }
 
   return map;
+}
+
+export interface MetaAdMeta {
+  id: string;
+  name: string | null;
+  adset_id: string | null;
+  campaign_id: string | null;
+  /** e.g. ACTIVE, PAUSED, ADSET_PAUSED, CAMPAIGN_PAUSED, DISAPPROVED. */
+  effective_status: string | null;
+  /** ISO timestamp. */
+  created_time: string | null;
+}
+
+/**
+ * Light metadata for the ads of an account (no creative, no insights): ad
+ * set, delivery status and creation time - so the creative test view can
+ * leave out ads the owner already switched off. Follows paging up to
+ * ADS_LIST_MAX_PAGES (the first 500 used to be all we ever saw). Meta lists
+ * non-archived, non-deleted ads by default; `complete` is false when the cap
+ * cut the listing short, so a caller must not read "absent" as "archived".
+ */
+export async function getAdsMeta(
+  accessToken: string,
+  adAccountId: string
+): Promise<{ ads: MetaAdMeta[]; complete: boolean }> {
+  let body = await graphGet<{
+    data: Array<Record<string, unknown>>;
+    paging?: { next?: string };
+  }>(`/${adAccountId}/ads`, {
+    fields: "id,name,adset_id,campaign_id,effective_status,created_time",
+    access_token: accessToken,
+    limit: "500",
+  });
+  const raw: Array<Record<string, unknown>> = [...(body.data ?? [])];
+  let pages = 1;
+  let complete = true;
+  while (body.paging?.next) {
+    if (pages >= ADS_LIST_MAX_PAGES) {
+      complete = false;
+      break;
+    }
+    pages += 1;
+    const res = await fetch(body.paging.next, { cache: "no-store" });
+    body = await res.json();
+    throwOnPageError(body);
+    if (body?.data?.length) raw.push(...body.data);
+    else break;
+  }
+  const str = (v: unknown): string | null => (v != null && v !== "" ? String(v) : null);
+  return {
+    ads: raw
+      .filter((r) => r.id)
+      .map((r) => ({
+        id: String(r.id),
+        name: str(r.name),
+        adset_id: str(r.adset_id),
+        campaign_id: str(r.campaign_id),
+        effective_status: str(r.effective_status),
+        created_time: str(r.created_time),
+      })),
+    complete,
+  };
 }
 
 /**

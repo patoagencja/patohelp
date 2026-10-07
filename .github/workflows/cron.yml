@@ -90,6 +90,29 @@ jobs:
             echo "::warning::Ad set sync HTTP $code"
           fi
 
+  # Ad x day rows with purchases for creative A/B tests (seasonal and
+  # e-commerce clients only). Every tick on purpose: an owner spending tens of
+  # thousands a day must see a losing ad within hours. Own job like ad sets:
+  # a long backfill takes minutes and must never delay or redden data sync.
+  creative-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Ad-level sync - best effort
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET missing"; exit 0; fi
+          code=$(curl -sS -m 290 -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/refresh-ads-meta-ads" || echo "000")
+          echo "-> refresh-ads-meta-ads: HTTP $code"
+          echo "   body: $(head -c 600 /tmp/body 2>/dev/null)"
+          if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+            echo "::warning::Ad-level sync HTTP $code"
+          fi
+
   # SEPARATE JOB on purpose. These used to be a final step of `sync`, where a
   # slow data sync (8 endpoints x up to 90s x 2 attempts = up to 24 min) could
   # blow the 12-minute job timeout and kill the run BEFORE news ever ran - which
