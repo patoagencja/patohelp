@@ -16,6 +16,7 @@ import { FLIGHT_METRICS, getPacing, type FlightMetric } from "@/lib/alerts/pacin
 import { buildGoalTiles } from "@/lib/dashboard/campaign-goals";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { syncCached } from "@/lib/dashboard/sync-cache";
+import { listCampaignAdsets } from "@/lib/integrations/adset-sync";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -77,9 +78,9 @@ async function addFlight(formData: FormData) {
   // Spend is entered in PLN, stored in grosze.
   const targetValue = metric === "spend" ? Math.round(rawTarget * 100) : Math.round(rawTarget);
 
-  // Ad set level: trust our own synced row, not the posted name, and make
-  // sure the ad set really belongs to the chosen campaign (the no-JS list
-  // offers every ad set).
+  // Ad set level: trust our own synced row (or the platform), not the posted
+  // name, and make sure the ad set really belongs to the chosen campaign
+  // (the no-JS list offers every ad set).
   let adset: { adset_id: string; adset_name: string | null; provider: string } | null = null;
   const adsetId = parsed.data.adset?.trim();
   if (adsetId) {
@@ -91,12 +92,23 @@ async function addFlight(formData: FormData) {
       .order("date", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error || !row || row.campaign_id !== campaignId) return;
-    adset = {
-      adset_id: row.adset_id as string,
-      adset_name: (row.adset_name as string | null) ?? null,
-      provider: row.provider as string,
-    };
+    if (error) return;
+    if (row) {
+      if (row.campaign_id !== campaignId) return;
+      adset = {
+        adset_id: row.adset_id as string,
+        adset_name: (row.adset_name as string | null) ?? null,
+        provider: row.provider as string,
+      };
+    } else {
+      // Not delivered yet, so not in our table: the platform's own list of
+      // the campaign's ad sets is the proof it belongs there.
+      if (!provider) return;
+      const listed = await listCampaignAdsets(admin, access.clientId, provider, campaignId);
+      const hit = listed.adsets.find((a) => a.id === adsetId);
+      if (!hit) return;
+      adset = { adset_id: hit.id, adset_name: hit.name, provider };
+    }
   }
 
   await admin.from("campaign_flights").insert({

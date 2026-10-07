@@ -416,6 +416,34 @@ export async function getAdGroupMetrics(
   }));
 }
 
+/**
+ * Every ad group of one campaign (structure, no metrics): groups that
+ * haven't served yet have no metrics rows. Empty when the campaign lives in
+ * another of the client's accounts.
+ */
+export async function getCampaignAdGroupList(
+  refreshToken: string,
+  customerId: string,
+  campaignId: string
+): Promise<Array<{ id: string; name: string; status: string | null }>> {
+  // Interpolated into GAQL: digits only.
+  if (!/^\d+$/.test(campaignId)) return [];
+  const gaql = `
+    SELECT ad_group.id, ad_group.name, ad_group.status
+    FROM ad_group
+    WHERE campaign.id = ${campaignId}
+      AND ad_group.status != 'REMOVED'
+  `;
+  const rows = await queryWithFallback(apiClient(), refreshToken, customerId, gaql);
+  return (rows as Array<Record<string, any>>)
+    .filter((row) => row.ad_group?.id != null)
+    .map((row) => ({
+      id: String(row.ad_group.id),
+      name: String(row.ad_group?.name ?? row.ad_group.id),
+      status: row.ad_group?.status != null ? String(row.ad_group.status) : null,
+    }));
+}
+
 export interface GoogleSearchTermMetric {
   search_term: string;
   campaign_name: string;

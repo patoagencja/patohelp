@@ -3,9 +3,9 @@ import { formatInTimeZone } from "date-fns-tz";
 
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
-import { getAdGroupMetrics } from "@/lib/integrations/google-ads";
+import { getAdGroupMetrics, getCampaignAdGroupList } from "@/lib/integrations/google-ads";
 import { hasClicksAllColumnStrict, intOrZero } from "@/lib/integrations/link-clicks";
-import { extractConversions, getAdsetInsights } from "@/lib/integrations/meta-ads";
+import { extractConversions, getAdsetInsights, getCampaignAdsetList } from "@/lib/integrations/meta-ads";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -347,4 +347,92 @@ export async function syncAdsetsForClient(
     }
   }
   return total;
+}
+
+export interface ListedAdset {
+  id: string;
+  name: string;
+  /** Polish delivery status for the picker, null when unknown. */
+  status: string | null;
+}
+
+const META_STATUS: Record<string, string> = {
+  ACTIVE: "aktywny",
+  PAUSED: "wstrzymany",
+  CAMPAIGN_PAUSED: "kampania wstrzymana",
+  IN_PROCESS: "w przygotowaniu",
+  WITH_ISSUES: "z problemami",
+};
+// The Google client returns enums as names or numbers depending on version.
+const GOOGLE_STATUS: Record<string, string> = {
+  ENABLED: "aktywna",
+  "2": "aktywna",
+  PAUSED: "wstrzymana",
+  "3": "wstrzymana",
+};
+
+/**
+ * Every ad set / ad group of one campaign straight from the platform's
+ * structure - including the ones that never delivered, which the delivery
+ * table (and so the goal picker) doesn't know about. Agency action only:
+ * one or two light calls, never on page load.
+ */
+export async function listCampaignAdsets(
+  admin: AdminClient,
+  clientId: string,
+  provider: Provider,
+  campaignId: string
+): Promise<{ adsets: ListedAdset[]; errors: string[] }> {
+  const errors: string[] = [];
+  const { data: integration, error } = await admin
+    .from("integrations")
+    .select("credentials_encrypted, account_ids")
+    .eq("client_id", clientId)
+    .eq("provider", provider)
+    .maybeSingle();
+  if (error || !integration) return { adsets: [], errors: [error?.message ?? "Brak integracji."] };
+  let creds: { access_token?: string; refresh_token?: string };
+  try {
+    creds = JSON.parse(decrypt(integration.credentials_encrypted as string));
+  } catch (err) {
+    return { adsets: [], errors: [describeError(err)] };
+  }
+
+  if (provider === "meta_ads") {
+    if (!creds.access_token) return { adsets: [], errors: ["Brak tokenu Meta."] };
+    try {
+      const list = await getCampaignAdsetList(creds.access_token, campaignId);
+      return {
+        adsets: list.map((a) => ({
+          id: a.id,
+          name: a.name,
+          status: a.effective_status ? (META_STATUS[a.effective_status] ?? null) : null,
+        })),
+        errors,
+      };
+    } catch (err) {
+      return { adsets: [], errors: [describeError(err)] };
+    }
+  }
+
+  if (!creds.refresh_token) return { adsets: [], errors: ["Brak tokenu Google."] };
+  // The campaign lives in one of the client's accounts (DRE has three):
+  // ask each selected one, the others just return nothing.
+  const accounts = ((integration.account_ids ?? []) as StoredAccount[]).filter((a) => a.selected === true);
+  const settled = await Promise.allSettled(
+    accounts.map((a) =>
+      getCampaignAdGroupList(creds.refresh_token as string, a.id, campaignId)
+    )
+  );
+  const byId = new Map<string, ListedAdset>();
+  settled.forEach((r, i) => {
+    if (r.status === "rejected") {
+      errors.push(`Google ${accounts[i].id}: ${describeError(r.reason)}`);
+      return;
+    }
+    for (const g of r.value) {
+      byId.set(g.id, { id: g.id, name: g.name, status: g.status ? (GOOGLE_STATUS[g.status] ?? null) : null });
+    }
+  });
+  return { adsets: Array.from(byId.values()), errors };
 }

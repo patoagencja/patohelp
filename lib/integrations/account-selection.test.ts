@@ -102,3 +102,19 @@ test("accounts new to the list come through untouched", () => {
 
   assert.deepEqual(merged, [{ id: "act_5", name: "Nowe" }]);
 });
+
+test("the remembered last selection survives a reconnect, so a cleared selection can be restored", () => {
+  const previous = [
+    { id: "act_1", selected: false, was_selected: true },
+    { id: "act_2", selected: false, was_selected: false },
+  ];
+  const merged = mergeAccountSelection(previous, [{ id: "1" }, { id: "2" }]);
+
+  assert.deepEqual(
+    merged.map((a) => [a.id, a.was_selected]),
+    [
+      ["1", true],
+      ["2", false],
+    ]
+  );
+});

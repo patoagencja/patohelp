@@ -559,6 +559,37 @@ async function bySliceOrDay(
   }
 }
 
+export interface MetaAdsetListed {
+  id: string;
+  name: string;
+  /** e.g. ACTIVE, PAUSED, CAMPAIGN_PAUSED, IN_PROCESS, WITH_ISSUES. */
+  effective_status: string | null;
+}
+
+/**
+ * Every ad set of one campaign from its structure, not from insights: an ad
+ * set that hasn't delivered yet (just launched, scheduled, paused before its
+ * first impression) has no insights row, so the goal picker built from
+ * delivery alone silently left it out.
+ */
+export async function getCampaignAdsetList(
+  accessToken: string,
+  campaignId: string
+): Promise<MetaAdsetListed[]> {
+  const { rows } = await graphGetAll(
+    `/${campaignId}/adsets`,
+    { fields: "id,name,effective_status", access_token: accessToken, limit: "500" },
+    { maxPages: 5, onCap: "stop" }
+  );
+  return rows
+    .filter((r) => r.id && !["DELETED", "ARCHIVED"].includes(String(r.effective_status ?? "")))
+    .map((r) => ({
+      id: String(r.id),
+      name: String(r.name ?? r.id),
+      effective_status: r.effective_status != null ? String(r.effective_status) : null,
+    }));
+}
+
 export interface MetaAdsetInsight {
   adset_id: string;
   adset_name: string;

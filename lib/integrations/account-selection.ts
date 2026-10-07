@@ -27,6 +27,7 @@ export function mergeAccountSelection(
       ...a,
       ...(prev.selected !== undefined ? { selected: prev.selected } : {}),
       ...(prev.video_only !== undefined ? { video_only: prev.video_only } : {}),
+      ...(prev.was_selected !== undefined ? { was_selected: prev.was_selected } : {}),
     };
   });
   const kept = previous

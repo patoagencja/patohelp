@@ -86,6 +86,10 @@ export function ConnectedToast({
       );
     } else if (error === "access_failed") {
       toast.error("Nie udało się zmienić dostępu. Odśwież stronę i spróbuj ponownie.");
+    } else if (error === "accounts_empty") {
+      toast.error(
+        "Zaznacz przynajmniej jedno konto. Bez zaznaczonych kont nic się nie pobiera - żeby wyłączyć źródło, użyj „Rozłącz”."
+      );
     } else if (error === "season_migration") {
       toast.warning(
         "Typ klienta zapisany, ale sezon nie - w bazie brakuje kolumny. Uruchom supabase/migrations/ALL_RECENT_7.sql w Supabase SQL Editor."

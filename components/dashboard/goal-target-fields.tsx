@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { fetchCampaignAdsets } from "@/app/(dashboard)/[clientSlug]/alerty/adset-actions";
@@ -10,9 +10,11 @@ import { SearchCombobox, type ComboOption } from "@/components/dashboard/search-
  * Campaign + optional ad set (Meta) / ad group (Google) pickers for the
  * "Nowy cel kampanii" form - both searchable (accounts like OLX have
  * hundreds of long campaign names). Once a campaign is picked, the second
- * picker offers only its ad sets. Without JS both are native selects and the
- * ad set list holds every ad set grouped by campaign; the server action
- * rejects an ad set that doesn't belong to the chosen campaign.
+ * picker offers only its ad sets - fetched from Meta/Google the moment the
+ * campaign is picked, so ad sets that haven't delivered yet are there too
+ * (the page only knows ad sets with delivery). Without JS both are native
+ * selects and the ad set list holds every known ad set grouped by campaign;
+ * the server action rejects an ad set that doesn't belong to the campaign.
  */
 
 export type CampaignOption = {
@@ -28,12 +30,16 @@ export type AdsetOption = {
   campaignId: string;
   provider: string;
   spend?: number;
+  /** Polish delivery status from the platform ("aktywny", "wstrzymany"). */
+  status?: string | null;
 };
 
 const TAG: Record<string, string> = { meta_ads: "Meta", google_ads: "Google" };
 
 function spendMeta(spend?: number): string | null {
   if (spend === undefined) return null;
+  if (spend === 0) return "bez wydatków w 60 dni";
+  if (spend < 100) return "poniżej 1 zł w 60 dni";
   const zl = Math.round(spend / 100)
     .toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -69,6 +75,12 @@ export function GoalTargetFields({
   const [fetched, setFetched] = useState<AdsetOption[]>([]);
   const [fetchNote, setFetchNote] = useState<string | null>(null);
   const [fetching, startFetch] = useTransition();
+  // Campaigns whose full list already came back: no second round trip when
+  // the agency flips between campaigns.
+  const [loadedFor, setLoadedFor] = useState<Set<string>>(() => new Set());
+  // A slow answer for a campaign the user already left must not put its
+  // error under the next one.
+  const currentRef = useRef("");
   const adsetOptions =
     initialAdsets === null
       ? null
@@ -92,10 +104,28 @@ export function GoalTargetFields({
       value: a.id,
       label: a.name,
       tag: TAG[a.provider] ?? null,
-      meta: spendMeta(a.spend),
+      meta: [spendMeta(a.spend), a.status].filter(Boolean).join(" · ") || null,
       group: campaignName(a.campaignId),
     }));
-  const noAdsets = Boolean(campaignId) && adsetCombo.length === 0;
+  const noAdsets = Boolean(campaignId) && adsetCombo.length === 0 && !fetching;
+
+  const loadAdsets = (id: string, provider: string | null | undefined) => {
+    if (!clientSlug || !id || !provider || initialAdsets === null) return;
+    startFetch(async () => {
+      setFetchNote(null);
+      const res = await fetchCampaignAdsets({ clientSlug, campaignId: id, provider }).catch(() => ({
+        options: [] as AdsetOption[],
+        error: "Nie udało się pobrać listy - spróbuj ponownie.",
+      }));
+      // An empty answer with an error must not hide what the page knew.
+      if (res.options.length) {
+        setFetched((prev) => [...prev.filter((p) => p.campaignId !== id), ...res.options]);
+      }
+      if (res.error) {
+        if (currentRef.current === id) setFetchNote(res.error);
+      } else setLoadedFor((prev) => new Set(prev).add(id));
+    });
+  };
   const adsetLabel = google ? "Grupa reklam (opcjonalnie)" : "Zestaw reklam (opcjonalnie)";
 
   return (
@@ -114,6 +144,11 @@ export function GoalTargetFields({
             setCampaign(v);
             setAdset("");
             setFetchNote(null);
+            const id = v.split("|||")[0] ?? "";
+            currentRef.current = id;
+            if (id && !loadedFor.has(id)) {
+              loadAdsets(id, campaignOptions.find((c) => c.id === id)?.provider);
+            }
           }}
           placeholder="Szukaj kampanii…"
           invalidText="Wybierz kampanię z listy."
@@ -150,7 +185,12 @@ export function GoalTargetFields({
             fieldClass={fieldClass}
             describedBy={noAdsets ? "goal-adset-hint" : undefined}
           />
-          {noAdsets ? (
+          {campaignId && fetching ? (
+            <span className="inline-flex items-center gap-2 text-xs text-ink-3" aria-live="polite">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              Pobieram wszystkie {google ? "grupy reklam" : "zestawy"} tej kampanii…
+            </span>
+          ) : campaignId && (noAdsets || fetchNote) ? (
             <div id="goal-adset-hint" className="flex flex-col items-start gap-2 text-xs text-ink-3">
               <span>
                 {fetchNote ??
@@ -159,32 +199,11 @@ export function GoalTargetFields({
               {clientSlug && selected?.provider ? (
                 <button
                   type="button"
-                  disabled={fetching}
-                  onClick={() =>
-                    startFetch(async () => {
-                      setFetchNote(null);
-                      const res = await fetchCampaignAdsets({
-                        clientSlug,
-                        campaignId,
-                        provider: selected.provider,
-                      });
-                      setFetched((prev) => [
-                        ...prev.filter((p) => p.campaignId !== campaignId),
-                        ...res.options,
-                      ]);
-                      if (res.error) setFetchNote(res.error);
-                    })
-                  }
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-chip px-4 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  onClick={() => loadAdsets(campaignId, selected.provider)}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-chip px-4 text-sm font-medium text-foreground transition-colors hover:bg-anchor hover:text-anchor-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {fetching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" aria-hidden />
-                  )}
-                  {fetching
-                    ? `Pobieram ${google ? "grupy" : "zestawy"}…`
-                    : `Pobierz ${google ? "grupy reklam" : "zestawy"} tej kampanii`}
+                  <RefreshCw className="h-4 w-4" aria-hidden />
+                  {`Pobierz ${google ? "grupy reklam" : "zestawy"} ponownie`}
                 </button>
               ) : null}
             </div>

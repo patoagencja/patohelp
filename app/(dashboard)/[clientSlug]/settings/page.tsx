@@ -51,6 +51,8 @@ interface Account {
   video_only?: boolean;
   /** Selected before, but the current token doesn't list it (oauth-flow). */
   unlisted?: boolean;
+  /** Part of the last non-empty selection - lets "Przywróć" undo a clear. */
+  was_selected?: boolean;
 }
 
 const PROVIDERS: Array<{
@@ -119,20 +121,39 @@ async function saveAccounts(formData: FormData) {
     .eq("provider", provider)
     .single();
 
-  const videoOnly = formData.get("video_only") === "on";
-  const accounts = ((data?.account_ids ?? []) as Account[]).map((a) => ({
-    ...a,
-    selected: selectedIds.includes(String(a.id)),
-    // Google-only flag: report just YouTube (VIDEO) campaigns.
-    ...(provider === "google_ads" ? { video_only: videoOnly } : {}),
-  }));
+  const previous = (data?.account_ids ?? []) as Account[];
+  const before = previous.filter((a) => a.selected).length;
+  // An empty selection stops the sync and is what a broken or stale form
+  // post looks like - DRE lost all 46 accounts this way more than once and
+  // it read as "Meta keeps expiring". Switching a source off is "Rozłącz".
+  if (selectedIds.length === 0 && previous.length > 0) {
+    if (before > 0) {
+      console.warn(
+        `[settings] ${provider} for client ${access.clientId}: empty account selection refused (${before} selected) - by ${access.user.email ?? access.user.id}`
+      );
+    }
+    redirect(`/${clientSlug}/settings?error=accounts_empty#integracje`);
+  }
 
-  // Unticking everything is allowed (it stops the sync), but it is also what
-  // a broken form post would look like - leave a trace in the logs.
-  const before = ((data?.account_ids ?? []) as Account[]).filter((a) => a.selected).length;
-  if (before > 0 && selectedIds.length === 0) {
-    console.warn(
-      `[settings] ${provider} for client ${access.clientId}: account selection cleared (${before} -> 0) by the account form`
+  const videoOnly = formData.get("video_only") === "on";
+  const accounts = previous.map((a) => {
+    const selected = selectedIds.includes(String(a.id));
+    return {
+      ...a,
+      selected,
+      was_selected: selected,
+      // Google-only flag: report just YouTube (VIDEO) campaigns.
+      ...(provider === "google_ads" ? { video_only: videoOnly } : {}),
+    };
+  });
+
+  const changed =
+    previous.some((a) => Boolean(a.selected) !== selectedIds.includes(String(a.id))) ||
+    (provider === "google_ads" &&
+      previous.some((a) => a.selected && Boolean(a.video_only) !== videoOnly));
+  if (changed) {
+    console.info(
+      `[settings] ${provider} for client ${access.clientId}: selection ${before} -> ${selectedIds.length} by ${access.user.email ?? access.user.id}`
     );
   }
 
@@ -141,6 +162,13 @@ async function saveAccounts(formData: FormData) {
     .update({ account_ids: accounts })
     .eq("client_id", access.clientId)
     .eq("provider", provider);
+
+  // Nothing changed: keep the data. Re-saving the same ticks used to wipe
+  // every row of the provider and leave holes until the backfill caught up.
+  if (!changed) {
+    revalidatePath(`/${clientSlug}`, "layout");
+    redirect(`/${clientSlug}/settings?saved=${provider}`);
+  }
 
   await admin
     .from("ads_daily")
@@ -192,6 +220,49 @@ async function saveAccounts(formData: FormData) {
   revalidateTag(clientDataTag(access.clientId));
   revalidatePath(`/${clientSlug}/settings`);
   revalidatePath(`/${clientSlug}`);
+  redirect(`/${clientSlug}/settings?saved=${provider}`);
+}
+
+// Server Action: tick again the accounts of the last non-empty selection
+// (was_selected), after something cleared it.
+async function restoreAccounts(formData: FormData) {
+  "use server";
+  const clientSlug = String(formData.get("client"));
+  const provider = String(formData.get("provider")) as IntegrationProvider;
+  const access = await requireAgencyClientAccess(clientSlug);
+  if (!access.ok) return;
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("integrations")
+    .select("account_ids")
+    .eq("client_id", access.clientId)
+    .eq("provider", provider)
+    .single();
+  const previous = (data?.account_ids ?? []) as Account[];
+  const restored = previous.filter((a) => a.was_selected).length;
+  if (restored === 0) redirect(`/${clientSlug}/settings#integracje`);
+
+  await admin
+    .from("integrations")
+    .update({ account_ids: previous.map((a) => ({ ...a, selected: a.was_selected === true })) })
+    .eq("client_id", access.clientId)
+    .eq("provider", provider);
+  console.info(
+    `[settings] ${provider} for client ${access.clientId}: restored ${restored} accounts by ${access.user.email ?? access.user.id}`
+  );
+
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  const secret = process.env.CRON_SECRET;
+  const job = provider === "meta_ads" ? "refresh-ads-meta" : provider === "tiktok_ads" ? "refresh-ads-tiktok" : "refresh-ads-google";
+  if (base && secret) {
+    await fetch(`${base}/api/cron/${job}?client=${access.clientId}`, {
+      headers: { Authorization: `Bearer ${secret}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => undefined);
+  }
+  revalidatePath(`/${clientSlug}`, "layout");
   redirect(`/${clientSlug}/settings?saved=${provider}`);
 }
 
@@ -413,6 +484,24 @@ export default async function SettingsPage({
                         Połączono · wybrano {selectedCount} z {accounts.length}{" "}
                         {accounts.length === 1 ? "konta" : "kont"}
                       </p>
+
+                      {selectedCount === 0 && accounts.length > 0 ? (
+                        <div className="flex flex-col items-start gap-2 rounded-[20px] bg-warning-soft px-4 py-3 text-sm text-foreground">
+                          <span>
+                            Żadne konto nie jest zaznaczone - dane z {provider.label} się nie pobierają.
+                            Zaznacz konta tego klienta i zapisz.
+                          </span>
+                          {accounts.some((a) => a.was_selected) ? (
+                            <form action={restoreAccounts}>
+                              <input type="hidden" name="client" value={params.clientSlug} />
+                              <input type="hidden" name="provider" value={provider.key} />
+                              <Button type="submit" size="pill" className="w-fit">
+                                Przywróć ostatni wybór ({accounts.filter((a) => a.was_selected).length})
+                              </Button>
+                            </form>
+                          ) : null}
+                        </div>
+                      ) : null}
 
                       <form action={saveAccounts} className="flex flex-col gap-3">
                         <input

@@ -63,6 +63,21 @@ const LINK = "font-medium text-foreground underline underline-offset-2";
 function advice(h: ProviderHealth, clientSlug: string): React.ReactNode {
   const reconnect = RECONNECT_PATH[h.provider];
 
+  // Nothing ticked is not an expired token: reconnecting doesn't help, and
+  // "połącz ponownie" sent people round in circles thinking Meta kept expiring.
+  if (/Brak wybranych kont/.test(h.lastError ?? "")) {
+    return (
+      <>
+        żadne konto reklamowe nie jest zaznaczone, więc nic się nie pobiera (token jest w
+        porządku).{" "}
+        <Link href={`/${clientSlug}/settings#integracje`} className={LINK}>
+          Zaznacz konta w Ustawieniach
+        </Link>
+        .
+      </>
+    );
+  }
+
   if (h.provider === "meta_ads" && isMetaSessionInvalidated(h.lastError)) {
     return (
       <>
