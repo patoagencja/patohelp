@@ -17,6 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sky } from "@/components/ui/sky";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
+import { useZenMode, ZenControls, ZenScene } from "./zen-mode";
 
 // Supabase returns English errors; a client stuck on "Email rate limit
 // exceeded" at the front door is the worst first impression we can make.
@@ -42,6 +45,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const zenMode = useZenMode();
   // "Wyślij ponownie" on the sent card: its own state, so the card stays put
   // while the second link goes out.
   const [resend, setResend] = useState<{ state: "idle" | "sending" | "done"; error: string | null }>({
@@ -88,8 +92,20 @@ export default function LoginPage() {
     // Logowanie board in the 2026 pastel system: the drifting sky, one
     // frosted card with the single field (or "check your inbox"), and a
     // quieter card with what the client gets.
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center gap-7 overflow-hidden bg-background px-4 py-12 sm:px-6">
-      <Sky />
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center gap-7 overflow-hidden bg-background px-4 pb-12 pt-20 sm:px-6">
+      {zenMode.zen ? <ZenScene /> : <Sky />}
+      <ZenControls
+        zen={zenMode.zen}
+        muted={zenMode.muted}
+        onToggleZen={zenMode.toggleZen}
+        onToggleMuted={zenMode.toggleMuted}
+      />
+
+      {zenMode.zen ? (
+        <p className="animate-rise text-center text-[15px] font-medium tracking-[-0.01em] text-white/85 [text-shadow:0_1px_12px_rgba(0,0,0,.35)]">
+          Wdech… wydech… Twoje kampanie pracują.
+        </p>
+      ) : null}
 
       <div className="flex w-full max-w-[59rem] flex-wrap items-stretch justify-center gap-6">
         <section className="glass flex min-w-0 max-w-[27.5rem] flex-[1_1_21rem] flex-col gap-7 rounded-glass p-7 animate-rise sm:p-10">
@@ -242,7 +258,9 @@ export default function LoginPage() {
         </section>
       </div>
 
-      <p className="text-[13px] text-ink-3">Panel raportowy · Pato Agencja</p>
+      <p className={cn("text-[13px]", zenMode.zen ? "text-white/75" : "text-ink-3")}>
+        Panel raportowy · Pato Agencja
+      </p>
     </main>
   );
 }

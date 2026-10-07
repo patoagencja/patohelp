@@ -1066,9 +1066,67 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     height 0.3s ease;
 }
 
+/* Login "Tryb zen": a Bali sunset. Its own palette, the same in light and
+   dark (it is a picture, not UI chrome). */
+.zen-scene {
+  --zen-sky-1: #241d47;
+  --zen-sky-2: #7a4877;
+  --zen-sky-3: #e9845e;
+  --zen-sky-4: #ffc387;
+  --zen-sun: #ffe1a6;
+  --zen-star: #fff6e0;
+  --zen-cloud: rgba(255, 214, 190, 0.28);
+  --zen-mount-far: #5b3a63;
+  --zen-mount-near: #452c50;
+  --zen-terrace-1: #3c3a45;
+  --zen-terrace-2: #33313c;
+  --zen-terrace-3: #2a2832;
+  --zen-terrace-4: #211f28;
+  --zen-silhouette: #1b1420;
+}
+.zen-breathe {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: zen-breathe 8s ease-in-out infinite;
+}
+.zen-drift {
+  animation: zen-drift 60s ease-in-out infinite alternate;
+}
+.zen-twinkle {
+  animation: zen-twinkle 4s ease-in-out infinite;
+}
+.zen-sway {
+  animation: zen-sway 9s ease-in-out infinite;
+}
+@keyframes zen-breathe {
+  50% {
+    transform: scale(1.06);
+    opacity: 0.8;
+  }
+}
+@keyframes zen-drift {
+  to {
+    transform: translateX(80px);
+  }
+}
+@keyframes zen-twinkle {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes zen-sway {
+  50% {
+    rotate: 1.5deg;
+  }
+}
+
 /* All 2026 motion is decorative: reduced motion turns it off entirely and
    the resting styles (final values) remain. */
 @media (prefers-reduced-motion: reduce) {
+  .zen-breathe,
+  .zen-drift,
+  .zen-twinkle,
+  .zen-sway,
   .sky-blob,
   .ping::after,
   .orb,
