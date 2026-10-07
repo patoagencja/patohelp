@@ -345,6 +345,9 @@ export function CommandPalette({
         : []),
       { path: "reklamy", label: "Reklamy", icon: Megaphone, keywords: "ads kampanie meta google facebook instagram koszt klikniecia cpc klikalnosc ctr wydatki frazy wyszukiwania" },
       { path: "kreacje", label: "Kreacje", icon: ImageIcon, keywords: "creatives grafiki wideo filmy obrazki najlepsze reklamy" },
+      ...(isEcommerce
+        ? [{ path: "kreacje/testy", label: "Testy kreacji", icon: ImageIcon, keywords: "testy ab a/b split zwyciezca wylacz skaluj zwieksz budzet porownaj reklamy meta" }]
+        : []),
       { path: "witryna", label: "Witryna", icon: Globe, keywords: "strona website ga4 ruch sesje wizyty odwiedziny telefon urzadzenia zrodla odbiorcy wiek" },
       { path: "alerty", label: "Alerty", icon: BellRing, keywords: "alerts powiadomienia problemy ostrzezenia pilne anomalie" },
       { path: "raport", label: "Raport", icon: FileText, keywords: "report miesieczny" },
