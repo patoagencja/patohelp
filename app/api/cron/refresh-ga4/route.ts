@@ -7,6 +7,7 @@ import { describeError } from "@/lib/integrations/errors";
 import {
   getDailyMetrics,
   getItemsDaily,
+  getPropertyCurrency,
   getNewVsReturning,
   getRevenueByNewVsReturning,
   getSessionsByDayHour,
@@ -17,6 +18,8 @@ import {
   type DateRange,
   type Ga4Auth,
 } from "@/lib/integrations/ga4";
+import { mergeRows, selectedGa4Properties } from "@/lib/integrations/ga4-merge";
+import { createFxConverter, type FxConverter } from "@/lib/integrations/fx";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull GA4 reports for yesterday+today into ga4_daily.
@@ -33,8 +36,23 @@ const WARSAW_TZ = "Europe/Warsaw";
 // is one small GA4 report, so ~20s of headroom keeps the function alive.
 const SNAPSHOT_START_BUDGET_MS = 40_000;
 
-interface Ga4AccountIds {
-  propertyId?: string | null;
+/**
+ * PLN per unit of one property's currency, for a day or (snapshots) a range.
+ * One property = the old behaviour: no currency lookup, amounts stored as
+ * reported. Several (Elfi's country sites) report in their own money, which
+ * must be złoty before it is summed; an unknown rate drops that revenue
+ * rather than adding euros to złoty.
+ */
+type ToPln = { day: (d: string) => Promise<number>; range: (from: string, to: string) => Promise<number> };
+const SAME: ToPln = { day: async () => 1, range: async () => 1 };
+function toPln(fx: FxConverter, currency: string | null, propertyId: string): ToPln {
+  if (!currency || currency === "PLN") return SAME;
+  const warn = (what: string) =>
+    console.warn(`[refresh-ga4] no ${currency} rate for property ${propertyId} (${what}) - revenue left out`);
+  return {
+    day: async (d) => (await fx.rate(currency, d)) ?? (warn(d), 0),
+    range: async (from, to) => (await fx.averageRate(currency, from, to)) ?? (warn(`${from}..${to}`), 0),
+  };
 }
 
 export async function GET(request: Request) {
@@ -99,12 +117,14 @@ export async function GET(request: Request) {
   const snapshotJobs: Array<{
     clientId: string;
     auth: Ga4Auth;
-    propertyId: string;
+    properties: Array<{ propertyId: string; pln: ToPln }>;
   }> = [];
 
+  let fx: FxConverter | null = null;
   for (const integration of integrations ?? []) {
-    const propertyId = (integration.account_ids as Ga4AccountIds)?.propertyId;
-    if (!propertyId) {
+    // One or several properties (Elfi: a site per country); summed below.
+    const propertyIds = selectedGa4Properties(integration.account_ids);
+    if (!propertyIds.length) {
       // GA4 is connected but no property was picked (the reconnect flow sends
       // you to a picker when the account has several). Silently skipping here
       // meant NO sync_run was written at all, so the health banner kept showing
@@ -186,14 +206,56 @@ export async function GET(request: Request) {
       // yesterday+today, which made the totals ~30x too small.
       const snapshotRange: DateRange = { startDate: snapshotStart, endDate: until };
 
-      const [daily, sourceMedium, devices, pages, newReturning] =
-        await Promise.all([
-          getDailyMetrics(ga4Auth, propertyId, dailyRange),
-          getSessionsBySourceMedium(ga4Auth, propertyId, snapshotRange),
-          getSessionsByDevice(ga4Auth, propertyId, snapshotRange),
-          getTopPages(ga4Auth, propertyId, snapshotRange, 10),
-          getNewVsReturning(ga4Auth, propertyId, snapshotRange),
-        ]);
+      const multi = propertyIds.length > 1;
+      if (multi && !fx) fx = createFxConverter();
+      const perProperty = await Promise.all(
+        propertyIds.map(async (propertyId) => {
+          const [currency, daily, sourceMedium, devices, pages, newReturning] = await Promise.all([
+            multi ? getPropertyCurrency(ga4Auth, propertyId) : Promise.resolve(null),
+            getDailyMetrics(ga4Auth, propertyId, dailyRange),
+            getSessionsBySourceMedium(ga4Auth, propertyId, snapshotRange),
+            getSessionsByDevice(ga4Auth, propertyId, snapshotRange),
+            getTopPages(ga4Auth, propertyId, snapshotRange, 10),
+            getNewVsReturning(ga4Auth, propertyId, snapshotRange),
+          ]);
+          const pln = multi && fx ? toPln(fx, currency, propertyId) : SAME;
+          const snapshotRate = await pln.range(snapshotRange.startDate, snapshotRange.endDate);
+          return {
+            propertyId,
+            pln,
+            daily: await Promise.all(
+              daily.map(async (d) => {
+                const r = await pln.day(d.date);
+                return { ...d, revenue: d.revenue * r, purchaseRevenue: d.purchaseRevenue * r };
+              })
+            ),
+            sourceMedium: sourceMedium.map((x) => ({ ...x, revenue: x.revenue * snapshotRate })),
+            devices,
+            pages,
+            newReturning,
+          };
+        })
+      );
+      const daily = mergeRows(perProperty.flatMap((p) => p.daily), (r) => r.date, {
+        sums: ["sessions", "users", "revenue", "purchaseRevenue", "transactions"],
+        rates: ["engagementRate"],
+        weight: "sessions",
+      }).sort((a, b) => a.date.localeCompare(b.date));
+      const sourceMedium = mergeRows(perProperty.flatMap((p) => p.sourceMedium), (r) => r.sourceMedium, {
+        sums: ["sessions", "revenue", "transactions"],
+        rates: ["engagementRate"],
+        weight: "sessions",
+      }).sort((a, b) => b.sessions - a.sessions);
+      const devices = mergeRows(perProperty.flatMap((p) => p.devices), (r) => r.deviceCategory, { sums: ["sessions"] });
+      // Country sites share paths ("/", "/list-od-mikolaja"): one row each.
+      const pages = mergeRows(perProperty.flatMap((p) => p.pages), (r) => r.pagePath, {
+        sums: ["pageViews"],
+        rates: ["engagementRate", "avgSessionDuration"],
+        weight: "pageViews",
+      })
+        .sort((a, b) => b.pageViews - a.pageViews)
+        .slice(0, 10);
+      const newReturning = mergeRows(perProperty.flatMap((p) => p.newReturning), (r) => r.type, { sums: ["sessions"] });
 
       const newUsers =
         newReturning.find((r) => r.type === "new")?.sessions ?? 0;
@@ -316,7 +378,18 @@ export async function GET(request: Request) {
       // but never break the main daily sync.
       if (hasItemsTable) {
         try {
-          const items = await getItemsDaily(ga4Auth, propertyId, dailyRange);
+          const items = mergeRows(
+            (
+              await Promise.all(
+                perProperty.map(async (p) => {
+                  const list = await getItemsDaily(ga4Auth, p.propertyId, dailyRange);
+                  return Promise.all(list.map(async (it) => ({ ...it, revenue: it.revenue * (await p.pln.day(it.date)) })));
+                })
+              )
+            ).flat(),
+            (it) => `${it.date}\u0000${it.itemId}\u0000${it.itemName}`,
+            { sums: ["quantity", "revenue"] }
+          );
           await admin
             .from("ga4_items_daily")
             .delete()
@@ -362,7 +435,7 @@ export async function GET(request: Request) {
       snapshotJobs.push({
         clientId: integration.client_id as string,
         auth: ga4Auth,
-        propertyId,
+        properties: perProperty.map((p) => ({ propertyId: p.propertyId, pln: p.pln })),
       });
     } catch (err) {
       const message = describeError(err);
@@ -388,7 +461,7 @@ export async function GET(request: Request) {
           admin,
           job.clientId,
           job.auth,
-          job.propertyId,
+          job.properties,
           until
         );
       } catch (err) {
@@ -408,7 +481,7 @@ export async function GET(request: Request) {
           admin,
           job.clientId,
           job.auth,
-          job.propertyId,
+          job.properties,
           until
         );
       } catch (err) {
@@ -438,7 +511,7 @@ async function syncActivityHeatmap(
   admin: ReturnType<typeof createAdminClient>,
   clientId: string,
   auth: Ga4Auth,
-  propertyId: string,
+  properties: Array<{ propertyId: string }>,
   today: string
 ) {
   const existing = await admin
@@ -450,7 +523,10 @@ async function syncActivityHeatmap(
   if (existing.error) throw new Error(existing.error.message);
   if (existing.data?.length) return;
 
-  const cells = await getSessionsByDayHour(auth, propertyId);
+  // Every property's cells land in the same grid, so they add up.
+  const cells = (
+    await Promise.all(properties.map((p) => getSessionsByDayHour(auth, p.propertyId)))
+  ).flat();
 
   const grid = new Map<string, { sessions: number; engaged: number }>();
   for (const c of cells) {
@@ -504,7 +580,7 @@ async function syncNewVsReturning(
   admin: ReturnType<typeof createAdminClient>,
   clientId: string,
   auth: Ga4Auth,
-  propertyId: string,
+  properties: Array<{ propertyId: string; pln: ToPln }>,
   today: string
 ) {
   const existing = await admin
@@ -516,7 +592,20 @@ async function syncNewVsReturning(
   if (existing.error) throw new Error(existing.error.message);
   if (existing.data?.length) return;
 
-  const segments = await getRevenueByNewVsReturning(auth, propertyId);
+  // Last 30 full days per property, revenue in złoty at the period's mean rate.
+  const from = formatInTimeZone(subDays(new Date(), 30), WARSAW_TZ, "yyyy-MM-dd");
+  const to = formatInTimeZone(subDays(new Date(), 1), WARSAW_TZ, "yyyy-MM-dd");
+  const segments = (
+    await Promise.all(
+      properties.map(async (p) => {
+        const [list, rate] = await Promise.all([
+          getRevenueByNewVsReturning(auth, p.propertyId),
+          p.pln.range(from, to),
+        ]);
+        return list.map((x) => ({ ...x, revenue: x.revenue * rate }));
+      })
+    )
+  ).flat();
 
   const totals = new Map<
     string,

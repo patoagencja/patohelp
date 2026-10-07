@@ -20,6 +20,7 @@ import {
   propagateCredentials,
   readStoredTokens,
 } from "@/lib/integrations/propagate";
+import { selectedGa4Properties } from "@/lib/integrations/ga4-merge";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Propagation lists properties/customers once and checks every client.
@@ -81,23 +82,20 @@ export async function GET(request: Request) {
       .eq("client_id", consumed.clientId)
       .eq("provider", "ga4")
       .maybeSingle();
-    const previousProperty = (
-      existing?.account_ids as { propertyId?: string | null } | null
-    )?.propertyId;
-    const stillAccessible =
-      previousProperty && properties.some((p) => p.propertyId === previousProperty)
-        ? previousProperty
-        : null;
+    // Every previously picked property (Elfi: one per country) that the new
+    // login still reaches stays picked.
+    const accessible = new Set(properties.map((p) => p.propertyId));
+    const keptIds = selectedGa4Properties(existing?.account_ids).filter((id) => accessible.has(id));
 
     const autoProperty =
-      stillAccessible ?? (properties.length === 1 ? properties[0].propertyId : null);
+      keptIds[0] ?? (properties.length === 1 ? properties[0].propertyId : null);
 
     await upsertIntegration(
       admin,
       consumed.clientId,
       "ga4",
       credentials,
-      { propertyId: autoProperty, properties }
+      { propertyId: autoProperty, properties, ...(keptIds.length > 1 ? { propertyIds: keptIds } : {}) }
     );
 
     const propagation = await propagateCredentials(admin, {

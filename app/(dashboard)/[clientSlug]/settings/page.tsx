@@ -18,6 +18,8 @@ import { getClientBySlug } from "@/lib/dashboard/context";
 import { clientDataTag } from "@/lib/dashboard/sync-cache";
 import { decrypt } from "@/lib/integrations/encryption";
 import { isServiceAccountCredentials } from "@/lib/integrations/ga4";
+import { plPlural } from "@/lib/dashboard/story";
+import { selectedGa4Properties } from "@/lib/integrations/ga4-merge";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -615,6 +617,7 @@ export default async function SettingsPage({
             const propName = ga4Ids.properties?.find(
               (p) => p.propertyId === ga4Ids.propertyId
             )?.displayName;
+            const picked = selectedGa4Properties(ga4Ids);
             const multi = (ga4Ids.properties?.length ?? 0) > 1;
 
             return (
@@ -637,7 +640,9 @@ export default async function SettingsPage({
                         <p className="flex items-center gap-1.5 text-sm text-foreground">
                           <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden />
                           <span className="min-w-0 break-words">
-                            Połączono · usługa {propName ?? ga4Ids.propertyId}
+                            {picked.length > 1
+                              ? `Połączono · ${picked.length} ${plPlural(picked.length, "usługa", "usługi", "usług")} GA4 (suma)`
+                              : `Połączono · usługa ${propName ?? ga4Ids.propertyId}`}
                             {ga4ServiceAccount ? " · konto usługi (nie wygasa)" : ""}
                           </span>
                         </p>
@@ -655,7 +660,7 @@ export default async function SettingsPage({
                         {multi && !ga4ServiceAccount ? (
                           <Button asChild variant="outline" size="pill">
                             <a href={`/${params.clientSlug}/settings/ga4-select`}>
-                              Zmień usługę GA4
+                              {picked.length > 1 ? "Zmień usługi GA4" : "Wybierz usługi GA4"}
                             </a>
                           </Button>
                         ) : null}
@@ -668,7 +673,7 @@ export default async function SettingsPage({
                         ) : (
                           <Button asChild variant="outline" size="pill">
                             <Link href={`/${params.clientSlug}/settings/ga4-service-account`}>
-                              Zmień usługę GA4
+                              {picked.length > 1 ? "Zmień usługi GA4" : "Wybierz usługi GA4"}
                             </Link>
                           </Button>
                         )}
