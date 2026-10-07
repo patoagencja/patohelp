@@ -782,7 +782,9 @@ async function mapLimit<T, R>(
 }
 
 /** Cap for paged /ads listings: 20 x 500 = the newest 10 000 ads. */
-const ADS_LIST_MAX_PAGES = 20;
+// 5 x 500 ads: past that the delivering ads we still miss are old ones whose
+// stored picture is kept anyway; a 20-page walk took minutes on big accounts.
+const ADS_LIST_MAX_PAGES = 5;
 
 /**
  * Map of ad_id -> creative thumbnail URL for an ad account.
@@ -832,6 +834,14 @@ export async function getAdThumbnails(
     );
     const rows: AdRow[] = [...(body.data ?? [])];
     for (let page = 1; body.paging?.next && page < maxPages; page += 1) {
+      // Stop as soon as every ad we need a picture for is listed: a huge
+      // account (thousands of ads) otherwise pages for minutes and starves
+      // the other clients in the same cron run.
+      const want = wantedPromise ? await wantedPromise.catch(() => null) : null;
+      if (want) {
+        const seen = new Set(rows.map((r) => String(r.id)));
+        if ([...want].every((id) => seen.has(id))) break;
+      }
       // Thumbnails are cosmetic: a failed later page keeps what we have
       // instead of costing every ad its picture.
       try {
