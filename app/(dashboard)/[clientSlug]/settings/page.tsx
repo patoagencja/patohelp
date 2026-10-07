@@ -47,6 +47,8 @@ interface Account {
   name?: string;
   selected?: boolean;
   video_only?: boolean;
+  /** Selected before, but the current token doesn't list it (oauth-flow). */
+  unlisted?: boolean;
 }
 
 const PROVIDERS: Array<{
@@ -122,6 +124,15 @@ async function saveAccounts(formData: FormData) {
     // Google-only flag: report just YouTube (VIDEO) campaigns.
     ...(provider === "google_ads" ? { video_only: videoOnly } : {}),
   }));
+
+  // Unticking everything is allowed (it stops the sync), but it is also what
+  // a broken form post would look like - leave a trace in the logs.
+  const before = ((data?.account_ids ?? []) as Account[]).filter((a) => a.selected).length;
+  if (before > 0 && selectedIds.length === 0) {
+    console.warn(
+      `[settings] ${provider} for client ${access.clientId}: account selection cleared (${before} -> 0) by the account form`
+    );
+  }
 
   await admin
     .from("integrations")
@@ -411,6 +422,11 @@ export default async function SettingsPage({
                               <span className="truncate">
                                 {account.name || account.id}
                               </span>
+                              {account.unlisted ? (
+                                <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                  brak dostępu z obecnym tokenem
+                                </span>
+                              ) : null}
                               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                 {account.id}
                               </span>

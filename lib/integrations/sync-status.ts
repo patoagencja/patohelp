@@ -13,10 +13,13 @@ export interface SyncOutcome {
  * how Google Ads could stop delivering data without anything saying so.
  *
  * Rules:
- *  - nothing selected      -> failed (connected, but no account is being pulled)
- *  - no rows + errors      -> failed (every account broke)
- *  - rows written          -> success, keeping errors as a partial-failure note
- *  - no rows, no errors    -> success (legitimately no spend in the window)
+ *  - nothing selected            -> failed (connected, but no account is being pulled)
+ *  - no rows + EVERY account broke -> failed
+ *  - rows written                -> success, keeping errors as a partial-failure note
+ *  - no rows, some accounts fine -> success + note. Paused campaigns write no
+ *    rows; one disabled account among 46 erroring must not turn "nothing is
+ *    running" into "Meta is broken" (DRE's false banner).
+ *  - no rows, no errors          -> success (legitimately no spend in the window)
  */
 export function resolveSyncOutcome(opts: {
   accountsSelected: number;
@@ -34,7 +37,7 @@ export function resolveSyncOutcome(opts: {
     };
   }
 
-  if (rowsWritten === 0 && accountErrors.length > 0) {
+  if (rowsWritten === 0 && accountErrors.length > 0 && accountErrors.length >= accountsSelected) {
     return { status: "failed", error_message: joined };
   }
 
