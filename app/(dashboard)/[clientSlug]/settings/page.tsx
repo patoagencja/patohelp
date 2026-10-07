@@ -33,6 +33,7 @@ import { CHECKBOX_CLASS } from "./form-styles";
 import { SeasonSettingsSection } from "./season-settings";
 import { SettingsNav } from "./settings-nav";
 import { ShareOverviewSection } from "./share-overview";
+import { ShopSalesSettings } from "./shop-sales-settings";
 import { TestAlertButton } from "./test-alert-button";
 import { TestConnectionButton } from "./test-connection-button";
 import { SettingsHeading } from "./settings-heading";
@@ -345,6 +346,7 @@ export default async function SettingsPage({
         <SettingsNav
           links={[
             { id: "integracje", label: "Integracje" },
+            { id: "sprzedaz-sklepu", label: "Sprzedaż sklepu" },
             { id: "polaczenia", label: "Połączenia" },
             { id: "sezon", label: "Sezon i typ" },
             ...(isEcommerce
@@ -606,6 +608,8 @@ export default async function SettingsPage({
           })()}
         </div>
       </section>
+
+      <ShopSalesSettings clientId={access.clientId} clientSlug={params.clientSlug} />
 
       <ConnectionStability clientId={access.clientId} clientSlug={params.clientSlug} />
 

@@ -47,10 +47,16 @@ export function ConnectedToast({
   useEffect(() => {
     if (fired.current) return;
     fired.current = true;
+    // Detail params of the shop CSV upload, read here rather than threaded
+    // through the page's props.
+    const params = new URLSearchParams(window.location.search);
+    const rowsParam = params.get("rows");
+    const msgParam = params.get("msg");
+
     // Drop the one-shot params so a reload doesn't repeat the toast and sync.
     if (connected || error || saved) {
       const url = new URL(window.location.href);
-      for (const k of ["connected", "error", "saved", "fixed"]) url.searchParams.delete(k);
+      for (const k of ["connected", "error", "saved", "fixed", "rows", "msg"]) url.searchParams.delete(k);
       window.history.replaceState(window.history.state, "", url);
     }
 
@@ -96,6 +102,14 @@ export function ConnectedToast({
       toast.error("Taki dzień nie istnieje (np. 31 listopada) - popraw daty sezonu.");
     } else if (error === "season_failed") {
       toast.error("Nie udało się zapisać typu i sezonu. Spróbuj ponownie.");
+    } else if (error === "shop_csv") {
+      // The message rides in the URL, so anyone could craft one: show only
+      // the shapes uploadShopSalesCsv produces, and never a link.
+      const ownMessage =
+        msgParam &&
+        /^(Wiersz \d|Plik |Wybierz |Najpierw |Nie udało )/.test(msgParam) &&
+        !/https?:|www\./i.test(msgParam);
+      toast.error(ownMessage ? msgParam : "Nie udało się wczytać pliku CSV.", { duration: 15000 });
     } else if (error) {
       toast.error(
         `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
@@ -125,6 +139,16 @@ export function ConnectedToast({
       toast.success("Zapisano typ klienta i sezon");
     } else if (saved === "notifications") {
       toast.success("Zapisano ustawienia powiadomień");
+    } else if (saved === "shop_csv") {
+      const n = Number(rowsParam) || 0;
+      const last = n % 10;
+      const word =
+        n === 1
+          ? "wiersz"
+          : last >= 2 && last <= 4 && (n % 100 < 12 || n % 100 > 14)
+            ? "wiersze"
+            : "wierszy";
+      toast.success(`Wczytano sprzedaż z CSV: ${n.toLocaleString("pl-PL")} ${word}`);
     } else if (saved?.startsWith("access")) {
       const loginUrl = `${window.location.origin}/login`;
       if (saved === "access_invited") {

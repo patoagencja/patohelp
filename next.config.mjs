@@ -15,6 +15,10 @@ const nextConfig = {
     // instant. Fresh data still lands - AutoRefresh calls router.refresh()
     // when a sync stamp moves, and server actions revalidate as before.
     staleTimes: { dynamic: 30, static: 180 },
+    // The shop sales CSV upload (settings) posts files up to 4 MB through a
+    // Server Action, whose default body limit is 1 MB. 4.5 MB is also
+    // Vercel's cap on a function request body, so going higher buys nothing.
+    serverActions: { bodySizeLimit: "4.5mb" },
     serverComponentsExternalPackages: [
       "facebook-nodejs-business-sdk",
       "google-ads-api",
