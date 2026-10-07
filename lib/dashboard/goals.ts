@@ -1,5 +1,6 @@
 import { addDays, monthLabelPl, todayWarsaw } from "@/lib/ecom/insights";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdsDayTotals, type AdsDayTotal } from "@/lib/dashboard/ads-totals";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // Monthly goals for engagement (non-shop) clients - the counterpart of the
@@ -86,20 +87,10 @@ async function getDailySeries(
   const admin = createAdminClient();
   const out = emptySeries();
 
+  // Per-day account totals (ads_daily_totals view, raw-row fallback).
   const ads = need.ads
-    ? fetchAll<Record<string, unknown>>((from, to) =>
-        admin
-          .from("ads_daily")
-          .select("date, clicks, impressions, conversions")
-          .eq("client_id", clientId)
-          .gte("date", start)
-          .lte("date", end)
-          .order("date", { ascending: true })
-          .order("provider", { ascending: true })
-          .order("campaign_id", { ascending: true })
-          .range(from, to)
-      ).catch(() => [])
-    : Promise.resolve([]);
+    ? getAdsDayTotals(admin, clientId, start, end).catch(() => [] as AdsDayTotal[])
+    : Promise.resolve([] as AdsDayTotal[]);
 
   // Daily totals only: dimension rows (source/device/page) would double count.
   const ga4 = need.ga4
@@ -123,10 +114,9 @@ async function getDailySeries(
   const add = (m: Map<string, number>, d: string, v: unknown) =>
     m.set(d, (m.get(d) ?? 0) + Number(v ?? 0));
   for (const r of adsRows) {
-    const d = String(r.date).slice(0, 10);
-    add(out.clicks, d, r.clicks);
-    add(out.impressions, d, r.impressions);
-    add(out.conversions, d, r.conversions);
+    add(out.clicks, r.date, r.clicks);
+    add(out.impressions, r.date, r.impressions);
+    add(out.conversions, r.date, r.conversions);
   }
   for (const r of ga4Rows) add(out.sessions, String(r.date).slice(0, 10), r.sessions);
   return out;

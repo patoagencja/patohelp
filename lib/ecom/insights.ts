@@ -1,5 +1,6 @@
 import { formatInTimeZone } from "date-fns-tz";
 
+import { getAdsDayTotals } from "@/lib/dashboard/ads-totals";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
@@ -124,30 +125,17 @@ export async function getDailySpend(
   start: string,
   end: string
 ): Promise<Map<string, DaySpend>> {
-  const admin = createAdminClient();
   const out = new Map<string, DaySpend>();
   try {
-    const rows = await fetchAll<Record<string, unknown>>((from, to) =>
-      admin
-        .from("ads_daily")
-        .select("date, provider, spend_minor_units")
-        .eq("client_id", clientId)
-        .gte("date", start)
-        .lte("date", end)
-        .order("date", { ascending: true })
-        .order("provider", { ascending: true })
-        .order("campaign_id", { ascending: true })
-        .range(from, to)
-    );
+    // Per-day, per-platform totals (ads_daily_totals view, raw fallback).
+    const rows = await getAdsDayTotals(createAdminClient(), clientId, start, end);
     for (const r of rows) {
-      const date = r.date as string;
       const cur =
-        out.get(date) ?? { total: 0, meta_ads: 0, google_ads: 0, tiktok_ads: 0 };
-      const spend = Number(r.spend_minor_units ?? 0);
-      cur.total += spend;
+        out.get(r.date) ?? { total: 0, meta_ads: 0, google_ads: 0, tiktok_ads: 0 };
+      cur.total += r.spend;
       const p = r.provider as keyof Omit<DaySpend, "total">;
-      if (p in cur) cur[p] += spend;
-      out.set(date, cur);
+      if (p in cur) cur[p] += r.spend;
+      out.set(r.date, cur);
     }
   } catch {
     // Spend is supplementary here; an empty map degrades to "no ROAS".

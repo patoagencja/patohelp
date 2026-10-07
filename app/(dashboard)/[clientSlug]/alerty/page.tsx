@@ -15,11 +15,11 @@ import { getCurrentAlerts } from "@/lib/alerts/current";
 import { FLIGHT_METRICS, getPacing, type FlightMetric } from "@/lib/alerts/pacing";
 import { buildGoalTiles } from "@/lib/dashboard/campaign-goals";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
+import { syncCached } from "@/lib/dashboard/sync-cache";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchAll } from "@/lib/supabase/fetch-all";
-import { createClient } from "@/lib/supabase/server";
+import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 
 export const dynamic = "force-dynamic";
 // The goal form's on-demand ad set fetch (a server action) runs under this
@@ -156,41 +156,23 @@ export default async function AlertyPage({
   // Campaign options for the goal form (agency only): every campaign with
   // delivery in the last 60 days, biggest recent spend first (the picker is
   // searchable, so long lists are fine). Paginated: PostgREST caps at 1000.
-  const campaignOptionsPromise = viewerPromise.then(async (viewer) => {
-    if (!viewer.isAgency) return [] as CampaignOption[];
-    const since = formatInTimeZone(subDays(new Date(), 60), "Europe/Warsaw", "yyyy-MM-dd");
-    const campRows = await fetchAll<Record<string, unknown>>((from, to) =>
-      createClient()
-        .from("ads_daily")
-        .select("campaign_id, campaign_name, provider, spend_minor_units, date")
-        .eq("client_id", client.id)
-        .gte("date", since)
-        .order("date", { ascending: true })
-        .order("provider", { ascending: true })
-        .order("campaign_id", { ascending: true })
-        .range(from, to)
-    ).catch(() => [] as Record<string, unknown>[]);
-    const byId = new Map<string, { name: string; provider: string | null; spend: number }>();
-    for (const r of campRows) {
-      const id = r.campaign_id as string;
-      const c = byId.get(id) ?? { name: id, provider: null, spend: 0 };
-      // Oldest first: the latest name wins (campaigns get renamed).
-      c.name = (r.campaign_name as string) || c.name;
-      c.provider = (r.provider as string | null) ?? c.provider;
-      c.spend += Number(r.spend_minor_units ?? 0);
-      byId.set(id, c);
-    }
-    return Array.from(byId.entries())
-      .sort((a, b) => b[1].spend - a[1].spend)
-      .slice(0, 1500)
-      .map(([id, v]) => ({ id, name: v.name, provider: v.provider, spend: v.spend }));
-  });
+  const campaignOptionsPromise = viewerPromise.then((viewer) =>
+    viewer.isAgency ? getCampaignOptions(client.id) : ([] as CampaignOption[])
+  );
 
   // Ad sets / ad groups for the goal form's optional second picker (agency
   // only). null hides the picker: migration 0033 not run yet (no table or
   // no adset columns on campaign_flights) or the read failed.
   const adsetOptionsPromise = viewerPromise.then((viewer) =>
-    viewer.isAgency ? getAdsetOptions(client.id) : null
+    viewer.isAgency
+      ? // null (not migrated / read failed) is never cached: it throws past
+        // the cache and is turned back into null here.
+        syncCached("goal-adset-options", client.id, [], async () => {
+          const options = await getAdsetOptions(client.id);
+          if (!options) throw new Error("no ad set options");
+          return options;
+        }).catch(() => null)
+      : null
   );
   // "Wszystkie kliknięcia" goal option: only once migration 0034 has run.
   const clicksAllPromise = viewerPromise.then((viewer) =>
@@ -249,6 +231,53 @@ export default async function AlertyPage({
 }
 
 /**
+ * Campaign options for the goal form: every campaign with delivery in the
+ * last 60 days, biggest recent spend first (the picker is searchable, so
+ * long lists are fine). Shared per sync stamp; service-role read of a client
+ * the page resolved through RLS (agency viewers only reach this).
+ */
+function getCampaignOptions(clientId: string): Promise<CampaignOption[]> {
+  return syncCached("goal-campaign-options", clientId, [], async () => {
+    const since = formatInTimeZone(subDays(new Date(), 60), "Europe/Warsaw", "yyyy-MM-dd");
+    const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+    const admin = createAdminClient();
+    // Two-week chunks side by side, oldest first (same rows and order as one
+    // paged read); the last chunk stays open-ended like the original read.
+    const campRows = await fetchAllByDateChunks<Record<string, unknown>>(
+      since,
+      today,
+      14,
+      (s, e) => (from, to) => {
+        const q = admin
+          .from("ads_daily")
+          .select("campaign_id, campaign_name, provider, spend_minor_units, date")
+          .eq("client_id", clientId)
+          .gte("date", s);
+        return (e < today ? q.lte("date", e) : q)
+          .order("date", { ascending: true })
+          .order("provider", { ascending: true })
+          .order("campaign_id", { ascending: true })
+          .range(from, to);
+      }
+    ).catch(() => [] as Record<string, unknown>[]);
+    const byId = new Map<string, { name: string; provider: string | null; spend: number }>();
+    for (const r of campRows) {
+      const id = r.campaign_id as string;
+      const c = byId.get(id) ?? { name: id, provider: null, spend: 0 };
+      // Oldest first: the latest name wins (campaigns get renamed).
+      c.name = (r.campaign_name as string) || c.name;
+      c.provider = (r.provider as string | null) ?? c.provider;
+      c.spend += Number(r.spend_minor_units ?? 0);
+      byId.set(id, c);
+    }
+    return Array.from(byId.entries())
+      .sort((a, b) => b[1].spend - a[1].spend)
+      .slice(0, 1500)
+      .map(([id, v]) => ({ id, name: v.name, provider: v.provider, spend: v.spend }));
+  });
+}
+
+/**
  * Ad sets (Meta) / ad groups (Google) with delivery in the last 60 days,
  * distinct, biggest spend first. null when ad set goals aren't available on
  * this database yet (migration 0033) - the form then stays campaign-level.
@@ -258,17 +287,26 @@ async function getAdsetOptions(clientId: string): Promise<AdsetOption[] | null> 
   const probe = await admin.from("campaign_flights").select("adset_id").limit(1);
   if (probe.error) return null;
   const since = formatInTimeZone(subDays(new Date(), 60), "Europe/Warsaw", "yyyy-MM-dd");
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
   try {
-    const rows = await fetchAll<Record<string, unknown>>((from, to) =>
-      admin
-        .from("ads_adset_daily")
-        .select("provider, campaign_id, adset_id, adset_name, spend_minor_units, date")
-        .eq("client_id", clientId)
-        .gte("date", since)
-        .order("date", { ascending: true })
-        .order("provider", { ascending: true })
-        .order("adset_id", { ascending: true })
-        .range(from, to)
+    // Two-week chunks side by side, oldest first (same rows and order as one
+    // paged read); the last chunk stays open-ended like the original read.
+    const rows = await fetchAllByDateChunks<Record<string, unknown>>(
+      since,
+      today,
+      14,
+      (s, e) => (from, to) => {
+        const q = admin
+          .from("ads_adset_daily")
+          .select("provider, campaign_id, adset_id, adset_name, spend_minor_units, date")
+          .eq("client_id", clientId)
+          .gte("date", s);
+        return (e < today ? q.lte("date", e) : q)
+          .order("date", { ascending: true })
+          .order("provider", { ascending: true })
+          .order("adset_id", { ascending: true })
+          .range(from, to);
+      }
     );
     const byId = new Map<string, AdsetOption & { spend: number }>();
     for (const r of rows) {

@@ -32,7 +32,7 @@ import { getNewVsReturning } from "@/lib/ecom/new-vs-returning";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import {
-  getDashboardData,
+  loadDashboardData,
   normalizeRange,
   parseCustomRange,
   resolveDashboardRange,
@@ -105,7 +105,7 @@ export default async function SprzedazPage({
     yoy,
     viewer,
   ] = await Promise.all([
-    getDashboardData(client.id, range, custom),
+    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
     getWebsiteData(client.id),
     getEcomSettings(client.id),
     getMonthPacing(client.id),

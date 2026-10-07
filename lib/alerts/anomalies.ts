@@ -3,7 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { detectEcomAnomalies } from "@/lib/alerts/ecom";
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { fetchAll, fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoneyPLN, formatPercent } from "@/lib/utils";
 
@@ -82,13 +82,14 @@ export async function detectAnomalies(
   );
 
   const [rows, ga4Rows] = await Promise.all([
-    fetchAll<Record<string, unknown>>((from, to) =>
+    // Two week-long chunks side by side (same rows, same order).
+    fetchAllByDateChunks<Record<string, unknown>>(baseStart, recentEnd, 7, (s, e) => (from, to) =>
       supabase
         .from("ads_daily")
         .select("campaign_id, campaign_name, date, spend_minor_units, clicks, impressions")
         .eq("client_id", clientId)
-        .gte("date", baseStart)
-        .lte("date", recentEnd)
+        .gte("date", s)
+        .lte("date", e)
         .order("date", { ascending: true })
         .order("provider", { ascending: true })
         .order("campaign_id", { ascending: true })

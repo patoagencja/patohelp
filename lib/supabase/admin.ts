@@ -2,6 +2,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/database";
 
+import { perfFetch } from "./perf";
+
 /**
  * Service-role Supabase client. Bypasses RLS - use ONLY in server-only
  * contexts (cron routes, background sync). Never import from a Client
@@ -16,6 +18,8 @@ export function createAdminClient() {
         persistSession: false,
         autoRefreshToken: false,
       },
+      // PERF_LOG=1 only; undefined keeps the default fetch.
+      global: { fetch: perfFetch("admin") },
     }
   );
 }

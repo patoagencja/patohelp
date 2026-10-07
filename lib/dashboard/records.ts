@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { formatInTimeZone } from "date-fns-tz";
 
+import { getAdsDayTotals } from "@/lib/dashboard/ads-totals";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { formatNumberPL } from "@/lib/utils";
@@ -716,42 +717,18 @@ async function fetchAdsDaily(
   start: string,
   end: string
 ): Promise<Map<string, DayAds>> {
-  const admin = createAdminClient();
-  // One paginated read per month, in parallel: a 2-year read of a large
-  // account is tens of thousands of rows, and sequential 1000-row pages
-  // would make the page noticeably slower.
-  const chunks: Array<[string, string]> = [];
-  for (let m = monthOf(start); m <= monthOf(end); m = shiftMonth(m, 1)) {
-    const s = `${m}-01` < start ? start : `${m}-01`;
-    const e = monthEnd(m) > end ? end : monthEnd(m);
-    chunks.push([s, e]);
-  }
-  const parts = await Promise.all(
-    chunks.map(([s, e]) =>
-      fetchAll<Record<string, unknown>>((from, to) =>
-        admin
-          .from("ads_daily")
-          .select("date, spend_minor_units, clicks, impressions")
-          .eq("client_id", clientId)
-          .gte("date", s)
-          .lte("date", e)
-          .order("date", { ascending: true })
-          .order("provider", { ascending: true })
-          .order("campaign_id", { ascending: true })
-          .range(from, to)
-      )
-    )
-  );
+  // Per-day account totals: the ads_daily_totals view returns ~2 rows a day
+  // for 25 months (a few pages) instead of every campaign row (hundreds of
+  // thousands for a large account); without migration 0036 the helper falls
+  // back to month-sized raw reads in parallel, summed the same way.
+  const rows = await getAdsDayTotals(createAdminClient(), clientId, start, end);
   const out = new Map<string, DayAds>();
-  for (const rows of parts) {
-    for (const r of rows) {
-      const date = String(r.date).slice(0, 10);
-      const cur = out.get(date) ?? { spend: 0, clicks: 0, impressions: 0 };
-      cur.spend += Number(r.spend_minor_units ?? 0);
-      cur.clicks += Number(r.clicks ?? 0);
-      cur.impressions += Number(r.impressions ?? 0);
-      out.set(date, cur);
-    }
+  for (const r of rows) {
+    const cur = out.get(r.date) ?? { spend: 0, clicks: 0, impressions: 0 };
+    cur.spend += r.spend;
+    cur.clicks += r.clicks;
+    cur.impressions += r.impressions;
+    out.set(r.date, cur);
   }
   return out;
 }

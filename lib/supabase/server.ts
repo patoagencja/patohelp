@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 
 import type { Database } from "@/types/database";
 
+import { perfFetch } from "./perf";
+
 /**
  * Supabase client for Server Components, Server Actions and Route Handlers.
  * Reads/writes the auth cookies through Next's cookie store. Cookie writes
@@ -16,6 +18,8 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // PERF_LOG=1 only; undefined keeps the default fetch.
+      global: { fetch: perfFetch("rls") },
       cookies: {
         getAll() {
           return cookieStore.getAll();

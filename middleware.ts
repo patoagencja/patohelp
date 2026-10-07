@@ -13,6 +13,10 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  // Dev query log (lib/supabase/perf.ts) labels each request by its path.
+  if (process.env.PERF_LOG) {
+    request.headers.set("x-perf-path", request.nextUrl.pathname + request.nextUrl.search);
+  }
   // Response we mutate so refreshed auth cookies flow back to the browser.
   let response = NextResponse.next({ request });
 

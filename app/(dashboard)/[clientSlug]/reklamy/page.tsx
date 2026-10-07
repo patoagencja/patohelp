@@ -11,7 +11,7 @@ import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { SearchTerms } from "@/components/dashboard/search-terms";
 import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
 import {
-  getDashboardData,
+  loadDashboardData,
   normalizeRange,
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
@@ -41,7 +41,7 @@ export default async function AdsPage({
   // Top creatives used to be teased here too; they now live one tab over
   // (Kreacje), so the page no longer queries them.
   const [data, searchTerms, impressionShare] = await Promise.all([
-    getDashboardData(client.id, range, custom),
+    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
     getSearchTerms(client.id),
     getImpressionShare(client.id),
   ]);

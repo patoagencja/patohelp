@@ -2,7 +2,7 @@ import { addDays, format, getDaysInMonth, startOfMonth } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { getAdsSpendTotal } from "@/lib/dashboard/ads-totals";
 import { createClient } from "@/lib/supabase/server";
 
 const WARSAW_TZ = "Europe/Warsaw";
@@ -57,7 +57,7 @@ export async function getBudgetStatus(clientId: string): Promise<BudgetStatus> {
   const daysInMonth = getDaysInMonth(today);
   const monthPercent = (dayOfMonth / daysInMonth) * 100;
 
-  const [budgetRes, spendRows] = await Promise.all([
+  const [budgetRes, spent] = await Promise.all([
     supabase
       .from("client_budgets")
       .select("budget_minor_units")
@@ -65,28 +65,13 @@ export async function getBudgetStatus(clientId: string): Promise<BudgetStatus> {
       .eq("month", monthStart)
       .eq("platform", "total")
       .maybeSingle(),
-    // Paginated: one row per campaign per day passes PostgREST's silent
-    // 1000-row cap late in the month for multi-account clients, and the
-    // truncated sum disagreed with the "Wydatki" KPI for the same month.
-    fetchAll<{ spend_minor_units: number | string }>((from, to) =>
-      supabase
-        .from("ads_daily")
-        .select("spend_minor_units")
-        .eq("client_id", clientId)
-        .gte("date", monthStart)
-        .lte("date", todayStr)
-        .order("date", { ascending: true })
-        .order("provider", { ascending: true })
-        .order("campaign_id", { ascending: true })
-        .range(from, to)
-    ),
+    // Month-to-date spend from the per-day totals (one row per day and
+    // platform, read through RLS) - summing every campaign row passed
+    // PostgREST's 1000-row cap late in the month and needed many pages.
+    getAdsSpendTotal(supabase, clientId, monthStart, todayStr),
   ]);
 
   const budget = Number(budgetRes.data?.budget_minor_units ?? 0);
-  const spent = spendRows.reduce(
-    (sum, r) => sum + Number(r.spend_minor_units),
-    0
-  );
 
   if (!budget) {
     return {

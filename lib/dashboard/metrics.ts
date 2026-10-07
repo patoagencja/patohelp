@@ -9,6 +9,7 @@ import {
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 
 import {
   detectCampaignEvents,
@@ -19,7 +20,9 @@ import {
   type CustomRange,
   type RangeKey,
 } from "@/lib/dashboard/ranges";
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { syncCached } from "@/lib/dashboard/sync-cache";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAll, fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { AdProvider } from "@/lib/types";
 
@@ -372,20 +375,24 @@ export async function getDashboardData(
 
   // Paginated reads: a long range on a large account easily exceeds
   // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
+  // Read in two-week chunks side by side (same rows, same order as one read):
+  // 90 days + baseline of an OLX-size account is ~70 000 rows, and one long
+  // OFFSET-paged read re-walked every earlier page for each new one.
   const [rows, ga4Rows] = await Promise.all([
-    fetchAll<AdsRow>((from, to) =>
-      supabase
-        .from("ads_daily")
-        .select(
-          "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
-        )
-        .eq("client_id", clientId)
-        .gte("date", range.prevStart)
-        .lte("date", range.end)
-        .order("date", { ascending: true })
-        .order("provider", { ascending: true })
-        .order("campaign_id", { ascending: true })
-        .range(from, to)
+    fetchAllByDateChunks<AdsRow>(range.prevStart, range.end, 14, (chunkStart, chunkEnd) =>
+      (from, to) =>
+        supabase
+          .from("ads_daily")
+          .select(
+            "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
+          )
+          .eq("client_id", clientId)
+          .gte("date", chunkStart)
+          .lte("date", chunkEnd)
+          .order("date", { ascending: true })
+          .order("provider", { ascending: true })
+          .order("campaign_id", { ascending: true })
+          .range(from, to)
     ),
     // GA4 daily totals only (dimension columns null). The revenue columns
     // land with migration 0016: ask for them straight away and only fall
@@ -781,3 +788,25 @@ export async function getDashboardData(
       curEngSessions > 0 ? (curEngWeighted / curEngSessions) * 100 : null,
   };
 }
+
+/**
+ * getDashboardData for the dashboard pages: shared across pages, viewers and
+ * refreshes until the next sync lands (lib/dashboard/sync-cache.ts), and
+ * deduped within a request. Reads with the service role, so `clientId` MUST
+ * come from getClientBySlug (resolved through RLS). Background jobs and
+ * share links keep calling getDashboardData directly.
+ */
+export const loadDashboardData = cache(
+  (
+    clientId: string,
+    rangeKey: RangeKey,
+    customStart: string | null = null,
+    customEnd: string | null = null
+  ): Promise<DashboardData> => {
+    const custom =
+      customStart && customEnd ? { start: customStart, end: customEnd } : null;
+    return syncCached("dashboard", clientId, [rangeKey, customStart, customEnd], () =>
+      getDashboardData(clientId, rangeKey, custom, createAdminClient())
+    );
+  }
+);

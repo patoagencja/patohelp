@@ -4,7 +4,8 @@ import { formatInTimeZone } from "date-fns-tz";
 
 import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { syncCached } from "@/lib/dashboard/sync-cache";
+import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 
 const WARSAW_TZ = "Europe/Warsaw";
 
@@ -188,6 +189,20 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
     endDate: f.end_date as string,
   }));
 
+  // The flights are read live (agency edits show at once); the delivery
+  // join below only changes when a sync lands, so it is shared across
+  // requests per sync stamp, keyed by the exact goal definitions.
+  return syncCached("pacing", clientId, [JSON.stringify(defs)], () =>
+    joinDelivery(clientId, defs, todayStr)
+  );
+});
+
+async function joinDelivery(
+  clientId: string,
+  defs: FlightDef[],
+  todayStr: string
+): Promise<PacingFlight[]> {
+  const admin = createAdminClient();
   const campaignDefs = defs.filter((d) => !d.adsetId);
   const adsetDefs = defs.filter((d) => d.adsetId);
   // clicks_all arrives with migration 0034: only named in the select when a
@@ -211,16 +226,17 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
   // Only the goals' campaigns, paginated: every campaign since the earliest
   // flight start passes PostgREST's silent 1000-row cap within weeks, which
   // undercounted "realized" and painted on-track rings as "behind".
+  // Month-sized chunks side by side: flights can start long ago.
   const adsPromise =
     campaignDefs.length > 0
-      ? fetchAll<Row>((from, to) =>
+      ? fetchAllByDateChunks<Row>(earliest(campaignDefs), todayStr, 31, (s, e) => (from, to) =>
           admin
             .from("ads_daily")
             .select(adsSelect)
             .eq("client_id", clientId)
             .in("campaign_id", Array.from(new Set(campaignDefs.map((f) => f.campaignId))))
-            .gte("date", earliest(campaignDefs))
-            .lte("date", todayStr)
+            .gte("date", s)
+            .lte("date", e)
             .order("date", { ascending: true })
             .order("provider", { ascending: true })
             .order("campaign_id", { ascending: true })
@@ -232,14 +248,14 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
   // at zero rather than failing every goal.
   const adsetPromise =
     adsetDefs.length > 0
-      ? fetchAll<Row>((from, to) =>
+      ? fetchAllByDateChunks<Row>(earliest(adsetDefs), todayStr, 31, (s, e) => (from, to) =>
           admin
             .from("ads_adset_daily")
             .select(adsetSelect)
             .eq("client_id", clientId)
             .in("adset_id", Array.from(new Set(adsetDefs.map((f) => f.adsetId as string))))
-            .gte("date", earliest(adsetDefs))
-            .lte("date", todayStr)
+            .gte("date", s)
+            .lte("date", e)
             .order("date", { ascending: true })
             .order("provider", { ascending: true })
             .order("adset_id", { ascending: true })
@@ -269,4 +285,4 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
       : sumByDate(ads, col, (r) => r.campaign_id === def.campaignId && inWindow(r));
     return computePacing(def, byDate, todayStr);
   });
-});
+}

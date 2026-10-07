@@ -2,7 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { formatMoneyPLN } from "@/lib/utils";
@@ -200,13 +200,14 @@ export async function detectBudgetSpikes(
   // Fetch enough history for both single-day baselines and the weekly window.
   const fetchStart = fmtDate(subDays(today, WEEK_DAYS + PRIOR_WEEKS_DAYS + 1)); // ~22 days
 
-  const data = await fetchAll<Record<string, unknown>>((from, to) =>
+  // Week-long chunks side by side (same rows, same order as one read).
+  const data = await fetchAllByDateChunks<Record<string, unknown>>(fetchStart, todayStr, 7, (s, e) => (from, to) =>
     supabase
       .from("ads_daily")
       .select("date, campaign_id, campaign_name, spend_minor_units")
       .eq("client_id", clientId)
-      .gte("date", fetchStart)
-      .lte("date", todayStr)
+      .gte("date", s)
+      .lte("date", e)
       .order("date", { ascending: true })
       .order("provider", { ascending: true })
       .order("campaign_id", { ascending: true })

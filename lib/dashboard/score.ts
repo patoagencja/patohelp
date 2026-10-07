@@ -1,8 +1,11 @@
 import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getAdsDayTotals } from "@/lib/dashboard/ads-totals";
+import { syncCached } from "@/lib/dashboard/sync-cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
-import { createClient } from "@/lib/supabase/server";
 
 // "Puls" - a Whoop-style form score (0-100) for a client, measured against the
 // client's OWN long-run norm. Deliberately SMOOTHED (7-day window) and floored
@@ -124,8 +127,22 @@ function pct(recent: number, base: number): number | null {
   return Math.round(((recent - base) / base) * 100);
 }
 
-export async function getDailyScore(clientId: string): Promise<DailyScore | null> {
-  const supabase = createClient();
+/**
+ * The overview's "Puls". Eight weeks of daily totals that only move when a
+ * sync lands: shared across requests per sync stamp (lib/dashboard/
+ * sync-cache.ts). Service-role read - `clientId` MUST come from
+ * getClientBySlug (resolved through RLS).
+ */
+export function getDailyScore(clientId: string): Promise<DailyScore | null> {
+  return syncCached("score", clientId, [], () =>
+    computeDailyScore(clientId, createAdminClient())
+  );
+}
+
+async function computeDailyScore(
+  clientId: string,
+  supabase: SupabaseClient
+): Promise<DailyScore | null> {
   const today = formatInTimeZone(new Date(), WARSAW_TZ, "yyyy-MM-dd");
   // Complete days only: today's half-synced day counted as a full day in the
   // 7-day averages, so every morning the "Puls" and its factor deltas sagged
@@ -140,26 +157,10 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
     "yyyy-MM-dd"
   );
 
+  // Per-day account totals (ads_daily_totals view, raw-row fallback): one
+  // row per day and platform instead of one per campaign.
   const [adsRows, ga4Rows] = await Promise.all([
-    fetchAll<{
-      date: string;
-      spend_minor_units: number | string;
-      clicks: number | string;
-      impressions: number | string;
-    }>((from, to) =>
-      supabase
-        .from("ads_daily")
-        .select("date, spend_minor_units, clicks, impressions")
-        .eq("client_id", clientId)
-        .gte("date", since)
-        .lte("date", lastFullDay)
-        .order("date", { ascending: true })
-        // Provider too: campaign ids are only unique per platform, and
-        // fetchAll needs a total order to page without skips/duplicates.
-        .order("provider", { ascending: true })
-        .order("campaign_id", { ascending: true })
-        .range(from, to)
-    ),
+    getAdsDayTotals(supabase, clientId, since, lastFullDay),
     fetchAll<{ date: string; sessions: number | string }>((from, to) =>
       supabase
         .from("ga4_daily")
@@ -187,9 +188,9 @@ export async function getDailyScore(clientId: string): Promise<DailyScore | null
   };
   for (const r of adsRows) {
     const m = get(r.date);
-    m.spend += Number(r.spend_minor_units) || 0;
-    m.clicks += Number(r.clicks) || 0;
-    m.impressions += Number(r.impressions) || 0;
+    m.spend += r.spend;
+    m.clicks += r.clicks;
+    m.impressions += r.impressions;
   }
   for (const r of ga4Rows) get(r.date).sessions += Number(r.sessions) || 0;
 

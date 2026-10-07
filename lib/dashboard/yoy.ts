@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatInTimeZone } from "date-fns-tz";
 
+import { getAdsDayTotals } from "@/lib/dashboard/ads-totals";
 import type { TrendPoint } from "@/lib/dashboard/metrics";
+import { syncCached } from "@/lib/dashboard/sync-cache";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
@@ -138,59 +141,71 @@ export async function getEngagementYoY(
   db?: SupabaseClient
 ): Promise<EngagementYoY | null> {
   try {
-    const supabase: SupabaseClient = db ?? createClient();
-    const lyStart = addDays(start, -YOY_SHIFT_DAYS);
-    const lyEnd = addDays(end, -YOY_SHIFT_DAYS);
-    // Paged: a year-old window on a large account still exceeds PostgREST's
-    // silent 1000-row cap. `id` as the tie-break keeps page boundaries stable.
-    const [adsRows, ga4Rows] = await Promise.all([
-      fetchAll<Record<string, unknown>>((from, to) =>
-        supabase
-          .from("ads_daily")
-          .select("date, spend_minor_units, clicks, impressions, conversions")
-          .eq("client_id", clientId)
-          .gte("date", lyStart)
-          .lte("date", lyEnd)
-          .order("date", { ascending: true })
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAll<Record<string, unknown>>((from, to) =>
-        supabase
-          .from("ga4_daily")
-          .select("date, sessions")
-          .eq("client_id", clientId)
-          .is("source_medium", null)
-          .is("device_category", null)
-          .is("page_path", null)
-          .gte("date", lyStart)
-          .lte("date", lyEnd)
-          .order("date", { ascending: true })
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
-    ]);
-
-    const ads = new Map<string, AdsDay>();
-    for (const r of adsRows) {
-      const date = String(r.date).slice(0, 10);
-      const cur = ads.get(date) ?? { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
-      cur.spend += Number(r.spend_minor_units ?? 0);
-      cur.clicks += Number(r.clicks ?? 0);
-      cur.impressions += Number(r.impressions ?? 0);
-      cur.conversions += Number(r.conversions ?? 0);
-      ads.set(date, cur);
-    }
-    const ga4 = new Map<string, number>();
-    for (const r of ga4Rows) {
-      const date = String(r.date).slice(0, 10);
-      ga4.set(date, (ga4.get(date) ?? 0) + Number(r.sessions ?? 0));
-    }
-    const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
-    return { ...buildEngagementYoY(start, end, ads, ga4), endsToday: end === today };
+    return await readEngagementYoY(clientId, start, end, db ?? createClient());
   } catch {
     return null;
   }
+}
+
+/**
+ * The overview's YoY: shared across requests until the next sync (lib/
+ * dashboard/sync-cache.ts). Service-role read - `clientId` MUST come from
+ * getClientBySlug. A failed read is not cached; it just yields null.
+ */
+export function loadEngagementYoY(
+  clientId: string,
+  start: string,
+  end: string
+): Promise<EngagementYoY | null> {
+  return syncCached("yoy", clientId, [start, end], () =>
+    readEngagementYoY(clientId, start, end, createAdminClient())
+  ).catch(() => null);
+}
+
+async function readEngagementYoY(
+  clientId: string,
+  start: string,
+  end: string,
+  supabase: SupabaseClient
+): Promise<EngagementYoY> {
+  const lyStart = addDays(start, -YOY_SHIFT_DAYS);
+  const lyEnd = addDays(end, -YOY_SHIFT_DAYS);
+  // Per-day account totals (ads_daily_totals view, raw-row fallback) and
+  // the GA4 daily totals, paged past PostgREST's silent 1000-row cap.
+  const [adsRows, ga4Rows] = await Promise.all([
+    getAdsDayTotals(supabase, clientId, lyStart, lyEnd),
+    fetchAll<Record<string, unknown>>((from, to) =>
+      supabase
+        .from("ga4_daily")
+        .select("date, sessions")
+        .eq("client_id", clientId)
+        .is("source_medium", null)
+        .is("device_category", null)
+        .is("page_path", null)
+        .gte("date", lyStart)
+        .lte("date", lyEnd)
+        .order("date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)
+    ),
+  ]);
+
+  const ads = new Map<string, AdsDay>();
+  for (const r of adsRows) {
+    const cur = ads.get(r.date) ?? { spend: 0, clicks: 0, impressions: 0, conversions: 0 };
+    cur.spend += r.spend;
+    cur.clicks += r.clicks;
+    cur.impressions += r.impressions;
+    cur.conversions += r.conversions;
+    ads.set(r.date, cur);
+  }
+  const ga4 = new Map<string, number>();
+  for (const r of ga4Rows) {
+    const date = String(r.date).slice(0, 10);
+    ga4.set(date, (ga4.get(date) ?? 0) + Number(r.sessions ?? 0));
+  }
+  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
+  return { ...buildEngagementYoY(start, end, ads, ga4), endsToday: end === today };
 }
 
 /**

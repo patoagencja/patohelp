@@ -29,12 +29,12 @@ import {
 } from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
-import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
-import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
+import type { Anomaly } from "@/lib/alerts/anomalies";
+import { getCurrentAlerts } from "@/lib/alerts/current";
 import { getPacing, type PacingFlight } from "@/lib/alerts/pacing";
 import type { GlossaryKey } from "@/lib/dashboard/glossary";
 import {
-  getDashboardData,
+  loadDashboardData,
   normalizeRange,
   parseCustomRange,
   resolveDashboardRange,
@@ -49,13 +49,12 @@ import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { getDailyScore } from "@/lib/dashboard/score";
 import { getEngagementGoals } from "@/lib/dashboard/goals";
 import { buildStory, overviewStatus, type Story } from "@/lib/dashboard/story";
-import { getEngagementYoY } from "@/lib/dashboard/yoy";
+import { loadEngagementYoY } from "@/lib/dashboard/yoy";
 import { buildHero, heroKicker } from "@/lib/dashboard/hero";
 import { buildQuickAnswers } from "@/lib/dashboard/quick-answers";
 import type { PlanRow } from "@/components/dashboard/plan-card";
 import type { AiSummary } from "@/lib/dashboard/overview";
 import { getMonthPacing } from "@/lib/ecom/insights";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 import { setMonthlyBudget } from "./actions";
 
@@ -94,32 +93,10 @@ export default async function OverviewPage({
   const isDre = params.clientSlug === "dre";
 
   // Live anomaly digest (same engine as the Alerty tab): budget spikes first.
-  // The spike detector needs the client's caps, so chain just those two.
-  const spikesPromise = createAdminClient()
-    .from("notification_settings")
-    .select(
-      "daily_spend_cap_minor_units, account_daily_spend_cap_minor_units, spike_multiplier"
-    )
-    .eq("client_id", client.id)
-    .maybeSingle()
-    .then(({ data: notif }) => {
-      const budgetConfig: BudgetConfig = {
-        campaignCap: (notif?.daily_spend_cap_minor_units as number | null) ?? null,
-        accountCap:
-          (notif?.account_daily_spend_cap_minor_units as number | null) ?? null,
-        multiplier:
-          notif?.spike_multiplier && Number(notif.spike_multiplier) > 0
-            ? Number(notif.spike_multiplier)
-            : 3,
-      };
-      return detectBudgetSpikes(client.id, undefined, budgetConfig);
-    });
-
-  // Everything that doesn't need the range data starts now, alongside it,
-  // instead of queueing behind getDashboardData.
-  const anomaliesPromise = Promise.all([spikesPromise, detectAnomalies(client.id)]).then(
-    ([spikes, anomalies]): Anomaly[] => [...spikes, ...anomalies]
-  );
+  // The very scan the header bell counts (getCurrentAlerts is request-cached
+  // and shared across requests until the next sync) - the overview used to
+  // run its own identical copy alongside the bell's.
+  const anomaliesPromise: Promise<Anomaly[]> = getCurrentAlerts(client.id);
   // Rejections surface where the promise is awaited (inside Suspense); this
   // only stops Node from flagging it as unhandled while it waits.
   anomaliesPromise.catch(() => {});
@@ -147,13 +124,13 @@ export default async function OverviewPage({
     engagementGoals,
     viewer,
   ] = await Promise.all([
-    getDashboardData(client.id, range, custom),
+    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
     sidePromise,
     getEvents(client.id, period.start, period.end),
     // A failed read just hides the "Co dla Ciebie zrobiliśmy" card.
     getRecentAgencyWork(client.id).catch(() => undefined),
     // Same window a year earlier; null (no lines, no option) on any error.
-    getEngagementYoY(client.id, period.start, period.end),
+    loadEngagementYoY(client.id, period.start, period.end),
     goalsPromise,
     viewerPromise,
   ]);

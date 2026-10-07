@@ -33,7 +33,8 @@ import {
   type ExpiringToken,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { getSpendByClientOnDate } from "@/lib/dashboard/ads-totals";
+import { syncCached } from "@/lib/dashboard/sync-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { plPlural } from "@/lib/dashboard/story";
@@ -137,22 +138,12 @@ export default async function ClientsPage({
     "Europe/Warsaw",
     "yyyy-MM-dd"
   );
-  const spendRows = await fetchAll<{ client_id: string; spend_minor_units: number | string }>(
-    (from, to) =>
-      admin
-        .from("ads_daily")
-        .select("client_id, spend_minor_units")
-        .eq("date", yesterday)
-        .order("client_id", { ascending: true })
-        .range(from, to)
-  );
-  const spendByClient = new Map<string, number>();
-  for (const r of spendRows) {
-    spendByClient.set(
-      r.client_id,
-      (spendByClient.get(r.client_id) ?? 0) + Number(r.spend_minor_units)
-    );
-  }
+  // Per-day totals view (one row per client and platform; raw-row fallback
+  // with a total order - client_id alone could repeat/skip rows across pages).
+  // Started now, awaited after the per-client checks: independent reads.
+  const spendPromise = getSpendByClientOnDate(admin, yesterday);
+  // Awaited below; this only stops Node flagging an early rejection.
+  spendPromise.catch(() => {});
 
   // Live CRITICAL alert count per client (spend spikes + anomalies), in
   // parallel. Only critical severity is surfaced on the picker.
@@ -165,25 +156,34 @@ export default async function ClientsPage({
   >();
   await Promise.all(
     clientList.map(async (c) => {
-      const [down, expiring] = await Promise.all([
+      // Health and the alert scan are independent: side by side.
+      const healthPromise = Promise.all([
         getUnhealthyIntegrations(c.id as string).then((hs) => hs.filter((h) => !h.reconnected)),
         getExpiringTokens(c.id as string),
-      ]);
-      healthByClient.set(c.id as string, { down, expiring });
+      ]).then(([down, expiring]) => {
+        healthByClient.set(c.id as string, { down, expiring });
+      });
       try {
-        const [spikes, anomalies] = await Promise.all([
-          detectBudgetSpikes(c.id as string),
-          detectAnomalies(c.id as string),
-        ]);
-        const critical = [...spikes, ...anomalies].filter(
-          (a) => a.severity === "critical"
-        ).length;
+        // Default caps (as before), three weeks of rows per client: shared
+        // per sync stamp so revisiting the picker doesn't rescan everyone.
+        // Agency viewer verified above; service-role read of listed clients.
+        const all = await syncCached("alerts-default-caps", c.id as string, [], async () => {
+          const [spikes, anomalies] = await Promise.all([
+            detectBudgetSpikes(c.id as string, admin),
+            detectAnomalies(c.id as string, admin),
+          ]);
+          return [...spikes, ...anomalies];
+        });
+        const critical = all.filter((a) => a.severity === "critical").length;
         alertCounts.set(c.id as string, critical);
       } catch {
         alertCounts.set(c.id as string, 0);
       }
+      await healthPromise;
     })
   );
+
+  const spendByClient = await spendPromise;
 
   // Not awaited: the to-do checks stream in under Suspense, so the tiles
   // (already computed above) render without waiting for them. Health and

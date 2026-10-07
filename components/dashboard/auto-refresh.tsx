@@ -50,9 +50,45 @@ export function AutoRefresh({
   const [, startTransition] = useTransition();
   const stampRef = useRef(initialStamp);
   const busy = useRef(false);
+  const lastRefreshAt = useRef(0);
+  const pendingRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Providers land one after another (an "Odśwież"/AutoSync run moves the
+  // stamp several times within a minute or two), and every refresh re-renders
+  // the whole dashboard. Refresh at once for the first new stamp, then at
+  // most once per MIN_GAP_MS - the last stamp in a burst still gets its
+  // refresh, just coalesced with the ones before it.
+  const refresh = useCallback(() => {
+    const MIN_GAP_MS = 90_000;
+    const run = () => {
+      pendingRefresh.current = null;
+      lastRefreshAt.current = Date.now();
+      // Transition keeps the current screen interactive while fresh server
+      // components stream in - no skeleton flash.
+      startTransition(() => router.refresh());
+    };
+    if (pendingRefresh.current) return; // one is already scheduled
+    const wait = lastRefreshAt.current + MIN_GAP_MS - Date.now();
+    if (wait <= 0) run();
+    else pendingRefresh.current = setTimeout(run, wait);
+  }, [router]);
+
+  useEffect(
+    () => () => {
+      if (pendingRefresh.current) clearTimeout(pendingRefresh.current);
+    },
+    []
+  );
 
   // A server re-render (navigation, manual refresh) brings a fresher stamp.
   useEffect(() => {
+    // A navigation already rendered the newest known stamp: a coalesced
+    // refresh still waiting would only redo that work.
+    if (initialStamp && initialStamp === stampRef.current && pendingRefresh.current) {
+      clearTimeout(pendingRefresh.current);
+      pendingRefresh.current = null;
+      lastRefreshAt.current = Date.now();
+    }
     if (initialStamp && initialStamp !== stampRef.current) {
       stampRef.current = initialStamp;
       setStamp(initialStamp);
@@ -74,16 +110,14 @@ export function AutoRefresh({
           setPulse(false);
           broadcast({ stamp: latest, pulse: false });
         }, 1200);
-        // Transition keeps the current screen interactive while fresh server
-        // components stream in - no skeleton flash.
-        startTransition(() => router.refresh());
+        refresh();
       }
     } catch {
       // offline / transient - try again on the next tick
     } finally {
       busy.current = false;
     }
-  }, [checkStamp, router]);
+  }, [checkStamp, refresh]);
 
   useEffect(() => {
     const poll = setInterval(check, pollSeconds * 1000);

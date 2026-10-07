@@ -1,4 +1,4 @@
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 
@@ -14,6 +14,7 @@ import {
 import { getClientWebsite } from "@/lib/branding/website";
 import { getClientBranding } from "@/lib/dashboard/branding";
 import { getClientBySlug } from "@/lib/dashboard/context";
+import { clientDataTag } from "@/lib/dashboard/sync-cache";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -155,6 +156,9 @@ async function saveAccounts(formData: FormData) {
     }
   }
 
+  // The provider's rows were just purged without a new sync stamp: drop the
+  // client's cached aggregates (lib/dashboard/sync-cache.ts) as well.
+  revalidateTag(clientDataTag(access.clientId));
   revalidatePath(`/${clientSlug}/settings`);
   revalidatePath(`/${clientSlug}`);
   redirect(`/${clientSlug}/settings?saved=${provider}`);
@@ -228,7 +232,7 @@ export default async function SettingsPage({
   searchParams,
 }: {
   params: { clientSlug: string };
-  searchParams: { connected?: string; error?: string; saved?: string };
+  searchParams: { connected?: string; error?: string; saved?: string; fixed?: string };
 }) {
   const access = await requireAgencyClientAccess(params.clientSlug);
   if (!access.ok) {
@@ -290,6 +294,7 @@ export default async function SettingsPage({
         connected={searchParams.connected}
         error={searchParams.error}
         saved={searchParams.saved}
+        fixed={searchParams.fixed}
       />
 
       <div className="space-y-4">

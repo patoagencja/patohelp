@@ -30,7 +30,7 @@ import { getDemographics, genderLabel } from "@/lib/dashboard/demographics";
 import { getWebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { Kpi } from "@/lib/dashboard/metrics";
 import {
-  getDashboardData,
+  loadDashboardData,
   normalizeRange,
   parseCustomRange,
 } from "@/lib/dashboard/metrics";
@@ -308,7 +308,7 @@ export default async function RaportPage({
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
   const [data, website, demo, creatives] = await Promise.all([
-    getDashboardData(client.id, range, custom),
+    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
     getWebsiteData(client.id),
     getDemographics(client.id),
     supabase
