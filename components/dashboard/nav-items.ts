@@ -1,6 +1,7 @@
 import {
   BellRing,
   BookOpen,
+  CalendarRange,
   FileText,
   Globe,
   Image as ImageIcon,
@@ -45,6 +46,9 @@ export const HELP_EVENT = "pato:help";
  *   engagement client: Przegląd · Reklamy · Strona www · Raporty · Więcej
  *   e-commerce client: Przegląd · Sprzedaż · Reklamy · Strona www · Więcej
  *                      (Raporty moves into Więcej)
+ *   seasonal client:   Sezon right after Przegląd; the phone tab bar keeps
+ *                      its first four, so the last main place drops into
+ *                      the "Więcej" sheet (mobile-nav.tsx)
  *
  * Kreacje lives inside Reklamy; Alerty, Newsy and Słowniczek are under
  * "Więcej" (alerts are also one tap away via the header bell); agency tools
@@ -53,11 +57,14 @@ export const HELP_EVENT = "pato:help";
 export function buildNav({
   base,
   isEcommerce,
+  isSeasonal = false,
   isAgency,
   omit = [],
 }: {
   base: string;
   isEcommerce: boolean;
+  /** clients.season is set (lib/season): adds the Sezon view. */
+  isSeasonal?: boolean;
   isAgency: boolean;
   omit?: string[];
 }): NavGroup[] {
@@ -67,6 +74,9 @@ export function buildNav({
 
   const main: NavItem[] = [
     { href: base, label: "Przegląd", icon: LayoutDashboard },
+    // Second on purpose: in season it is the page a seasonal client opens
+    // first, so it must keep a phone tab slot over the pages after it.
+    ...(isSeasonal ? [{ href: `${base}/sezon`, label: "Sezon", icon: CalendarRange }] : []),
     ...(isEcommerce ? [{ href: `${base}/sprzedaz`, label: "Sprzedaż", icon: ShoppingBag }] : []),
     {
       href: `${base}/reklamy`,
@@ -137,8 +147,8 @@ export function findSection(groups: NavGroup[], item: NavItem | undefined): NavI
 }
 
 /**
- * The 2026 top bar's sections (Przeglad-pastel): Przegląd · [Sprzedaż] ·
- * Reklamy · Strona · Alerty. Raporty, Newsy and Słowniczek move into the
+ * The 2026 top bar's sections (Przeglad-pastel): Przegląd · [Sezon] ·
+ * [Sprzedaż] · Reklamy · Strona · Alerty. Raporty, Newsy and Słowniczek move into the
  * "…" menu; Kreacje stays a child of Reklamy (its tabs + active state).
  */
 export function topNavItems(groups: NavGroup[]): NavItem[] {

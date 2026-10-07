@@ -9,20 +9,22 @@ import { cn } from "@/lib/utils";
 
 /**
  * The floating bar's section switcher: a sliding segmented pill of links
- * (Przegląd · [Sprzedaż] · Reklamy · Strona · Alerty). Kreacje lights up
- * Reklamy. aria-current carries the selection for assistive tech; the pill
- * fill + contrast carry it visually. The guided tour points at this nav
- * (aria-label "Sekcje").
+ * (Przegląd · [Sezon] · [Sprzedaż] · Reklamy · Strona · Alerty). Kreacje
+ * lights up Reklamy. aria-current carries the selection for assistive tech;
+ * the pill fill + contrast carry it visually. The guided tour points at this
+ * nav (aria-label "Sekcje").
  */
 export function TopNav({
   base,
   isEcommerce,
+  isSeasonal = false,
   isAgency,
   omit = [],
   className,
 }: {
   base: string;
   isEcommerce: boolean;
+  isSeasonal?: boolean;
   isAgency: boolean;
   omit?: string[];
   className?: string;
@@ -31,7 +33,7 @@ export function TopNav({
   const sp = useSearchParams();
   // The public demo keeps its language switch across tabs.
   const suffix = sp.get("lang") === "en" ? "?lang=en" : "";
-  const groups = buildNav({ base, isEcommerce, isAgency, omit });
+  const groups = buildNav({ base, isEcommerce, isSeasonal, isAgency, omit });
   const items = topNavItems(groups);
   const section = findSection(groups, findActive(groups, pathname, base));
 
@@ -61,16 +63,18 @@ export function TopNav({
 export function PageName({
   base,
   isEcommerce,
+  isSeasonal = false,
   isAgency,
   className,
 }: {
   base: string;
   isEcommerce: boolean;
+  isSeasonal?: boolean;
   isAgency: boolean;
   className?: string;
 }) {
   const pathname = usePathname();
-  const page = findActive(buildNav({ base, isEcommerce, isAgency }), pathname, base);
+  const page = findActive(buildNav({ base, isEcommerce, isSeasonal, isAgency }), pathname, base);
   if (!page) return null;
   return <span className={className}>{page.short ?? page.label}</span>;
 }

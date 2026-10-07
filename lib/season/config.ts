@@ -148,7 +148,7 @@ export function seasonMoments(w: SeasonWindow): SeasonMoment[] {
 }
 
 /** "1 października" - the Polish genitive month for "do 24 grudnia". */
-const MONTH_GEN = [
+export const MONTH_GEN = [
   "stycznia",
   "lutego",
   "marca",

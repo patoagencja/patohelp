@@ -26,6 +26,7 @@ export function AppShell({
   style,
   base,
   isEcommerce,
+  isSeasonal = false,
   isAgency,
   omit,
   brand,
@@ -46,6 +47,8 @@ export function AppShell({
   style?: React.CSSProperties;
   base: string;
   isEcommerce: boolean;
+  /** clients.season is set: the nav gains Sezon (nav-items.ts). */
+  isSeasonal?: boolean;
   isAgency: boolean;
   omit?: string[];
   /** Client mark for the bar (md+). */
@@ -95,6 +98,7 @@ export function AppShell({
               <PageName
                 base={base}
                 isEcommerce={isEcommerce}
+                isSeasonal={isSeasonal}
                 isAgency={isAgency}
                 className="truncate text-[15px] font-semibold"
               />
@@ -105,6 +109,7 @@ export function AppShell({
           <TopNav
             base={base}
             isEcommerce={isEcommerce}
+            isSeasonal={isSeasonal}
             isAgency={isAgency}
             omit={omit}
             className="order-last hidden w-full justify-between md:flex xl:order-none xl:w-auto xl:min-w-0 xl:shrink xl:justify-start xl:overflow-x-auto xl:[scrollbar-width:none]"
@@ -120,7 +125,13 @@ export function AppShell({
       </div>
 
       <div data-present-hide>
-        <MobileNav clientSlug={base.replace(/^\//, "")} isAgency={isAgency} isEcommerce={isEcommerce} omit={omit} />
+        <MobileNav
+          clientSlug={base.replace(/^\//, "")}
+          isAgency={isAgency}
+          isEcommerce={isEcommerce}
+          isSeasonal={isSeasonal}
+          omit={omit}
+        />
       </div>
 
       <main id="main" tabIndex={-1} className={cn("mx-auto w-full max-w-[80rem] flex-1 outline-none", mainClassName)}>

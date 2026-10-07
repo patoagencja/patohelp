@@ -30,6 +30,7 @@ import { ConnectionStability } from "./connection-stability";
 import { EcomSettingsSection } from "./ecom-settings";
 import { GoalsSettingsSection } from "./goals-settings";
 import { CHECKBOX_CLASS } from "./form-styles";
+import { SeasonSettingsSection } from "./season-settings";
 import { SettingsNav } from "./settings-nav";
 import { ShareOverviewSection } from "./share-overview";
 import { TestAlertButton } from "./test-alert-button";
@@ -345,6 +346,7 @@ export default async function SettingsPage({
           links={[
             { id: "integracje", label: "Integracje" },
             { id: "polaczenia", label: "Połączenia" },
+            { id: "sezon", label: "Sezon i typ" },
             ...(isEcommerce
               ? [{ id: "ecommerce", label: "Marża i cele" }]
               : [{ id: "cele", label: "Cele miesięczne" }]),
@@ -606,6 +608,10 @@ export default async function SettingsPage({
       </section>
 
       <ConnectionStability clientId={access.clientId} clientSlug={params.clientSlug} />
+
+      {/* Before the goals: the type picked here decides which goals form
+          follows (margin + revenue vs monthly traffic goals). */}
+      <SeasonSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} />
 
       {isEcommerce ? (
         <EcomSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} />

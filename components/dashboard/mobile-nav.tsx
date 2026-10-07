@@ -25,11 +25,13 @@ export function MobileNav({
   clientSlug,
   isAgency,
   isEcommerce = false,
+  isSeasonal = false,
   omit = [],
 }: {
   clientSlug: string;
   isAgency: boolean;
   isEcommerce?: boolean;
+  isSeasonal?: boolean;
   /** Tab hrefs to leave out (the public demo has no report tab). */
   omit?: string[];
 }) {
@@ -47,21 +49,23 @@ export function MobileNav({
   // Close the sheet whenever navigation happens.
   useEffect(() => setOpen(false), [pathname]);
 
-  const groups = buildNav({ base, isEcommerce, isAgency, omit });
+  const groups = buildNav({ base, isEcommerce, isSeasonal, isAgency, omit });
   const active = findActive(groups, pathname, base);
   // Kreacje lights up the Reklamy tab: it is a part of that place.
   const section = findSection(groups, active);
   const mainItems = groups.find((g) => g.id === "main")?.items ?? [];
   const primary = mainItems.slice(0, 4);
-  // Sub-pages (Kreacje) and any overflow go to the sheet, ahead of "Więcej".
+  // Main places past the fourth (a seasonal client's Sezon pushes Raporty or
+  // Strona out) lead the unlabelled "Więcej" list - under the "Reklamy"
+  // heading they would read as ad sub-pages. Sub-pages (Kreacje) keep it.
+  const overflow = mainItems.slice(4);
+  const moreItems = groups.find((g) => g.id === "more")?.items ?? [];
   const sheetSections: { label?: string; items: NavItem[] }[] = [
-    {
-      label: "Reklamy",
-      items: [...mainItems.slice(4), ...mainItems.flatMap((i) => i.children ?? [])],
-    },
+    { label: "Reklamy", items: mainItems.flatMap((i) => i.children ?? []) },
+    { items: [...overflow, ...moreItems] },
     ...groups
-      .filter((g) => g.id !== "main")
-      .map((g) => ({ label: g.id === "more" ? undefined : g.label, items: g.items })),
+      .filter((g) => g.id === "agency")
+      .map((g) => ({ label: g.label, items: g.items })),
   ].filter((s) => s.items.length > 0);
   const moreActive = !!section && !primary.some((i) => i.href === section.href);
   const slots = primary.length + 1;

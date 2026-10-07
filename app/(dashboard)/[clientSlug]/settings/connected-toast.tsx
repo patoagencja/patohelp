@@ -82,6 +82,20 @@ export function ConnectedToast({
       );
     } else if (error === "access_failed") {
       toast.error("Nie udało się zmienić dostępu. Odśwież stronę i spróbuj ponownie.");
+    } else if (error === "season_migration") {
+      toast.warning(
+        "Typ klienta zapisany, ale sezon nie - w bazie brakuje kolumny. Uruchom supabase/migrations/ALL_RECENT_7.sql w Supabase SQL Editor."
+      );
+    } else if (error === "season_type_migration") {
+      toast.error(
+        "W bazie brakuje kolumny typu klienta. Uruchom supabase/migrations/0016_ecommerce.sql w Supabase SQL Editor."
+      );
+    } else if (error === "season_same_day") {
+      toast.error("Początek i koniec sezonu muszą być różnymi dniami.");
+    } else if (error === "season_bad_date") {
+      toast.error("Taki dzień nie istnieje (np. 31 listopada) - popraw daty sezonu.");
+    } else if (error === "season_failed") {
+      toast.error("Nie udało się zapisać typu i sezonu. Spróbuj ponownie.");
     } else if (error) {
       toast.error(
         `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
@@ -107,6 +121,8 @@ export function ConnectedToast({
       toast.success("Zapisano cele miesięczne");
     } else if (saved === "ecommerce") {
       toast.success("Zapisano marżę i cele sprzedaży");
+    } else if (saved === "season") {
+      toast.success("Zapisano typ klienta i sezon");
     } else if (saved === "notifications") {
       toast.success("Zapisano ustawienia powiadomień");
     } else if (saved?.startsWith("access")) {

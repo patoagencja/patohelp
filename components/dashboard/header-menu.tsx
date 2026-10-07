@@ -68,6 +68,7 @@ export function HeaderMenu({
   email,
   signOut,
   isEcommerce = false,
+  isSeasonal = false,
   isAgency = false,
   omit = [],
 }: {
@@ -78,6 +79,7 @@ export function HeaderMenu({
   signOut?: () => Promise<void>;
   /** Nav model inputs: pages that aren't in the top bar are listed here. */
   isEcommerce?: boolean;
+  isSeasonal?: boolean;
   isAgency?: boolean;
   omit?: string[];
 }) {
@@ -151,7 +153,7 @@ export function HeaderMenu({
 
   // Everything the top bar doesn't show (Raporty, Newsy, Słowniczek, agency
   // tools): same model as the bar, the phone sheet and the palette.
-  const groups = buildNav({ base: overviewPath, isEcommerce, isAgency, omit });
+  const groups = buildNav({ base: overviewPath, isEcommerce, isSeasonal, isAgency, omit });
   const inBar = new Set(topNavItems(groups).map((i) => i.href));
   const active = findActive(groups, pathname, overviewPath);
   const pages = groups

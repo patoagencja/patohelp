@@ -32,6 +32,8 @@ export default function DemoFullLayout({
       style={clientAccentStyle(DEMO_BRANDING.brandColor)}
       base={BASE}
       isEcommerce
+      // The showcase includes the seasonal view (/demo-full/sezon).
+      isSeasonal
       isAgency={false}
       omit={OMIT}
       brand={
@@ -63,10 +65,10 @@ export default function DemoFullLayout({
           brand={<ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-8" />}
         />
       }
-      menu={<HeaderMenu overviewPath={BASE} isEcommerce omit={OMIT} />}
+      menu={<HeaderMenu overviewPath={BASE} isEcommerce isSeasonal omit={OMIT} />}
       overlays={
         <>
-          <CommandPalette clientSlug="demo-full" isAgency={false} isEcommerce omit={OMIT} />
+          <CommandPalette clientSlug="demo-full" isAgency={false} isEcommerce isSeasonal omit={OMIT} />
           <GuidedTour isAgency={false} overviewPath={BASE} />
         </>
       }

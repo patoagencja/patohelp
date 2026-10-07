@@ -24,6 +24,7 @@ import {
   getLastSyncAt,
   getViewer,
 } from "@/lib/dashboard/context";
+import { getClientSeason } from "@/lib/season/load";
 import { createClient } from "@/lib/supabase/server";
 
 import { getSyncStamp } from "./live-actions";
@@ -49,7 +50,7 @@ export default async function ClientDashboardLayout({
   // whatever needs only the client starts the moment that row is in. The page
   // renders in parallel and shares both lookups (React cache).
   const clientPromise = getClientBySlug(params.clientSlug);
-  const [viewer, client, lastSyncAt, clientList] = await Promise.all([
+  const [viewer, client, lastSyncAt, clientList, season] = await Promise.all([
     getViewer(),
     clientPromise,
     clientPromise.then((c) => {
@@ -67,9 +68,13 @@ export default async function ClientDashboardLayout({
       .select("slug, name")
       .order("name", { ascending: true })
       .then((r) => r.data),
+    // Sezon in the nav: one more read that needs only the client id, so it
+    // rides alongside the sync stamp. React-cached: the season page reuses it.
+    clientPromise.then((c) => (c ? getClientSeason(c.id) : null)),
   ]);
   const isAgency = viewer.isAgency;
   const isEcommerce = client?.clientType === "ecommerce";
+  const isSeasonal = season !== null;
   const user = viewer.email ? { email: viewer.email } : null;
   const allClients = isAgency ? clientList : null;
   const checkStamp = getSyncStamp.bind(null, params.clientSlug);
@@ -91,6 +96,7 @@ export default async function ClientDashboardLayout({
       style={clientAccentStyle(client?.brandColor)}
       base={base}
       isEcommerce={isEcommerce}
+      isSeasonal={isSeasonal}
       isAgency={isAgency}
       brand={
         <ClientBrandMark
@@ -173,6 +179,7 @@ export default async function ClientDashboardLayout({
           email={user?.email}
           signOut={signOut}
           isEcommerce={isEcommerce}
+          isSeasonal={isSeasonal}
           isAgency={isAgency}
         />
       }
@@ -185,6 +192,7 @@ export default async function ClientDashboardLayout({
             clientSlug={params.clientSlug}
             isAgency={isAgency}
             isEcommerce={isEcommerce}
+            isSeasonal={isSeasonal}
             clients={allClients}
           />
           <GuidedTour isAgency={isAgency} overviewPath={base} />

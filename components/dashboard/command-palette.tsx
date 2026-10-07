@@ -94,8 +94,9 @@ const RECENT_KEY = "pato:cmdk-recent";
 const RECENT_MAX = 3;
 
 // Tabs whose pages ignore ?range= - picking a range there lands on the
-// overview instead of silently doing nothing.
-const NO_RANGE_TABS = new Set(["alerty", "newsy", "settings"]);
+// overview instead of silently doing nothing. Sezon is framed by the season
+// window itself (lib/season), not by a date range.
+const NO_RANGE_TABS = new Set(["alerty", "newsy", "settings", "sezon"]);
 
 // One output char per input char keeps match indices valid for highlighting
 // the original (accented) label. "ł" has no Unicode decomposition, hence the
@@ -190,12 +191,15 @@ export function CommandPalette({
   clientSlug,
   isAgency,
   isEcommerce = false,
+  isSeasonal = false,
   clients = null,
   omit = [],
 }: {
   clientSlug: string;
   isAgency: boolean;
   isEcommerce?: boolean;
+  /** clients.season is set: the Sezon view exists. */
+  isSeasonal?: boolean;
   /** Agency only: every client, same list the ClientSwitcher gets. */
   clients?: Array<{ slug: string; name: string }> | null;
   /** Tab hrefs to leave out (the public demo has no report tab). */
@@ -333,6 +337,9 @@ export function CommandPalette({
 
     const tabs: Array<{ path: string; label: string; icon: Icon; keywords?: string }> = [
       { path: "", label: "Przegląd", icon: LayoutDashboard, keywords: "overview start home kpi podsumowanie wyniki budzet cele rekordy wydatki ile wydalismy" },
+      ...(isSeasonal
+        ? [{ path: "sezon", label: "Sezon", icon: CalendarRange, keywords: "season sezonowy swieta boze narodzenie wigilia mikolajki black friday poprzedni sezon porownanie rok do roku prognoza" }]
+        : []),
       ...(isEcommerce
         ? [{ path: "sprzedaz", label: "Sprzedaż", icon: ShoppingBag, keywords: "sales sklep zamowienia przychod" }]
         : []),
@@ -458,6 +465,7 @@ export function CommandPalette({
     clientSlug,
     isAgency,
     isEcommerce,
+    isSeasonal,
     clients,
     omit,
     currentRange,
