@@ -167,7 +167,7 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
   return (
     <article
       role="listitem"
-      className="glass glass-blur relative flex w-[16.5rem] shrink-0 snap-start flex-col gap-3.5 rounded-tile p-5 pb-[18px] transition-[transform,box-shadow] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[5px] sm:w-auto sm:p-[22px] sm:pb-5"
+      className="glass relative flex w-[16.5rem] shrink-0 snap-start flex-col gap-3.5 rounded-tile p-5 pb-[18px] transition-[transform,box-shadow] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[5px] sm:w-auto sm:p-[22px] sm:pb-5"
       style={{ "--d": `${0.3 + index * 0.08}s` } as React.CSSProperties}
     >
       {/* The whole tile opens the goal's card on Alerty. Same-page anchors

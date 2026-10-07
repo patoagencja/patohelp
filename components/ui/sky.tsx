@@ -5,27 +5,29 @@
  * nearest `isolate` ancestor (the dashboard shell), decorative, hidden in
  * print; reduced motion stops the drift (globals.css).
  *
- * The blobs are transform-animated and will-change'd, so the 110px blur is
- * rasterised once and only composited afterwards.
+ * Static radial gradients (no blur filter, no animation): see globals.css
+ * .sky-blob for why.
  */
 export function Sky() {
   return (
     <div aria-hidden className="sky print:hidden">
+      {/* Sized ~ the old blob + 2x its blur radius, so the soft edge reaches
+          about as far as the blurred version did. */}
       <span
-        className="sky-blob left-[-180px] top-[-240px] h-[540px] w-[760px]"
-        style={{ background: "var(--blob1)" }}
+        className="sky-blob left-[-400px] top-[-460px] h-[980px] w-[1200px]"
+        style={{ ["--blob" as string]: "var(--blob1)" }}
       />
       <span
-        className="sky-blob right-[-140px] top-[-200px] h-[480px] w-[580px]"
-        style={{ background: "var(--blob2)", animationDuration: "32s", animationDelay: "-8s" }}
+        className="sky-blob right-[-360px] top-[-420px] h-[920px] w-[1020px]"
+        style={{ ["--blob" as string]: "var(--blob2)" }}
       />
       <span
-        className="sky-blob left-[36%] top-[420px] h-[520px] w-[640px] opacity-[.55]"
-        style={{ background: "var(--blob3)", animationDuration: "38s", animationDelay: "-14s" }}
+        className="sky-blob left-[30%] top-[200px] h-[960px] w-[1080px] opacity-[.55]"
+        style={{ ["--blob" as string]: "var(--blob3)" }}
       />
       <span
-        className="sky-blob bottom-[-260px] left-[-200px] h-[500px] w-[700px] opacity-30"
-        style={{ background: "var(--blob1)", animationDuration: "44s" }}
+        className="sky-blob bottom-[-480px] left-[-420px] h-[940px] w-[1140px] opacity-30"
+        style={{ ["--blob" as string]: "var(--blob1)" }}
       />
       <span className="sky-dots" />
     </div>

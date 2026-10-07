@@ -950,14 +950,12 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     background: var(--orb-ring);
     filter: blur(22px);
     opacity: 0.45;
-    animation: spin 9s linear infinite reverse;
   }
   .orb > .orb-ring {
     position: absolute;
     inset: 0;
     border-radius: inherit;
     background: var(--orb-ring);
-    animation: spin 5s linear infinite;
   }
   .orb > .orb-core {
     position: absolute;
@@ -966,9 +964,10 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     background: var(--orb-core);
     box-shadow: inset 0 0 16px var(--lime-glow);
   }
-  .orb[data-busy="true"] > .orb-halo,
+  /* Spins only while "thinking": an always-spinning blurred halo forced a
+     repaint every frame on every page with the AI card. */
   .orb[data-busy="true"] > .orb-ring {
-    animation-duration: 1.4s;
+    animation: spin 1.4s linear infinite;
   }
   .orb[data-busy="true"] {
     animation: orb-breath 1.2s ease-in-out infinite;
@@ -993,7 +992,6 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
 @keyframes reveal-word {
   from {
     opacity: 0;
-    filter: blur(4px);
   }
 }
 
@@ -1009,12 +1007,14 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
   overflow: hidden;
   pointer-events: none;
 }
+/* Static soft gradients, no filter, no animation. The blurred drifting
+   blobs looked the same but kept the GPU busy on every frame - and every
+   frosted bar/tile over them had to re-blur its backdrop each frame, which
+   is what made scrolling stutter on laptops. */
 .sky-blob {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(110px);
-  will-change: transform;
-  animation: drift 40s ease-in-out infinite alternate;
+  background: radial-gradient(closest-side, var(--blob), transparent);
 }
 .sky-dots {
   position: absolute;
@@ -1024,11 +1024,7 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
   -webkit-mask-image: linear-gradient(180deg, #000 0, transparent 1000px);
   mask-image: linear-gradient(180deg, #000 0, transparent 1000px);
 }
-@media (max-width: 767px) {
-  .sky-blob {
-    filter: blur(70px);
-  }
-}
+
 
 /* Skip link: hidden until focused. */
 .skip-link {

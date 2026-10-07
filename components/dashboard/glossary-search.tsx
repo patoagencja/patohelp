@@ -75,7 +75,7 @@ export function GlossarySearch({ groups }: { groups: GlossaryGroupView[] }) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Szukaj, np. CTR albo zasięg"
           autoComplete="off"
-          className="glass glass-blur h-14 rounded-full border-0 bg-transparent pl-12 pr-14 text-base hover:bg-transparent [&::-webkit-search-cancel-button]:hidden"
+          className="glass h-14 rounded-full border-0 bg-transparent pl-12 pr-14 text-base hover:bg-transparent [&::-webkit-search-cancel-button]:hidden"
         />
         {query ? (
           <button

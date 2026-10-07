@@ -24,7 +24,7 @@ export function NotFoundCard({
   return (
     <div
       className={cn(
-        "glass glass-blur flex w-full max-w-[28rem] flex-col items-start gap-5 rounded-glass p-7 animate-rise sm:p-10",
+        "glass flex w-full max-w-[28rem] flex-col items-start gap-5 rounded-glass p-7 animate-rise sm:p-10",
         className
       )}
     >

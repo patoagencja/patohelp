@@ -17,7 +17,7 @@ export function AiSummaryCard({
   return (
     // 2026 AI card (Przeglad-pastel): glass + the conic orb, a mono kicker
     // and the comment in body size. Print drops the orb and the blur.
-    <Card className="glass-blur rounded-glass p-6 sm:p-7">
+    <Card className="rounded-glass p-6 sm:p-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
         <span aria-hidden className="orb size-11 print:hidden">
           <span className="orb-halo" />

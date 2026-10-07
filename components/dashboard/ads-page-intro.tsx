@@ -121,7 +121,7 @@ function Tile({
 
   return (
     <div
-      className="glass glass-blur relative flex min-w-0 flex-col gap-3 rounded-tile p-4 pb-[18px] transition-transform duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[4px] sm:gap-4 sm:p-[22px] sm:pb-5"
+      className="glass relative flex min-w-0 flex-col gap-3 rounded-tile p-4 pb-[18px] transition-transform duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[4px] sm:gap-4 sm:p-[22px] sm:pb-5"
       style={{ "--d": `${0.2 + index * 0.08}s` } as React.CSSProperties}
     >
       {/* Phones: room for a two-line label, so the numbers line up. */}

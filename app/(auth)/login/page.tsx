@@ -92,7 +92,7 @@ export default function LoginPage() {
       <Sky />
 
       <div className="flex w-full max-w-[59rem] flex-wrap items-stretch justify-center gap-6">
-        <section className="glass glass-blur flex min-w-0 max-w-[27.5rem] flex-[1_1_21rem] flex-col gap-7 rounded-glass p-7 animate-rise sm:p-10">
+        <section className="glass flex min-w-0 max-w-[27.5rem] flex-[1_1_21rem] flex-col gap-7 rounded-glass p-7 animate-rise sm:p-10">
           <div className="flex items-center gap-3">
             {/* Brand mark in the "selected" language: the ink tile with the
                 lime dot of the active nav pill. */}

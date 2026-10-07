@@ -139,7 +139,7 @@ function Tile({
   return (
     <div
       className={cn(
-        "glass glass-blur relative flex w-[15rem] shrink-0 snap-start flex-col gap-3.5 rounded-tile p-5 pb-[18px] transition-[transform,box-shadow] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[5px] sm:w-auto sm:gap-4 sm:p-[22px] sm:pb-5",
+        "glass relative flex w-[15rem] shrink-0 snap-start flex-col gap-3.5 rounded-tile p-5 pb-[18px] transition-[transform,box-shadow] duration-500 [transition-timing-function:cubic-bezier(.34,1.56,.64,1)] focus-within:z-10 hover:z-10 animate-rise motion-safe:hover:-translate-y-[5px] sm:w-auto sm:gap-4 sm:p-[22px] sm:pb-5",
         selected && "shadow-lime-ring print:shadow-none"
       )}
       style={{ "--d": `${0.45 + index * 0.08}s` } as React.CSSProperties}

@@ -76,7 +76,7 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "glass glass-blur relative flex min-w-0 flex-col gap-3.5 rounded-tile p-5 pb-[18px] animate-rise focus-within:z-10 hover:z-10 sm:gap-4 sm:p-[22px] sm:pb-5",
+        "glass relative flex min-w-0 flex-col gap-3.5 rounded-tile p-5 pb-[18px] animate-rise focus-within:z-10 hover:z-10 sm:gap-4 sm:p-[22px] sm:pb-5",
         highlight && "shadow-lime-ring print:shadow-none",
         className
       )}

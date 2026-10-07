@@ -167,7 +167,7 @@ export function PresentStory({
         {sentence ? (
           <div
             className={cn(
-              "glass glass-blur flex max-w-[88rem] items-center gap-[clamp(1rem,2vw,2rem)] !rounded-[clamp(1.5rem,2.4vw,2.5rem)] px-[clamp(1.25rem,2.4vw,2.5rem)] py-[clamp(1rem,2vw,2rem)]",
+              "glass flex max-w-[88rem] items-center gap-[clamp(1rem,2vw,2rem)] !rounded-[clamp(1.5rem,2.4vw,2.5rem)] px-[clamp(1.25rem,2.4vw,2.5rem)] py-[clamp(1rem,2vw,2rem)]",
               RISE
             )}
             style={d(1)}
@@ -197,7 +197,7 @@ export function PresentStory({
                 <div
                   key={c.key}
                   className={cn(
-                    "glass glass-blur flex items-end justify-between gap-4 !rounded-[clamp(1.5rem,2.4vw,2.5rem)] p-[clamp(1.25rem,2.3vw,2.75rem)] md:h-[clamp(16rem,42vh,29rem)]",
+                    "glass flex items-end justify-between gap-4 !rounded-[clamp(1.5rem,2.4vw,2.5rem)] p-[clamp(1.25rem,2.3vw,2.75rem)] md:h-[clamp(16rem,42vh,29rem)]",
                     RISE
                   )}
                   style={d(0.3 + i * 0.15)}
@@ -303,7 +303,7 @@ export function PresentStory({
               <li
                 key={s.id}
                 className={cn(
-                  "glass glass-blur flex flex-col justify-between gap-8 !rounded-[clamp(1.5rem,2.4vw,2.5rem)] p-[clamp(1.25rem,2.3vw,2.75rem)] md:min-h-[clamp(15rem,37vh,25rem)]",
+                  "glass flex flex-col justify-between gap-8 !rounded-[clamp(1.5rem,2.4vw,2.5rem)] p-[clamp(1.25rem,2.3vw,2.75rem)] md:min-h-[clamp(15rem,37vh,25rem)]",
                   RISE
                 )}
                 style={d(0.3 + i * 0.15)}

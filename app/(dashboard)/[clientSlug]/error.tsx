@@ -88,7 +88,7 @@ export default function DashboardError({
       <div className="flex min-h-[60vh] items-center justify-center px-4 py-10 sm:px-6">
         <div
           role="status"
-          className="glass glass-blur flex w-full max-w-[28rem] flex-col items-start gap-5 rounded-glass p-7 sm:p-10"
+          className="glass flex w-full max-w-[28rem] flex-col items-start gap-5 rounded-glass p-7 sm:p-10"
         >
           <span
             aria-hidden
@@ -116,7 +116,7 @@ export default function DashboardError({
     <div className="flex min-h-[60vh] items-center justify-center px-4 py-10 sm:px-6">
       <div
         role="alert"
-        className="glass glass-blur flex w-full max-w-[32rem] flex-col items-start gap-5 rounded-glass p-7 sm:p-10"
+        className="glass flex w-full max-w-[32rem] flex-col items-start gap-5 rounded-glass p-7 sm:p-10"
       >
         <span
           aria-hidden

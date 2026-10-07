@@ -57,7 +57,7 @@ export function StoryHero({
   return (
     <section
       aria-label="Najważniejsze w skrócie"
-      className="glass glass-blur relative overflow-hidden rounded-glass p-6 sm:p-8"
+      className="glass relative overflow-hidden rounded-glass p-6 sm:p-8"
     >
       <div
         aria-hidden

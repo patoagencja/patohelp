@@ -107,7 +107,7 @@ export function OverviewAiCard({
     <section
       aria-label="Komentarz tygodnia i szybkie odpowiedzi"
       className={cn(
-        "glass glass-blur flex min-w-0 flex-col gap-[18px] rounded-glass p-6 animate-rise sm:p-[26px]",
+        "glass flex min-w-0 flex-col gap-[18px] rounded-glass p-6 animate-rise sm:p-[26px]",
         className
       )}
       style={{ "--d": ".3s" } as React.CSSProperties}
