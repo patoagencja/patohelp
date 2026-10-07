@@ -50,6 +50,8 @@ export interface SeasonShop {
   days: Array<number | null>;
   prevDays: Array<number | null>;
   orderDays: Array<number | null>;
+  /** Placed-but-unpaid revenue per season day (pay-later). */
+  pendingDays: Array<number | null>;
   /** Per market code ('' = the shop didn't say). */
   markets: Record<string, { cur: ShopTotals; prev: ShopTotals }>;
   /** Products by this season's revenue; empty when the shop sends none. */
@@ -95,6 +97,7 @@ export function computeSeasonShop(
   const prevFull = empty();
   const days: Array<number | null> = Array.from({ length: len }, () => null);
   const orderDays: Array<number | null> = Array.from({ length: len }, () => null);
+  const pendingDays: Array<number | null> = Array.from({ length: len }, () => null);
   const prevDays: Array<number | null> = Array.from({ length: len }, () => null);
   const markets: SeasonShop["markets"] = {};
   const market = (code: string) => (markets[code] ??= { cur: empty(), prev: empty() });
@@ -114,6 +117,7 @@ export function computeSeasonShop(
     if (r.date === today && todayTotals) add(todayTotals, r);
     pending.orders += r.pendingOrders ?? 0;
     pending.revenue += r.pendingRevenue ?? 0;
+    if (r.pendingRevenue) pendingDays[i] = (pendingDays[i] ?? 0) + r.pendingRevenue;
     if (i > asOfIdx) continue;
     add(totals, r);
     add(market(r.market).cur, r);
@@ -165,6 +169,7 @@ export function computeSeasonShop(
     days,
     prevDays,
     orderDays,
+    pendingDays,
     markets,
     products: [...products.values()].sort(
       (a, b) => b.cur.revenue - a.cur.revenue || b.prev.revenue - a.prev.revenue

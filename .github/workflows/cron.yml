@@ -135,10 +135,11 @@ jobs:
       # summary is once per client per day. A miss is retried 30 minutes later,
       # so this warns instead of failing. No retry - it would double wall time.
       # weekly-digest self-gates to Monday 8-11 Warsaw and dedupes per ISO week,
-      # so every other tick is a cheap no-op (and it uses no AI at all).
+      # season-pulse to 7-10 Warsaw once a day in a client's season - every
+      # other tick is a cheap no-op for both (and neither uses AI).
       - name: AI jobs (news, summary) + weekly digest - best effort
         run: |
-          for job in refresh-news generate-summary weekly-digest; do
+          for job in refresh-news generate-summary weekly-digest season-pulse; do
             code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
               -H "Authorization: Bearer $CRON_SECRET" \
               "$APP_URL/api/cron/$job" || echo "000")
