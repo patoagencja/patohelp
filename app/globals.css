@@ -1283,3 +1283,40 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     display: none;
   }
 }
+
+/* Christmas theme (clients whose season runs through Wigilia, e.g. Elfi,
+   while it runs): the signature green turns pine-mint, the page sky and the
+   header glow go red and gold. Set on the dashboard shell, so it reaches
+   everything inside it; only tokens change, no component knows about it. */
+[data-festive] {
+  --lime: 146 52% 60%;
+  --lime-soft: 146 50% 91%;
+  --lime-foreground: 150 45% 10%;
+  --lime-line: 148 48% 40%;
+  --lime-hex: #67c98f;
+  --lime-glow: rgba(103, 201, 143, 0.35);
+  --olive: 356 62% 58%;
+  --blob1: rgba(214, 48, 49, 0.2);
+  --blob2: rgba(232, 182, 60, 0.3);
+  --blob3: rgba(46, 160, 98, 0.22);
+}
+.dark [data-festive] {
+  --lime: 146 55% 62%;
+  --lime-soft: 146 28% 17%;
+  --lime-foreground: 150 45% 8%;
+  --lime-line: 146 55% 62%;
+  --lime-hex: #6fd29a;
+  --lime-glow: rgba(111, 210, 154, 0.25);
+  --olive: 356 65% 55%;
+  --blob1: rgba(200, 40, 45, 0.32);
+  --blob2: rgba(226, 170, 60, 0.16);
+  --blob3: rgba(40, 150, 90, 0.2);
+}
+@media print {
+  [data-festive],
+  .dark [data-festive] {
+    --blob1: transparent;
+    --blob2: transparent;
+    --blob3: transparent;
+  }
+}

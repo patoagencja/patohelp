@@ -107,6 +107,7 @@ export default async function ClientDashboardLayout({
       isEcommerce={isEcommerce}
       isSeasonal={isSeasonal}
       isAgency={isAgency}
+      festive={snowing}
       brand={
         <ClientBrandMark
           name={clientName}

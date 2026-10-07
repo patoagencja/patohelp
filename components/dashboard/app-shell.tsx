@@ -43,6 +43,7 @@ export function AppShell({
   mainClassName,
   children,
   after,
+  festive = false,
 }: {
   style?: React.CSSProperties;
   base: string;
@@ -72,11 +73,17 @@ export function AppShell({
   children: React.ReactNode;
   /** After <main> (Toaster). */
   after?: React.ReactNode;
+  /** Christmas colours (globals.css [data-festive]). */
+  festive?: boolean;
 }) {
   return (
     // relative + isolate: the fixed sky (z -10) stays under the content but
     // above this wrapper's own background.
-    <div className="relative isolate flex min-h-screen flex-col bg-background" style={style}>
+    <div
+      className="relative isolate flex min-h-screen flex-col bg-background"
+      style={style}
+      data-festive={festive ? "" : undefined}
+    >
       <a href="#main" className="skip-link">
         Przejdź do treści
       </a>
