@@ -81,6 +81,8 @@ export interface GoogleCampaignMetric {
   ctr: number | null;
   average_cpc: number | null;
   conversions: number | null;
+  /** Value of those conversions (account currency, major units). */
+  conversions_value: number | null;
 }
 
 /**
@@ -222,6 +224,7 @@ export async function getCampaignMetrics(
       metrics.ctr,
       metrics.average_cpc,
       metrics.conversions,
+      metrics.conversions_value,
       segments.date
     FROM campaign
     WHERE segments.date BETWEEN '${since}' AND '${until}'
@@ -244,6 +247,8 @@ export async function getCampaignMetrics(
       row.metrics?.average_cpc != null ? Number(row.metrics.average_cpc) : null,
     conversions:
       row.metrics?.conversions != null ? Number(row.metrics.conversions) : null,
+    conversions_value:
+      row.metrics?.conversions_value != null ? Number(row.metrics.conversions_value) : null,
   }));
 }
 

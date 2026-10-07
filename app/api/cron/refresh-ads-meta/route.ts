@@ -8,9 +8,11 @@ import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import { hasClicksAllColumnStrict, metaClickColumns } from "@/lib/integrations/link-clicks";
 import {
   extractConversions,
+  extractPurchases,
   getActiveDays,
   getCampaignInsights,
 } from "@/lib/integrations/meta-ads";
+import { historyDaysFor } from "@/lib/season/history";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull Meta Ads campaign insights for yesterday+today into
@@ -212,7 +214,8 @@ export async function GET(request: Request) {
       // Fresh days first, then backfill CONTIGUOUSLY BACKWARDS from the
       // earliest row we already have - so a timeout mid-backfill just means
       // the next run resumes where this one stopped, with no gaps.
-      const HISTORY_DAYS = 365;
+      // Seasonal clients: ~15 months, a whole previous season (lib/season).
+      const HISTORY_DAYS = await historyDaysFor(admin, integration.client_id as string);
       const windowStart = formatInTimeZone(
         subDays(now, HISTORY_DAYS - 1),
         WARSAW_TZ,
@@ -337,7 +340,13 @@ export async function GET(request: Request) {
                 frequency:
                   insight.frequency != null ? parseFloat(insight.frequency) : null,
                 conversions: extractConversions(insight.actions),
-                raw_data: insight as unknown as Record<string, unknown>,
+                // purchases / purchase_value: sales from ads for shop clients
+                // (lib/season), same keys as the Google rows.
+                raw_data: {
+                  ...insight,
+                  purchases: extractPurchases(insight.actions, insight.action_values).purchases,
+                  purchase_value: extractPurchases(insight.actions, insight.action_values).value,
+                } as unknown as Record<string, unknown>,
               }));
               const { error } = await admin
                 .from("ads_daily")

@@ -11,6 +11,7 @@ import {
   syncImpressionShareSnapshot,
   syncSearchTermsSnapshot,
 } from "@/lib/integrations/google-ads";
+import { historyDaysFor } from "@/lib/season/history";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull Google Ads campaign metrics for yesterday+today into
@@ -89,8 +90,11 @@ export async function GET(request: Request) {
 
       // Backfill a full year (one GAQL query covers the whole span) until we
       // have that much history, then yesterday+today.
+      // Seasonal clients keep ~15 months, so a whole previous season is
+      // there to compare against right to the end of this one.
+      const historyDays = await historyDaysFor(admin, integration.client_id as string);
       const backfillStart = formatInTimeZone(
-        subDays(now, 364),
+        subDays(now, historyDays - 1),
         WARSAW_TZ,
         "yyyy-MM-dd"
       );
@@ -167,7 +171,13 @@ export async function GET(request: Request) {
                 metric.conversions != null
                   ? Math.round(metric.conversions)
                   : null,
-              raw_data: { status: metric.status } as Record<string, unknown>,
+              // Sales-from-ads for shop clients (lib/season): kept in raw_data
+              // so it needs no migration; same keys as the Meta rows.
+              raw_data: {
+                status: metric.status,
+                purchases: metric.conversions ?? 0,
+                purchase_value: metric.conversions_value ?? 0,
+              } as Record<string, unknown>,
             });
           }
         } catch (accErr) {

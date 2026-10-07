@@ -28,6 +28,7 @@ import {
   RecordsSection,
 } from "@/components/dashboard/records-section";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
+import { SeasonOverviewCard } from "@/components/dashboard/season/season-overview-card";
 import { TopCampaigns } from "@/components/dashboard/top-campaigns";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { getCurrentAlerts } from "@/lib/alerts/current";
@@ -177,6 +178,15 @@ export default async function OverviewPage({
 
       {/* "Prezentuj" opens on these story slides (hidden otherwise). */}
       <PresentStory kpis={data.kpis} story={story} planRows={planRows} work={agencyWork?.entries} />
+
+      {/* Seasonal clients only (one cached read for the rest): streams in. */}
+      <SectionBoundary name="overview/season">
+        <SeasonOverviewCard
+          clientId={client.id}
+          clientSlug={params.clientSlug}
+          showRevenue={client.clientType === "ecommerce"}
+        />
+      </SectionBoundary>
 
       <SectionBoundary name="overview/summary">
         <OverviewSummary

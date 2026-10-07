@@ -45,7 +45,7 @@ const ddmm = (iso: string) => {
 };
 
 // "Nice" axis step (1/2/2.5/5 x 10^n) so guides land on round numbers.
-function niceStep(raw: number): number {
+export function niceStep(raw: number): number {
   if (!(raw > 0)) return 1;
   const p = 10 ** Math.floor(Math.log10(raw));
   const n = raw / p;
@@ -57,7 +57,7 @@ function niceStep(raw: number): number {
  * Tremor curve, but it never overshoots - a smoothed dip below zero or above
  * the best day would invent a value the data doesn't have.
  */
-function monotonePath(pts: Array<{ x: number; y: number }>): string {
+export function monotonePath(pts: Array<{ x: number; y: number }>): string {
   const n = pts.length;
   if (n === 0) return "";
   if (n === 1) return `M${pts[0].x},${pts[0].y}`;

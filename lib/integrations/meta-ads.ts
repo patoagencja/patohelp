@@ -42,6 +42,8 @@ export interface MetaCampaignInsight {
   reach?: string;
   frequency?: string;
   actions?: Array<{ action_type: string; value: string }>;
+  /** Value per action type (account currency) - purchase value for shops. */
+  action_values?: Array<{ action_type: string; value: string }>;
 }
 
 /** Paging URLs are fetched raw (not via graphGet): surface their errors too. */
@@ -226,7 +228,7 @@ export async function getCampaignInsights(
       paging?: { next?: string };
     }>(`/${adAccountId}/insights`, {
       fields:
-        "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions," +
+        "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,reach,frequency,actions,action_values," +
         LINK_CLICK_FIELDS,
       level: "campaign",
       time_range: JSON.stringify({ since: day, until: day }),
@@ -266,6 +268,7 @@ export async function getCampaignInsights(
         reach: row.reach != null ? String(row.reach) : undefined,
         frequency: row.frequency != null ? String(row.frequency) : undefined,
         actions: row.actions as MetaCampaignInsight["actions"],
+        action_values: row.action_values as MetaCampaignInsight["action_values"],
       });
     }
   }
@@ -791,6 +794,34 @@ export async function getDemographics(
       value: parseInt(String(r.impressions ?? "0"), 10) || 0,
     })),
   };
+}
+
+// Meta reports one purchase under several overlapping action types (omni =
+// web + app + on-Facebook; the pixel one is web only). Take the broadest one
+// present - summing them would count every order two or three times.
+const PURCHASE_TYPES = [
+  "omni_purchase",
+  "purchase",
+  "offsite_conversion.fb_pixel_purchase",
+  "onsite_web_purchase",
+];
+
+/**
+ * Purchases and their value (account currency, major units) for shop
+ * clients' sales-from-ads numbers. Zero when the account tracks no purchases.
+ */
+export function extractPurchases(
+  actions?: Array<{ action_type: string; value: string }>,
+  actionValues?: Array<{ action_type: string; value: string }>
+): { purchases: number; value: number } {
+  const pick = (list?: Array<{ action_type: string; value: string }>) => {
+    for (const type of PURCHASE_TYPES) {
+      const hit = list?.find((a) => a.action_type === type);
+      if (hit) return parseFloat(hit.value || "0") || 0;
+    }
+    return 0;
+  };
+  return { purchases: Math.round(pick(actions)), value: pick(actionValues) };
 }
 
 /** Sum conversion-like actions. Tracked only - never displayed as ROAS. */
