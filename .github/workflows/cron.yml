@@ -142,7 +142,9 @@ jobs:
   # sync can never starve them.
   ai:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 4 jobs x up to 180 s (curl -m 180) = 12 min + runner start-up; 10 cut
+    # season-pulse, the last one, whenever the others ran long.
+    timeout-minutes: 15
     env:
       APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}

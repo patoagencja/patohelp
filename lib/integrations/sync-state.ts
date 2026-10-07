@@ -140,3 +140,46 @@ export function isDue(iso: string | null | undefined, maxAgeMs: number, now = Da
   const t = Date.parse(iso);
   return !Number.isFinite(t) || now - t > maxAgeMs;
 }
+
+/**
+ * When each of a client's ad accounts was last processed by a cron that
+ * works through accounts under a time budget (refresh-creatives-meta).
+ * `at` is the old client-level stamp; it is no longer used for ordering.
+ */
+export interface AccountRotationState {
+  at?: string;
+  accounts?: Record<string, string>;
+}
+
+/**
+ * Work items, one per (client, account), in the order a budgeted run should
+ * take them: accounts never processed first, then the least recently
+ * processed; ties keep their input order. A run cut short by its budget
+ * leaves the accounts it did not reach at the head of the next run - with a
+ * per-client stamp every run restarted DRE at its first account, and its
+ * later accounts were never refreshed.
+ */
+export function oldestAccountsFirst<T extends { clientId: string; accountId: string }>(
+  items: readonly T[],
+  states: ReadonlyMap<string, AccountRotationState> | null | undefined
+): T[] {
+  const lastAt = (item: T): number => {
+    const iso = states?.get(item.clientId)?.accounts?.[item.accountId];
+    const t = iso ? Date.parse(iso) : NaN;
+    return Number.isFinite(t) ? t : 0;
+  };
+  return items
+    .map((item, index) => ({ item, index, t: lastAt(item) }))
+    .sort((a, b) => a.t - b.t || a.index - b.index)
+    .map((x) => x.item);
+}
+
+/** `state` with the given accounts' processing times (account id -> ISO). */
+export function markAccountsProcessed(
+  state: AccountRotationState | null | undefined,
+  stamps: Iterable<[string, string]>
+): AccountRotationState {
+  const accounts = { ...(state?.accounts ?? {}) };
+  for (const [id, iso] of stamps) accounts[id] = iso;
+  return { accounts };
+}

@@ -451,7 +451,8 @@ export async function syncAdDailyForClient(
   const refreshFrom = addDaysIso(today, -REFRESH_FROM);
   const refreshTo = addDaysIso(today, -REFRESH_TO);
   const errors = new AccountErrors();
-  // A per-user (17) or app-wide (4) limit covers every account of the token.
+  // A per-user (17, unless subcode 2446079 - that one is per account) or
+  // app-wide (4) limit covers every account of the token.
   let tokenThrottle: MetaThrottledError | null = null;
   const onThrottle = (accountId: string, err: MetaThrottledError) => {
     errors.add(`Meta ${accountId}`, describeThrottle(err));

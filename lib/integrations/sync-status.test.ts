@@ -79,3 +79,15 @@ test("the note keeps at most five errors", () => {
 
   assert.equal(outcome.error_message?.split(" | ").length, 5);
 });
+
+test("the note says how many errors it left out", () => {
+  const errors = Array.from({ length: 40 }, (_, i) => `act_${i}: limit zapytań Meta (kod 17)`);
+  const outcome = resolveSyncOutcome({
+    accountsSelected: 46,
+    rowsWritten: 300,
+    accountErrors: errors,
+  });
+
+  assert.equal(outcome.status, "success");
+  assert.match(outcome.error_message ?? "", /\(\+35 więcej\)$/);
+});

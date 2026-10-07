@@ -139,13 +139,6 @@ export async function GET(request: Request) {
   }
 
   // ---- Visual grid via the real production code --------------------------
-  let thumbs = new Map<string, string>();
-  try {
-    thumbs = await getAdThumbnails(access_token, account.id);
-  } catch (err) {
-    diag.push(`❌ getAdThumbnails rzucił błąd: ${esc((err as Error).message)}`);
-  }
-
   const { data: rows } = await admin
     .from("creatives")
     .select("ad_id, ad_name")
@@ -153,6 +146,20 @@ export async function GET(request: Request) {
     .eq("provider", "meta_ads")
     .order("spend_minor_units", { ascending: false })
     .limit(12);
+
+  // The cron looks pictures up by ad id; without stored creatives, the
+  // sample listed above stands in.
+  const sampleIds = rows?.length
+    ? rows.map((r) => r.ad_id as string)
+    : ads.map((a) => String(a.id ?? "")).filter(Boolean).slice(0, 12);
+  let thumbs = new Map<string, string>();
+  try {
+    const result = await getAdThumbnails(access_token, sampleIds);
+    thumbs = result.thumbnails;
+    if (result.throttle) diag.push(`⚠️ getAdThumbnails: limit zapytań Meta (kod ${esc(result.throttle.code)}).`);
+  } catch (err) {
+    diag.push(`❌ getAdThumbnails rzucił błąd: ${esc((err as Error).message)}`);
+  }
 
   const items = (rows ?? [])
     .map((r) => ({

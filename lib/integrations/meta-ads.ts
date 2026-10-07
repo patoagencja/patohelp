@@ -56,9 +56,9 @@ export interface MetaCampaignInsight {
 /**
  * Who a throttle applies to. Meta counts some limits per app (code 4), some
  * per user token (17) and most per ad account / business (business use case
- * 80000-80014, 613 call-type limits, 32 page limits). The crons stop only
- * what the limit covers: one throttled market account must not cost the
- * other six their fresh numbers.
+ * 80000-80014, 613 call-type limits, 32 page limits, and code 17 with
+ * subcode 2446079). The crons stop only what the limit covers: one
+ * throttled market account must not cost the other six their fresh numbers.
  */
 export type MetaThrottleScope = "app" | "user" | "account";
 
@@ -68,13 +68,21 @@ export type MetaThrottleScope = "app" | "user" | "account";
  */
 export class MetaThrottledError extends Error {
   readonly code: number;
+  readonly subcode: number | null;
   readonly scope: MetaThrottleScope;
   /** When Meta expects access back (headers), in ms; null if it didn't say. */
   readonly retryAfterMs: number | null;
-  constructor(message: string, code: number, scope: MetaThrottleScope, retryAfterMs: number | null) {
+  constructor(
+    message: string,
+    code: number,
+    scope: MetaThrottleScope,
+    retryAfterMs: number | null,
+    subcode: number | null = null
+  ) {
     super(message);
     this.name = "MetaThrottledError";
     this.code = code;
+    this.subcode = subcode;
     this.scope = scope;
     this.retryAfterMs = retryAfterMs;
   }
@@ -97,12 +105,26 @@ export function describeThrottle(err: MetaThrottledError): string {
     err.retryAfterMs != null && err.retryAfterMs > 0
       ? `, dostęp za ~${Math.max(1, Math.round(err.retryAfterMs / 60_000))} min`
       : "";
-  return `limit zapytań Meta (kod ${err.code}${wait}) - pominięte do następnego przebiegu`;
+  const code = err.subcode != null ? `${err.code}/${err.subcode}` : String(err.code);
+  return `limit zapytań Meta (kod ${code}${wait}) - pominięte do następnego przebiegu`;
 }
 
-function throttleScope(code: number, httpStatus: number): MetaThrottleScope | null {
+/**
+ * "Ad Account Has Too Many API Calls": arrives as code 17 - the per-user
+ * code - but counts calls to ONE ad account. Read as user-level it stopped
+ * every other account of the token (DRE has ~46) for one busy account.
+ */
+export const AD_ACCOUNT_TOO_MANY_CALLS = 2446079;
+
+/** Null = not a throttle. Exported for the unit tests. */
+export function throttleScope(
+  code: number,
+  httpStatus: number,
+  subcode: number | null = null
+): MetaThrottleScope | null {
   if (code === 4) return "app";
-  if (code === 17) return "user";
+  if (code === 17) return subcode === AD_ACCOUNT_TOO_MANY_CALLS ? "account" : "user";
+  if (subcode === AD_ACCOUNT_TOO_MANY_CALLS) return "account";
   if (code === 32 || code === 613 || (code >= 80000 && code <= 80014)) return "account";
   if (httpStatus === 429) return "account";
   return null;
@@ -149,21 +171,31 @@ function retryAfterFromHeaders(headers: Headers): number | null {
  * killed it - sync_runs stuck on "running", every later client skipped.
  */
 const REQUEST_TIMEOUT_MS = 30_000;
+/**
+ * Insights requests: a day of a ~1900-campaign account (DRE) or of OLX can
+ * take Meta longer than 30 s to build. Cut at 30 s, such a day failed on
+ * every run and was never stored; light calls (ids, /me, video frames)
+ * keep the short limit.
+ */
+const INSIGHTS_TIMEOUT_MS = 60_000;
 /** Page size retried when Meta asks for less data per request. */
 const SMALL_PAGE = 100;
+
+const timeoutFor = (path: string) =>
+  path.endsWith("/insights") ? INSIGHTS_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
 
 /**
  * GET one Graph URL (built by graphGet, or a `paging.next` link, which
  * already carries the token). `context` is what gets logged - never the URL,
  * it contains the access token.
  */
-async function graphFetch<T>(url: string, context: string): Promise<T> {
+async function graphFetch<T>(url: string, context: string, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const timedOut = (err: unknown) => (err as { name?: string })?.name === "TimeoutError";
   const timeoutError = () =>
-    new Error(`Meta Graph API timeout after ${REQUEST_TIMEOUT_MS / 1000}s (${context})`);
+    new Error(`Meta Graph API timeout after ${timeoutMs / 1000}s (${context})`);
   let res: Response;
   try {
-    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
   } catch (err) {
     throw timedOut(err) ? timeoutError() : err;
   }
@@ -179,12 +211,22 @@ async function graphFetch<T>(url: string, context: string): Promise<T> {
   if (!res.ok || !body || body.error) {
     const err = body?.error ?? {};
     const code = Number(err.code ?? 0);
+    const subcode = err.error_subcode != null && Number.isFinite(Number(err.error_subcode))
+      ? Number(err.error_subcode)
+      : null;
     const message = err.message ?? `Meta Graph API error (${res.status})`;
-    const scope = throttleScope(code, res.status);
+    const scope = throttleScope(code, res.status, subcode);
     if (scope) {
       const retryAfterMs = retryAfterFromHeaders(res.headers);
-      console.warn("[meta-ads] Graph API throttled", { context, status: res.status, code, scope, retryAfterMs });
-      throw new MetaThrottledError(message, code, scope, retryAfterMs);
+      console.warn("[meta-ads] Graph API throttled", {
+        context,
+        status: res.status,
+        code,
+        error_subcode: subcode,
+        scope,
+        retryAfterMs,
+      });
+      throw new MetaThrottledError(message, code, scope, retryAfterMs, subcode);
     }
     console.error("[meta-ads] Graph API error", {
       path: context,
@@ -218,7 +260,7 @@ export function getAuthorizationUrl(state: string): string {
 // Meta returns rich error bodies - surface them instead of swallowing.
 async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const url = `${GRAPH_BASE}${path}?${new URLSearchParams(params).toString()}`;
-  return graphFetch<T>(url, path);
+  return graphFetch<T>(url, path, timeoutFor(path));
 }
 
 type GraphRow = Record<string, unknown>;
@@ -263,7 +305,7 @@ async function graphGetAll(
       return { rows, complete: false };
     }
     pages += 1;
-    body = await graphFetch<GraphPage>(body.paging.next, `${path} (page ${pages})`);
+    body = await graphFetch<GraphPage>(body.paging.next, `${path} (page ${pages})`, timeoutFor(path));
     if (body?.data?.length) rows.push(...body.data);
     else break;
   }
@@ -948,146 +990,144 @@ async function resolveVideoThumbnail(
 const IDS_PER_REQUEST = 50;
 /** Failed by-id requests one thumbnail pass tolerates before giving up. */
 const MAX_FAILED_LOOKUPS = 8;
+/**
+ * Ads looked up per call unless the caller says otherwise (20 requests). A
+ * huge account's first fill - thousands of delivering ads, none stored yet -
+ * spreads over a few runs instead of eating one run's whole budget.
+ */
+const MAX_THUMBNAIL_IDS = 1000;
+
+export interface AdThumbnails {
+  /** ad_id -> picture URL, for the ads a picture was found for. */
+  thumbnails: Map<string, string>;
+  /**
+   * The throttle that ended the lookups early, if any. Returned rather than
+   * thrown: the caller already holds the insights these pictures belong to
+   * and must still write them; `scope` tells it what else to skip.
+   */
+  throttle: MetaThrottledError | null;
+}
 
 /**
- * Map of ad_id -> creative thumbnail URL for an ad account.
+ * Creative pictures for the given ads, read by id, 50 per request.
  *
  * Video ads are the tricky case: their creative only carries a tiny ~64px
  * `thumbnail_url`, so we resolve a sharp cover frame from the video node
  * (`/{video_id}?fields=thumbnails`). Static ads keep using `image_url` /
  * story-spec picture, which are already full-size.
  *
- * Reads only the FIRST page of the ad listing (the newest 500 ads), as it
- * always did. Paging up to 10 000 ads for every client made accounts with
- * thousands of ads (OLX) take minutes and starve the clients after them.
- * - onlyAdIds: only these ads get a URL (those that delivered). May be a
- *   promise: the listing then runs alongside the insights call.
- * - keep: ads whose stored thumbnail is still valid. Their video frames are
- *   not looked up again (one call per video was most of the cost) and no
- *   blurry fallback replaces the stored frame; static ads on the first page
- *   still get their (free) fresh URL.
- * - lookupMissing: wanted ads beyond the first page and not in `keep` are
- *   read by id, 50 per call - for shops, which test far more than 500 ads.
- * - shouldStop: ends the by-id and video lookups at the caller's budget.
+ * Never by listing the account's ads: a listing walks every ad the account
+ * still has, newest first - thousands at OLX - to find the few dozen that
+ * delivered. One page missed older delivering ads; twenty pages took
+ * minutes and starved the clients after it. Callers pass only ads that
+ * delivered and have no valid stored picture, most important first, so a
+ * pass cut short (maxIds, shouldStop, a throttle) leaves the least
+ * important ones for the next run.
  */
 export async function getAdThumbnails(
   accessToken: string,
-  adAccountId: string,
-  opts: {
-    onlyAdIds?: Set<string> | Promise<Set<string>>;
-    keep?: Set<string>;
-    lookupMissing?: boolean;
-    shouldStop?: () => boolean;
-  } = {}
-): Promise<Map<string, string>> {
-  const wantedPromise = opts.onlyAdIds ? Promise.resolve(opts.onlyAdIds) : null;
-  // If the listing throws first, nobody would await a rejected id promise.
-  wantedPromise?.catch(() => undefined);
-  const keep = opts.keep ?? new Set<string>();
+  adIds: Iterable<string>,
+  opts: { maxIds?: number; shouldStop?: () => boolean } = {}
+): Promise<AdThumbnails> {
   const shouldStop = opts.shouldStop ?? (() => false);
+  const ids = [...new Set(adIds)].filter(Boolean).slice(0, opts.maxIds ?? MAX_THUMBNAIL_IDS);
+  const map = new Map<string, string>();
+  let throttle: MetaThrottledError | null = null;
+  if (!ids.length) return { thumbnails: map, throttle };
 
   // Rich query first. We request object_story_spec WHOLESALE (not sub-selected)
   // because sub-selecting a field Meta doesn't recognise makes the entire query
   // throw - which previously dropped us to BASIC and left every video ad on its
   // blurry 64px thumbnail_url. If it still fails, BASIC keeps the sync alive.
   // thumbnail_width/height must be applied AS FIELD MODIFIERS on the nested
-  // creative request - as top-level query params on /ads they are silently
-  // ignored and thumbnail_url stays at its blurry ~64px default. With the
-  // modifier Meta renders the thumbnail at the requested size for EVERY
-  // creative type: static, video, carousel and catalog/DPA (where it picks a
-  // sample product image - the only image such creatives have).
+  // creative request - as top-level query params they are silently ignored
+  // and thumbnail_url stays at its blurry ~64px default. With the modifier
+  // Meta renders the thumbnail at the requested size for EVERY creative
+  // type: static, video, carousel and catalog/DPA (where it picks a sample
+  // product image - the only image such creatives have).
   const MOD = "creative.thumbnail_width(1080).thumbnail_height(1080)";
   const RICH = `id,${MOD}{id,object_type,image_url,thumbnail_url,video_id,object_story_spec}`;
   const BASIC = `id,${MOD}{id,image_url,thumbnail_url}`;
 
   type AdRow = { id?: string; creative?: Creative };
-  const firstPage = (fields: string) =>
-    graphGet<{ data?: AdRow[] }>(`/${adAccountId}/ads`, {
-      fields,
-      access_token: accessToken,
-      limit: "500",
-    });
-
   let fields = RICH;
-  let data: AdRow[] = [];
-  try {
-    data = (await firstPage(RICH)).data ?? [];
-  } catch (err) {
-    if (err instanceof MetaThrottledError) throw err;
-    fields = BASIC;
-    data = (await firstPage(BASIC)).data ?? [];
-  }
-  const wanted = wantedPromise ? await wantedPromise : null;
+  let basicTried = false;
+  let failures = 0;
+  const read = async (batch: string[], f: string): Promise<AdRow[]> => {
+    const body = await graphGet<Record<string, AdRow>>("/", {
+      ids: batch.join(","),
+      fields: f,
+      access_token: accessToken,
+    });
+    return Object.values(body ?? {}).filter((n): n is AdRow => !!n && typeof n === "object");
+  };
+  // A batch with one deleted / foreign ad fails as a whole: split it until
+  // the bad id stands alone, within a small failure budget (a systematic
+  // error must not turn into one call per ad).
+  const lookup = async (batch: string[]): Promise<AdRow[]> => {
+    if (!batch.length || throttle || failures >= MAX_FAILED_LOOKUPS) return [];
+    try {
+      return await read(batch, fields);
+    } catch (err) {
+      if (err instanceof MetaThrottledError) {
+        throttle = err;
+        return [];
+      }
+      failures += 1;
+      // A creative field Meta stopped accepting fails EVERY request; the
+      // basic fields still give a (blurrier) picture. Tried once per pass.
+      if (fields === RICH && !basicTried) {
+        basicTried = true;
+        try {
+          const rows = await read(batch, BASIC);
+          fields = BASIC;
+          return rows;
+        } catch (basicErr) {
+          if (basicErr instanceof MetaThrottledError) {
+            throttle = basicErr;
+            return [];
+          }
+        }
+      }
+      if (batch.length === 1) return [];
+      const mid = Math.ceil(batch.length / 2);
+      return [...(await lookup(batch.slice(0, mid))), ...(await lookup(batch.slice(mid)))];
+    }
+  };
 
-  const map = new Map<string, string>();
   // Video ads that need a follow-up lookup (dedup by video id to avoid
   // re-fetching shared videos across many ads).
   const videoAds: Array<{ adId: string; videoId: string }> = [];
-  const seenVideoIds = new Set<string>();
+  const videoIds = new Set<string>();
   const take = (ad: AdRow) => {
     if (!ad.id) return;
-    if (wanted && !wanted.has(ad.id)) return;
     const videoId = creativeVideoId(ad.creative);
     if (videoId) {
-      // A valid stored frame beats both the lookup and the blurry fallback.
-      if (keep.has(ad.id)) return;
       videoAds.push({ adId: ad.id, videoId });
-      seenVideoIds.add(videoId);
-      // Seed with the static fallback in case the video lookup fails.
-      const fallback = bestStaticUrl(ad.creative);
-      if (fallback) map.set(ad.id, fallback);
-    } else {
-      const url = bestStaticUrl(ad.creative);
-      if (url) map.set(ad.id, url);
+      videoIds.add(videoId);
     }
+    // Video ads: the static fallback in case the video lookup fails.
+    const url = bestStaticUrl(ad.creative);
+    if (url) map.set(ad.id, url);
   };
-  for (const ad of data) take(ad);
-
-  let halted = false;
-  if (opts.lookupMissing && wanted) {
-    const listed = new Set(data.map((a) => a.id).filter(Boolean) as string[]);
-    const missing = [...wanted].filter((id) => !listed.has(id) && !keep.has(id)).sort();
-    let failures = 0;
-    // A batch with one deleted / foreign ad fails as a whole: split it until
-    // the bad id stands alone, within a small failure budget (a systematic
-    // error must not turn into one call per ad).
-    const lookup = async (ids: string[]): Promise<AdRow[]> => {
-      if (!ids.length || halted || failures >= MAX_FAILED_LOOKUPS) return [];
-      try {
-        const body = await graphGet<Record<string, AdRow>>("/", {
-          ids: ids.join(","),
-          fields,
-          access_token: accessToken,
-        });
-        return Object.values(body ?? {}).filter((n): n is AdRow => !!n && typeof n === "object");
-      } catch (err) {
-        if (err instanceof MetaThrottledError) {
-          halted = true;
-          return [];
-        }
-        failures += 1;
-        if (ids.length === 1) return [];
-        const mid = Math.ceil(ids.length / 2);
-        return [...(await lookup(ids.slice(0, mid))), ...(await lookup(ids.slice(mid)))];
-      }
-    };
-    for (let i = 0; i < missing.length && !halted && !shouldStop(); i += IDS_PER_REQUEST) {
-      for (const ad of await lookup(missing.slice(i, i + IDS_PER_REQUEST))) take(ad);
-    }
+  for (let i = 0; i < ids.length && !throttle && !shouldStop(); i += IDS_PER_REQUEST) {
+    for (const ad of await lookup(ids.slice(i, i + IDS_PER_REQUEST))) take(ad);
   }
 
   // Sharp frames for each unique video, 6 at a time; a throttle or the
   // budget ends the pass and the remaining ads keep their fallback.
-  const queue = [...seenVideoIds];
+  const queue = [...videoIds];
   const videoThumb = new Map<string, string>();
   const worker = async () => {
-    while (queue.length && !halted && !shouldStop()) {
+    while (queue.length && !throttle && !shouldStop()) {
       const videoId = queue.shift() as string;
       try {
         const uri = await resolveVideoThumbnail(accessToken, videoId);
         if (uri) videoThumb.set(videoId, uri);
-      } catch {
-        halted = true; // throttled
+      } catch (err) {
+        // resolveVideoThumbnail rethrows nothing but throttles.
+        if (err instanceof MetaThrottledError) throttle = err;
+        else break;
       }
     }
   };
@@ -1097,7 +1137,7 @@ export async function getAdThumbnails(
     if (sharp) map.set(adId, sharp);
   }
 
-  return map;
+  return { thumbnails: map, throttle };
 }
 
 /** Cap for paged /ads listings: 20 x 500 = the newest 10 000 ads. */

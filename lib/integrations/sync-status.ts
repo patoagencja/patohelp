@@ -30,7 +30,12 @@ export function resolveSyncOutcome(opts: {
   accountErrors: string[];
 }): SyncOutcome {
   const { accountsSelected, rowsWritten, accountErrors } = opts;
-  const joined = accountErrors.slice(0, 5).join(" | ");
+  // Five messages at most, but the count of the rest: a token-level Meta
+  // limit can leave 40 of DRE's 46 accounts out, and five lines alone read
+  // like five.
+  const hidden = accountErrors.length - 5;
+  const joined =
+    accountErrors.slice(0, 5).join(" | ") + (hidden > 0 ? ` (+${hidden} więcej)` : "");
 
   if (accountsSelected === 0) {
     return {

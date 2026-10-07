@@ -67,6 +67,9 @@ const MATURE_EVERY_MS = 20 * 3_600_000;
 /** A scan that found no rows without purchase values is trusted this long. */
 const PURCHASE_SCAN_TTL_MS = 7 * 24 * 3_600_000;
 const STATE_KEY = "meta_ads";
+/** sync_runs note for clients an app-wide limit (code 4) left out of a run. */
+const APP_THROTTLE_SKIP_MESSAGE =
+  "Meta ograniczyła liczbę zapytań aplikacji - pominięto w tym przebiegu, ponowimy za ~30 min";
 /** Days fetched side by side per account (sequential was the bottleneck). */
 const CONCURRENCY = 4;
 
@@ -312,12 +315,20 @@ export async function GET(request: Request) {
   let clientsSkipped = 0;
 
   for (const integration of integrations ?? []) {
+    const clientId = integration.client_id as string;
     if (appThrottle) {
-      // No sync_runs row: nothing was attempted; the next tick retries.
       clientsSkipped += 1;
+      // Without a row the health banner said nothing while this client's
+      // numbers went stale; the next tick retries.
+      await admin.from("sync_runs").insert({
+        client_id: clientId,
+        provider: "meta_ads",
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_message: APP_THROTTLE_SKIP_MESSAGE,
+      });
       continue;
     }
-    const clientId = integration.client_id as string;
     const { data: run } = await admin
       .from("sync_runs")
       .insert({
@@ -399,17 +410,107 @@ export async function GET(request: Request) {
       );
 
       const errors = new AccountErrors();
-      const throttled = new Set<string>();
-      // A per-user limit (code 17) covers every account of this token.
+      // Accounts that sit out the rest of this run (throttled, broken, or
+      // a failed write).
+      const stopped = new Set<string>();
+      // Accounts with a non-throttle failure (counted once each).
+      const failedAccounts = new Set<string>();
+      // A per-user limit (code 17 without the per-account subcode) covers
+      // every account of this token; a per-account one only that account.
       let clientThrottle: MetaThrottledError | null = null;
       const onThrottle = (accountId: string, err: MetaThrottledError) => {
         accountsThrottled += 1;
-        throttled.add(accountId);
+        stopped.add(accountId);
         errors.add(accountId, describeThrottle(err));
         if (err.scope === "app") appThrottle = err;
         else if (err.scope === "user") clientThrottle = err;
       };
       const blockedBy = (): MetaThrottledError | null => appThrottle ?? clientThrottle;
+
+      // Per-integration count: campaignsUpserted spans every client, so it
+      // can't tell us whether THIS client actually received any data.
+      let writtenForClient = 0;
+      // account -> days it fetched (and, if they had rows, wrote).
+      const doneDays = new Map<string, Set<string>>();
+
+      /**
+       * Fetch `days` of one account side by side and write every day that
+       * came back - a failed or throttled day no longer takes the others of
+       * its batch down with it. False = this account stops for the run
+       * (throttled, every day of the batch failed - the account itself is
+       * broken -, or a write failed).
+       */
+      const runBatch = async (account: MetaAccount, days: string[]): Promise<boolean> => {
+        const done = doneDays.get(account.id) ?? new Set<string>();
+        doneDays.set(account.id, done);
+        const settled = await Promise.allSettled(
+          days.map((day) =>
+            getCampaignInsights(access_token, account.id, day, day, { actionValues: eligible })
+          )
+        );
+        let throttle: MetaThrottledError | null = null;
+        let failed = 0;
+        for (const [i, result] of settled.entries()) {
+          const day = days[i];
+          if (result.status === "rejected") {
+            if (result.reason instanceof MetaThrottledError) {
+              throttle = throttle ?? result.reason;
+              continue;
+            }
+            failed += 1;
+            failedAccounts.add(account.id);
+            errors.add(account.id, `${day}: ${describeError(result.reason)}`);
+            console.error(
+              `[cron/refresh-ads-meta] account ${account.id} day ${day} failed`,
+              describeError(result.reason)
+            );
+            continue;
+          }
+          const insights = result.value;
+          if (!insights.length) {
+            done.add(day);
+            continue;
+          }
+          const currency =
+            normalizeCurrency(insights.find((r) => r.account_currency)?.account_currency) ??
+            normalizeCurrency(account.currency);
+          const rate = await fx.rate(currency, day);
+          if (rate == null) {
+            // Never store foreign money as złoty: this day waits for a rate.
+            errors.add(
+              account.id,
+              currency ? `brak kursu NBP ${currency} dla ${day}` : "nieznana waluta konta"
+            );
+            continue;
+          }
+          const dayRows = insights.map((insight) =>
+            buildRow(clientId, insight, rate, currency, eligible, withClicksAll)
+          );
+          const { error } = await admin
+            .from("ads_daily")
+            .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
+          if (error) {
+            failedAccounts.add(account.id);
+            errors.add(account.id, `${day}: ${error.message}`);
+            console.error(`[cron/refresh-ads-meta] account ${account.id} write failed`, error.message);
+            stopped.add(account.id);
+            return false;
+          }
+          campaignsUpserted += dayRows.length;
+          writtenForClient += dayRows.length;
+          done.add(day);
+        }
+        if (throttle) {
+          // Retrying right away only extends the block.
+          onThrottle(account.id, throttle);
+          return false;
+        }
+        if (failed === days.length) {
+          stopped.add(account.id);
+          return false;
+        }
+        return true;
+      };
 
       // A day with no rows is either a hole or a day with no delivery at all
       // (history shorter than the window, an off-season month). The latter
@@ -423,6 +524,8 @@ export async function GET(request: Request) {
         const active = new Set<string>();
         let probeOk = true;
         for (const account of accounts) {
+          // A token / app limit: the account loop below records every
+          // account it leaves out.
           if (blockedBy()) break;
           let days = cachedActiveDays(state.active, until, account.id, unknown[0], backfillEnd);
           if (!days) {
@@ -439,6 +542,8 @@ export async function GET(request: Request) {
               stateChanged = true;
             } catch (activeErr) {
               if (activeErr instanceof MetaThrottledError) {
+                // Per-account limit: only this account sits out, the
+                // others are still probed and synced.
                 onThrottle(account.id, activeErr);
                 continue;
               }
@@ -464,92 +569,51 @@ export async function GET(request: Request) {
         ? eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO))
         : [];
 
-      // Per-integration count: campaignsUpserted spans every client, so it
-      // can't tell us whether THIS client actually received any data.
-      let writtenForClient = 0;
-      // day -> accounts that fetched (and, if it had rows, wrote) it.
-      const doneBy = new Map<string, number>();
-
       // Isolate each ad account so one disabled/error account doesn't sink all.
       for (const account of accounts) {
-        if (throttled.has(account.id)) continue;
+        // Throttled in the probe: already recorded.
+        if (stopped.has(account.id)) continue;
         const blocked = blockedBy();
         if (blocked) {
+          // Recorded per account: a token / app limit mid-run must not read
+          // as a clean success with half the accounts missing.
           errors.add(account.id, describeThrottle(blocked));
           continue;
         }
         const matureDue = matureDays.length > 0 && isDue(state.mature?.[account.id], MATURE_EVERY_MS);
-        // Fresh days, then the due mature days, then the backfill.
-        const dayList = [
-          ...new Set([...freshDays, ...(matureDue ? matureDays : []), ...backfill]),
-        ];
-        const doneDays = new Set<string>();
         try {
-          // Fetch days in small parallel batches, upserting per day so
-          // progress persists even if the function is killed mid-backfill.
-          for (let i = 0; i < dayList.length; i += CONCURRENCY) {
-            // Past the budget only the fresh days (first batch) still run;
-            // the remaining backfill continues on the next tick.
-            if (i >= freshDays.length && Date.now() - startedAt > BACKFILL_BUDGET_MS) {
-              break;
-            }
-            const batch = dayList.slice(i, i + CONCURRENCY);
-            const results = await Promise.all(
-              batch.map(async (day) => ({
-                day,
-                insights: await getCampaignInsights(access_token, account.id, day, day, {
-                  actionValues: eligible,
-                }),
-              }))
+          // Yesterday + today as a batch of their own, written before any
+          // history: sharing a Promise.all with history days, one slow or
+          // throttled old day threw the fresh rows away with it.
+          if (await runBatch(account, freshDays)) {
+            // Then the due mature days and the backfill, newest first,
+            // while the budget lasts (the rest continues next tick).
+            const historyDays = [...new Set([...(matureDue ? matureDays : []), ...backfill])].filter(
+              (d) => !freshDays.includes(d)
             );
-            for (const { day, insights } of results) {
-              if (!insights.length) {
-                doneDays.add(day);
-                continue;
-              }
-              const currency =
-                normalizeCurrency(insights.find((r) => r.account_currency)?.account_currency) ??
-                normalizeCurrency(account.currency);
-              const rate = await fx.rate(currency, day);
-              if (rate == null) {
-                // Never store foreign money as złoty: this day waits for a rate.
-                errors.add(
-                  account.id,
-                  currency ? `brak kursu NBP ${currency} dla ${day}` : "nieznana waluta konta"
-                );
-                continue;
-              }
-              const dayRows = insights.map((insight) =>
-                buildRow(clientId, insight, rate, currency, eligible, withClicksAll)
-              );
-              const { error } = await admin
-                .from("ads_daily")
-                .upsert(dayRows, { onConflict: "client_id,provider,campaign_id,date" });
-              if (error) throw new Error(error.message);
-              campaignsUpserted += dayRows.length;
-              writtenForClient += dayRows.length;
-              doneDays.add(day);
+            for (let i = 0; i < historyDays.length; i += CONCURRENCY) {
+              if (Date.now() - startedAt > BACKFILL_BUDGET_MS || blockedBy()) break;
+              if (!(await runBatch(account, historyDays.slice(i, i + CONCURRENCY)))) break;
             }
           }
         } catch (accErr) {
-          if (accErr instanceof MetaThrottledError) {
-            // Skip the rest of this account for this run: retrying right
-            // away only extends the block.
-            onThrottle(account.id, accErr);
-          } else {
-            accountsFailed += 1;
-            errors.add(account.id, describeError(accErr));
-            console.error(
-              `[cron/refresh-ads-meta] account ${account.id} failed`,
-              describeError(accErr)
-            );
-          }
+          // Anything runBatch doesn't handle itself stays this account's.
+          failedAccounts.add(account.id);
+          errors.add(account.id, describeError(accErr));
+          console.error(`[cron/refresh-ads-meta] account ${account.id} failed`, describeError(accErr));
         }
-        for (const d of doneDays) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
-        if (matureDue && matureDays.every((d) => doneDays.has(d))) {
+        const done = doneDays.get(account.id);
+        if (matureDue && done && matureDays.every((d) => done.has(d))) {
           state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
           stateChanged = true;
         }
+      }
+      accountsFailed += failedAccounts.size;
+
+      // day -> accounts that fetched (and, if it had rows, wrote) it.
+      const doneBy = new Map<string, number>();
+      for (const done of doneDays.values()) {
+        for (const d of done) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
       }
 
       // Days every account re-pulled: leftover rows are campaigns Meta no

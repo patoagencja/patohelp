@@ -54,9 +54,10 @@ const HISTORY_BUDGET_MS = 20_000;
 // No single history range query starts after this much time.
 const HISTORY_STOP_MS = 40_000;
 /**
- * Seasonal / shop clients pull D-14..D-2 again once a day: Google keeps
- * attributing purchases to earlier clicks for weeks, and a season compared
- * with a fully matured previous one read low without it.
+ * Every client pulls D-14..D-2 again once a day per account: Google keeps
+ * attributing conversions to earlier clicks for weeks, for engagement
+ * clients as much as for shops. The old full-window refetch covered that
+ * for everyone; without it a day kept whatever it read as "yesterday".
  */
 const MATURE_FROM = 14;
 const MATURE_TO = 2;
@@ -130,7 +131,7 @@ export async function GET(request: Request) {
   // Migration 0034 adds clicks_all; Google ad clicks are link-like, so both
   // columns carry the same number. Omitted until the column exists.
   const withClicksAll = await hasClicksAllColumn(admin, "ads_daily");
-  // Seasonal clients and shops: purchase-only values and the mature re-pull.
+  // Seasonal clients and shops: purchase-only values.
   const eligibleIds = await seasonalOrShopIds(
     admin,
     (integrations ?? []).map((i) => i.client_id as string)
@@ -289,8 +290,10 @@ export async function GET(request: Request) {
             for (const d of deliveredGaps) if (!knownEmpty.has(d)) wantedDays.add(d);
           }
           // Unreadable state would make every run look due: then only at night.
+          // All clients; only the purchase-only query below stays with
+          // seasonal clients and shops.
           const matureAllowed = stateRead.ok || isNightlyWindow(now);
-          if (eligible && matureAllowed && isDue(state.mature?.[account.id], MATURE_EVERY_MS)) {
+          if (matureAllowed && isDue(state.mature?.[account.id], MATURE_EVERY_MS)) {
             matureDays = eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO));
             matureDays.forEach((d) => wantedDays.add(d));
           }
