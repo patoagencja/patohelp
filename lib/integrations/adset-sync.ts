@@ -167,18 +167,15 @@ export async function syncMetaAdsets(
   shouldStop: () => boolean,
   campaignId?: string,
   /** Migration 0034 ran (probed when omitted). */
-  withClicksAll?: boolean
+  withClicksAll?: boolean,
+  /** Exact days to pull (the goal pass: from the goal's start). */
+  windowOverride?: { since: string; until: string }
 ): Promise<AdsetSyncResult> {
   const clicksAll = withClicksAll ?? (await hasClicksAllColumnStrict(admin, "ads_adset_daily"));
   // One campaign on demand: always the full window, it is a handful of calls.
-  const { since, until } = await adsetSyncWindow(
-    admin,
-    clientId,
-    "meta_ads",
-    new Date(),
-    !!campaignId,
-    clicksAll
-  );
+  const { since, until } =
+    windowOverride ??
+    (await adsetSyncWindow(admin, clientId, "meta_ads", new Date(), !!campaignId, clicksAll));
   const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const accountId of accountIds) {
     if (shouldStop()) break;
@@ -230,10 +227,13 @@ export async function syncGoogleAdGroups(
   shouldStop: () => boolean,
   campaignId?: string,
   /** Migration 0034 ran (probed when omitted). */
-  withClicksAll?: boolean
+  withClicksAll?: boolean,
+  /** Exact days to pull (the goal pass: from the goal's start). */
+  windowOverride?: { since: string; until: string }
 ): Promise<AdsetSyncResult> {
   const clicksAll = withClicksAll ?? (await hasClicksAllColumnStrict(admin, "ads_adset_daily"));
-  const { since, until } = await adsetSyncWindow(admin, clientId, "google_ads", new Date(), !!campaignId);
+  const { since, until } =
+    windowOverride ?? (await adsetSyncWindow(admin, clientId, "google_ads", new Date(), !!campaignId));
   const result: AdsetSyncResult = { written: 0, errors: [] };
   for (const account of accounts) {
     if (shouldStop()) break;
@@ -291,7 +291,14 @@ interface StoredAccount {
 export async function syncAdsetsForClient(
   admin: AdminClient,
   clientId: string,
-  opts: { provider?: Provider; campaignId?: string; shouldStop?: () => boolean } = {}
+  opts: {
+    provider?: Provider;
+    campaignId?: string;
+    shouldStop?: () => boolean;
+    /** Only these accounts (the one a goal's campaign runs in). */
+    accountIds?: string[];
+    window?: { since: string; until: string };
+  } = {}
 ): Promise<AdsetSyncResult> {
   const shouldStop = opts.shouldStop ?? (() => false);
   const total: AdsetSyncResult = { written: 0, errors: [] };
@@ -314,8 +321,9 @@ export async function syncAdsetsForClient(
   }
   for (const integration of integrations ?? []) {
     if (shouldStop()) break;
+    const only = opts.accountIds?.length ? new Set(opts.accountIds.map(String)) : null;
     const accounts = ((integration.account_ids ?? []) as StoredAccount[]).filter(
-      (a) => a.selected === true
+      (a) => a.selected === true && (!only || only.has(String(a.id)))
     );
     if (!accounts.length) continue;
     try {
@@ -329,7 +337,8 @@ export async function syncAdsetsForClient(
               accounts.map((a) => a.id),
               shouldStop,
               opts.campaignId,
-              withClicksAll
+              withClicksAll,
+              opts.window
             )
           : await syncGoogleAdGroups(
               admin,
@@ -338,7 +347,8 @@ export async function syncAdsetsForClient(
               accounts,
               shouldStop,
               opts.campaignId,
-              withClicksAll
+              withClicksAll,
+              opts.window
             );
       total.written += r.written;
       total.errors.push(...r.errors);
