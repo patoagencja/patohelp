@@ -20,6 +20,8 @@ import {
 } from "@/lib/integrations/ga4";
 import { mergeRows, selectedGa4Properties } from "@/lib/integrations/ga4-merge";
 import { createFxConverter, type FxConverter } from "@/lib/integrations/fx";
+import { readSyncState, writeSyncState } from "@/lib/integrations/sync-state";
+import { historyDaysFor } from "@/lib/season/history";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull GA4 reports for yesterday+today into ga4_daily.
@@ -35,14 +37,23 @@ const WARSAW_TZ = "Europe/Warsaw";
 // Don't START a snapshot after this much of maxDuration (60s) is used - each
 // is one small GA4 report, so ~20s of headroom keeps the function alive.
 const SNAPSHOT_START_BUDGET_MS = 40_000;
+// Don't START a full history rebuild (a year+ of reports per property) past this.
+const FULL_BACKFILL_START_MS = 20_000;
 
 /**
  * PLN per unit of one property's currency, for a day or (snapshots) a range.
- * One property = the old behaviour: no currency lookup, amounts stored as
- * reported. Several (Elfi's country sites) report in their own money, which
- * must be złoty before it is summed; an unknown rate drops that revenue
- * rather than adding euros to złoty.
+ * Country sites (Elfi: .de, .uk, .com.br) report in their own money, which
+ * must be złoty before it is stored or summed; an unknown rate drops that
+ * revenue rather than adding euros to złoty.
  */
+/** What a client's stored GA4 history was built from (sync-state). */
+const GA4_HISTORY_KEY = "ga4-history";
+interface Ga4HistoryState {
+  signature: string;
+  /** Reporting currency per property (null = GA4 didn't say). */
+  currencies: Record<string, string | null>;
+}
+
 type ToPln = { day: (d: string) => Promise<number>; range: (from: string, to: string) => Promise<number> };
 const SAME: ToPln = { day: async () => 1, range: async () => 1 };
 function toPln(fx: FxConverter, currency: string | null, propertyId: string): ToPln {
@@ -121,6 +132,7 @@ export async function GET(request: Request) {
   }> = [];
 
   let fx: FxConverter | null = null;
+  let fullBackfillsThisRun = 0;
   for (const integration of integrations ?? []) {
     // One or several properties (Elfi: a site per country); summed below.
     const propertyIds = selectedGa4Properties(integration.account_ids);
@@ -157,12 +169,25 @@ export async function GET(request: Request) {
         decrypt(integration.credentials_encrypted as string)
       );
 
-      // Backfill a full year of daily totals until we have them, then only
-      // yesterday+today. (Based on the earliest daily-total row, not "any row".)
+      // Backfill the client's whole history window (a year; seasonal
+      // clients ~15 months, so the whole previous season is there) whenever
+      // what it was built from changes, then only yesterday+today.
+      const historyDays = await historyDaysFor(admin, integration.client_id as string);
       const backfillStart = formatInTimeZone(
-        subDays(now, 364),
+        subDays(now, historyDays - 1),
         WARSAW_TZ,
         "yyyy-MM-dd"
+      );
+      // What the stored history was built from: the property set, the window
+      // and the złoty conversion. Elfi went from one property (.uk) to seven:
+      // keyed on "is there any row" alone, the six new countries were only
+      // ever pulled for the last two days and last season showed one
+      // country, in pounds booked as złoty.
+      const signature = `${[...propertyIds].sort().join(",")}|${historyDays}|pln1`;
+      const historyState = await readSyncState<Ga4HistoryState>(
+        admin,
+        integration.client_id as string,
+        GA4_HISTORY_KEY
       );
       // Dimension snapshots stay a 30-day window - the report widgets present
       // them as "last 30 days".
@@ -194,8 +219,18 @@ export async function GET(request: Request) {
       // the end, so the tail is where to look (a mid-history scan would
       // re-pull forever from any day the site truly had no visits).
       const resumeFrom = (latestBefore?.date as string | undefined) ?? null;
+      const wantsFull = historyState.ok
+        ? historyState.value?.signature !== signature
+        : !earliest?.date || (earliest.date as string) > backfillStart;
+      // One full rebuild per run, early in it: after a deploy every client
+      // rebuilds once, and all of them in one 60 s function would be killed
+      // half-way - forever, since the state is only written on success. The
+      // others take the normal small window now and rebuild on later ticks.
+      const fullBackfill =
+        wantsFull && (!historyState.ok || (fullBackfillsThisRun === 0 && Date.now() - startedAt < FULL_BACKFILL_START_MS));
+      if (fullBackfill) fullBackfillsThisRun += 1;
       const dailyRange: DateRange =
-        !earliest?.date || (earliest.date as string) > backfillStart
+        fullBackfill
           ? { startDate: backfillStart, endDate: until }
           : resumeFrom && resumeFrom < since
             ? { startDate: resumeFrom, endDate: until }
@@ -206,22 +241,28 @@ export async function GET(request: Request) {
       // yesterday+today, which made the totals ~30x too small.
       const snapshotRange: DateRange = { startDate: snapshotStart, endDate: until };
 
-      const multi = propertyIds.length > 1;
-      if (multi && !fx) fx = createFxConverter();
+      // Each property's currency is asked once per history build and kept
+      // with it; amounts in any other money become złoty before they are
+      // stored or summed.
+      const knownCurrencies = fullBackfill ? {} : historyState.value?.currencies ?? {};
       const perProperty = await Promise.all(
         propertyIds.map(async (propertyId) => {
           const [currency, daily, sourceMedium, devices, pages, newReturning] = await Promise.all([
-            multi ? getPropertyCurrency(ga4Auth, propertyId) : Promise.resolve(null),
+            propertyId in knownCurrencies
+              ? Promise.resolve(knownCurrencies[propertyId])
+              : getPropertyCurrency(ga4Auth, propertyId).catch(() => null),
             getDailyMetrics(ga4Auth, propertyId, dailyRange),
             getSessionsBySourceMedium(ga4Auth, propertyId, snapshotRange),
             getSessionsByDevice(ga4Auth, propertyId, snapshotRange),
             getTopPages(ga4Auth, propertyId, snapshotRange, 10),
             getNewVsReturning(ga4Auth, propertyId, snapshotRange),
           ]);
-          const pln = multi && fx ? toPln(fx, currency, propertyId) : SAME;
+          if (currency && currency !== "PLN" && !fx) fx = createFxConverter();
+          const pln = fx && currency && currency !== "PLN" ? toPln(fx, currency, propertyId) : SAME;
           const snapshotRate = await pln.range(snapshotRange.startDate, snapshotRange.endDate);
           return {
             propertyId,
+            currency,
             pln,
             daily: await Promise.all(
               daily.map(async (d) => {
@@ -420,6 +461,15 @@ export async function GET(request: Request) {
             error: (err as Error).message,
           });
         }
+      }
+
+      // Only after the rows are in: a run that died half-way rebuilds again.
+      if (fullBackfill || Object.keys(knownCurrencies).length !== propertyIds.length) {
+        await writeSyncState(admin, integration.client_id as string, GA4_HISTORY_KEY, {
+          // A deferred rebuild only learned currencies: it must stay "to do".
+          signature: fullBackfill ? signature : historyState.value?.signature ?? "",
+          currencies: Object.fromEntries(perProperty.map((p) => [p.propertyId, p.currency ?? null])),
+        } satisfies Ga4HistoryState);
       }
 
       await admin

@@ -239,6 +239,7 @@ export default async function OverviewPage({
         <OverviewMetrics
           facts={story.facts}
           periodLabel={data.rangeLabel}
+          comparable={data.comparable !== false}
           trend={data.trend}
           prevTrend={data.prevTrend}
           events={events}

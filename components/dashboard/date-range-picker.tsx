@@ -12,6 +12,7 @@ const SHORT_LABELS: Record<RangeKey, string> = {
   "7d": "7 dni",
   "30d": "30 dni",
   "90d": "90 dni",
+  "365d": "Rok",
   month: "Ten miesiąc",
   prev_month: "Poprzedni",
 };

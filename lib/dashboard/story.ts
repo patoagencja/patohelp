@@ -152,6 +152,7 @@ export function comparisonPhrase(periodLabel: string): string {
     return `z poprzednimi ${n} ${n === 1 ? "dniem" : "dniami"}`;
   }
   const l = periodLabel.toLowerCase();
+  if (l.includes("ostatni rok")) return "z rokiem wcześniej";
   if (l.includes("bieżący miesiąc")) return "z tymi samymi dniami poprzedniego miesiąca";
   if (l.includes("poprzedni miesiąc")) return "z miesiącem wcześniej";
   return "z okresem tej samej długości tuż przed nim";

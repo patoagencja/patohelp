@@ -72,7 +72,7 @@ function resolveRange(key: RangeKey, today: Date): ResolvedRange {
     };
   }
 
-  const days = key === "7d" ? 7 : key === "90d" ? 90 : 30;
+  const days = key === "7d" ? 7 : key === "90d" ? 90 : key === "365d" ? 365 : 30;
   const start = subDays(today, days - 1);
   const prevEnd = subDays(start, 1);
   const prevStart = subDays(prevEnd, days - 1);
@@ -171,6 +171,11 @@ export interface DashboardData {
    * daily-total row in range carries a rate. Optional for hand-built data.
    */
   engagementRate?: number | null;
+  /**
+   * False when the synced history doesn't reach back over the comparison
+   * period (long ranges): the deltas are then left out, not guessed.
+   */
+  comparable?: boolean;
 }
 
 interface AdsRow {
@@ -348,6 +353,43 @@ export async function getDashboardData(
   const label = resolved.label;
   const range: ResolvedRange = resolved;
 
+  // Long ranges ("Ostatni rok", a past season picked by hand): the baseline
+  // before them usually predates the synced history (a year, ~15 months for
+  // seasonal clients), and a half-empty baseline reads as "+300%". Where a
+  // source's history starts after the baseline's first week, that baseline
+  // is neither read nor compared. Short ranges skip the two lookups.
+  const longRange =
+    differenceInCalendarDays(new Date(`${range.end}T00:00:00`), new Date(`${range.start}T00:00:00`)) + 1 > 90;
+  const coveredFrom = (earliest: string | null) =>
+    !longRange || (earliest !== null && earliest <= fmt(addDays(new Date(`${range.prevStart}T00:00:00`), 7)));
+  const [adsEarliest, ga4Earliest] = longRange
+    ? await Promise.all([
+        supabase
+          .from("ads_daily")
+          .select("date")
+          .eq("client_id", clientId)
+          .order("date", { ascending: true })
+          .limit(1)
+          .maybeSingle()
+          .then((r) => (r.data?.date as string | undefined) ?? null),
+        supabase
+          .from("ga4_daily")
+          .select("date")
+          .eq("client_id", clientId)
+          .is("source_medium", null)
+          .is("device_category", null)
+          .is("page_path", null)
+          .order("date", { ascending: true })
+          .limit(1)
+          .maybeSingle()
+          .then((r) => (r.data?.date as string | undefined) ?? null),
+      ])
+    : [null, null];
+  const adsBaseline = coveredFrom(adsEarliest);
+  const ga4Baseline = coveredFrom(ga4Earliest);
+  const adsFrom = adsBaseline ? range.prevStart : range.start;
+  const ga4From = ga4Baseline ? range.prevStart : range.start;
+
   type Ga4TotalRow = {
     date: string;
     sessions: number | string;
@@ -366,7 +408,7 @@ export async function getDashboardData(
         .is("source_medium", null)
         .is("device_category", null)
         .is("page_path", null)
-        .gte("date", range.prevStart)
+        .gte("date", ga4From)
         .lte("date", range.end)
         .order("date", { ascending: true })
         .order("id", { ascending: true })
@@ -379,7 +421,7 @@ export async function getDashboardData(
   // 90 days + baseline of an OLX-size account is ~70 000 rows, and one long
   // OFFSET-paged read re-walked every earlier page for each new one.
   const [rows, ga4Rows] = await Promise.all([
-    fetchAllByDateChunks<AdsRow>(range.prevStart, range.end, 14, (chunkStart, chunkEnd) =>
+    fetchAllByDateChunks<AdsRow>(adsFrom, range.end, 14, (chunkStart, chunkEnd) =>
       (from, to) =>
         supabase
           .from("ads_daily")
@@ -607,7 +649,9 @@ export async function getDashboardData(
   }
 
   // --- Previous-period trend + chart annotations (from rows already read) ---
-  const prevTrend = buildPrevTrend(rows, ga4Rows, range.prevStart, range.prevEnd);
+  // Half a baseline drawn as a line is the same lie as half a baseline in a %.
+  const prevTrend =
+    adsBaseline && ga4Baseline ? buildPrevTrend(rows, ga4Rows, range.prevStart, range.prevEnd) : undefined;
   const autoEvents = detectCampaignEvents({
     rows: rows.map((r) => ({
       provider: r.provider,
@@ -783,6 +827,7 @@ export async function getDashboardData(
     rangeStart: range.start,
     rangeEnd: range.end,
     prevTrend,
+    comparable: adsBaseline || ga4Baseline,
     autoEvents,
     engagementRate:
       curEngSessions > 0 ? (curEngWeighted / curEngSessions) * 100 : null,

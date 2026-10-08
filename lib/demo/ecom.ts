@@ -273,7 +273,7 @@ function resolveRange(key: RangeKey, custom: CustomRange | null, today: string):
       label: RANGE_LABELS[key],
     };
   }
-  const days = key === "7d" ? 7 : key === "90d" ? 90 : 30;
+  const days = key === "7d" ? 7 : key === "90d" ? 90 : key === "365d" ? 365 : 30;
   const start = addDays(today, -(days - 1));
   const prevEnd = addDays(start, -1);
   return {

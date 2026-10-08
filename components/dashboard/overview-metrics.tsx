@@ -226,6 +226,7 @@ const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function OverviewMetrics({
   facts,
   periodLabel,
+  comparable = true,
   trend,
   prevTrend,
   events,
@@ -238,6 +239,8 @@ export function OverviewMetrics({
 }: {
   facts: StoryFact[];
   periodLabel: string;
+  /** False: the history doesn't reach the comparison period (DashboardData.comparable). */
+  comparable?: boolean;
   trend: TrendPoint[];
   prevTrend?: TrendPoint[];
   events: ClientEvent[];
@@ -266,8 +269,10 @@ export function OverviewMetrics({
       {tiles.length > 0 ? (
         <>
           <p className="text-[13px] text-ink-3">
-            Zmiany w porównaniu {comparisonPhrase(periodLabel)}. Kliknij kafelek, aby zobaczyć go
-            na wykresie.
+            {comparable
+              ? `Zmiany w porównaniu ${comparisonPhrase(periodLabel)}.`
+              : "Bez zmian procentowych - dane sięgają za krótko wstecz, żeby porównać ten okres z równie długim przed nim."}{" "}
+            Kliknij kafelek, aby zobaczyć go na wykresie.
           </p>
           {/* Phones: a swipeable carousel (Telefon-2030); sm+: a grid. */}
           <div
