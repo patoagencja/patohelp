@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { evaluateAlerts } from "@/lib/alerts/rules";
 import { describeError } from "@/lib/integrations/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,10 +13,7 @@ export const maxDuration = 60;
 const ALERT_TTL_DAYS = 7;
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

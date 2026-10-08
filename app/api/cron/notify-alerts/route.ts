@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { detectCreativeAlerts } from "@/lib/alerts/creative-tests";
@@ -66,10 +67,7 @@ function goalValue(metric: FlightMetric, value: number): string {
 }
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

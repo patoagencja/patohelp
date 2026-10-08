@@ -13,6 +13,7 @@ import {
 } from "@/lib/integrations/ga4";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { upsertIntegration } from "@/lib/integrations/oauth-flow";
+import { selectedGa4Properties } from "@/lib/integrations/ga4-merge";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -48,6 +49,19 @@ export async function saveGa4ServiceAccount(formData: FormData) {
   }
 
   const admin = createAdminClient();
+  // The service account is shared by every client: reading the property
+  // proves nothing about whose it is. One already in use by another client
+  // (a typo, a copy-paste) would show that client's traffic here.
+  const { data: others } = await admin
+    .from("integrations")
+    .select("client_id, account_ids")
+    .eq("provider", "ga4")
+    .neq("client_id", access.clientId);
+  const takenElsewhere = (others ?? []).some((row) =>
+    selectedGa4Properties(row.account_ids).includes(propertyId)
+  );
+  if (takenElsewhere) redirect(`${back}?error=ga4_sa_taken`);
+
   const { data: existing } = await admin
     .from("integrations")
     .select("account_ids")

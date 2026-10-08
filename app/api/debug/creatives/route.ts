@@ -24,8 +24,8 @@ function html(body: string): Response {
 }
 
 function esc(s: unknown): string {
-  return String(s ?? "").replace(/[<>&]/g, (c) =>
-    c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;"
+  return String(s ?? "").replace(/[<>&"']/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] ?? c
   );
 }
 

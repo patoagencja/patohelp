@@ -17,7 +17,7 @@ function html(body: string): Response {
   );
 }
 const esc = (s: unknown) =>
-  String(s ?? "").replace(/[<>&]/g, (c) => (c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&amp;"));
+  String(s ?? "").replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 
 export async function GET(request: Request) {
   const slug = new URL(request.url).searchParams.get("client") ?? "";

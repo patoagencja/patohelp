@@ -64,19 +64,30 @@ async function createShareLink(formData: FormData) {
   if (!access.ok) return;
 
   const admin = createAdminClient();
+  // Report links expire after 30 days (like board links): one that leaked
+  // from a forwarded e-mail used to open the report for good. With the
+  // columns of 0026 a still-valid link is reused; without them, as before.
+  const withKind = await hasLinkKind(admin);
   let existingQ = admin
     .from("share_links")
     .select("token")
     .eq("client_id", access.clientId)
     .eq("revoked", false);
-  if (await hasLinkKind(admin)) existingQ = existingQ.eq("kind", "report");
-  const { data: existing } = await existingQ.maybeSingle();
+  if (withKind) {
+    existingQ = existingQ.eq("kind", "report").gt("expires_at", new Date(Date.now() + 86_400_000).toISOString());
+  }
+  const { data: existing } = await existingQ
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!existing) {
     const token = randomUUID().replace(/-/g, "");
-    const { error } = await admin
-      .from("share_links")
-      .insert({ token, client_id: access.clientId });
+    const { error } = await admin.from("share_links").insert({
+      token,
+      client_id: access.clientId,
+      ...(withKind ? { kind: "report", expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() } : {}),
+    });
     if (error) {
       // Surface the failure instead of silently doing nothing (usually: the
       // share_links table hasn't been migrated yet).
@@ -116,14 +127,23 @@ async function ShareBox({
   status?: string;
 }) {
   const admin = createAdminClient();
+  const withKind = await hasLinkKind(admin);
   let boxQ = admin
     .from("share_links")
-    .select("token")
+    .select(withKind ? "token, expires_at" : "token")
     .eq("client_id", clientId)
     .eq("revoked", false);
-  if (await hasLinkKind(admin)) boxQ = boxQ.eq("kind", "report");
-  const { data, error } = await boxQ.maybeSingle();
-  const token = (data?.token as string) ?? null;
+  // The newest still-valid link (several can be active: a legacy one with
+  // no expiry next to the 30-day ones that replaced it).
+  if (withKind) {
+    boxQ = boxQ.eq("kind", "report").or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+  }
+  const { data, error } = await boxQ
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as { token?: string; expires_at?: string | null } | null;
+  const token = row?.token ?? null;
 
   // Missing table (migration not run) surfaces as a read error too - tell the
   // user exactly what to do instead of failing silently.
@@ -141,7 +161,18 @@ async function ShareBox({
     <div className="glass flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card px-5 py-4 sm:px-6 print:hidden">
       <span className="flex min-w-0 flex-col">
         <span className="kick">Udostępnij</span>
-        <span className="text-sm font-medium">Publiczny link do raportu (bez logowania)</span>
+        <span className="text-sm font-medium">
+          Publiczny link do raportu (bez logowania)
+          {row?.expires_at ? (
+            <span className="font-normal text-ink-3">
+              {" "}
+              · ważny do{" "}
+              {new Date(row.expires_at).toLocaleDateString("pl-PL", { timeZone: "Europe/Warsaw" })}
+            </span>
+          ) : token ? (
+            <span className="font-normal text-ink-3"> · bezterminowy - unieważnij i wygeneruj nowy, ważny 30 dni</span>
+          ) : null}
+        </span>
       </span>
       {token ? (
         <>

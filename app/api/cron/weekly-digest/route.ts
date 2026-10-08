@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { describeError } from "@/lib/integrations/errors";
 import { sendEmail } from "@/lib/notify/send";
 import {
@@ -43,10 +44,7 @@ interface ClientRow {
 const looksLikeEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

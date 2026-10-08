@@ -6,6 +6,7 @@ import {
   fetchOneCategory,
   type NewsCategory,
 } from "@/lib/news/fetch";
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Refreshes the "Newsy" industry feed via Claude + web search.
@@ -22,10 +23,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

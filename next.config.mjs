@@ -30,6 +30,26 @@ const nextConfig = {
       "/api/report/olx-v3": ["./lib/report/templates/*.pptx"],
     },
   },
+  // Baseline security headers. The dashboard must never render inside
+  // someone else's frame (clickjacking a "Rozłącz" or an invite); only the
+  // public demo may be embedded (e.g. on the agency's site).
+  async headers() {
+    const base = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+    ];
+    return [
+      { source: "/:path*", headers: base },
+      {
+        source: "/((?!demo(?:-full)?(?:/|$)).*)",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

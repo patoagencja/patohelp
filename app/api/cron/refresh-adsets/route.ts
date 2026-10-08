@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { hasAdsetTable, syncAdsetsForClient } from "@/lib/integrations/adset-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -76,10 +77,7 @@ export const maxDuration = 300;
 const STOP_MS = 240_000;
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

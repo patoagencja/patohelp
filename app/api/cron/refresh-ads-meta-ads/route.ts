@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { listAbClients } from "@/lib/ab/eligibility";
 import {
   AD_DAILY_SYNC_PROVIDER,
@@ -31,10 +32,7 @@ const HISTORY_MS = 240_000;
 const HARD_MS = 280_000;
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -31,6 +31,8 @@ const ERRORS: Record<string, string> = {
     "Na serwerze brakuje zmiennej GOOGLE_SERVICE_ACCOUNT_JSON (albo jest nieczytelna) - zobacz kroki poniżej.",
   ga4_sa_denied:
     "Konto usługi nie ma jeszcze dostępu do tej usługi GA4. Sprawdź, czy dodałeś jego e-mail jako Wyświetlający (Viewer) w TEJ usłudze i czy numer usługi się zgadza. Dostęp działa zwykle od razu, czasem po kilku minutach.",
+  ga4_sa_taken:
+    "Ta usługa GA4 jest już podpięta u innego klienta. Sprawdź numer - jedna usługa może należeć tylko do jednego klienta.",
 };
 
 /**

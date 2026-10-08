@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { seasonalOrShopIds } from "@/lib/ab/eligibility";
 import {
   AccountErrors,
@@ -104,10 +105,7 @@ function isNightlyWindow(now: Date): boolean {
 }
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

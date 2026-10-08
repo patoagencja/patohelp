@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const esc = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const html = (body: string) =>
   new Response(
     `<!doctype html><meta charset="utf-8"><body style="font-family:ui-sans-serif,system-ui;max-width:860px;margin:40px auto;line-height:1.6">${body}</body>`,

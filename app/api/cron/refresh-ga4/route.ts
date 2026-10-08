@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import {
@@ -67,10 +68,7 @@ function toPln(fx: FxConverter, currency: string | null, propertyId: string): To
 }
 
 export async function GET(request: Request) {
-  if (
-    !process.env.CRON_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
