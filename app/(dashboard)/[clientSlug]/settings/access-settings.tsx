@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { allowedLoginDomains } from "@/lib/auth/login-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -86,6 +87,14 @@ export async function AccessSettingsSection({
 
       <Card className="max-w-2xl">
         <CardContent className="flex flex-col gap-5 pt-6">
+          {allowedLoginDomains() !== "*" ? (
+            <p className="rounded-[16px] bg-warning-soft px-4 py-3 text-sm text-foreground">
+              Logowanie jest na razie otwarte tylko dla adresów{" "}
+              {(allowedLoginDomains() as string[]).map((d) => `@${d}`).join(", ")}. Zaproszeni
+              klienci zalogują się, gdy na Vercelu ustawisz <code className="rounded bg-muted px-1">LOGIN_ALLOWED_DOMAINS</code>{" "}
+              na <code className="rounded bg-muted px-1">*</code> (albo dopiszesz ich domenę).
+            </p>
+          ) : null}
           {invitesRes.error ? (
             <p className="text-sm text-muted-foreground">
               Uruchom w Supabase migrację{" "}

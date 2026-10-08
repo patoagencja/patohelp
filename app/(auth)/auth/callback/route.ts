@@ -2,6 +2,7 @@ import type { EmailOtpType, User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { escapeLikePattern, isAgencyEmail } from "@/lib/agency/domains";
+import { isLoginAllowed } from "@/lib/auth/login-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,6 +45,13 @@ export async function GET(request: Request) {
 
   if (!user) {
     return NextResponse.redirect(`${origin}/login?error=auth`);
+  }
+
+  // Agency only for now (lib/auth/login-policy.ts): a link obtained some
+  // other way (Supabase's own API, an old invite) must not open a session.
+  if (!isLoginAllowed(user.email)) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(`${origin}/login?error=domain`);
   }
 
   // Both branches below grant data access by e-mail address, so only on a

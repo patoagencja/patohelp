@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BellRing,
@@ -16,23 +16,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sky } from "@/components/ui/sky";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+import { sendLoginLink } from "./actions";
 import { useZenMode, ZenControls, ZenScene } from "./zen-mode";
 
-// Supabase returns English errors; a client stuck on "Email rate limit
-// exceeded" at the front door is the worst first impression we can make.
-function friendlyError(message: string): string {
-  const m = message.toLowerCase();
-  if (m.includes("rate limit") || m.includes("security purposes"))
-    return "Link został już wysłany przed chwilą. Sprawdź skrzynkę (także Spam) albo spróbuj za minutę.";
-  if (m.includes("invalid") && m.includes("email"))
-    return "Ten adres e-mail wygląda na niepoprawny - sprawdź literówki.";
-  if (m.includes("signups not allowed") || m.includes("not found") || m.includes("not authorized"))
-    return "Ten adres nie ma jeszcze dostępu do panelu. Napisz do opiekuna w Pato - doda go w minutę.";
-  return "Nie udało się wysłać linku. Spróbuj ponownie za chwilę.";
-}
+// Errors the auth callback and the middleware send back here (?error=).
+const URL_ERRORS: Record<string, string> = {
+  auth: "Ten link już nie działa (był użyty albo minęła godzina). Wyślij sobie nowy.",
+  domain: "Panel jest na razie dostępny tylko dla zespołu Pato (adresy @patoagencja.com).",
+};
 
 const BENEFITS = [
   { icon: TrendingUp, text: "Wyniki Meta, Google i strony w jednym miejscu - na żywo" },
@@ -53,16 +46,25 @@ export default function LoginPage() {
     error: null,
   });
 
+  // ?error= from the callback / middleware. Read after mount: the page is
+  // static, and useSearchParams would need a Suspense boundary around it.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    if (code && URL_ERRORS[code]) {
+      setErrorMessage(URL_ERRORS[code]);
+      setStatus("error");
+    }
+  }, []);
+
   // The one magic-link request; the form and "Wyślij ponownie" both use it.
+  // Server-side: the domain rule and the e-mail itself live there.
   async function requestLink(): Promise<string | null> {
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    return error ? friendlyError(error.message) : null;
+    try {
+      const res = await sendLoginLink(email);
+      return res.ok ? null : res.error;
+    } catch {
+      return "Nie udało się wysłać linku. Spróbuj ponownie za chwilę.";
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isLoginAllowed } from "@/lib/auth/login-policy";
+
 // Public paths that must stay reachable without a session. /r and /s are
 // token-gated share pages (report deck / board overview) - the page itself
 // validates the token, so the middleware must not bounce them to /login.
@@ -56,6 +58,19 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Sessions of addresses outside the allowed domains (agency only for
+  // now) end here - including ones opened before the rule existed.
+  if (user && !isLoginAllowed(user.email) && !isPublicPath(request.nextUrl.pathname)) {
+    await supabase.auth.signOut();
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "?error=domain";
+    const redirect = NextResponse.redirect(loginUrl);
+    // signOut cleared the auth cookies on `response`; carry that over.
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
 
   return response;

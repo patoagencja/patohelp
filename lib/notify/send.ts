@@ -142,7 +142,9 @@ export interface SendResult {
 export async function sendEmail(
   to: string[],
   subject: string,
-  html: string
+  html: string,
+  /** Plain-text part (spam filters and text-only clients like having one). */
+  text?: string
 ): Promise<SendResult> {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.NOTIFY_FROM_EMAIL;
@@ -156,7 +158,7 @@ export async function sendEmail(
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from, to, subject, html }),
+    body: JSON.stringify({ from, to, subject, html, ...(text ? { text } : {}) }),
     cache: "no-store",
   });
   if (!res.ok) {
