@@ -351,7 +351,7 @@ export function CommandPalette({
       { path: "witryna", label: "Witryna", icon: Globe, keywords: "strona website ga4 ruch sesje wizyty odwiedziny telefon urzadzenia zrodla odbiorcy wiek" },
       { path: "alerty", label: "Alerty", icon: BellRing, keywords: "alerts powiadomienia problemy ostrzezenia pilne anomalie" },
       { path: "raport", label: "Raport", icon: FileText, keywords: "report miesieczny" },
-      { path: "newsy", label: "Newsy", icon: Newspaper, keywords: "news aktualnosci" },
+      ...(isAgency ? [{ path: "newsy", label: "Newsy", icon: Newspaper, keywords: "news aktualnosci" }] : []),
       { path: "slowniczek", label: "Słowniczek pojęć", icon: BookOpen, keywords: "slownik pojecia co to znaczy wyjasnienia ctr cpc roas pomoc glossary" },
       ...(isAgency
         ? [{ path: "settings", label: "Ustawienia", icon: Settings, keywords: "settings integracje konfiguracja" }]

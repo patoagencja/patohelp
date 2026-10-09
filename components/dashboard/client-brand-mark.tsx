@@ -58,7 +58,13 @@ export function ClientBrandMark({
         referrerPolicy="no-referrer"
         decoding="async"
         onError={() => setFailed(true)}
-        className={cn("block w-auto max-w-full object-contain", className)}
+        // Uploaded logos are often dark ink on transparent: on the dark
+        // theme's header they all but vanished. A faint light halo keeps
+        // their edges readable without boxing logos made for dark.
+        className={cn(
+          "block w-auto max-w-full object-contain dark:drop-shadow-[0_0_1.5px_hsl(var(--foreground)/0.55)]",
+          className
+        )}
       />
     );
   }

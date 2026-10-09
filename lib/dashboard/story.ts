@@ -534,8 +534,9 @@ export function overviewStatus(
   if (alerts && alerts.attention > 0) {
     const n = alerts.attention;
     const what = `${n} ${plPlural(n, "rzecz", "rzeczy", "rzeczy")} do sprawdzenia`;
+    // "Pilne: 2 rzeczy" called both urgent when one was only worth a look.
     return alerts.urgent
-      ? { tone: "bad", text: `Pilne: ${what}` }
+      ? { tone: "bad", text: n === 1 ? `Pilne: ${what}` : `${what}, w tym pilne` }
       : { tone: "warn", text: what };
   }
   if (story.facts.length === 0) return { tone: "neutral", text: "Czekamy na pierwsze dane" };

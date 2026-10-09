@@ -1,3 +1,4 @@
+import { formatInTimeZone } from "date-fns-tz";
 import { Target, Trash2 } from "lucide-react";
 
 import {
@@ -7,6 +8,12 @@ import {
 } from "@/components/dashboard/goal-target-fields";
 import { Button } from "@/components/ui/button";
 import { StatusChip, type PingTone } from "@/components/ui/primitives";
+import {
+  buildGoalTiles,
+  GOAL_STATUS_WORDS,
+  type GoalTile,
+  type GoalTileStatus,
+} from "@/lib/dashboard/campaign-goals";
 import { distinctAdsetName } from "@/lib/dashboard/goal-names";
 import type { FlightMetric, PacingFlight } from "@/lib/alerts/pacing";
 import { dayMonthPL, plPlural } from "@/lib/dashboard/story";
@@ -69,6 +76,36 @@ const METRIC_KICK: Record<FlightMetric, string> = {
   conversions: "Działania na stronie",
 };
 
+const TILE_META: Record<GoalTileStatus, { tone: PingTone; bar: string }> = {
+  on_track: { tone: "live", bar: "share-fill" },
+  behind: { tone: "amber", bar: "share-fill-warn" },
+  at_risk: { tone: "coral", bar: "share-fill-bad" },
+  done: { tone: "lime", bar: "share-fill" },
+  spent: { tone: "muted", bar: "share-fill" },
+  over: { tone: "amber", bar: "share-fill-warn" },
+  ended: { tone: "muted", bar: "bg-chart-muted" },
+};
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** The tile verdicts pacing has no words for; null = the pacing sentence fits. */
+function tileSentence(t: GoalTile): string | null {
+  const done = Math.round(t.realizedPct * 100);
+  const plan = Math.round(t.expectedPct * 100);
+  switch (t.status) {
+    case "at_risk":
+      return `Zrealizowano ${done}% celu przy planie ${plan}% - w obecnym tempie cel nie zostanie osiągnięty. Szukamy sposobu, żeby przyspieszyć.`;
+    case "spent":
+      return `Budżet wykorzystany (${done}%).`;
+    case "over":
+      return `Wydano ${done}% zaplanowanego budżetu - o ${done - 100}% więcej. Sprawdzamy limity kampanii.`;
+    case "done":
+      return `Cel osiągnięty - ${done}% celu.`;
+    default:
+      return null;
+  }
+}
+
 /** One sentence a manager can repeat: how far along vs how far we should be. */
 function pacingSentence(f: PacingFlight): string {
   const done = Math.round(f.realizedPct * 100);
@@ -98,11 +135,21 @@ function PacingCard({
   isAgency: boolean;
   deleteAction: FormAction;
 }) {
-  // A reached target is the headline, running or not (same as the tiles).
-  const meta =
-    f.realizedPct >= 1 && f.status !== "upcoming"
-      ? { label: "Cel osiągnięty", tone: "lime" as PingTone, bar: "share-fill" }
-      : PACING_META[f.status];
+  // The same verdict and day count as the overview's goal tiles: the two
+  // used to call one goal "zagrożony · zostało 7 dni" and "Poniżej tempa ·
+  // 6 dni do końca". Goals not on the tiles (upcoming, long finished) keep
+  // the pacing words.
+  const tile = buildGoalTiles([f], formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd"))[0] ?? null;
+  const meta = tile
+    ? {
+        label: capitalize(
+          tile.status === "over"
+            ? `${GOAL_STATUS_WORDS.over} o ${Math.round((tile.realizedPct - 1) * 100)}%`
+            : GOAL_STATUS_WORDS[tile.status]
+        ),
+        ...TILE_META[tile.status],
+      }
+    : PACING_META[f.status];
   const realizedPct = Math.min(f.realizedPct * 100, 100);
   const expectedPct = Math.min(f.expectedPct * 100, 100);
   const running = f.status !== "upcoming" && f.status !== "ended";
@@ -166,14 +213,14 @@ function PacingCard({
       </div>
 
       <p className="text-[15px] leading-snug text-ink-2 tabular-nums [text-wrap:pretty]">
-        {pacingSentence(f)}
+        {tile ? tileSentence(tile) ?? pacingSentence(f) : pacingSentence(f)}
       </p>
 
       {running || isAgency ? (
         <div className="-mb-2 mt-auto flex min-h-11 items-center justify-between gap-3 border-t border-line pt-2 text-[13px] text-ink-3 tabular-nums">
           <span>
-            {running
-              ? `${Math.max(f.daysLeft, 0)} ${plPlural(Math.max(f.daysLeft, 0), "dzień", "dni", "dni")} do końca`
+            {running && tile && tile.daysRemaining > 0
+              ? `zostało ${tile.daysRemaining} ${plPlural(tile.daysRemaining, "dzień", "dni", "dni")}`
               : ""}
           </span>
           {isAgency ? (

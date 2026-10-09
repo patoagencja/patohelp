@@ -26,10 +26,12 @@ export function snowflakes(count: number) {
   };
   return Array.from({ length: count }, (_, i) => ({
     left: Math.round(rand(i, 1) * 1000) / 10,
-    size: Math.round((3 + rand(i, 2) * 4) * 10) / 10,
+    // Small and faint: flakes drift over numbers too, and must never make
+    // one harder to read.
+    size: Math.round((2.5 + rand(i, 2) * 3) * 10) / 10,
     duration: Math.round(11 + rand(i, 3) * 12),
     delay: -Math.round(rand(i, 4) * 23),
     drift: Math.round((rand(i, 5) - 0.5) * 70),
-    opacity: Math.round((0.35 + rand(i, 6) * 0.5) * 100) / 100,
+    opacity: Math.round((0.25 + rand(i, 6) * 0.35) * 100) / 100,
   }));
 }

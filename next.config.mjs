@@ -30,6 +30,11 @@ const nextConfig = {
       "/api/report/olx-v3": ["./lib/report/templates/*.pptx"],
     },
   },
+  // The tab is labelled "Strona" but the page is /witryna: a typed or shared
+  // /<client>/strona link used to end on a 404 (demo included).
+  async redirects() {
+    return [{ source: "/:client/strona", destination: "/:client/witryna", permanent: false }];
+  },
   // Baseline security headers. The dashboard must never render inside
   // someone else's frame (clickjacking a "Rozłącz" or an invite); only the
   // public demo may be embedded (e.g. on the agency's site).

@@ -89,14 +89,18 @@ export function buildHero({
   return { value, unit, parts, label: flatten(value, unit, parts) };
 }
 
-const MONTHS_NOM = [
-  "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
-  "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień",
+const MONTHS_GEN = [
+  "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+  "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
 ];
 
-/** "Październik 2026 · ostatnie 30 dni" from the period's last day + range. */
+/**
+ * "Stan na 9 października 2026 · ostatnie 30 dni" from the period's last day
+ * + range. A bare "Październik 2026" read as a month view next to a range
+ * that started in September.
+ */
 export function heroKicker(todayIso: string, periodLabel: string): string {
-  const [y, m] = todayIso.split("-").map(Number);
-  const month = MONTHS_NOM[(m || 1) - 1];
-  return `${month} ${y} · ${periodLabel.charAt(0).toLowerCase()}${periodLabel.slice(1)}`;
+  const [y, m, d] = todayIso.split("-").map(Number);
+  const month = MONTHS_GEN[(m || 1) - 1];
+  return `Stan na ${d || 1} ${month} ${y} · ${periodLabel.charAt(0).toLowerCase()}${periodLabel.slice(1)}`;
 }

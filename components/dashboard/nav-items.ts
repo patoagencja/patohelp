@@ -97,8 +97,9 @@ export function buildNav({
   const more: NavItem[] = [
     ...(isEcommerce ? [reports] : []),
     { href: `${base}/alerty`, label: "Alerty", icon: BellRing },
-    // Phase 2 merges agency activity into this feed and renames it "Co robimy".
-    { href: `${base}/newsy`, label: "Newsy", icon: Newspaper },
+    // Industry news is written for marketers ("niższe CPM", "szybsze testy
+    // A/B") - agency only until it says what it means for the client.
+    ...(isAgency ? [{ href: `${base}/newsy`, label: "Newsy", icon: Newspaper }] : []),
     { href: `${base}/slowniczek`, label: "Słowniczek pojęć", short: "Słowniczek", icon: BookOpen },
   ];
 

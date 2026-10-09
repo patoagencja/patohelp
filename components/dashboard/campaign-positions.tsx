@@ -65,7 +65,8 @@ const COPY = {
       "średnie dzienne wydatki z ostatnich 4 dni w porównaniu z 3 wcześniejszymi (nie z poprzednim okresem)",
     trendHint: "Dzienne wydatki z ostatnich 7 dni",
     ctrHint: "Klikalność (CTR): jaki odsetek osób, które zobaczyły reklamę, kliknął w nią",
-    spent: "wydane",
+    // After an amount: "43 909 zł wydanych" (genitive), never "zł wydane".
+    spent: "wydanych",
     kicker: "Kampanie w tym okresie",
     status: "Status",
     platform: "Platforma",

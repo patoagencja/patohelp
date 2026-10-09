@@ -313,7 +313,7 @@ export function SeasonPageView({
           title={
             festive ? (
               <span className="relative inline-block">
-                <SantaHat className="absolute -left-3 -top-2.5 h-6 w-8 -rotate-[20deg] md:-top-3 md:h-7 md:w-9" />
+                <SantaHat className="absolute -left-2 -top-1.5 h-5 w-6 -rotate-[20deg] md:-top-2 md:h-6 md:w-7" />
                 Sezon
               </span>
             ) : (

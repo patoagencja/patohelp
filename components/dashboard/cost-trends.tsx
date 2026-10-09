@@ -81,7 +81,10 @@ function takeaway(series: Series[], lang: Lang): string {
 
   const [cheap, dear] = [...stats].sort((a, b) => a.avg - b.avg);
   const ratio = cheap.avg > 0 ? dear.avg / cheap.avg : 1;
-  const prices = `${formatMoneyPLN(Math.round(cheap.avg))} vs ${formatMoneyPLN(Math.round(dear.avg))}`;
+  // Period averages - the line labels show the LAST day, so both say which.
+  const prices = en
+    ? `on average ${formatMoneyPLN(Math.round(cheap.avg))} vs ${formatMoneyPLN(Math.round(dear.avg))}`
+    : `średnio ${formatMoneyPLN(Math.round(cheap.avg))} vs ${formatMoneyPLN(Math.round(dear.avg))}`;
   let lead: string;
   if (ratio < 1.1) {
     lead = en
@@ -486,6 +489,7 @@ function CostPlot({
           >
             {s.name}
             <span className="hidden font-normal tabular-nums text-ink-3 sm:block">
+              {en ? "last " : "ostatnio "}
               {formatMoneyPLN(Math.round(ends[k].value))}
             </span>
           </span>

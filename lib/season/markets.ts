@@ -65,6 +65,15 @@ export function marketOf(campaignName: string): string | null {
   return null;
 }
 
+// Country names that take a plural verb in Polish ("Włochy rosną", "USA
+// rosną"), so sentences about a market agree with it.
+const PLURAL = new Set(["DE", "IT", "US", "CZ", "HU"]);
+
+/** "rośnie" / "rosną" (and any singular/plural pair) for a market code. */
+export function marketVerb(code: string, singular: string, plural: string): string {
+  return PLURAL.has(code) ? plural : singular;
+}
+
 export function marketLabel(code: string): string {
   return LABELS[code] ?? code;
 }

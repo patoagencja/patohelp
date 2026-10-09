@@ -116,7 +116,9 @@ export function InfoTip({
           }
         }}
         // On the dark anchor tile the green ring is too faint; use the lime dot.
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [.surface-anchor_&]:focus-visible:ring-anchor-dot"
+        // 20 px to look at, 44 px to hit: an invisible ::before widens the
+        // touch target without moving the layout around the label.
+        className="relative inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors before:absolute before:-inset-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [.surface-anchor_&]:focus-visible:ring-anchor-dot"
       >
         <Info className="h-3.5 w-3.5" aria-hidden />
       </button>

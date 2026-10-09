@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { change } from "@/lib/season/format";
 import type { SeasonView } from "@/lib/season/load";
-import { marketLabel } from "@/lib/season/markets";
+import { marketLabel, marketVerb } from "@/lib/season/markets";
 import { cn, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 import { SeasonTabs } from "./season-tabs";
@@ -138,10 +138,10 @@ export function MarketsPageView({
   const lead = [
     total > 0 ? `${marketLabel(top.code)} to ${Math.round((top.lead / total) * 100)}% ${what}.` : null,
     growth.length && growth[0].d.ratio > 0.05
-      ? `Najszybciej rośnie ${marketLabel(growth[0].c.code)} (+${growth[0].d.text} ${running ? "na tle tego samego momentu" : "na tle"} sezonu ${prevYear}).`
+      ? `Najszybciej ${marketVerb(growth[0].c.code, "rośnie", "rosną")} ${marketLabel(growth[0].c.code)} (+${growth[0].d.text} ${running ? "na tle tego samego momentu" : "na tle"} sezonu ${prevYear}).`
       : null,
     growth.length > 1 && growth[growth.length - 1].d.ratio < -0.05
-      ? `Najbardziej traci ${marketLabel(growth[growth.length - 1].c.code)} (-${growth[growth.length - 1].d.text}).`
+      ? `Najbardziej ${marketVerb(growth[growth.length - 1].c.code, "traci", "tracą")} ${marketLabel(growth[growth.length - 1].c.code)} (-${growth[growth.length - 1].d.text}).`
       : null,
   ]
     .filter(Boolean)

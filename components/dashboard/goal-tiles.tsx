@@ -4,7 +4,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { CountUp } from "@/components/ui/count-up";
 import { Ping, type PingTone } from "@/components/ui/primitives";
 import type { FlightMetric } from "@/lib/alerts/pacing";
-import type { GoalTile, GoalTileStatus } from "@/lib/dashboard/campaign-goals";
+import { GOAL_STATUS_WORDS, type GoalTile, type GoalTileStatus } from "@/lib/dashboard/campaign-goals";
 import { distinctAdsetName } from "@/lib/dashboard/goal-names";
 import { plPlural } from "@/lib/dashboard/story";
 import { cn } from "@/lib/utils";
@@ -29,11 +29,13 @@ const STATUS: Record<
   GoalTileStatus,
   { label: string; tone: PingTone; fill: string; line: string }
 > = {
-  on_track: { label: "w planie", tone: "lime", fill: "share-fill", line: "stroke-[hsl(var(--lime-line))]" },
-  behind: { label: "poniżej tempa", tone: "amber", fill: "share-fill-warn", line: "stroke-amber" },
-  at_risk: { label: "zagrożony", tone: "coral", fill: "share-fill-bad", line: "stroke-coral" },
-  done: { label: "cel osiągnięty", tone: "lime", fill: "share-fill", line: "stroke-[hsl(var(--lime-line))]" },
-  ended: { label: "zakończony", tone: "muted", fill: "bg-chart-muted", line: "stroke-[var(--ink-3)]" },
+  on_track: { label: GOAL_STATUS_WORDS.on_track, tone: "lime", fill: "share-fill", line: "stroke-[hsl(var(--lime-line))]" },
+  behind: { label: GOAL_STATUS_WORDS.behind, tone: "amber", fill: "share-fill-warn", line: "stroke-amber" },
+  at_risk: { label: GOAL_STATUS_WORDS.at_risk, tone: "coral", fill: "share-fill-bad", line: "stroke-coral" },
+  done: { label: GOAL_STATUS_WORDS.done, tone: "lime", fill: "share-fill", line: "stroke-[hsl(var(--lime-line))]" },
+  spent: { label: GOAL_STATUS_WORDS.spent, tone: "muted", fill: "share-fill", line: "stroke-[hsl(var(--lime-line))]" },
+  over: { label: GOAL_STATUS_WORDS.over, tone: "amber", fill: "share-fill-warn", line: "stroke-amber" },
+  ended: { label: GOAL_STATUS_WORDS.ended, tone: "muted", fill: "bg-chart-muted", line: "stroke-[var(--ink-3)]" },
 };
 
 // Non-breaking group separator: "10 215" must never wrap mid-number.
@@ -70,7 +72,15 @@ function kicker(g: GoalTile): string {
   return `${level} · do ${shortDate(g.endDate)}`;
 }
 
-const URGENCY: Record<GoalTileStatus, number> = { at_risk: 0, behind: 1, done: 2, on_track: 3, ended: 4 };
+const URGENCY: Record<GoalTileStatus, number> = {
+  at_risk: 0,
+  over: 1,
+  behind: 1,
+  done: 2,
+  spent: 2,
+  on_track: 3,
+  ended: 4,
+};
 /** Tiles shown before "Pokaż wszystkie" - one row on desktop. */
 const SHOWN = 4;
 
@@ -130,7 +140,7 @@ function StatusBadge({ status }: { status: GoalTileStatus }) {
   const meta = STATUS[status];
   return (
     <span className="inline-flex min-h-8 items-center gap-2 rounded-full bg-chip py-0.5 pl-2.5 pr-3 text-[13px] font-medium text-foreground">
-      {status === "done" ? (
+      {status === "done" || status === "spent" ? (
         <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full bg-lime text-lime-foreground">
           <Check className="h-3 w-3" strokeWidth={3} />
         </span>
@@ -152,14 +162,20 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
   const running = g.daysRemaining > 0;
   const pct = Math.min(g.realizedPct * 100, 100);
   const plan = g.expectedPct * 100;
-  const showMarker = running && g.status !== "done";
+  const reached = g.status === "done" || g.status === "spent" || g.status === "over";
+  const showMarker = running && !reached;
   const unit = g.metric === "spend" ? " zł" : "";
 
   const right = running
     ? `zostało ${g.daysRemaining} ${plPlural(g.daysRemaining, "dzień", "dni", "dni")}`
     : `koniec ${shortDate(g.endDate)}`;
+  const overBy = Math.round((g.realizedPct - 1) * 100);
   const footer =
-    g.status === "done"
+    g.status === "over"
+      ? `wydano ${Math.round(g.realizedPct * 100)}% budżetu - o ${overBy}% więcej niż zaplanowano`
+      : g.status === "spent"
+        ? `wydano ${Math.round(g.realizedPct * 100)}% budżetu${g.achievedOn ? ` (od ${shortDate(g.achievedOn)})` : ""}`
+        : g.status === "done"
       ? g.achievedOn
         ? `osiągnięty ${shortDate(g.achievedOn)} · ${Math.round(g.realizedPct * 100)}% celu`
         : `${Math.round(g.realizedPct * 100)}% celu`

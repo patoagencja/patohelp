@@ -91,7 +91,7 @@ export function BudgetPageView({
   const lead =
     budget.pace === null
       ? `Budżet sezonu: ${compactPln(budget.total)}. Pierwsze porównanie z planem po pierwszym pełnym dniu sezonu.`
-      : `Wydaliście ${compactPln(budget.spentToDate)} z ${compactPln(budget.total)} - ${
+      : `Wydaliśmy ${compactPln(budget.spentToDate)} z ${compactPln(budget.total)} - ${
           pace?.text === "zgodnie z planem" ? "zgodnie z planem" : `${pace?.text} na ten moment`
         } (plan do wczoraj: ${compactPln(budget.planToDate)}).`;
   const projectedNote =
@@ -99,7 +99,7 @@ export function BudgetPageView({
       ? budget.projected > budget.total * 1.05
         ? `W tym tempie sezon zamknie się na ok. ${compactPln(budget.projected)} - ${compactPln(budget.projected - budget.total)} ponad budżet.`
         : budget.projected < budget.total * 0.95
-          ? `W tym tempie zostanie ok. ${compactPln(budget.total - budget.projected)} niewydane.`
+          ? `W tym tempie zostanie ok. ${compactPln(budget.total - budget.projected)} niewydanych.`
           : "W tym tempie sezon zamknie się na budżecie."
       : null;
 
@@ -186,13 +186,14 @@ export function BudgetPageView({
       <section className="space-y-4">
         <SectionHeader title="Tydzień po tygodniu" description="Plan każdego tygodnia i ile w nim wydano (w trwającym tygodniu - do wczoraj)." />
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[32rem] text-sm tabular-nums">
+          {/* Phones keep what answers "are we on plan": week, spent, verdict. */}
+          <table className="w-full text-sm tabular-nums sm:min-w-[32rem]">
             <thead>
               <tr className="text-left text-xs text-ink-3">
                 <th scope="col" className="px-5 py-3 font-medium">Tydzień</th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">Plan</th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">Wydane</th>
-                <th scope="col" className="px-5 py-3 text-right font-medium">Na tle planu</th>
+                <th scope="col" className="hidden px-5 py-3 text-right font-medium sm:table-cell">Plan</th>
+                <th scope="col" className="px-3 py-3 text-right font-medium sm:px-5">Wydane</th>
+                <th scope="col" className="px-3 py-3 text-right font-medium sm:px-5">Na tle planu</th>
               </tr>
             </thead>
             <tbody>
@@ -204,8 +205,8 @@ export function BudgetPageView({
                       {dm(w.from)} - {dm(w.to)}
                       {w.current ? <span className="ml-2 text-xs text-ink-3">trwa</span> : null}
                     </td>
-                    <td className="px-5 py-3 text-right">{formatPlnWhole(w.plan)}</td>
-                    <td className="px-5 py-3 text-right">{w.actual !== null ? formatPlnWhole(w.actual) : "-"}</td>
+                    <td className="hidden px-5 py-3 text-right sm:table-cell">{formatPlnWhole(w.plan)}</td>
+                    <td className="px-3 py-3 text-right sm:px-5">{w.actual !== null ? formatPlnWhole(w.actual) : "-"}</td>
                     <td
                       className={cn(
                         "px-5 py-3 text-right",
@@ -229,14 +230,14 @@ export function BudgetPageView({
             description="Podział według zeszłego sezonu: każdy rynek dostaje taki udział, jaki miał w wydatkach, i rozkłada go według własnego kalendarza."
           />
           <Card className="overflow-x-auto p-0">
-            <table className="w-full min-w-[40rem] text-sm tabular-nums">
+            <table className="w-full text-sm tabular-nums sm:min-w-[40rem]">
               <thead>
                 <tr className="text-left text-xs text-ink-3">
                   <th scope="col" className="px-5 py-3 font-medium">Rynek</th>
-                  <th scope="col" className="px-5 py-3 text-right font-medium">Budżet</th>
-                  <th scope="col" className="px-5 py-3 text-right font-medium">Wydane</th>
-                  <th scope="col" className="px-5 py-3 text-right font-medium">Na tle planu</th>
-                  <th scope="col" className="px-5 py-3 text-right font-medium">Dziś według planu</th>
+                  <th scope="col" className="hidden px-5 py-3 text-right font-medium sm:table-cell">Budżet</th>
+                  <th scope="col" className="hidden px-5 py-3 text-right font-medium sm:table-cell">Wydane</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium sm:px-5">Na tle planu</th>
+                  <th scope="col" className="px-3 py-3 text-right font-medium sm:px-5">Dziś wg planu</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,8 +249,8 @@ export function BudgetPageView({
                         {marketLabel(m.code)}
                         <span className="ml-2 text-xs font-normal text-ink-3">{Math.round(m.share * 100)}%</span>
                       </th>
-                      <td className="px-5 py-3 text-right">{formatPlnWhole(m.budget)}</td>
-                      <td className="px-5 py-3 text-right">{formatPlnWhole(m.spentToDate)}</td>
+                      <td className="hidden px-5 py-3 text-right sm:table-cell">{formatPlnWhole(m.budget)}</td>
+                      <td className="hidden px-5 py-3 text-right sm:table-cell">{formatPlnWhole(m.spentToDate)}</td>
                       <td
                         className={cn(
                           "px-5 py-3 text-right",
@@ -265,8 +266,9 @@ export function BudgetPageView({
                 {budget.unmappedBudget > 0 ? (
                   <tr className="border-t border-line text-ink-3">
                     <th scope="row" className="px-5 py-3 text-left font-normal">Kampanie bez rynku w nazwie</th>
-                    <td className="px-5 py-3 text-right">{formatPlnWhole(budget.unmappedBudget)}</td>
-                    <td className="px-5 py-3" colSpan={3} />
+                    <td className="px-3 py-3 text-right sm:px-5" colSpan={4}>
+                      budżet {formatPlnWhole(budget.unmappedBudget)}
+                    </td>
                   </tr>
                 ) : null}
               </tbody>

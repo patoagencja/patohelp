@@ -143,7 +143,7 @@ export function TopPages({
               {formatNumberPL(p.views)}
               <span className="sr-only"> {en ? "views" : "wyświetleń"}</span>
               <span className="block text-xs font-normal text-ink-3 sm:hidden">
-                {engaged} {en ? "engaged" : "zainteres."}
+                {engaged} {en ? "engaged" : "zaangażowanych"}
               </span>
             </p>
             <p

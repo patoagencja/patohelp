@@ -244,6 +244,18 @@ export async function GET(request: Request) {
             .limit(1);
           if (already && already.length > 0) continue;
           const left = Math.max(f.daysLeft, 0);
+          // A spend goal at 100% is a budget used up - a heads-up, not a win.
+          if (f.metric === "spend") {
+            items.push({
+              key,
+              title: `Budżet wykorzystany: ${f.adsetName ? distinctAdsetName(f.adsetName, f.campaignName) : f.campaignName}`,
+              detail: `Wydano ${goalValue(f.metric, f.realized)} z ${goalValue(f.metric, f.target)} (${Math.round(
+                f.realizedPct * 100
+              )}%)${left > 0 ? `, ${left} ${left === 1 ? "dzień" : "dni"} przed końcem - sprawdź limity, żeby nie przekroczyć budżetu.` : "."}`,
+              scope: f.adsetName ? `Zestaw w kampanii ${f.campaignName}` : "Budżet kampanii",
+            });
+            continue;
+          }
           items.push({
             key,
             success: true,

@@ -12,7 +12,26 @@ import { getPacing, type FlightMetric, type PacingFlight } from "@/lib/alerts/pa
  * goal cards, so the two never disagree.
  */
 
-export type GoalTileStatus = "on_track" | "behind" | "at_risk" | "done" | "ended";
+export type GoalTileStatus = "on_track" | "behind" | "at_risk" | "done" | "spent" | "over" | "ended";
+
+/**
+ * One set of words for a goal's state, on the overview tiles and the Alerty
+ * cards alike (they used to say "zagrożony" and "Poniżej tempa" about the
+ * same goal). A spend goal reaching 100% is a budget used up, not a win;
+ * past it, an overspend.
+ */
+export const GOAL_STATUS_WORDS: Record<GoalTileStatus, string> = {
+  on_track: "w planie",
+  behind: "poniżej tempa",
+  at_risk: "zagrożony",
+  done: "cel osiągnięty",
+  spent: "budżet wykorzystany",
+  over: "budżet przekroczony",
+  ended: "zakończony",
+};
+
+/** Over this share of a spend target the goal reads as overspent. */
+export const OVERSPEND_RATIO = 1.05;
 
 export interface GoalTile {
   id: string;
@@ -86,7 +105,9 @@ export function buildGoalTiles(flights: PacingFlight[], todayStr: string): GoalT
       const neededPerDay = !ended && remaining > 0 && daysRemaining > 0 ? remaining / daysRemaining : null;
 
       let status: GoalTileStatus;
-      if (f.target > 0 && f.realized >= f.target) status = "done";
+      if (f.target > 0 && f.realized >= f.target) {
+        status = f.metric !== "spend" ? "done" : f.realized > f.target * OVERSPEND_RATIO ? "over" : "spent";
+      }
       else if (ended) status = "ended";
       // Day one is a partial day: judge the pace once there's a full day.
       else if (

@@ -11,10 +11,8 @@ import {
   type AdsetOption,
   type CampaignOption,
 } from "@/components/dashboard/campaign-goals";
-import { GoalTiles } from "@/components/dashboard/goal-tiles";
 import { getCurrentAlerts } from "@/lib/alerts/current";
 import { FLIGHT_METRICS, getPacing, type FlightMetric } from "@/lib/alerts/pacing";
-import { buildGoalTiles } from "@/lib/dashboard/campaign-goals";
 import { getClientBySlug, getViewer } from "@/lib/dashboard/context";
 import { syncCached } from "@/lib/dashboard/sync-cache";
 import { listCampaignAdsets } from "@/lib/integrations/adset-sync";
@@ -203,10 +201,6 @@ export default async function AlertyPage({
     viewerPromise,
   ]);
   const isAgency = viewer.isAgency;
-  const goalTiles = buildGoalTiles(
-    pacing,
-    formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd")
-  );
 
   // Clients only see the goals section once the agency has set goals - an
   // empty "no goals" box is noise for them.
@@ -214,9 +208,6 @@ export default async function AlertyPage({
 
   return (
     <div className="space-y-8 px-4 pb-6 pt-6 sm:px-6 md:pt-8">
-      {/* Running goals first: "are we on plan" before "what went wrong". */}
-      <GoalTiles goals={goalTiles} />
-
       <AlertsBoard alerts={alerts} />
 
       {showPacing ? (
