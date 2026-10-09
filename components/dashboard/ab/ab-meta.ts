@@ -9,70 +9,166 @@ import {
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
-import type { AbActionKind, AbAd, AbVerdictKind, AbWindowKey } from "@/lib/ab/types";
+import { FATIGUE_RECENT_DAYS } from "@/lib/ab/stats";
+import type { AbAction, AbActionKind, AbAd, AbVerdictKind, AbWindowKey } from "@/lib/ab/types";
 import { guessFormat, type CreativeFormat } from "@/lib/dashboard/creatives";
 import { plPlural } from "@/lib/dashboard/story";
 import { formatDateWarsaw, formatMoneyPLN, formatNumberPL, formatPlnWhole } from "@/lib/utils";
 
 // Shared by the server sections and the client explorer of "Testy kreacji":
-// labels, chip tones and number formats, so a verdict reads the same in the
-// action list, the ad set cards and the compare panel. Server-safe.
+// labels, tag tones and number formats, so a verdict reads the same in the
+// action list, the test cards and the compare panel. Server-safe.
+//
+// Written for the shop owner, not a marketer: the actions are the agency's
+// proposals ("Proponujemy wyłączyć"), certainty is said in words ("prawie
+// na pewno"), and an ad set is "test" - the page explains the Meta term once.
 
 export const AB_WINDOWS = ["today", "3d", "7d", "14d", "30d", "season"] as const satisfies readonly AbWindowKey[];
 
 export interface KindMeta {
   label: string;
   icon: LucideIcon;
-  /** Chip fill + text, AA in both themes (Pill tones). */
-  chip: string;
+  /** Label text colour, AA on the glass cards in both themes. */
+  text: string;
+  /** The small icon disc: tint + icon colour. */
+  disc: string;
 }
 
-// Words + icon on every chip: the colour is never the only cue.
+// Words + icon on every tag: the colour is never the only cue.
 export const VERDICT: Record<AbVerdictKind, KindMeta> = {
-  winner: { label: "Wygrywa", icon: TrendingUp, chip: "bg-lime text-lime-foreground" },
-  loser: { label: "Przegrywa", icon: TrendingDown, chip: "bg-negative-soft text-negative" },
-  fatigue: { label: "Męczy się", icon: BatteryLow, chip: "bg-warning-soft text-warning" },
-  too_early: { label: "Za wcześnie", icon: Hourglass, chip: "bg-chip text-ink-2" },
-  steady: { label: "Na równi", icon: Scale, chip: "bg-chip text-ink-2" },
-  preview: { label: "Podgląd", icon: Eye, chip: "bg-chip text-ink-2" },
+  winner: { label: "Wygrywa", icon: TrendingUp, text: "text-positive", disc: "bg-lime text-lime-foreground" },
+  loser: { label: "Przegrywa", icon: TrendingDown, text: "text-negative", disc: "bg-negative-soft text-negative" },
+  fatigue: { label: "Męczy się", icon: BatteryLow, text: "text-warning", disc: "bg-warning-soft text-warning" },
+  too_early: { label: "Za wcześnie", icon: Hourglass, text: "text-ink-2", disc: "bg-chip text-ink-2" },
+  steady: { label: "Na równi", icon: Scale, text: "text-ink-2", disc: "bg-chip text-ink-2" },
+  preview: { label: "Podgląd", icon: Eye, text: "text-ink-2", disc: "bg-chip text-ink-2" },
 };
 
 /**
- * `impact` is the line under the amount; `plus` marks amounts that are extra
- * sales ("~+1 240 zł"), as opposed to sales to win back or spend.
+ * The agency's proposal per action. `impact` is the line under the amount;
+ * `plus` marks amounts that are extra sales ("~+1 240 zł"), as opposed to
+ * sales to win back or spend.
  */
 export const ACTION: Record<AbActionKind, KindMeta & { impact: string; plus: boolean }> = {
   scale: {
-    label: "Zwiększ budżet",
+    label: "Proponujemy dołożyć budżet",
     icon: TrendingUp,
-    chip: "bg-lime text-lime-foreground",
-    impact: "sprzedaży dziennie",
+    text: "text-positive",
+    disc: "bg-lime text-lime-foreground",
+    impact: "więcej sprzedaży dziennie",
     plus: true,
   },
   cut: {
-    label: "Wyłącz",
+    label: "Proponujemy wyłączyć",
     icon: Power,
-    chip: "bg-negative-soft text-negative",
-    impact: "sprzedaży dziennie po przesunięciu",
+    text: "text-negative",
+    disc: "bg-negative-soft text-negative",
+    impact: "więcej sprzedaży dziennie",
     plus: true,
   },
   refresh: {
-    label: "Odśwież",
+    label: "Proponujemy nową wersję",
     icon: RefreshCw,
-    chip: "bg-warning-soft text-warning",
+    text: "text-warning",
+    disc: "bg-warning-soft text-warning",
     impact: "sprzedaży dziennie do odzyskania",
     plus: false,
   },
-  watch: { label: "Obserwuj", icon: Eye, chip: "bg-chip text-ink-2", impact: "dziennie na tej reklamie", plus: false },
+  watch: {
+    label: "Obserwujemy",
+    icon: Eye,
+    text: "text-ink-2",
+    disc: "bg-chip text-ink-2",
+    impact: "dziennie na tej reklamie",
+    plus: false,
+  },
 };
 
 /**
- * The chip already names the move, so the title drops its verb lead-in
+ * The tag already names the move, so the title drops its verb lead-in
  * ("Wyłącz „X”: ..." -> "„X”: ...") - only right before the quoted name, so
  * a title that is a sentence of its own stays whole.
  */
 export function stripKindPrefix(title: string): string {
   return title.replace(/^(Wyłącz|Odśwież|Obserwuj|Daj więcej budżetu|Zwiększ budżet)\s*:?\s+(?=„)/, "");
+}
+
+/**
+ * How sure a call is, in words: "prawie na pewno" reads to an owner where
+ * "99% szans" reads like a betting slip. null below 90% (no word claims it).
+ */
+export function sureText(p: number | null | undefined): string | null {
+  if (p == null) return null;
+  if (p > 0.99) return "prawie na pewno";
+  if (p >= 0.95) return "z dużą pewnością";
+  if (p >= 0.9) return "najpewniej";
+  return null;
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Sales per 1 zł of ads: 4.83 -> "4,8 zł". */
+const perZl = (r: number) =>
+  `${r.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} zł`;
+
+/** "2 razy", "2,5 raza" (a fraction takes the genitive). */
+function times(r: number): string {
+  const v = Math.round(r * 10) / 10;
+  return Number.isInteger(v) ? `${v} razy` : `${v.toLocaleString("pl-PL")} raza`;
+}
+
+/**
+ * One action in the owner's words, from the numbers the statistics already
+ * used (AbAction.facts) - nothing is recomputed. Views cached before facts
+ * existed fall back to the marketer sentence.
+ */
+export function actionCopy(a: AbAction, ad: AbAd | undefined): { title: string; detail: string } {
+  const f = a.facts;
+  if (!f || !ad) return { title: stripKindPrefix(a.title), detail: a.detail };
+  const name = `„${ad.adName}”`;
+  const roas = ad.rates.roas;
+  const versus =
+    roas != null && f.restRoas != null
+      ? ` (z każdej złotówki na tę reklamę ${perZl(roas)} sprzedaży, na pozostałe ${perZl(f.restRoas)})`
+      : "";
+  const sure = cap(sureText(ad.verdict.probability) ?? "wyraźnie");
+
+  switch (a.kind) {
+    case "cut":
+      return {
+        title:
+          f.cpaRatio != null && f.cpaRatio >= 1.05
+            ? `${name}: zakup ${times(f.cpaRatio)} droższy niż z pozostałych reklam w tym teście`
+            : `${name} sprzedaje słabiej niż pozostałe reklamy w tym teście`,
+        detail: `${sure} to nie przypadek${versus}. Kosztuje ok. ${fmtMoney(f.dailySpend)} dziennie - po wyłączeniu Meta wyda te pieniądze na lepsze reklamy z tego testu, więc sprzedaż wzrośnie.`,
+      };
+    case "scale":
+      return {
+        title: `${name} sprzedaje lepiej niż pozostałe reklamy w tym teście`,
+        detail: `${sure} to nie przypadek${versus}. Dołożenie jej ok. ${fmtMoney(f.extraSpend ?? 0)} dziennie, zabranych słabszym reklamom, to ok. +${fmtEstimate(a.impactPerDay)} sprzedaży dziennie - liczymy ostrożnie, bo dodatkowy budżet zwykle sprzedaje trochę gorzej.`,
+      };
+    case "refresh": {
+      const drop =
+        f.roasBefore != null && f.roasRecent != null
+          ? `W ostatnich ${FATIGUE_RECENT_DAYS} dniach z każdej złotówki wraca ${perZl(f.roasRecent)} sprzedaży, tydzień wcześniej wracało ${perZl(f.roasBefore)}`
+          : "Sprzedaje coraz słabiej, szybciej niż pozostałe reklamy w tym teście";
+      return {
+        title: `${name} się opatrzyła - sprzedaje coraz słabiej`,
+        detail: `${drop}${f.frequencyRising ? ", a te same osoby widzą ją coraz częściej" : ""}. Bez nowej wersji to ok. ${fmtEstimate(a.impactPerDay)} sprzedaży mniej dziennie.`,
+      };
+    }
+    case "watch": {
+      const p = ad.totals.purchases;
+      const needed = ad.verdict.purchasesNeeded;
+      const share = f.spendShare != null ? `To ${Math.max(1, Math.round(f.spendShare * 100))}% wydatków, a ma` : "Ma";
+      return {
+        title: `${name}: wydaje ${fmtMoney(f.dailySpend)} dziennie, a wynik jest jeszcze niepewny`,
+        detail: `${share} dopiero ${p} ${purchasesWord(p)} - za mało, żeby ją ocenić. ${
+          needed ? `Ocenimy ją po ok. ${needed} ${needed === 1 ? "kolejnym zakupie" : "kolejnych zakupach"}.` : "Ocenimy ją, gdy zbierze więcej danych."
+        }`,
+      };
+    }
+  }
 }
 
 /** Videos report 3-second plays; anything else falls back to the name. */
@@ -109,19 +205,13 @@ export function fmtProb(p: number | null): string {
   return `${Math.round(p * 100)}%`;
 }
 
-/** The same inside a sentence: "ponad 99% szans", never "- >99% szans". */
-export function fmtProbText(p: number | null): string {
-  if (p == null) return "-";
-  if (p < 0.01) return "mniej niż 1%";
-  if (p > 0.99) return "ponad 99%";
-  return `${Math.round(p * 100)}%`;
-}
-
 export const fmtCount = (n: number) => formatNumberPL(n);
 
 export const adsWord = (n: number) => plPlural(n, "reklama", "reklamy", "reklam");
 export const purchasesWord = (n: number) => plPlural(n, "zakup", "zakupy", "zakupów");
-export const setsWord = (n: number) => plPlural(n, "zestaw", "zestawy", "zestawów");
+export const changesWord = (n: number) => plPlural(n, "zmianę", "zmiany", "zmian");
+/** Locative after "w": "w 1 teście", "w 6 testach". */
+export const inTests = (n: number) => `w ${n} ${n === 1 ? "teście" : "testach"}`;
 
 /** "PL · Rodzice 25-45": market + the audience part of an ad set name. */
 export function setShort(adsetName: string, market: string | null): string {

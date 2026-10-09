@@ -15,7 +15,6 @@ import { CreativeThumb } from "@/components/dashboard/creatives/creative-thumb";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Input } from "@/components/ui/input";
 import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
-import { LEADER_MIN_PROB } from "@/lib/ab/stats";
 import type { AbAd, AbDay, AbSeries, AbSeriesLoader, AbTest, AbVerdictKind } from "@/lib/ab/types";
 import { plPlural } from "@/lib/dashboard/story";
 import { marketLabel } from "@/lib/season/markets";
@@ -30,10 +29,10 @@ import {
   fmtCpa,
   fmtMoney,
   fmtProb,
-  fmtProbText,
   fmtRate,
   fmtRoas,
   formatOf,
+  sureText,
 } from "./ab-meta";
 import { KindChip } from "./kind-chip";
 
@@ -55,7 +54,7 @@ const COUNT_WORD = ["", "Jedna", "Dwie", "Trzy", "Cztery"];
 function winnersText(winners: AbAd[]): string {
   const n = winners.length;
   if (n === 1) {
-    return `„${winners[0].adName}” wyraźnie wygrywa z resztą zestawu, ale nie ma jeszcze ${fmtProb(LEADER_MIN_PROB)} szans, że to najlepsza reklama.`;
+    return `„${winners[0].adName}” wyraźnie sprzedaje lepiej niż reszta testu, ale nie wiadomo jeszcze, czy to najlepsza reklama.`;
   }
   return `${COUNT_WORD[n] ?? n} ${adsWord(n)} wyraźnie ${plPlural(n, "wygrywa", "wygrywają", "wygrywa")} z resztą, ale żadna jeszcze nie odskoczyła od ${n === 2 ? "drugiej" : "pozostałych"}.`;
 }
@@ -206,7 +205,7 @@ const AdRow = memo(function AdRow({
             <Meter value={ad.spendShare} />
           </span>
           <span className="mt-1 block text-[11.5px] font-normal leading-tight text-ink-3">
-            {Math.round(ad.spendShare * 100)}% budżetu zestawu
+            {Math.round(ad.spendShare * 100)}% budżetu testu
           </span>
         </Cell>
         <Cell label="Zakupy">{fmtCount(ad.totals.purchases)}</Cell>
@@ -319,7 +318,7 @@ const TestCard = memo(function TestCard({
             <Trophy className="mt-px h-4 w-4 shrink-0 text-positive" aria-hidden />
             <span>
               Prowadzi <b className="font-semibold text-foreground">„{leader.adName}”</b> -{" "}
-              {fmtProbText(leader.probBest)} szans, że to najlepsza reklama w tym zestawie.
+              {sureText(leader.probBest) ?? "najpewniej"} najlepsza reklama w tym teście.
             </span>
           </>
         ) : winners.length > 0 ? (
@@ -330,12 +329,12 @@ const TestCard = memo(function TestCard({
         ) : test.ads.length < 2 ? (
           <>
             <Scale className="mt-px h-4 w-4 shrink-0" aria-hidden />
-            <span>Jedna reklama w zestawie - nie ma czego porównać. Dodaj drugą wersję, żeby zacząć test.</span>
+            <span>Jedna reklama w tym teście - nie ma czego porównać. Dodaj drugą wersję, żeby zacząć test.</span>
           </>
         ) : (
           <>
             <Scale className="mt-px h-4 w-4 shrink-0" aria-hidden />
-            <span>Jeszcze bez lidera - żadna reklama nie ma {fmtProb(LEADER_MIN_PROB)} szans, że jest najlepsza.</span>
+            <span>Jeszcze bez lidera - żadna reklama nie odskoczyła na tyle, żeby uznać ją za najlepszą.</span>
           </>
         )}
       </p>
@@ -489,7 +488,7 @@ export function AbTestsExplorer({
     setQuery("");
   };
 
-  // "Do decyzji dziś" rows link to #ad-<id>: open the ad's set (and drop
+  // "Nasze propozycje" rows link to #ad-<id>: open the ad's set (and drop
   // filters hiding it), then bring the row into view and light it up. A
   // click handler rather than hashchange alone, so a second click on the
   // same row still works.
@@ -552,11 +551,13 @@ export function AbTestsExplorer({
       <div className="px-1">
         <p className="kick">Testy · {windowLabel.toLowerCase()}</p>
         <h2 id="ab-tests-heading" className={H2}>
-          Zestawy reklam <span className="font-light tabular-nums text-ink-3">({tests.length})</span>
+          Testy reklam <span className="font-light tabular-nums text-ink-3">({tests.length})</span>
         </h2>
+        {/* "Zestaw reklam" is Meta's word, and the names below come from
+            there: say once what it is, then speak of tests. */}
         <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-3">
-          Każdy zestaw to osobny test: jego reklamy walczą o tych samych ludzi i ten sam budżet. Zaznacz
-          2-4 reklamy, żeby porównać je obok siebie.
+          Każdy test to jeden zestaw reklam w Meta - kilka wersji reklamy pokazywanych tym samym osobom z jednego
+          budżetu. Zaznacz 2-4 reklamy, żeby porównać je obok siebie.
         </p>
       </div>
 
@@ -621,8 +622,8 @@ export function AbTestsExplorer({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Szukaj reklamy lub zestawu"
-            aria-label="Szukaj reklamy lub zestawu"
+            placeholder="Szukaj reklamy lub testu"
+            aria-label="Szukaj reklamy lub testu"
             autoComplete="off"
             className="rounded-full bg-chip pl-10 pr-12 hover:bg-[var(--chip-hover)] [&::-webkit-search-cancel-button]:hidden"
           />
@@ -642,9 +643,9 @@ export function AbTestsExplorer({
       {filtering ? (
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[13.5px] text-ink-3" aria-live="polite" data-print-hide>
           <span>
-            {/* After "z" the genitive: "z 1 zestawu", "z 2 zestawów", never "z 2 zestawy". */}
+            {/* After "z" the genitive: "z 1 testu", "z 2 testów", never "z 2 testy". */}
             {plPlural(filtered.length, "Pasuje", "Pasują", "Pasuje")} {filtered.length} z {tests.length}{" "}
-            {tests.length === 1 ? "zestawu" : "zestawów"} · {shownAds} {adsWord(shownAds)}
+            {tests.length === 1 ? "testu" : "testów"} · {shownAds} {adsWord(shownAds)}
           </span>
           <button
             type="button"
@@ -701,7 +702,7 @@ export function AbTestsExplorer({
             aria-expanded={showAll}
             className="inline-flex min-h-11 items-center rounded-full bg-chip px-[18px] text-sm font-medium text-foreground transition-[background-color,transform] duration-200 hover:bg-[var(--chip-hover)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:active:scale-100"
           >
-            {rest > 0 ? `Pokaż kolejne zestawy (${rest})` : "Pokaż mniej zestawów"}
+            {rest > 0 ? `Pokaż kolejne testy (${rest})` : "Pokaż mniej testów"}
           </button>
         </div>
       ) : null}

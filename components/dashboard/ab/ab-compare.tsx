@@ -469,7 +469,7 @@ export function AbCompare({
   const rows: Row[] = useMemo(() => {
     const list: Row[] = [
       {
-        label: sameSet ? "Szansa, że najlepsza w zestawie" : "Szansa, że najlepsza (każda w swoim zestawie)",
+        label: sameSet ? "Szansa, że najlepsza w teście" : "Szansa, że najlepsza (każda w swoim teście)",
         value: (a) => a.probBest,
         fmt: fmtProb,
         // Across ad sets the chances answer different questions.
@@ -579,12 +579,8 @@ export function AbCompare({
               {ads.map((a) => (
                 <div role="cell" key={a.adId} className="min-w-0">
                   {/* A quarter of a phone is ~85px: "Za wcześnie" needs the
-                      tighter chip there. */}
-                  <KindChip
-                    meta={VERDICT[a.verdict.kind]}
-                    size="sm"
-                    className="max-w-full px-2 text-[11.5px] sm:px-2.5 sm:text-[12px]"
-                  />
+                      smaller type there. */}
+                  <KindChip meta={VERDICT[a.verdict.kind]} size="sm" className="max-w-full text-[11.5px] sm:text-[12px]" />
                 </div>
               ))}
             </div>

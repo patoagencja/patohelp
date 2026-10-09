@@ -42,20 +42,21 @@ import { formatDateWarsaw } from "@/lib/utils";
 import { AbActions } from "./ab-actions";
 import {
   AB_WINDOWS,
+  ACTION,
   adsWord,
+  changesWord,
   fmtCount,
   fmtEstimate,
   fmtCpa,
   fmtMoney,
   fmtRoas,
+  inTests,
   purchasesWord,
 } from "./ab-meta";
 import { AbTestsExplorer } from "./ab-tests";
 import { AbWindowLinks, type WindowLink } from "./window-links";
 
 const WINDOW_DAYS: Partial<Record<AbWindowKey, number>> = { "3d": 3, "7d": 7, "14d": 14, "30d": 30 };
-
-const inSets = (n: number) => `w ${n} ${n === 1 ? "zestawie" : "zestawach"}`;
 
 /** "1-7 paź" / "28 wrz - 7 paź" / "9 gru". */
 function rangeText(start: string, end: string): string {
@@ -70,28 +71,28 @@ function rangeText(start: string, end: string): string {
 /** A period that ended before yesterday (a finished season): nothing to do today. */
 const isFinished = (view: AbView) => !view.monitor && view.end < addDaysIso(view.today, -1);
 
-/** The one sentence the owner reads first: how many calls, and the biggest. */
+/** The one sentence the owner reads first: how many proposals, and the biggest. */
 function leadOf(view: AbView, ads: Record<string, AbAd>): string {
-  if (view.monitor) return "Dziś tylko podgląd - decyzje liczymy na pełnych dniach.";
-  if (isFinished(view)) return "Ten okres już się skończył: werdykty za cały okres, bez decyzji na dziś.";
+  if (view.monitor) return "Dziś tylko podgląd - propozycje liczymy na pełnych dniach.";
+  if (isFinished(view)) return "Ten okres już się skończył: werdykty za cały okres, bez propozycji na dziś.";
   // Already in order: most sales at stake first, ads to watch last.
   const decisions = view.actions.filter((a) => a.kind !== "watch");
   if (decisions.length === 0) {
     const n = view.adCount;
-    return `Nic pilnego - ${n} ${adsWord(n)} ${inSets(view.tests.length)} ${plPlural(n, "idzie", "idą", "idzie")} równo.`;
+    return `Nic pilnego - ${n} ${adsWord(n)} ${inTests(view.tests.length)} ${plPlural(n, "idzie", "idą", "idzie")} równo.`;
   }
   const top = decisions[0];
   const name = ads[top.adId]?.adName;
-  const head = `${decisions.length} ${adsWord(decisions.length)} do decyzji dziś`;
+  const head = `Proponujemy ${decisions.length} ${changesWord(decisions.length)}`;
   if (!name) return `${head}.`;
   const money = fmtEstimate(top.impactPerDay);
   if (top.kind === "cut") {
-    return `${head} - najwięcej zyskasz, wyłączając „${name}” (ok. +${money} sprzedaży dziennie po przesunięciu budżetu).`;
+    return `${head} - najwięcej da wyłączenie „${name}” (ok. +${money} sprzedaży dziennie, bo jej budżet przejmą lepsze reklamy).`;
   }
   if (top.kind === "scale") {
-    return `${head} - najwięcej zyskasz, dając więcej budżetu „${name}” (ok. +${money} sprzedaży dziennie).`;
+    return `${head} - najwięcej da dołożenie budżetu „${name}” (ok. +${money} sprzedaży dziennie).`;
   }
-  return `${head} - najpilniej do odświeżenia „${name}” (ok. ${money} sprzedaży dziennie do odzyskania).`;
+  return `${head} - najpilniej nowa wersja „${name}” (ok. ${money} sprzedaży dziennie do odzyskania).`;
 }
 
 const times = (x: number) => `${x.toLocaleString("pl-PL")}×`;
@@ -121,8 +122,8 @@ function AbMethod({ seasonal }: { seasonal: boolean }) {
           werdyktów i decyzji.
         </p>
         <p>
-          {b("Z czym porównujemy.")} Każdą reklamę porównujemy z resztą reklam jej zestawu - bez niej samej i tylko
-          w dniach, w których sama się wyświetlała. Reklamy zestawu trafiają do tych samych ludzi i dzielą budżet,
+          {b("Z czym porównujemy.")} Jeden test to jeden zestaw reklam w Meta. Każdą reklamę porównujemy z resztą
+          reklam jej zestawu - bez niej samej i tylko w dniach, w których sama się wyświetlała. Reklamy zestawu trafiają do tych samych ludzi i dzielą budżet,
           ale Meta nie dzieli ruchu po równo (chętniej pokazuje te, które wcześnie dobrze wypadły), więc to
           rozsądna reguła, a nie eksperyment naukowy.
         </p>
@@ -165,12 +166,13 @@ function AbMethod({ seasonal }: { seasonal: boolean }) {
           </li>
         </ul>
         <p>
-          {b("Kwoty w decyzjach")} to sprzedaż dziennie. „Wyłącz”: dzienne wydatki reklamy z ostatnich{" "}
-          {FATIGUE_RECENT_DAYS} dni razy różnica zwrotu wobec reszty zestawu - po wyłączeniu Meta wyda te pieniądze
-          na pozostałe reklamy, więc nic się nie „oszczędza”, ale sprzedaje się więcej. „Zwiększ budżet”: +
-          {formatPct(SCALE_STEP)} budżetu reklamy, liczone z {formatPct(SCALE_DIMINISHING)} różnicy zwrotu (dodatkowy
-          budżet sprzedaje gorzej); najwyżej jedna taka podpowiedź na zestaw. „Odśwież”: sprzedaż tracona dziennie
-          wobec tego, jak idzie reszta zestawu.
+          {b("Kwoty w propozycjach")} to sprzedaż dziennie. „{ACTION.cut.label}”: dzienne wydatki reklamy z
+          ostatnich {FATIGUE_RECENT_DAYS} dni razy różnica zwrotu wobec reszty zestawu - po wyłączeniu Meta wyda te
+          pieniądze na pozostałe reklamy, więc nic się nie „oszczędza”, ale sprzedaje się więcej. „
+          {ACTION.scale.label}”: +{formatPct(SCALE_STEP)} budżetu reklamy, liczone z{" "}
+          {formatPct(SCALE_DIMINISHING)} różnicy zwrotu (dodatkowy budżet sprzedaje gorzej); najwyżej jedna taka
+          propozycja na zestaw. „{ACTION.refresh.label}”: sprzedaż tracona dziennie wobec tego, jak idzie reszta
+          zestawu.
         </p>
         <p>
           {b("Skąd liczby.")} Zakupy i sprzedaż to dane Meta - jej własne przypisanie zakupów do reklam. Mogą się
@@ -192,7 +194,7 @@ function PreviewNote({ href }: { href: string }) {
           </span>
           <div className="min-w-0">
             <h2 className="text-[19px] font-medium leading-snug tracking-[-0.02em] text-foreground">
-              Dziś tylko podgląd - decyzje liczymy na pełnych dniach
+              Dziś tylko podgląd - propozycje liczymy na pełnych dniach
             </h2>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-ink-3">
               Dzień jeszcze trwa, a Meta dopisuje zakupy do reklam z opóźnieniem, więc dzisiejsze liczby zawsze
@@ -205,7 +207,7 @@ function PreviewNote({ href }: { href: string }) {
           scroll={false}
           className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-start rounded-full bg-anchor px-5 text-sm font-medium text-anchor-foreground transition-transform duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-anchor-dot motion-reduce:active:scale-100 sm:self-center"
         >
-          Decyzje z 7 dni
+          Propozycje z 7 dni
           <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       </div>
@@ -356,7 +358,7 @@ export function AbPageView({
             explain="Ile kosztowały wszystkie testowane reklamy Meta w wybranym okresie."
             value={fmtMoney(totals.spend)}
             spark={days.map((d) => d.spend)}
-            sub={`${view.adCount} ${adsWord(view.adCount)} ${inSets(view.tests.length)}`}
+            sub={`${view.adCount} ${adsWord(view.adCount)} ${inTests(view.tests.length)}`}
           />
           <StatTile
             index={1}

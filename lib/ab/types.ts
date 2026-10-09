@@ -133,6 +133,34 @@ export interface AbTest {
 
 export type AbActionKind = "scale" | "cut" | "refresh" | "watch";
 
+/**
+ * The numbers behind an action's title and detail, so the client view can
+ * word it for a shop owner (components/dashboard/ab) while the marketer
+ * sentences stay as they are for the alerts. Nothing here is computed
+ * anew: these are the very values the title, detail and impact were built
+ * from. Money in grosze.
+ */
+export interface AbActionFacts {
+  /**
+   * The daily spend the estimate stands on: the last 3 finished days for
+   * cut / scale / refresh, the period's average per day with spend for watch.
+   */
+  dailySpend: number;
+  /** The rest of the ad set's sales per 1 zł on the ad's days (null without purchase value). */
+  restRoas: number | null;
+  /** The ad's cost per purchase over the rest's (2 = twice as dear), null when either is unknown. */
+  cpaRatio: number | null;
+  /** scale: the extra daily budget the estimate assumes. */
+  extraSpend: number | null;
+  /** refresh: sales per 1 zł in the week before and in the last finished days. */
+  roasBefore: number | null;
+  roasRecent: number | null;
+  /** refresh: the same people see it more and more often. */
+  frequencyRising: boolean | null;
+  /** watch: the ad's share of all spend in the period. */
+  spendShare: number | null;
+}
+
 /** "Do decyzji dziś": the short list the owner acts on. */
 export interface AbAction {
   kind: AbActionKind;
@@ -142,6 +170,8 @@ export interface AbAction {
   title: string;
   /** Why, in one sentence with the numbers. */
   detail: string;
+  /** Absent on views cached before it existed: the UI then shows title + detail. */
+  facts?: AbActionFacts;
   /**
    * Rough sales value per day at stake (grosze) for cut / scale / refresh -
    * the same unit, so they sort together: extra sales if the budget went to

@@ -40,6 +40,7 @@
 
 import type {
   AbAction,
+  AbActionFacts,
   AbAd,
   AbAdTotals,
   AbDay,
@@ -1113,11 +1114,23 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
     const name = quoted(ad.adName);
     const roas = ad.rates.roas ?? 0;
     const kind = ad.verdict.kind;
+    const cpaRatio = ad.rates.cpa != null && a.restCpa ? ad.rates.cpa / a.restCpa : null;
+    // The same numbers the sentences below are written from (AbActionFacts).
+    const facts = (over: Partial<AbActionFacts>): AbActionFacts => ({
+      dailySpend: a.recentDailySpend,
+      restRoas: a.restRoas,
+      cpaRatio,
+      extraSpend: null,
+      roasBefore: null,
+      roasRecent: null,
+      frequencyRising: null,
+      spendShare: null,
+      ...over,
+    });
 
     if (kind === "loser" && a.recentDailySpend > 0 && a.restRoas != null) {
       const impact = Math.round(a.recentDailySpend * (a.restRoas - roas));
       if (impact <= 0) continue;
-      const cpaRatio = ad.rates.cpa != null && a.restCpa ? ad.rates.cpa / a.restCpa : null;
       decisions.push({
         a,
         action: {
@@ -1130,6 +1143,7 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
               : `Wyłącz ${name}: zwrot ${formatX(roas)} przy ${formatX(a.restRoas)} w reszcie zestawu`,
           detail: `${ad.verdict.text}. Wydaje ok. ${formatZl(a.recentDailySpend)} dziennie - po wyłączeniu Meta przesunie ten budżet na pozostałe reklamy zestawu.`,
           impactPerDay: impact,
+          facts: facts({}),
         },
       });
     } else if (kind === "winner" && a.recentDailySpend > 0 && a.restRoas != null) {
@@ -1145,6 +1159,7 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
           title: `Daj więcej budżetu ${name}: wyłącz słabsze reklamy w zestawie albo przenieś ją do osobnego zestawu`,
           detail: `${ad.verdict.text}. Przy +30% budżetu (ok. ${formatZl(extraSpend)} dziennie ze słabszych reklam) to ok. +${formatZl(impact)} sprzedaży dziennie - liczymy połowę różnicy, bo dodatkowy budżet sprzedaje gorzej.`,
           impactPerDay: impact,
+          facts: facts({ extraSpend }),
         },
       };
       const setKey = ad.adsetId || `campaign:${ad.campaignId}`;
@@ -1160,6 +1175,11 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
           title: `Odśwież ${name}: kreacja się wypala`,
           detail: `${ad.verdict.text}. Przy obecnym budżecie to ok. ${formatZl(a.fatigue.valueDropPerDay)} sprzedaży mniej dziennie, niż gdyby szła jak reszta zestawu - przygotuj nową wersję.`,
           impactPerDay: a.fatigue.valueDropPerDay,
+          facts: facts({
+            roasBefore: a.fatigue.roasBefore,
+            roasRecent: a.fatigue.roasRecent,
+            frequencyRising: a.fatigue.frequencyRising,
+          }),
         },
       });
     } else if (kind === "too_early" && totalSpend > 0) {
@@ -1176,6 +1196,7 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
             title: `Obserwuj ${name}: wydaje ${formatZl(daily)} dziennie bez rozstrzygnięcia`,
             detail: `To ${formatShare(share)} wydatków, a ma dopiero ${p} ${plural(p, "zakup", "zakupy", "zakupów")}. ${ad.verdict.text}.`,
             impactPerDay: daily,
+            facts: facts({ dailySpend: daily, spendShare: share }),
           },
         });
       }
