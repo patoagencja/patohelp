@@ -54,14 +54,17 @@ export async function getDemographics(clientId: string): Promise<DemographicsDat
     };
   }
 
-  // Keep only the newest snapshot date present.
-  const latest = rows[0].snapshot_date as string;
-  const current = rows.filter((r) => r.snapshot_date === latest);
-
-  const pick = (provider: string, kind: string): DemoBucket[] =>
-    current
-      .filter((r) => r.provider === provider && r.kind === kind)
+  // Providers are written by separate cron jobs, so one can be a day ahead
+  // of the other. Take the newest snapshot per provider and kind; a single
+  // global "latest date" would blank GA4 geo whenever Meta ran first.
+  const pick = (provider: string, kind: string): DemoBucket[] => {
+    const own = rows.filter((r) => r.provider === provider && r.kind === kind);
+    if (own.length === 0) return [];
+    const latest = own[0].snapshot_date;
+    return own
+      .filter((r) => r.snapshot_date === latest)
       .map((r) => ({ bucket: r.bucket as string, value: Number(r.value) }));
+  };
 
   const metaAge = pick("meta_ads", "age");
   const ga4Age = pick("ga4", "age");
