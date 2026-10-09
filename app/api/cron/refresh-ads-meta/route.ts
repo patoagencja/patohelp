@@ -72,7 +72,7 @@ const RUN_DEADLINE_MS = 70_000;
 // of a big client's accounts get today's numbers instead of a deferred tail
 // the button could only report as missing. In-flight batch included it
 // still answers inside sync/run's 280 s.
-const SINGLE_CLIENT_DEADLINE_MS = 180_000;
+const SINGLE_CLIENT_DEADLINE_MS = 150_000;
 // History (setup reads, active-day probes, backfill and mature batches)
 // runs only after every started client has its fresh days, and no history
 // work starts after this - except for the client whose turn it is.
@@ -127,6 +127,8 @@ interface MetaSyncState {
 interface PendingHistory {
   clientId: string;
   failedAccounts: Set<string>;
+  /** Under a Meta limit: no history this run, so no turn either. */
+  blocked: () => boolean;
   history: (open: () => boolean, turn: boolean) => Promise<void>;
   fail: (message: string) => Promise<void>;
 }
@@ -579,7 +581,7 @@ export async function GET(request: Request) {
       // has its fresh days - only for the accounts whose fresh days went
       // through, while `open` says there is room.
       const history = async (open: () => boolean, turn: boolean) => {
-        // A turn Meta's limits leave no room for stays for next run.
+        // Taken now: next run the turn moves on to the next client.
         if (turn && !blockedBy()) {
           state.historyTurnAt = new Date().toISOString();
           stateChanged = true;
@@ -762,13 +764,12 @@ export async function GET(request: Request) {
       pending.push({
         clientId,
         failedAccounts,
+        blocked: () => blockedBy() !== null,
         history,
         fail: async (message) => {
-          clientRuns[clientId] = { status: "failed", error_message: message };
-          await admin
-            .from("sync_runs")
-            .update({ status: "failed", finished_at: new Date().toISOString(), error_message: message })
-            .eq("id", run?.id);
+          // The fresh days stand; the failed history step is a note on them.
+          errors.add("historia", message);
+          await recordOutcome();
         },
       });
     } catch (err) {
@@ -790,9 +791,16 @@ export async function GET(request: Request) {
   // The client whose turn it is goes first and gets TURN_SLICE_MS whatever
   // the clock; the others only while the shared budget lasts. A turn moves
   // on once taken, so every client's history advances within a few runs.
-  const historyOrder = leastRecentFirst(pending, (p) => p.clientId, turnStamps);
-  for (const [index, p] of historyOrder.entries()) {
-    const turn = index === 0;
+  // A client under a Meta limit can't use a turn: it goes to the next one
+  // (kept, the limited client would hold it - and starve everyone - for as
+  // long as its limit lasts).
+  const byTurn = leastRecentFirst(pending, (p) => p.clientId, turnStamps);
+  const turnClient = byTurn.find((p) => !p.blocked());
+  const historyOrder = turnClient
+    ? [turnClient, ...byTurn.filter((p) => p !== turnClient)]
+    : byTurn;
+  for (const p of historyOrder) {
+    const turn = p === turnClient;
     const sliceStart = Date.now();
     const open = () => withinBackfill() || (turn && Date.now() - sliceStart <= TURN_SLICE_MS);
     try {

@@ -38,9 +38,10 @@ export async function getDemographics(clientId: string): Promise<DemographicsDat
   const admin = createAdminClient();
   const { data } = await admin
     .from("demographics")
-    .select("provider, kind, bucket, value, snapshot_date")
+    .select("provider, kind, bucket, value, snapshot_date, created_at")
     .eq("client_id", clientId)
-    .order("snapshot_date", { ascending: false });
+    .order("snapshot_date", { ascending: false })
+    .order("created_at", { ascending: false });
 
   const rows = data ?? [];
   if (rows.length === 0) {
@@ -56,13 +57,15 @@ export async function getDemographics(clientId: string): Promise<DemographicsDat
 
   // Providers are written by separate cron jobs, so one can be a day ahead
   // of the other. Take the newest snapshot per provider and kind; a single
-  // global "latest date" would blank GA4 geo whenever Meta ran first.
+  // global "latest date" would blank GA4 geo whenever Meta ran first. Within
+  // a day, only the newest write (one insert shares created_at): if the
+  // cleanup of an earlier one failed, its buckets would count twice.
   const pick = (provider: string, kind: string): DemoBucket[] => {
     const own = rows.filter((r) => r.provider === provider && r.kind === kind);
     if (own.length === 0) return [];
-    const latest = own[0].snapshot_date;
+    const { snapshot_date: latest, created_at: written } = own[0];
     return own
-      .filter((r) => r.snapshot_date === latest)
+      .filter((r) => r.snapshot_date === latest && r.created_at === written)
       .map((r) => ({ bucket: r.bucket as string, value: Number(r.value) }));
   };
 

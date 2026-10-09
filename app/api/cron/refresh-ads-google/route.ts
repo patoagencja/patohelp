@@ -75,6 +75,14 @@ const SNAPSHOT_START_BUDGET_MS = 35_000;
 // yesterday+today. No client but the one whose turn it is (least recently
 // served first) starts its history setup after this much time.
 const HISTORY_BUDGET_MS = 20_000;
+// The turn itself needs the first pass to end before HISTORY_STOP_MS. With
+// enough clients it ends near RUN_DEADLINE_MS every time and no history ran
+// at all - so when nobody had a turn for this long (the last run gave none),
+// this run stops starting clients and accounts at RESERVED_DEADLINE_MS. The
+// ones left out lead the next run; history gets a turn at least every
+// other run.
+const TURN_GAP_MS = 45 * 60_000;
+const RESERVED_DEADLINE_MS = 10_000;
 // No history query (delivery probe or range) starts after this much time:
 // with the 25 s query cap it is over by ~50 s. It used to be 40 s, which let
 // a range query start too late to finish inside the 60 s function.
@@ -171,7 +179,9 @@ export async function GET(request: Request) {
 async function sync(request: Request) {
   const startedAt = Date.now();
   const elapsed = () => Date.now() - startedAt;
-  const pastDeadline = () => elapsed() > RUN_DEADLINE_MS;
+  // Set below once the history turns are known.
+  let deadlineMs = RUN_DEADLINE_MS;
+  const pastDeadline = () => elapsed() > deadlineMs;
   const historyStopped = () => elapsed() > HISTORY_STOP_MS;
   const admin = createAdminClient();
   await admin.rpc("cleanup_expired_oauth_states");
@@ -210,6 +220,9 @@ async function sync(request: Request) {
     await readSyncStates<GoogleSyncState>(admin, clientIds, STATE_KEY),
     (s) => s.historyTurnAt
   );
+  const lastTurn = Math.max(0, ...turnStamps.values());
+  const reserveTurn = !onlyClient && clientIds.length > 0 && Date.now() - lastTurn > TURN_GAP_MS;
+  if (reserveTurn) deadlineMs = RESERVED_DEADLINE_MS;
   const pending: PendingHistory[] = [];
   // client id -> its recorded outcome (sync/run reads its own client's).
   const clientRuns: Record<string, { status: string; error_message: string | null }> = {};
@@ -302,7 +315,11 @@ async function sync(request: Request) {
        * function killed in between wrote nothing for the client, not even
        * today. Throws when the metrics query or the write fails.
        */
-      const syncRange = async (account: GoogleAccount, range: { since: string; until: string }) => {
+      const syncRange = async (
+        account: GoogleAccount,
+        range: { since: string; until: string },
+        isHistory = false
+      ) => {
         const videoOnly = account.video_only === true;
         const track = trackOf(account.id);
         // Purchase-only values for seasonal clients and shops, asked side
@@ -315,6 +332,17 @@ async function sync(request: Request) {
             : Promise.resolve(null),
         ]);
         if (metricsRes.status === "rejected") throw metricsRes.reason;
+        // A past range written without purchase-only values is labelled
+        // "all conversions" for good (the label is what marks it done):
+        // a timed-out purchase query there is the range's timeout, and the
+        // range is asked again, smaller. Fresh days are rewritten every run.
+        if (
+          isHistory &&
+          purchasesRes.status === "rejected" &&
+          purchasesRes.reason instanceof GoogleAdsTimeoutError
+        ) {
+          throw purchasesRes.reason;
+        }
         const metrics = metricsRes.value;
         let purchases: Map<string, GooglePurchaseMetric> | null = null;
         if (purchasesRes.status === "fulfilled") {
@@ -568,7 +596,7 @@ async function sync(request: Request) {
               // A probe or an earlier range may have used the room up.
               if (historyStopped()) break;
               historyRanges += 1;
-              await syncRange(account, range);
+              await syncRange(account, range, true);
             }
           } catch (accErr) {
             if (accErr instanceof GoogleAdsTimeoutError && rangeDays > MIN_RANGE_DAYS) {
@@ -635,11 +663,9 @@ async function sync(request: Request) {
         failedAccounts,
         history,
         fail: async (message) => {
-          clientRuns[clientId] = { status: "failed", error_message: message };
-          await admin
-            .from("sync_runs")
-            .update({ status: "failed", finished_at: new Date().toISOString(), error_message: message })
-            .eq("id", run?.id);
+          // The fresh days stand; the failed history step is a note on them.
+          errors.add("historia", message);
+          await recordOutcome();
         },
       });
     } catch (err) {
@@ -732,6 +758,7 @@ async function sync(request: Request) {
     history_ranges: historyRanges,
     clients_deferred: clientsDeferred,
     accounts_deferred: accountsDeferred,
+    history_turn_reserved: reserveTurn,
     // Not printed by the scheduler (objects are filtered from its log).
     client_runs: clientRuns,
   });
