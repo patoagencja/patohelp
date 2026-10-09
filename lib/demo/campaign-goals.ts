@@ -35,7 +35,7 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
       def: {
         id: "demo-goal-1",
         campaignId: "d-m2",
-        campaignName: "TRAFFIC | Ruch na stronę",
+        campaignName: "SPRZEDAŻ | Skrzynki warzyw",
         adsetId: null,
         adsetName: null,
         provider: "meta_ads",
@@ -51,9 +51,9 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
       def: {
         id: "demo-goal-2",
         campaignId: "d-m4",
-        campaignName: "RETARGETING | Odwiedzający",
+        campaignName: "REMARKETING | Sklep",
         adsetId: "d-m4-as1",
-        adsetName: "Odwiedzający 30 dni · Polska",
+        adsetName: "Odwiedzili sklep 14 dni",
         provider: "meta_ads",
         metric: "impressions",
         target: 400000,
@@ -67,9 +67,9 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
       def: {
         id: "demo-goal-3",
         campaignId: "d-g2",
-        campaignName: "SEARCH | Generyczne",
+        campaignName: "SEARCH | Warzywa z dostawą",
         adsetId: "d-g2-ag1",
-        adsetName: "Drzwi wewnętrzne",
+        adsetName: "Skrzynki warzyw",
         provider: "google_ads",
         metric: "clicks",
         target: 500,
@@ -85,17 +85,21 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
       def: {
         id: "demo-goal-4",
         campaignId: "d-g3",
-        campaignName: "PMAX | Ruch",
+        campaignName: "PMAX | Sklep z warzywami",
         adsetId: null,
         adsetName: null,
         provider: "google_ads",
         metric: "spend",
-        target: 300000, // 3 000 zł in grosze
+        target: 550000, // 5 500 zł in grosze
       },
+      // The launch budget, met before its end date because the campaign
+      // overspends - the same story as the demo's "Skok wydatków dziś" alert
+      // on this campaign. It used to have ended two days ago, next to that
+      // alert about spend today.
       startAgo: 22,
-      endIn: -2,
+      endIn: 3,
       paceFrom: 1.0,
-      paceTo: 1.15,
+      paceTo: 1.35,
     },
   ];
 

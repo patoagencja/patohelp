@@ -26,12 +26,14 @@ import {
   type RangeKey,
 } from "@/lib/dashboard/ranges";
 
-// Synthetic e-commerce client for the public /demo-full/sprzedaz showcase: a
-// Polish fashion + home shop (~280k zł/month in October, ROAS ~5, 45% margin).
-// Every day's numbers are a pure function of its date (hashed seed), so the
-// demo is stable across reloads and the same date always shows the same sales,
-// whatever "today" is. Shapes mirror lib/ecom/insights.ts so the real widgets
-// render exactly as they would for a live client.
+// Synthetic e-commerce client for the public /demo-full/sprzedaz showcase:
+// lokalnepomidorki, the demo's one shop - an online vegetable shop that
+// delivers veg boxes, tomatoes and preserves across Poland (~280k zł/month
+// in October, ROAS ~5, 45% margin: it buys straight from the growers). Every day's numbers are a pure function
+// of its date (hashed seed), so the demo is stable across reloads and the
+// same date always shows the same sales, whatever "today" is. Shapes mirror
+// lib/ecom/insights.ts so the real widgets render exactly as they would for
+// a live client.
 
 const DAY_MS = 86_400_000;
 const YOY_SHIFT_DAYS = 364; // 52 weeks, weekday-aligned - same as insights.ts
@@ -42,7 +44,7 @@ const GROWTH_ANCHOR = "2026-10-01";
 const YEARLY_GROWTH = 1.18;
 
 const BASE_DAILY_REVENUE = 9_030_00; // grosze, ≈ 280k zł / 31 days in October
-const BASE_AOV = 147_00; // grosze
+const BASE_AOV = 128_00; // grosze: a veg box and a few extras
 const BASE_CR = 0.016; // orders per session
 const BASE_ROAS = 5;
 const BASE_CPC = 1_15; // grosze
@@ -50,10 +52,14 @@ const BASE_CTR = 0.014;
 /** Fraction of today already "synced" - today is always a partial day. */
 const TODAY_PARTIAL = 0.42;
 
-// Month index -> demand multiplier (fashion + home: soft summer, big Q4).
-const SEASON = [0.82, 0.72, 0.86, 0.92, 0.95, 0.88, 0.8, 0.84, 0.93, 1.0, 1.38, 1.22];
-// Sunday evening and Monday are strong in Polish e-commerce; Saturday is weak.
-const WEEKDAY = [1.1, 1.08, 1.04, 1.0, 0.98, 0.9, 0.84]; // Sun..Sat
+// Month index -> demand multiplier for a weekly veg-box shop: summer is the
+// soft spot (holidays, the family allotment's own tomatoes), customers come
+// back to weekly orders in September and the year peaks with Christmas
+// cooking. The creative-test demo (lib/demo/ab.ts) spends along the same curve.
+export const DEMO_MONTH_DEMAND: readonly number[] = [0.92, 0.88, 0.94, 1.0, 0.95, 0.88, 0.8, 0.82, 0.92, 1.0, 1.05, 1.12];
+const SEASON = DEMO_MONTH_DEMAND;
+// The week's boxes are ordered Sunday to Tuesday; Friday and Saturday are quiet.
+const WEEKDAY = [1.12, 1.08, 1.04, 1.0, 0.97, 0.9, 0.86]; // Sun..Sat
 
 // ---- tiny date + random helpers -------------------------------------------
 
@@ -119,27 +125,25 @@ function seasonOf(date: string): number {
   return SEASON[m] + (SEASON[(m + 11) % 12] - SEASON[m]) * t;
 }
 
-/** Retail calendar spikes: Black Week, Mikołajki, the pre-Christmas cut-off,
- *  the dead days around Christmas and January sales. */
+/** A grocery's calendar: a modest Black Friday (people still buy food, just
+ *  more of it on a coupon), the Christmas cooking run-up with bigger baskets
+ *  until the last delivery day, the dead days around Christmas and the
+ *  "eat better" first weeks of January. */
 function eventOf(date: string): { demand: number; aov: number; cr: number } {
   const year = Number(date.slice(0, 4));
   const md = date.slice(5);
   const fromBf = diffDays(blackFriday(year), date);
-  const bfCurve: Record<number, number> = { [-1]: 1.6, 0: 3.0, 1: 2.0, 2: 1.8, 3: 2.2 };
-  if (fromBf in bfCurve) return { demand: bfCurve[fromBf], aov: 0.88, cr: 1.55 };
-  if (fromBf >= -7 && fromBf <= -2) return { demand: 1.25, aov: 0.93, cr: 1.15 };
-  if (fromBf >= 4 && fromBf <= 6) return { demand: 1.15, aov: 0.95, cr: 1.05 };
-  if (md === "12-06") return { demand: 1.5, aov: 1.05, cr: 1.2 };
-  if (md >= "12-07" && md <= "12-18") {
-    // Gift buying builds up to the last-shipping day.
+  const bfCurve: Record<number, number> = { [-1]: 1.15, 0: 1.45, 1: 1.25, 2: 1.15, 3: 1.3 };
+  if (fromBf in bfCurve) return { demand: bfCurve[fromBf], aov: 0.95, cr: 1.2 };
+  if (md >= "12-10" && md <= "12-20") {
+    // Holiday cooking builds up to the last delivery before Christmas Eve.
     const day = Number(md.slice(3));
-    return { demand: 1.15 + (day - 7) * 0.03, aov: 1.1, cr: 1.15 };
+    return { demand: 1.15 + (day - 10) * 0.05, aov: 1.18, cr: 1.15 };
   }
-  if (md >= "12-01" && md <= "12-05") return { demand: 1.1, aov: 1.08, cr: 1.05 };
-  if (md >= "12-19" && md <= "12-23") return { demand: 0.62, aov: 1.0, cr: 0.9 };
-  if (md >= "12-24" && md <= "12-26") return { demand: 0.3, aov: 0.95, cr: 0.8 };
-  if (md >= "12-27" && md <= "12-31") return { demand: 0.85, aov: 0.9, cr: 1.0 };
-  if (md >= "01-02" && md <= "01-10") return { demand: 1.2, aov: 0.85, cr: 1.1 };
+  if (md >= "12-21" && md <= "12-23") return { demand: 0.75, aov: 1.1, cr: 1.0 };
+  if (md >= "12-24" && md <= "12-26") return { demand: 0.25, aov: 0.95, cr: 0.8 };
+  if (md >= "12-27" && md <= "12-31") return { demand: 0.8, aov: 0.95, cr: 1.0 };
+  if (md >= "01-02" && md <= "01-14") return { demand: 1.1, aov: 0.95, cr: 1.05 };
   return { demand: 1, aov: 1, cr: 1 };
 }
 
@@ -294,16 +298,16 @@ const kpi = (value: number, previous: number): Kpi => ({
 // ---- static catalogue -------------------------------------------------------
 
 const PRODUCTS: Array<{ id: string; name: string; price: number; share: number }> = [
-  { id: "SW-MER-OVS-BEZ", name: "Sweter oversize z wełną merino – beżowy", price: 289_00, share: 0.068 },
-  { id: "PL-WEL-DRZ-CAM", name: "Płaszcz wełniany dwurzędowy – camel", price: 699_00, share: 0.051 },
-  { id: "KC-WAF-150-SZA", name: "Koc z bawełny waflowej 150×200 – szałwia", price: 219_00, share: 0.046 },
-  { id: "PS-LEN-200-PIA", name: "Komplet pościeli lnianej 200×220 – piaskowy", price: 449_00, share: 0.039 },
-  { id: "KR-ALP-ECR", name: "Kardigan z alpaką – ecru", price: 349_00, share: 0.034 },
-  { id: "BT-SKO-SLU-CZA", name: "Botki skórzane na słupku – czarne", price: 399_00, share: 0.03 },
-  { id: "SZ-KSZ-BUT", name: "Szal z kaszmirem – butelkowa zieleń", price: 199_00, share: 0.027 },
-  { id: "SW-SOJ-JLAS-300", name: "Świeca sojowa Jesienny Las 300 g", price: 59_00, share: 0.024 },
-  { id: "PD-BOU-45-KRE", name: "Poduszka dekoracyjna bouclé 45×45 – kremowa", price: 89_00, share: 0.021 },
-  { id: "KB-CER-350", name: "Kubek ceramiczny ręcznie robiony 350 ml", price: 49_00, share: 0.018 },
+  { id: "SKR-SEZ-6", name: "Skrzynka warzyw sezonowych – 6 kg", price: 119_00, share: 0.118 },
+  { id: "SKR-ROD-10", name: "Skrzynka rodzinna warzyw – 10 kg", price: 169_00, share: 0.087 },
+  { id: "POM-MAL-5", name: "Pomidory malinowe – 5 kg", price: 79_00, share: 0.066 },
+  { id: "POM-PRZ-10", name: "Pomidory na przetwory – 10 kg", price: 89_00, share: 0.052 },
+  { id: "SKR-OW-8", name: "Skrzynka owocowo-warzywna – 8 kg", price: 149_00, share: 0.047 },
+  { id: "PAS-DOM-6", name: "Passata domowa – 6 × 700 ml", price: 84_00, share: 0.034 },
+  { id: "KAP-KIS-5", name: "Kapusta do kiszenia – 5 kg", price: 39_00, share: 0.026 },
+  { id: "POM-KOK-2", name: "Pomidorki koktajlowe mix kolorów – 2 kg", price: 49_00, share: 0.023 },
+  { id: "ZIE-JES-15", name: "Ziemniaki jesienne – 15 kg", price: 55_00, share: 0.019 },
+  { id: "MIO-WIE-1", name: "Miód wielokwiatowy od sąsiada pszczelarza – 1 kg", price: 69_00, share: 0.014 },
 ];
 
 // Share of GA4 last-click revenue and sessions per channel. Meta brings cheap
@@ -319,32 +323,32 @@ const CHANNELS: Array<{ key: ChannelKey; revenue: number; sessions: number }> = 
 
 const TOP_PAGES: Array<{ path: string; share: number; engagementRate: number }> = [
   { path: "/", share: 0.41, engagementRate: 57 },
-  { path: "/kolekcja/jesien-2026", share: 0.22, engagementRate: 66 },
-  { path: "/kategoria/swetry-i-kardigany", share: 0.15, engagementRate: 63 },
-  { path: "/produkt/sweter-oversize-welna-merino-bezowy", share: 0.09, engagementRate: 71 },
-  { path: "/kategoria/dom-i-dekoracje", share: 0.08, engagementRate: 61 },
+  { path: "/skrzynki-warzyw", share: 0.22, engagementRate: 66 },
+  { path: "/pomidory", share: 0.15, engagementRate: 63 },
+  { path: "/produkt/skrzynka-warzyw-sezonowych-6-kg", share: 0.09, engagementRate: 71 },
+  { path: "/przetwory-i-kiszonki", share: 0.08, engagementRate: 61 },
 ];
 
 function demoAnalysis(warmupLabel: string): EcomAnalysis {
   return {
     headline:
-      "Sprzedaż rośnie szybciej niż rok temu, a reklamy zarabiają z zapasem - to dobry moment, żeby przygotować budżet na Black Week.",
+      "Sprzedaż rośnie szybciej niż rok temu, a reklamy zarabiają z zapasem - po sezonie pomidorowym to dobry moment, żeby przestawić reklamy na skrzynki warzyw i przygotować budżet na Święta.",
     performance:
-      "W ostatnich 30 dniach sklep sprzedawał średnio za ok. 9 tys. zł dziennie, czyli wyraźnie więcej niż w tym samym okresie rok temu. Na każdą złotówkę wydaną na reklamy wraca ok. 5 zł przychodu, a to prawie dwa razy więcej niż próg opłacalności przy Twojej marży. Najlepiej sprzedają się ciepłe swetry i płaszcze z nowej kolekcji jesiennej.",
+      "W ostatnich 30 dniach sklep sprzedawał średnio za ok. 8 tys. zł dziennie, czyli wyraźnie więcej niż w tym samym okresie rok temu. Na każdą złotówkę wydaną na reklamy wraca ok. 5 zł przychodu, a to prawie dwa razy więcej niż próg opłacalności przy Twojej marży. Najlepiej sprzedają się skrzynki warzyw sezonowych, a pomidory na przetwory jeszcze się trzymają, choć sezon się kończy.",
     peaks: [
-      { label: "Niedziele i poniedziałki", note: "regularnie o 10-15% wyższa sprzedaż niż w soboty" },
-      { label: "Premiera kolekcji jesiennej", note: "najmocniejszy tydzień od początku września" },
-      { label: "Black Friday rok temu", note: "jeden dzień przyniósł tyle, co zwykle 3 dni sprzedaży" },
+      { label: "Niedziele i poniedziałki", note: "klienci zamawiają skrzynki na cały tydzień - o ok. 40% więcej niż w soboty" },
+      { label: "Koniec sezonu na przetwory", note: "pomidory na przetwory i passata sprzedawały się najmocniej we wrześniu" },
+      { label: "Święta rok temu", note: "10 dni przed Wigilią przyniosło ok. 1,5 razy więcej niż zwykły tydzień" },
     ],
     seasonality:
-      "W modzie i dekoracjach wnętrz listopad i pierwsza połowa grudnia to zwykle 30-40% sprzedaży całego kwartału. Szczyt przypada na Black Friday i Cyber Monday, potem drugi na prezenty przed Mikołajkami i do ok. 18 grudnia, kiedy kurierzy jeszcze zdążą z dostawą.",
+      "Skrzynki warzyw najsłabiej idą latem (urlopy, własne działki), a od września klienci wracają do cotygodniowych zamówień. Szczyt roku to ok. 10 dni przed Wigilią, kiedy zamawiają warzywa do świątecznego gotowania - z większym koszykiem niż zwykle. Black Friday daje warzywniakom tylko niewielki skok.",
     market:
-      "Klienci coraz wcześniej zaczynają szukać promocji - pierwsze kampanie „Black Week” ruszają już w połowie listopada, a koszt kliknięcia w tygodniu Black Friday rośnie zwykle o 20-40%. Rośnie też popularność zakupów na raty i darmowych zwrotów.",
+      "Coraz więcej osób kupuje warzywa przez internet regularnie, co tydzień, a nie tylko od święta. Klienci zwracają uwagę na pochodzenie i świeżość, więc „od lokalnego rolnika” i dostawa następnego dnia działają w reklamach lepiej niż rabaty. Przed Świętami koszt kliknięcia zwykle rośnie o 15-25%, bo reklamują się wszystkie sklepy spożywcze.",
     recommendations: [
-      `Od ${warmupLabel} stopniowo zwiększać budżet i budować listy remarketingowe, zanim kliknięcia zdrożeją.`,
-      "Przygotować osobne kreacje na Black Week z bestsellerami: sweter z merino, płaszcz wełniany, koc waflowy.",
-      "Zaplanować newsletter z wcześniejszym dostępem do promocji - e-mail ma u Was najwyższą konwersję.",
-      "Wyraźnie komunikować ostatni dzień zamówień z dostawą przed Świętami (18 grudnia).",
+      "Przenieść budżet z kampanii pomidorowych na skrzynki warzyw - sezon na pomidory gruntowe właśnie się kończy.",
+      "Zaproponować stałą dostawę skrzynki co tydzień - stali klienci zamawiają częściej i więcej.",
+      `Od ${warmupLabel} budować listy remarketingowe, a w grudniu pokazać świąteczne skrzynki na Wigilię.`,
+      "Wyraźnie komunikować ostatni dzień zamówień z dostawą przed Wigilią (20 grudnia).",
     ],
   };
 }
@@ -382,7 +386,7 @@ export const DEMO_ECOM_SETTINGS: EcomSettings = {
 function goalFor(monthStart: string): number | null {
   const m = Number(monthStart.slice(5, 7));
   // Goals sit a touch above the seasonal norm, so pacing has something to chase.
-  const base = 300_000_00 * (SEASON[m - 1] / SEASON[9]);
+  const base = 290_000_00 * (SEASON[m - 1] / SEASON[9]);
   return Math.round(base / 1000_00) * 1000_00;
 }
 
@@ -530,12 +534,12 @@ function buildSeason(today: string): SeasonPlan | null {
   const events: SeasonEvent[] = [
     { key: "bf", label: "Black Friday", date: bf, lastYearDate: lyBf },
     { key: "cm", label: "Cyber Monday", date: addDays(bf, 3), lastYearDate: addDays(lyBf, 3) },
-    { key: "mikolajki", label: "Mikołajki", date: `${year}-12-06`, lastYearDate: `${ly}-12-06` },
     {
       key: "xmas",
       label: "Ostatnie zamówienia przed Świętami",
-      date: `${year}-12-18`,
-      lastYearDate: `${ly}-12-18`,
+      // Fresh food ships later than parcels: the last box goes out on the 20th.
+      date: `${year}-12-20`,
+      lastYearDate: `${ly}-12-20`,
     },
   ]
     .map((e) => ({
@@ -749,7 +753,7 @@ export function getDemoEcom(
 
 /**
  * "Nowi czy stali klienci" for the demo shop: the same 30-day snapshot window
- * as the live GA4 sync (30daysAgo..yesterday). A growing fashion shop - most
+ * as the live GA4 sync (30daysAgo..yesterday). A growing veg-box shop - most
  * orders from new buyers, returning ones spend a bit more per basket.
  */
 export function getDemoNewVsReturning(today = todayWarsaw()): NewVsReturning | null {

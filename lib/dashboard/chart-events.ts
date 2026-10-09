@@ -444,7 +444,7 @@ export function buildDemoChartExtras(
       id: "demo:start",
       date: at(0.25),
       kind: "start",
-      text: describe("start", en ? "PMAX | Traffic" : "PMAX | Ruch", "google_ads", 0, lang),
+      text: describe("start", en ? "PMAX | Veg shop" : "PMAX | Sklep z warzywami", "google_ads", 0, lang),
       weight: 1,
     },
     {
@@ -453,7 +453,7 @@ export function buildDemoChartExtras(
       kind: "budget_up",
       text: describe(
         "budget_up",
-        en ? "TRAFFIC | Website visits" : "TRAFFIC | Ruch na stronę",
+        en ? "SALES | Veg boxes" : "SPRZEDAŻ | Skrzynki warzyw",
         "meta_ads",
         60,
         lang
@@ -466,7 +466,7 @@ export function buildDemoChartExtras(
       kind: "stop",
       text: describe(
         "stop",
-        en ? "RETARGETING | Summer" : "RETARGETING | Lato",
+        en ? "REMARKETING | Summer" : "REMARKETING | Lato",
         "meta_ads",
         0,
         lang

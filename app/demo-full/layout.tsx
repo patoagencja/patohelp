@@ -59,7 +59,7 @@ export default function DemoFullLayout({
       }
       search={<SearchButton />}
       // Same rule as live: Pilne + Ważne from the (static) demo alerts.
-      bell={<AlertsBell href={`${BASE}/alerty`} count={countAttentionAlerts(getDemoDashboard().alertsFull)} />}
+      bell={<AlertsBell href={`${BASE}/alerty`} count={countAttentionAlerts(getDemoDashboard().alerts)} />}
       presentation={
         <PresentationMode
           className="max-md:w-11 max-md:px-0"

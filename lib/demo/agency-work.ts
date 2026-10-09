@@ -66,14 +66,14 @@ export function demoAgencyWork(today: string): { work: AgencyWork; autoEvents: C
         // 25% / 55% into a 30-day trend) - the two used to disagree.
         date: d(13),
         kind: "budget_up",
-        text: "Zwiększono budżet: TRAFFIC | Ruch na stronę (Meta, +60%)",
+        text: "Zwiększono budżet: SPRZEDAŻ | Skrzynki warzyw (Meta, +60%)",
         weight: 1,
       },
       {
         id: "demo-auto-2",
         date: d(22),
         kind: "start",
-        text: "Start kampanii: PMAX | Ruch (Google)",
+        text: "Start kampanii: PMAX | Sklep z warzywami (Google)",
         weight: 1,
       },
     ],

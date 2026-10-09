@@ -1,7 +1,6 @@
 import { AlertsBoard } from "@/components/dashboard/alert-explained";
 import { CampaignGoals } from "@/components/dashboard/campaign-goals";
-import { GoalTiles } from "@/components/dashboard/goal-tiles";
-import { demoCampaignFlights, demoGoalTiles } from "@/lib/demo/campaign-goals";
+import { demoCampaignFlights } from "@/lib/demo/campaign-goals";
 import { getDemoDashboard } from "@/lib/demo/data";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +22,11 @@ export default function DemoFullAlerty({
 
   return (
     <>
-      {/* Goal tiles + cards are Polish-only (like the live goals section). */}
-      {en ? null : <GoalTiles goals={demoGoalTiles()} />}
+      <AlertsBoard alerts={d.alerts} lang={lang} />
 
-      <AlertsBoard alerts={d.alertsFull} lang={lang} />
-
+      {/* The goal cards are the detail view the overview's goal tiles link
+          to; a second row of tiles here showed the same goals twice. Polish
+          only, like the live goals section. */}
       {en ? null : (
         <CampaignGoals
           pacing={demoCampaignFlights()}

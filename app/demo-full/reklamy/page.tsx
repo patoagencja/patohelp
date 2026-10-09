@@ -15,29 +15,31 @@ import { getDemoDashboard } from "@/lib/demo/data";
 
 export const dynamic = "force-dynamic";
 
-// Demo search terms for a door maker: [phrase, impressions, clicks, cost in grosze].
+// Demo search terms for lokalnepomidorki, the online vegetable shop:
+// [phrase, impressions, clicks, cost in grosze]. "warzywa" recurs on purpose:
+// the search-terms card drops a word that is in nearly every phrase.
 const DEMO_SEARCH_TERMS: SearchTermRow[] = (
   [
-    ["drzwi wewnętrzne białe", 9840, 612, 104_040],
-    ["drzwi zewnętrzne do domu", 7320, 418, 125_400],
-    ["drzwi wewnętrzne z montażem warszawa", 3110, 287, 71_750],
-    ["drzwi przesuwne do salonu", 4580, 254, 50_800],
-    ["drzwi wewnętrzne cena", 6900, 241, 33_740],
-    ["drzwi antywłamaniowe do mieszkania", 3870, 196, 64_680],
-    ["drzwi bezprzylgowe białe", 2240, 171, 32_490],
-    ["drzwi łazienkowe z podcięciem", 2950, 158, 23_700],
-    ["drzwi wewnętrzne dąb", 3420, 142, 25_560],
-    ["montaż drzwi wewnętrznych cena", 1980, 131, 27_510],
-    ["drzwi zewnętrzne ocieplane", 2610, 119, 38_080],
-    ["drzwi wewnętrzne czarne loft", 2130, 104, 17_680],
-    ["drzwi szklane do kuchni", 1760, 88, 14_960],
-    ["drzwi do mieszkania w bloku", 1540, 81, 22_680],
-    ["drzwi wewnętrzne promocja", 2890, 76, 9_880],
-    ["drzwi ukryte bezprzylgowe montaż", 940, 63, 15_120],
-    ["drzwi zewnętrzne antywłamaniowe opinie", 1210, 57, 18_810],
-    ["drzwi przesuwne naścienne", 1330, 52, 9_360],
-    ["salon drzwi warszawa", 880, 49, 12_740],
-    ["drzwi wewnętrzne szare", 1090, 41, 6_970],
+    ["warzywa z dostawą do domu", 9840, 612, 104_040],
+    ["skrzynka warzyw", 7320, 418, 79_420],
+    ["warzywa od rolnika warszawa", 3110, 287, 51_660],
+    ["pomidory malinowe sklep internetowy", 4580, 254, 38_100],
+    ["dostawa warzyw cena", 6900, 241, 40_970],
+    ["ekologiczne warzywa z dostawą", 3870, 196, 37_240],
+    ["pomidory na przetwory 10 kg", 2240, 171, 22_230],
+    ["skrzynka warzyw abonament", 2950, 158, 30_020],
+    ["warzywa online kraków", 3420, 142, 25_560],
+    ["lokalne pomidory", 1980, 131, 9_170],
+    ["kapusta do kiszenia zamówienie", 2610, 119, 14_280],
+    ["warzywa sezonowe dostawa jutro", 2130, 104, 19_760],
+    ["passata domowa", 1760, 88, 10_560],
+    ["owoce i warzywa z dostawą", 1540, 81, 15_390],
+    ["warzywa promocja", 2890, 76, 9_880],
+    ["pomidory koktajlowe kolorowe", 940, 63, 8_190],
+    ["dostawa warzyw opinie", 1210, 57, 10_830],
+    ["ziemniaki 15 kg z dostawą", 1330, 52, 7_800],
+    ["warzywniak online", 880, 49, 9_310],
+    ["warzywa bez chemii", 1090, 41, 6_970],
   ] as const
 ).map(([term, impressions, clicks, costMinorUnits]) => ({
   term,
@@ -47,33 +49,36 @@ const DEMO_SEARCH_TERMS: SearchTermRow[] = (
   conversions: 0,
 }));
 
-// Demo Search campaigns: [name, impression share, lost to budget, lost to
-// rank, impressions, clicks, cost in grosze]. Shares are raw Google fractions
-// (0.0999 = Google's "<10%", null = not enough data) so the demo runs through
-// the same math as the real page.
-const DEMO_IMPRESSION_SHARE = summarizeImpressionShare(
-  (
-    [
-      ["Drzwi wewnętrzne - wyszukiwarka", 0.62, 0.28, 0.1, 41_200, 2_470, 1_037_400],
-      ["Drzwi zewnętrzne - wyszukiwarka", 0.64, 0.22, 0.14, 26_800, 1_340, 643_200],
-      ["Marka DRE", 0.93, 0, 0.07, 8_400, 1_930, 96_500],
-      ["Montaż drzwi - Warszawa", 0.47, 0.38, 0.15, 6_100, 305, 158_600],
-      ["Drzwi przesuwne", 0.0999, 0.12, 0.78, 900, 27, 13_500],
-      ["Drzwi techniczne", null, null, null, 120, 3, 1_800],
-    ] as const
-  ).map(([name, is, budget, rank, impressions, clicks, cost], i) => ({
-    customerId: "demo",
-    campaignId: String(i + 1),
-    campaignName: name,
-    impressionShare: is,
-    budgetLost: budget,
-    rankLost: rank,
-    impressions,
-    clicks,
-    costMinorUnits: cost,
-  })),
-  "2026-10-05"
-);
+// Google's raw shares for the demo's two Search campaigns (impression share,
+// lost to budget, lost to rank). Impressions, clicks and cost come from the
+// same campaign rows as the table below, so the card can't name a campaign
+// or a spend the table doesn't have.
+const DEMO_SEARCH_SHARES: Record<string, [number, number, number]> = {
+  "d-g2": [0.62, 0.28, 0.1],
+  "d-g1": [0.93, 0, 0.07],
+};
+
+function demoImpressionShare(d: ReturnType<typeof getDemoDashboard>) {
+  return summarizeImpressionShare(
+    d.campaigns
+      .filter((c) => DEMO_SEARCH_SHARES[c.campaignId])
+      .map((c) => {
+        const [is, budget, rank] = DEMO_SEARCH_SHARES[c.campaignId];
+        return {
+          customerId: "demo",
+          campaignId: c.campaignId,
+          campaignName: c.name,
+          impressionShare: is,
+          budgetLost: budget,
+          rankLost: rank,
+          impressions: c.impressions,
+          clicks: c.clicks,
+          costMinorUnits: c.spendMinorUnits,
+        };
+      }),
+    d.trend[d.trend.length - 1]?.date ?? ""
+  );
+}
 
 export default function DemoFullReklamy({
   searchParams,
@@ -133,7 +138,7 @@ export default function DemoFullReklamy({
       >
         <PlatformSplit split={d.platformSplit} lang={lang} />
         <SearchTerms terms={DEMO_SEARCH_TERMS} lang={lang} />
-        <ImpressionShare data={DEMO_IMPRESSION_SHARE} lang={lang} />
+        <ImpressionShare data={demoImpressionShare(d)} lang={lang} />
         <CampaignPositions
           campaigns={d.campaigns}
           lang={lang}

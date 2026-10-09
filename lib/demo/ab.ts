@@ -3,18 +3,22 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { addDaysIso, buildAbSeries, computeAbView, FATIGUE_LOOKBACK_DAYS, type AbAdMeta, type AbRow } from "@/lib/ab/stats";
 import type { AbSeries, AbSeriesRequest, AbView, AbWindowKey } from "@/lib/ab/types";
 import { resolveAbWindow, salesMomentsFor } from "@/lib/ab/window";
-import { DEMO_SEASON_CONFIG } from "@/lib/demo/season";
+import { DEMO_MONTH_DEMAND } from "@/lib/demo/ecom";
 import { diffDaysIso } from "@/lib/season/config";
 import { marketOf } from "@/lib/season/markets";
 
-// Synthetic creative tests for the public demo: the same Santa video shop
-// as the season demo (lib/demo/season.ts), seen ad by ad on Meta. Eight ad
-// sets across the markets, each a running A/B test of 2-6 ads.
+// Synthetic creative tests for the public demo: the same shop as every other
+// /demo-full page - lokalnepomidorki, an online vegetable shop delivering
+// veg boxes, tomatoes and preserves across Poland - seen ad by ad on Meta.
+// Six ad sets, each a running A/B test of 3-6 ads, ~850 zł a day in all:
+// the Meta share of the budget the Sprzedaż demo (lib/demo/ecom.ts) spends.
+// One country, so the names carry no market code and the market filter
+// stays hidden, as for a live single-market shop.
 //
-// Like the season demo, we only generate raw ads_ad_daily-shaped rows and
-// run them through the production analysis (computeAbView, the same periods
-// and sales moments as lib/ab/load.ts) - so the demo can never promise a
-// rule production doesn't apply, and a "97% szans" always matches the
+// We only generate raw ads_ad_daily-shaped rows and run them through the
+// production analysis (computeAbView, the same periods and sales moments as
+// lib/ab/load.ts for a client without a season) - so the demo can never
+// promise a rule production doesn't apply, and every verdict matches the
 // purchases next to it. Every ad has a "true" click-through and purchase
 // rate; the days come from those plus seeded noise. The scenario is built to
 // show every state: clear winners and losers, a tired remarketing ad (judged
@@ -85,8 +89,8 @@ interface DemoAdDef {
 interface DemoSetDef {
   name: string;
   campaign: string;
-  /** Ad set spend on the 5 December peak, zł a day. */
-  peak: number;
+  /** Ad set spend on an average day of the year, zł a day. */
+  daily: number;
   /** zł per 1000 impressions. */
   cpm: number;
   /** Average order, zł. */
@@ -98,119 +102,94 @@ interface DemoSetDef {
 
 const SETS: DemoSetDef[] = [
   {
-    name: "PL | Film od Mikołaja | Rodzice 25-45",
-    campaign: "PL | Sprzedaż | Film od Mikołaja",
-    peak: 16_000,
-    cpm: 19,
-    aov: 79,
+    name: "Skrzynki warzyw | Rodziny 28-45",
+    campaign: "SPRZEDAŻ | Skrzynki warzyw",
+    daily: 260,
+    cpm: 22,
+    aov: 139,
     freq: 1.25,
     ads: [
-      { name: "Elf Fajtłapa 15s pion", since: 26, weight: 0.3, ctr: 0.019, cvr: 0.108, hook: 0.34 },
-      { name: "Fabryka prezentów UGC", since: 19, weight: 0.3, ctr: 0.021, cvr: 0.125, hook: 0.41 },
-      { name: "Sekret Mikołaja - karuzela", since: 26, weight: 0.18, ctr: 0.017, cvr: 0.104 },
-      { name: "List od Mikołaja - statyczna", since: 26, weight: 0.17, ctr: 0.012, cvr: 0.084 },
-      { name: "Reakcja dziecka 9s reels", since: 2, fixed: 90, ctr: 0.02, cvr: 0.11, hook: 0.38 },
+      { name: "Skrzynka tygodnia - wideo 15 s", since: 84, weight: 0.3, ctr: 0.016, cvr: 0.05, hook: 0.33 },
+      { name: "Rozpakowanie skrzynki - film klientki", since: 61, weight: 0.3, ctr: 0.019, cvr: 0.064, hook: 0.41 },
+      { name: "Co jest w skrzynce? - karuzela", since: 84, weight: 0.16, ctr: 0.015, cvr: 0.048 },
+      { name: "Darmowa dostawa od 150 zł - grafika", since: 84, weight: 0.2, ctr: 0.012, cvr: 0.026 },
+      { name: "Rolnik Janek poleca - rolka 9 s", since: 2, fixed: 25, ctr: 0.017, cvr: 0.05, hook: 0.38 },
     ],
   },
   {
-    name: "PL | Film od Mikołaja | Dziadkowie 50+",
-    campaign: "PL | Sprzedaż | Film od Mikołaja",
-    peak: 7_500,
-    cpm: 15,
-    aov: 85,
+    name: "Pomidory malinowe | Lubią gotować 30-60",
+    campaign: "SPRZEDAŻ | Pomidory i przetwory",
+    daily: 160,
+    cpm: 18,
+    aov: 96,
     freq: 1.3,
     ads: [
-      { name: "Elf Fajtłapa 15s pion", since: 24, weight: 0.45, ctr: 0.017, cvr: 0.046, hook: 0.22 },
-      { name: "List od Mikołaja - statyczna", since: 24, weight: 0.3, ctr: 0.015, cvr: 0.112 },
-      { name: "Wigilijny poranek 20s poziom", since: 17, weight: 0.25, ctr: 0.016, cvr: 0.108, hook: 0.29 },
+      { name: "Pomidory malinowe z bliska - wideo 10 s", since: 70, weight: 0.45, ctr: 0.016, cvr: 0.03, hook: 0.24 },
+      { name: "Bruschetta w 5 minut - karuzela", since: 70, weight: 0.3, ctr: 0.015, cvr: 0.064 },
+      { name: "Prosto z krzaka - grafika", since: 45, weight: 0.25, ctr: 0.015, cvr: 0.06 },
     ],
   },
   {
-    name: "PL | Remarketing | Odwiedzili stronę 14 dni",
-    campaign: "PL | Remarketing",
-    peak: 3_500,
+    name: "Remarketing | Odwiedzili sklep 14 dni",
+    campaign: "REMARKETING | Sklep",
+    daily: 120,
     cpm: 34,
-    aov: 82,
+    aov: 132,
     freq: 1.9,
     ads: [
       {
-        name: "Sekret Mikołaja - karuzela",
-        since: 30,
+        name: "Twój koszyk czeka - karuzela",
+        since: 120,
         weight: 0.5,
         ctr: 0.024,
-        cvr: 0.24,
+        cvr: 0.12,
         fade: { days: 5, drop: 0.45 },
         freq: 1.35,
       },
-      { name: "Opinie rodziców - statyczna", since: 30, weight: 0.3, ctr: 0.02, cvr: 0.2 },
-      { name: "Ostatnia chwila - film 6s", since: 9, weight: 0.2, ctr: 0.022, cvr: 0.205, hook: 0.3 },
+      { name: "Opinie klientów - grafika", since: 120, weight: 0.3, ctr: 0.02, cvr: 0.1 },
+      { name: "Ostatnie skrzynki na sobotę - wideo 6 s", since: 9, weight: 0.2, ctr: 0.022, cvr: 0.1, hook: 0.3 },
     ],
   },
   {
-    name: "DE | Film od Mikołaja | Rodzice 25-45",
-    campaign: "DE | Sprzedaż | Film od Mikołaja",
-    peak: 10_000,
-    cpm: 28,
-    aov: 109,
+    name: "Przetwory | Domowe spiżarnie 35-65",
+    campaign: "SPRZEDAŻ | Pomidory i przetwory",
+    daily: 140,
+    cpm: 16,
+    aov: 118,
     freq: 1.2,
     ads: [
-      { name: "Elf Fajtłapa 15s pion", since: 22, weight: 0.3, ctr: 0.017, cvr: 0.105, hook: 0.33 },
-      { name: "Fabryka prezentów UGC", since: 22, weight: 0.27, ctr: 0.018, cvr: 0.106, hook: 0.37 },
-      { name: "Sekret Mikołaja - karuzela", since: 22, weight: 0.22, ctr: 0.015, cvr: 0.104 },
-      { name: "List od Mikołaja - statyczna", since: 22, weight: 0.19, ctr: 0.0125, cvr: 0.104 },
-      { name: "Nikolaus 6.12 - film 10s", since: 0, fixed: 70, ctr: 0.018, cvr: 0.11, hook: 0.35 },
-      { name: "Renifer Rudi UGC", since: 1, fixed: 40, ctr: 0.017, cvr: 0.1, hook: 0.31 },
+      { name: "Pomidory na przetwory 10 kg - grafika", since: 40, weight: 0.3, ctr: 0.017, cvr: 0.05 },
+      { name: "Passata jak u babci - wideo 20 s", since: 40, weight: 0.27, ctr: 0.018, cvr: 0.052, hook: 0.37 },
+      { name: "Kapusta do kiszenia - karuzela", since: 40, weight: 0.22, ctr: 0.015, cvr: 0.05 },
+      { name: "Słoiki na zimę - grafika", since: 40, weight: 0.19, ctr: 0.0125, cvr: 0.05 },
+      { name: "Ostatnie pomidory sezonu - wideo 10 s", since: 0, fixed: 20, ctr: 0.018, cvr: 0.05, hook: 0.35 },
+      { name: "Kiszonki krok po kroku - film klientki", since: 1, fixed: 12, ctr: 0.017, cvr: 0.05, hook: 0.31 },
     ],
   },
   {
-    name: "DE | Film od Mikołaja | Szeroka grupa",
-    campaign: "DE | Sprzedaż | Film od Mikołaja",
-    peak: 4_500,
-    cpm: 22,
-    aov: 105,
+    name: "Skrzynki warzyw | Szeroka grupa",
+    campaign: "SPRZEDAŻ | Skrzynki warzyw",
+    daily: 110,
+    cpm: 15,
+    aov: 135,
     freq: 1.15,
     ads: [
-      { name: "Fabryka prezentów UGC", since: 20, weight: 0.45, ctr: 0.017, cvr: 0.095, hook: 0.36 },
-      { name: "Elf Fajtłapa 15s pion", since: 20, weight: 0.35, ctr: 0.016, cvr: 0.094, hook: 0.31 },
-      { name: "List od Mikołaja - statyczna", since: 20, pausedAgo: 2, weight: 0.2, ctr: 0.011, cvr: 0.07 },
+      { name: "Rozpakowanie skrzynki - film klientki", since: 50, weight: 0.45, ctr: 0.017, cvr: 0.048, hook: 0.36 },
+      { name: "Skrzynka tygodnia - wideo 15 s", since: 50, weight: 0.35, ctr: 0.016, cvr: 0.047, hook: 0.31 },
+      { name: "Darmowa dostawa od 150 zł - grafika", since: 50, pausedAgo: 2, weight: 0.2, ctr: 0.011, cvr: 0.035 },
     ],
   },
   {
-    name: "IT | Film od Mikołaja | Rodzice 25-45",
-    campaign: "IT | Sprzedaż | Film od Mikołaja",
-    peak: 4_000,
-    cpm: 20,
-    aov: 99,
+    name: "Dostawa jutro | Warszawa i okolice",
+    campaign: "SPRZEDAŻ | Dostawa jutro",
+    daily: 100,
+    cpm: 24,
+    aov: 145,
     freq: 1.2,
     ads: [
-      { name: "Fabryka prezentów UGC", since: 15, weight: 0.4, ctr: 0.019, cvr: 0.126, hook: 0.4 },
-      { name: "Elf Fajtłapa 15s pion", since: 15, weight: 0.35, ctr: 0.018, cvr: 0.108, hook: 0.32 },
-      { name: "List od Mikołaja - statyczna", since: 15, weight: 0.25, ctr: 0.013, cvr: 0.093 },
-    ],
-  },
-  {
-    name: "UK | Film od Mikołaja | Advantage+",
-    campaign: "UK | Advantage+ | Film od Mikołaja",
-    peak: 3_000,
-    cpm: 33,
-    aov: 115,
-    freq: 1.2,
-    ads: [
-      { name: "Fabryka prezentów UGC", since: 18, weight: 0.55, ctr: 0.016, cvr: 0.125, hook: 0.38 },
-      { name: "Sekret Mikołaja - karuzela", since: 18, weight: 0.45, ctr: 0.013, cvr: 0.078 },
-    ],
-  },
-  {
-    name: "US | Film od Mikołaja | Rodzice 25-45",
-    campaign: "US | Sprzedaż | Film od Mikołaja",
-    peak: 1_800,
-    cpm: 38,
-    aov: 129,
-    freq: 1.1,
-    ads: [
-      { name: "Elf Fajtłapa 15s pion", since: 12, weight: 0.55, ctr: 0.014, cvr: 0.134, hook: 0.35 },
-      { name: "Fabryka prezentów UGC", since: 12, weight: 0.45, ctr: 0.015, cvr: 0.131, hook: 0.39 },
-      { name: "List od Mikołaja - kwadrat", since: 1, fixed: 30, ctr: 0.012, cvr: 0.12 },
+      { name: "Zamów do 20:00, jutro u Ciebie - grafika", since: 30, weight: 0.55, ctr: 0.018, cvr: 0.068 },
+      { name: "Kurier z warzywami - wideo 12 s", since: 30, weight: 0.45, ctr: 0.014, cvr: 0.036, hook: 0.3 },
+      { name: "Mapa dostaw - grafika", since: 1, fixed: 8, ctr: 0.014, cvr: 0.06 },
     ],
   },
 ];
@@ -218,39 +197,28 @@ const SETS: DemoSetDef[] = [
 // ---------------------------------------------------------------------------
 // Calendar
 
-/**
- * How hard the shop pushes on a day, 0..1 of the 5 December peak: a slow
- * October, Black Week, the eve of St Nicholas, the run-up to Christmas Eve.
- */
+// Spend follows the shop's own year (lib/demo/ecom.ts): the tomato and
+// preserves season (July - September) is the peak, then December's holiday
+// cooking; January and February are the quiet months.
+const MONTH = DEMO_MONTH_DEMAND;
+
+/** How hard the shop pushes on a day (1 = an average day), month to month without steps. */
 function intensity(iso: string): number {
-  const md = iso.slice(5);
-  if (md < "10-01") return md >= "09-01" ? 0.2 : 0.1; // September: pre-season tests
-  if (md > "12-24") return 0.08;
-  const d = diffDaysIso(`${iso.slice(0, 4)}-10-01`, iso);
-  let v = 0.32 + (0.3 * Math.min(d, 50)) / 50;
-  if (md >= "11-21" && md <= "12-01") v += 0.14;
-  if (md >= "12-02") {
-    const day = Number(md.slice(3));
-    if (day <= 5) v = [0.78, 0.86, 0.93, 1][day - 2];
-    else if (day === 6) v = 0.8;
-    else if (day <= 20) v = 0.86 + ((day - 7) * 0.09) / 13;
-    else v = [0.78, 0.66, 0.52, 0.34][day - 21];
-  }
-  return v;
+  const d = new Date(`${iso}T12:00:00Z`);
+  const m = d.getUTCMonth();
+  const dim = new Date(Date.UTC(d.getUTCFullYear(), m + 1, 0)).getUTCDate();
+  const t = (d.getUTCDate() - 1) / dim;
+  // Halfway through a month it is that month's value; towards either end it
+  // blends into the neighbour, so the chart has no cliff on the 1st.
+  const next = t >= 0.5 ? MONTH[(m + 1) % 12] : MONTH[(m + 11) % 12];
+  return MONTH[m] + (next - MONTH[m]) * Math.abs(t - 0.5);
 }
 
-// Sunday and Monday evenings sell best; Friday and Saturday are quieter.
-const WEEKDAY = [1.06, 1.05, 1.0, 0.99, 0.98, 0.95, 0.96];
+// Orders for the week's delivery come in Sunday to Tuesday; Friday and
+// Saturday are quiet.
+const WEEKDAY = [1.12, 1.08, 1.03, 1.0, 0.97, 0.91, 0.89];
 
 const todayWarsaw = () => formatInTimeZone(new Date(), TZ, "yyyy-MM-dd");
-
-/** Outside the season the demo shows a December day of the last season. */
-function seasonDay(iso: string): string {
-  const md = iso.slice(5);
-  if (md >= "10-01" && md <= "12-24") return iso;
-  const y = Number(iso.slice(0, 4));
-  return md > "12-24" ? `${y}-12-09` : `${y - 1}-12-09`;
-}
 
 // ---------------------------------------------------------------------------
 // Generation
@@ -261,7 +229,7 @@ interface GenAd {
   adId: string;
   adsetId: string;
   campaignId: string;
-  /** Days before today the ad went live (see generate()). */
+  /** Days before today the ad went live. */
   since: number;
 }
 
@@ -271,11 +239,7 @@ function fadeOf(def: DemoAdDef, daysAgo: number): number {
 }
 
 /** The ads of every set as they stand on `today`. */
-function demoAds(today: string): GenAd[][] {
-  // The core ads have run since the season opened (deep into December that
-  // is 70+ days), so "Cały sezon" isn't empty before mid-November; test
-  // newcomers keep their own short age.
-  const seasonAge = Math.max(0, diffDaysIso(`${today.slice(0, 4)}-10-01`, today));
+function demoAds(): GenAd[][] {
   return SETS.map((set, si) => {
     const adsetId = `demo-adset-${si + 1}`;
     const campaignId = `demo-camp-${hash(set.campaign) % 100_000}`;
@@ -285,7 +249,7 @@ function demoAds(today: string): GenAd[][] {
       adId: `demo-ad-${si + 1}-${ai + 1}`,
       adsetId,
       campaignId,
-      since: def.since >= 15 ? Math.max(def.since, seasonAge) : def.since,
+      since: def.since,
     }));
   });
 }
@@ -301,7 +265,7 @@ function generateRows(sets: GenAd[][], today: string, from: string, to: string, 
       const live = (ad: GenAd) => ago <= ad.since && (ad.def.pausedAgo == null || ago > ad.def.pausedAgo);
       const r = mulberry32(hash(`${set.name}|${date}`));
       const budget =
-        set.peak * 100 * intensity(date) * WEEKDAY[new Date(`${date}T12:00:00Z`).getUTCDay()] * (1 + 0.05 * gauss(r));
+        set.daily * 100 * intensity(date) * WEEKDAY[new Date(`${date}T12:00:00Z`).getUTCDay()] * (1 + 0.05 * gauss(r));
       const weightSum = ads.reduce((s, a) => s + (live(a) && a.def.weight ? a.def.weight : 0), 0);
 
       for (const ad of ads) {
@@ -362,10 +326,10 @@ function demoMeta(sets: GenAd[][], today: string): Record<string, AbAdMeta> {
   return out;
 }
 
-/** The demo's "today": `pinned` or the real Warsaw day, moved into the season. */
+/** The demo's "today": `pinned` or the real Warsaw day (the shop sells all year). */
 function demoDay(pinned?: string): { day: string; live: boolean } {
   const real = todayWarsaw();
-  const day = seasonDay(pinned || real);
+  const day = pinned || real;
   return { day, live: day === real };
 }
 
@@ -373,8 +337,8 @@ function demoDay(pinned?: string): { day: string; live: boolean } {
 
 /**
  * Demo creative-test view for a period. `today` (yyyy-MM-dd) pins the day;
- * by default it is today in Warsaw, moved into the season when the real
- * date is outside it (the demo shop sells October - Christmas Eve only).
+ * by default it is today in Warsaw. The shop has no season config, so
+ * "Cały sezon" isn't offered and the sales moments are the fixed ones.
  */
 export function getDemoAbView(windowKey: AbWindowKey, today?: string): AbView {
   const { day, live } = demoDay(today);
@@ -394,11 +358,11 @@ export function getDemoAbView(windowKey: AbWindowKey, today?: string): AbView {
   }
 
   // The same period and look-back as lib/ab/load.ts reads for a live client.
-  const win = resolveAbWindow(windowKey, day, DEMO_SEASON_CONFIG);
+  const win = resolveAbWindow(windowKey, day, null);
   const liveWindow = win.start < day && win.end >= addDaysIso(day, -1);
   const lookback = addDaysIso(day, -FATIGUE_LOOKBACK_DAYS);
   const from = liveWindow && lookback < win.start ? lookback : win.start;
-  const sets = demoAds(day);
+  const sets = demoAds();
 
   return computeAbView({
     windowKey: win.key,
@@ -409,7 +373,7 @@ export function getDemoAbView(windowKey: AbWindowKey, today?: string): AbView {
     meta: demoMeta(sets, day),
     updatedAt,
     marketOf,
-    moments: salesMomentsFor(DEMO_SEASON_CONFIG, day),
+    moments: salesMomentsFor(null, day),
   });
 }
 
@@ -420,6 +384,6 @@ export function getDemoAbSeries(req: AbSeriesRequest, today?: string): AbSeries[
   if (req.start > end) return buildAbSeries(req.adIds, req.start, req.end, []);
   const ids = new Set(req.adIds);
   // Past days don't depend on how far today has synced.
-  const rows = generateRows(demoAds(day), day, req.start, end, PINNED_PARTIAL).filter((r) => ids.has(r.adId));
+  const rows = generateRows(demoAds(), day, req.start, end, PINNED_PARTIAL).filter((r) => ids.has(r.adId));
   return buildAbSeries(req.adIds, req.start, req.end, rows);
 }

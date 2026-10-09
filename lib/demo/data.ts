@@ -15,6 +15,7 @@ import type { DailyScore } from "@/lib/dashboard/score";
 import type { CreativeItem } from "@/components/dashboard/creatives-table";
 import type { CreativeRow } from "@/components/dashboard/top-creatives";
 import type { AdProvider } from "@/lib/types";
+import { formatPlnWhole } from "@/lib/utils";
 
 export type DemoLang = "pl" | "en";
 
@@ -45,7 +46,6 @@ interface DemoDashboard {
   creatives: CreativeRow[];
   creativesFull: CreativeItem[];
   alerts: Anomaly[];
-  alertsFull: Anomaly[];
   budget: BudgetStatus;
   summary: AiSummary;
   costTrend: CostTrendPoint[];
@@ -115,6 +115,9 @@ export function getDemoDashboard(
   };
 
   // --- Campaigns (Meta + Google) --------------------------------------------
+  // lokalnepomidorki's own campaigns: the Meta ones are the ones whose ads
+  // "Testy kreacji" (lib/demo/ab.ts) compares, with about the same split of
+  // the budget; Google covers search, the shop feed and a farm video.
   const campaignDefs: Array<{
     id: string;
     provider: AdProvider;
@@ -126,14 +129,14 @@ export function getDemoDashboard(
     reasonPl: string | null;
     reasonEn: string | null;
   }> = [
-    { id: "d-m1", provider: "meta_ads", namePl: "BRAND | Świadomość | Reach", nameEn: "BRAND | Awareness | Reach", weight: 0.2, ctr: 0.9, status: "active", reasonPl: null, reasonEn: null },
-    { id: "d-m2", provider: "meta_ads", namePl: "TRAFFIC | Ruch na stronę", nameEn: "TRAFFIC | Website visits", weight: 0.17, ctr: 2.1, status: "active", reasonPl: null, reasonEn: null },
-    { id: "d-m3", provider: "meta_ads", namePl: "ENGAGEMENT | Instagram", nameEn: "ENGAGEMENT | Instagram", weight: 0.11, ctr: 2.8, status: "active", reasonPl: null, reasonEn: null },
-    { id: "d-m4", provider: "meta_ads", namePl: "RETARGETING | Odwiedzający", nameEn: "RETARGETING | Visitors", weight: 0.08, ctr: 2.4, status: "attention", reasonPl: "Rosnący koszt kliknięcia", reasonEn: "Rising cost per click" },
-    { id: "d-g1", provider: "google_ads", namePl: "SEARCH | Marka", nameEn: "SEARCH | Brand", weight: 0.08, ctr: 8.5, status: "active", reasonPl: null, reasonEn: null },
-    { id: "d-g2", provider: "google_ads", namePl: "SEARCH | Generyczne", nameEn: "SEARCH | Generic", weight: 0.16, ctr: 4.5, status: "active", reasonPl: null, reasonEn: null },
-    { id: "d-g3", provider: "google_ads", namePl: "PMAX | Ruch", nameEn: "PMAX | Traffic", weight: 0.13, ctr: 1.8, status: "attention", reasonPl: "Wydatki powyżej normy", reasonEn: "Spend above normal" },
-    { id: "d-g4", provider: "google_ads", namePl: "YT | Wideo", nameEn: "YT | Video", weight: 0.07, ctr: 1.1, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-m1", provider: "meta_ads", namePl: "SPRZEDAŻ | Skrzynki warzyw", nameEn: "SALES | Veg boxes", weight: 0.24, ctr: 1.9, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-m2", provider: "meta_ads", namePl: "SPRZEDAŻ | Pomidory i przetwory", nameEn: "SALES | Tomatoes & preserves", weight: 0.19, ctr: 1.7, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-m3", provider: "meta_ads", namePl: "SPRZEDAŻ | Dostawa jutro", nameEn: "SALES | Next-day delivery", weight: 0.07, ctr: 1.8, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-m4", provider: "meta_ads", namePl: "REMARKETING | Sklep", nameEn: "REMARKETING | Shop", weight: 0.08, ctr: 2.4, status: "attention", reasonPl: "Rosnący koszt kliknięcia", reasonEn: "Rising cost per click" },
+    { id: "d-g1", provider: "google_ads", namePl: "SEARCH | Marka lokalnepomidorki", nameEn: "SEARCH | Brand lokalnepomidorki", weight: 0.07, ctr: 8.5, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-g2", provider: "google_ads", namePl: "SEARCH | Warzywa z dostawą", nameEn: "SEARCH | Veg delivery", weight: 0.15, ctr: 4.5, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-g3", provider: "google_ads", namePl: "PMAX | Sklep z warzywami", nameEn: "PMAX | Veg shop", weight: 0.13, ctr: 1.8, status: "attention", reasonPl: "Wydatki powyżej normy", reasonEn: "Spend above normal" },
+    { id: "d-g4", provider: "google_ads", namePl: "YT | Wideo z gospodarstwa", nameEn: "YT | Farm video", weight: 0.07, ctr: 1.1, status: "active", reasonPl: null, reasonEn: null },
   ];
 
   // Google clicks cost about twice Meta's (search intent), like real
@@ -193,17 +196,21 @@ export function getDemoDashboard(
   };
 
   // --- Creatives -------------------------------------------------------------
+  // The shop's Meta ads, named as in "Testy kreacji" (lib/demo/ab.ts) and
+  // pulling the same way there: the free-delivery image and the tomato
+  // close-up lag here on clicks and there on purchases; the unboxing video
+  // holds attention best here and sells best there.
   const creativeDefs: Array<[string, string, number, number, number, number]> = [
-    ["Wideo | Poradnik montażu 30s", "Video | Install guide 30s", 184050, 2.6, 34, 11],
-    ["Karuzela | Nowa kolekcja", "Carousel | New collection", 152300, 2.5, 36, 22],
-    ["Grafika | Świadomość marki", "Image | Brand awareness", 141200, 0.9, 49, 33],
-    ["Retargeting | Porzucony koszyk", "Retargeting | Abandoned cart", 118900, 3.2, 39, 44],
-    ["Reels | Opinie klientów", "Reels | Customer reviews", 104500, 2.3, 32, 55],
-    ["Statyk | Promocja -20%", "Static | Promo -20%", 96700, 2.2, 37, 66],
-    ["Wideo | Behind the scenes", "Video | Behind the scenes", 81200, 1.2, 44, 77],
-    ["Grafika | Bestsellery", "Image | Bestsellers", 72400, 2.4, 34, 88],
-    ["Karuzela | Zestawy", "Carousel | Bundles", 61300, 2.0, 41, 99],
-    ["Reels | Poradnik 3 kroki", "Reels | 3-step guide", 54900, 2.7, 30, 12],
+    ["Skrzynka tygodnia - wideo 15 s", "Weekly box - 15s video", 184050, 2.6, 34, 11],
+    ["Co jest w skrzynce? - karuzela", "What's in the box? - carousel", 152300, 2.5, 36, 22],
+    ["Lokalne pomidory - grafika marki", "Local tomatoes - brand image", 141200, 0.9, 49, 33],
+    ["Opinie klientów - grafika", "Customer reviews - image", 118900, 3.2, 39, 44],
+    ["Rozpakowanie skrzynki - film klientki", "Box unboxing - customer video", 104500, 2.3, 32, 55],
+    ["Darmowa dostawa od 150 zł - grafika", "Free delivery over 150 zł - image", 96700, 1.3, 46, 66],
+    ["Pomidory malinowe z bliska - wideo 10 s", "Raspberry tomatoes close-up - 10s video", 81200, 1.2, 44, 77],
+    ["Prosto z krzaka - grafika", "Straight from the vine - image", 72400, 2.4, 34, 88],
+    ["Kapusta do kiszenia - karuzela", "Pickling cabbage - carousel", 61300, 2.0, 41, 99],
+    ["Passata jak u babci - wideo 20 s", "Grandma's passata - 20s video", 54900, 2.7, 30, 12],
   ];
   const creativesFull: CreativeItem[] = creativeDefs.map((c, i) => {
     const spend = c[2];
@@ -213,7 +220,7 @@ export function getDemoDashboard(
     const impressions = Math.round((clicks / ctr) * 100);
     return {
       adId: `demo-ad${i + 1}`,
-      name: `DEMO | ${en ? c[1] : c[0]}`,
+      name: en ? c[1] : c[0],
       thumbnailUrl: `https://picsum.photos/seed/${c[5]}/600/600`,
       spend,
       impressions,
@@ -274,10 +281,10 @@ export function getDemoDashboard(
     ],
     topPages: [
       { path: "/", views: Math.round(S * 0.9), engagementRate: 61 },
-      { path: "/produkty", views: Math.round(S * 0.62), engagementRate: 68 },
-      { path: "/kontakt", views: Math.round(S * 0.28), engagementRate: 72 },
-      { path: "/o-nas", views: Math.round(S * 0.21), engagementRate: 55 },
-      { path: "/blog/poradnik", views: Math.round(S * 0.18), engagementRate: 74 },
+      { path: "/skrzynki-warzyw", views: Math.round(S * 0.62), engagementRate: 68 },
+      { path: "/pomidory", views: Math.round(S * 0.28), engagementRate: 72 },
+      { path: "/dostawa", views: Math.round(S * 0.21), engagementRate: 55 },
+      { path: "/przepisy/passata-domowa", views: Math.round(S * 0.18), engagementRate: 74 },
     ],
     engagement: { engagementRate: 62, bounceRate: 38, avgDailySessions: Math.round(S / DAYS) },
     newVsReturning: { newUsers: Math.round(S * 0.62), returningUsers: Math.round(S * 0.38) },
@@ -304,15 +311,26 @@ export function getDemoDashboard(
   const news = en ? newsEn : newsPl;
 
   // --- Alerts ----------------------------------------------------------------
+  // One list for every place that counts alerts (overview status + alert
+  // line, the bell, Alerty): two lists drifted to "Pilne: 2" next to a bell
+  // showing 3. The amounts come from the campaign rows above, so an alert
+  // can't name a spend its own campaign never had.
+  const campaignOf = (id: string) => campaigns.find((c) => c.campaignId === id);
+  const zl = (minor: number) =>
+    en ? `${Math.round(minor / 100).toLocaleString("en-GB")} zł` : formatPlnWhole(minor);
+  // PMAX started 22 days ago (the chart's "Start kampanii" marker), so its
+  // window spend covers 23 days; today runs at +128% of that average.
+  const pmaxSpend = campaignOf("d-g3")?.spendMinorUnits ?? 0;
+  const pmaxToday = Math.round((pmaxSpend / 23) * 2.28);
+  // This week +42% over the two before: 7 × 1.42x + 23x = the 30-day spend.
+  const remarketingSpend = campaignOf("d-m4")?.spendMinorUnits ?? 0;
+  const remarketingWeek = Math.round((remarketingSpend * 7 * 1.42) / (7 * 1.42 + 23));
   const alerts: Anomaly[] = [
-    { id: "a1", severity: "critical", scope: "campaign", scopeLabel: en ? "PMAX | Traffic · Google" : "PMAX | Ruch · Google", metric: "spend", direction: "up", changePct: 128, title: en ? "Spend spike today: 1,809 zł" : "Skok wydatków dziś: 1 809 zł", description: en ? "Campaign spend well above the daily average." : "Wydatki kampanii znacząco powyżej średniej dziennej." },
-    { id: "a2", severity: "high", scope: "campaign", scopeLabel: en ? "RETARGETING | Visitors · Meta" : "RETARGETING | Odwiedzający · Meta", metric: "spend", direction: "up", changePct: 42, title: en ? "Elevated spend (7 days): 5,396 zł" : "Podwyższone wydatki (7 dni): 5 396 zł", description: en ? "This week above the previous two weeks." : "Tydzień powyżej poprzednich dwóch tygodni." },
+    { id: "a1", severity: "critical", scope: "campaign", scopeLabel: en ? "PMAX | Veg shop · Google" : "PMAX | Sklep z warzywami · Google", metric: "spend", direction: "up", changePct: 128, title: en ? `Spend spike today: ${zl(pmaxToday)}` : `Skok wydatków dziś: ${zl(pmaxToday)}`, description: en ? "Campaign spend well above the daily average." : "Wydatki kampanii znacząco powyżej średniej dziennej." },
+    { id: "a2", severity: "high", scope: "campaign", scopeLabel: en ? "REMARKETING | Shop · Meta" : "REMARKETING | Sklep · Meta", metric: "spend", direction: "up", changePct: 42, title: en ? `Elevated spend (7 days): ${zl(remarketingWeek)}` : `Podwyższone wydatki (7 dni): ${zl(remarketingWeek)}`, description: en ? "This week above the previous two weeks." : "Tydzień powyżej poprzednich dwóch tygodni." },
     { id: "a3", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "ctr", direction: "up", changePct: 11, title: en ? "CTR rising: +11% vs normal" : "Klikalność rośnie: +11% względem normy", description: en ? "Engagement higher than usual this week." : "Zaangażowanie w tym tygodniu wyższe niż zwykle." },
-  ];
-  const alertsFull: Anomaly[] = [
-    ...alerts,
-    { id: "a4", severity: "high", scope: "campaign", scopeLabel: en ? "SEARCH | Generic · Google" : "SEARCH | Generyczne · Google", metric: "cpc", direction: "up", changePct: 24, title: en ? "CPC up 24% (7 days)" : "CPC wyższe o 24% (7 dni)", description: en ? "Rising auction competition pushes cost per click up." : "Rosnąca konkurencja w aukcji podbija koszt kliknięcia." },
-    { id: "a5", severity: "medium", scope: "campaign", scopeLabel: en ? "ENGAGEMENT | Instagram · Meta" : "ENGAGEMENT | Instagram · Meta", metric: "ctr", direction: "up", changePct: 18, title: en ? "CTR rising on Instagram: +18%" : "Klikalność rośnie na Instagramie: +18%", description: en ? "New Reels creatives clearly outperform the average." : "Nowe reklamy Reels działają wyraźnie lepiej niż średnia." },
+    { id: "a4", severity: "high", scope: "campaign", scopeLabel: en ? "SEARCH | Veg delivery · Google" : "SEARCH | Warzywa z dostawą · Google", metric: "cpc", direction: "up", changePct: 24, title: en ? "CPC up 24% (7 days)" : "CPC wyższe o 24% (7 dni)", description: en ? "More grocery shops bid on the same searches, which pushes the cost per click up." : "Więcej sklepów spożywczych licytuje te same wyszukiwania, co podbija koszt kliknięcia." },
+    { id: "a5", severity: "medium", scope: "campaign", scopeLabel: en ? "SALES | Veg boxes · Meta" : "SPRZEDAŻ | Skrzynki warzyw · Meta", metric: "ctr", direction: "up", changePct: 18, title: en ? "CTR rising: +18%" : "Klikalność rośnie: +18%", description: en ? "The new customer unboxing video clearly beats the average." : "Nowy film klientki rozpakowującej skrzynkę działa wyraźnie lepiej niż średnia." },
     { id: "a6", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "sessions", direction: "up", changePct: 9, title: en ? "Paid sessions +9%" : "Więcej wizyt z reklam: +9%", description: en ? "Campaign traffic growth feeds GA4 sessions." : "Wzrost ruchu z kampanii przekłada się na więcej wizyt na stronie." },
   ];
 
@@ -344,8 +362,8 @@ export function getDemoDashboard(
   // --- AI summary -----------------------------------------------------------
   const summary: AiSummary = {
     summaryText: en
-      ? "Campaign traffic is growing this week - clicks are up 16% versus the previous period and CTR stays above average. The best performers are the video campaign „Install guide” and retargeting. GA4 sessions grow mainly from paid and organic Google traffic. Recommendation: shift some budget to the top video creatives and keep retargeting running."
-      : "W tym tygodniu ruch z kampanii rośnie - liczba kliknięć wzrosła o 16% względem poprzedniego okresu, a klikalność reklam utrzymuje się powyżej średniej. Najlepiej działa film „Poradnik montażu” oraz reklamy przypominające ofertę osobom, które już były na stronie. Wizyt na stronie przybywa głównie z reklam i z bezpłatnych wyników Google. Warto omówić przesunięcie części budżetu na najlepsze filmy.",
+      ? "Campaign traffic is growing this week - clicks are up 16% versus the previous period and CTR stays above average. The best performers are the customer video unboxing a veg box and the ads reminding shop visitors of their basket. GA4 sessions grow mainly from paid and organic Google traffic. Recommendation: shift some budget to the top videos and keep remarketing running."
+      : "W tym tygodniu ruch z kampanii rośnie - liczba kliknięć wzrosła o 16% względem poprzedniego okresu, a klikalność reklam utrzymuje się powyżej średniej. Najlepiej działa film klientki rozpakowującej skrzynkę warzyw oraz reklamy przypominające o koszyku osobom, które już były w sklepie. Wizyt na stronie przybywa głównie z reklam i z bezpłatnych wyników Google. Warto omówić przesunięcie części budżetu na najlepsze filmy.",
     generatedAt: today.toISOString(),
     // Same window as the real cron: the last 7 complete days.
     periodStart: format(subDays(today, 7), "yyyy-MM-dd"),
@@ -360,7 +378,6 @@ export function getDemoDashboard(
     creatives,
     creativesFull,
     alerts,
-    alertsFull,
     budget,
     summary,
     costTrend,
