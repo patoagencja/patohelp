@@ -1,5 +1,7 @@
 import { cache } from "react";
 
+import { createLimiter, type FetchLane, type Limiter } from "@/lib/supabase/limiter";
+
 // PostgREST silently caps a single select at ~1000 rows. Any query that can
 // exceed that (ads_daily over long ranges for large accounts) must paginate,
 // or the tail of the result vanishes without an error.
@@ -29,50 +31,37 @@ const PER_CALL_CONCURRENCY = 4;
  * users) instead of finishing sooner.
  */
 const PER_REQUEST_CONCURRENCY = 12;
+/**
+ * Slots background reads may hold at once. The header bell and the overview
+ * start the alert scan (three weeks of every campaign) in the same request
+ * as the dashboard read; sharing one FIFO it could take all 12 slots first
+ * and the page waited behind a widget that streams in later anyway.
+ */
+const BACKGROUND_CONCURRENCY = 6;
 
-type Release = () => void;
+export type { FetchLane };
 
-interface Limiter {
-  acquire(): Promise<Release>;
-}
-
-function createLimiter(max: number): Limiter {
-  let active = 0;
-  const queue: Array<() => void> = [];
-  const release = () => {
-    active -= 1;
-    const next = queue.shift();
-    if (next) next();
-  };
-  return {
-    acquire() {
-      return new Promise<Release>((resolve) => {
-        const grant = () => {
-          active += 1;
-          let released = false;
-          resolve(() => {
-            if (released) return;
-            released = true;
-            release();
-          });
-        };
-        if (active < max) grant();
-        else queue.push(grant);
-      });
-    },
-  };
+export interface FetchOptions {
+  /**
+   * "background": reads nobody waits on to paint the page (they stream in
+   * later). They use at most BACKGROUND_CONCURRENCY of the request's slots,
+   * and a freed slot goes to a waiting foreground read first.
+   */
+  lane?: FetchLane;
 }
 
 // Per server request (React `cache` scope). Outside a render (route handlers,
 // crons) `cache` doesn't memoize, so each fetchAll gets its own limiter and
 // only PER_CALL_CONCURRENCY applies - never shared across users.
-const requestLimiter = cache((): Limiter => createLimiter(PER_REQUEST_CONCURRENCY));
+const requestLimiter = cache(
+  (): Limiter => createLimiter(PER_REQUEST_CONCURRENCY, BACKGROUND_CONCURRENCY)
+);
 
 function getLimiter(): Limiter {
   try {
     return requestLimiter();
   } catch {
-    return createLimiter(PER_REQUEST_CONCURRENCY);
+    return createLimiter(PER_REQUEST_CONCURRENCY, BACKGROUND_CONCURRENCY);
   }
 }
 
@@ -104,12 +93,13 @@ function requestExactCount(query: unknown): void {
  * exactly one position.
  */
 export async function fetchAll<T>(
-  build: (from: number, to: number) => PromiseLike<PageResult<T>>
+  build: (from: number, to: number) => PromiseLike<PageResult<T>>,
+  options: FetchOptions = {}
 ): Promise<T[]> {
   const limiter = getLimiter();
 
   const readPage = async (index: number, withCount = false): Promise<PageResult<T>> => {
-    const release = await limiter.acquire();
+    const release = await limiter.acquire(options.lane);
     try {
       const query = build(index * PAGE, index * PAGE + PAGE - 1);
       if (withCount) requestExactCount(query);
@@ -198,9 +188,10 @@ export async function fetchAllByDateChunks<T>(
   build: (
     chunkStart: string,
     chunkEnd: string
-  ) => (from: number, to: number) => PromiseLike<PageResult<T>>
+  ) => (from: number, to: number) => PromiseLike<PageResult<T>>,
+  options: FetchOptions = {}
 ): Promise<T[]> {
-  if (start > end) return fetchAll(build(start, end));
+  if (start > end) return fetchAll(build(start, end), options);
   const DAY = 86_400_000;
   const toMs = (s: string) => Date.parse(`${s}T00:00:00Z`);
   const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -210,6 +201,6 @@ export async function fetchAllByDateChunks<T>(
     const e = Math.min(s + (chunkDays - 1) * DAY, endMs);
     chunks.push([iso(s), iso(e)]);
   }
-  const parts = await Promise.all(chunks.map(([s, e]) => fetchAll(build(s, e))));
+  const parts = await Promise.all(chunks.map(([s, e]) => fetchAll(build(s, e), options)));
   return parts.flat();
 }

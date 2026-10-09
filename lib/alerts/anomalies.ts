@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { rowsWithin, type AlertAdsWindow } from "@/lib/alerts/ads-window";
 import { detectEcomAnomalies } from "@/lib/alerts/ecom";
 import { fetchAll, fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
@@ -53,11 +54,13 @@ const sev = (absPct: number): AnomalySeverity => (absPct >= 0.6 ? "high" : "medi
  * 14-day baseline (account-wide and per campaign) and flags sudden spikes /
  * drops in CPC, CTR, clicks, spend and GA4 sessions. Computed live from
  * ads_daily / ga4_daily — no extra table needed. Reusable by a future
- * notification cron (e.g. WhatsApp).
+ * notification cron (e.g. WhatsApp). The ads rows come from `shared`
+ * (readAlertAdsWindow) when the caller runs both detectors.
  */
 export async function detectAnomalies(
   clientId: string,
-  client?: SupabaseClient
+  client?: SupabaseClient,
+  shared?: AlertAdsWindow | Promise<AlertAdsWindow>
 ): Promise<Anomaly[]> {
   // Accepts an admin client so the notify cron can read past RLS (no session).
   const supabase = client ?? createClient();
@@ -82,18 +85,23 @@ export async function detectAnomalies(
   );
 
   const [rows, ga4Rows] = await Promise.all([
-    // Two week-long chunks side by side (same rows, same order).
-    fetchAllByDateChunks<Record<string, unknown>>(baseStart, recentEnd, 7, (s, e) => (from, to) =>
-      supabase
-        .from("ads_daily")
-        .select("campaign_id, campaign_name, date, spend_minor_units, clicks, impressions")
-        .eq("client_id", clientId)
-        .gte("date", s)
-        .lte("date", e)
-        .order("date", { ascending: true })
-        .order("provider", { ascending: true })
-        .order("campaign_id", { ascending: true })
-        .range(from, to)
+    // A failed shared read just means reading our own window, as before.
+    Promise.resolve(shared).catch(() => null).then(
+      (window): Promise<Array<Record<string, unknown>>> | Array<Record<string, unknown>> =>
+        rowsWithin(window, baseStart, recentEnd) ??
+        // Two week-long chunks side by side (same rows, same order).
+        fetchAllByDateChunks<Record<string, unknown>>(baseStart, recentEnd, 7, (s, e) => (from, to) =>
+          supabase
+            .from("ads_daily")
+            .select("campaign_id, campaign_name, date, spend_minor_units, clicks, impressions")
+            .eq("client_id", clientId)
+            .gte("date", s)
+            .lte("date", e)
+            .order("date", { ascending: true })
+            .order("provider", { ascending: true })
+            .order("campaign_id", { ascending: true })
+            .range(from, to)
+        )
     ),
     fetchAll<Record<string, unknown>>((from, to) =>
       supabase

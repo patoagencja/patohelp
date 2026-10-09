@@ -25,6 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Sky } from "@/components/ui/sky";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
+import { readAlertAdsWindow } from "@/lib/alerts/ads-window";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
 import {
@@ -191,9 +192,11 @@ export default async function ClientsPage({
         // per sync stamp so revisiting the picker doesn't rescan everyone.
         // Agency viewer verified above; service-role read of listed clients.
         const all = await syncCached("alerts-default-caps", c.id as string, [], async () => {
+          // One read of the three weeks both detectors look at.
+          const shared = readAlertAdsWindow(admin, c.id as string);
           const [spikes, anomalies] = await Promise.all([
-            detectBudgetSpikes(c.id as string, admin),
-            detectAnomalies(c.id as string, admin),
+            detectBudgetSpikes(c.id as string, admin, undefined, shared),
+            detectAnomalies(c.id as string, admin, shared),
           ]);
           return [...spikes, ...anomalies];
         });

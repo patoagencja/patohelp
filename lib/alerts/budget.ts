@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { rowsWithin, type AlertAdsWindow } from "@/lib/alerts/ads-window";
 import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { Anomaly } from "@/lib/alerts/anomalies";
@@ -186,12 +187,14 @@ function evaluateWeek(params: {
  *      `critical` so the notifier bypasses quiet hours.
  *   2. Sustained weekly overspend - this week's daily average vs the prior two
  *      weeks. Marked `high` (slower-burn signal, respects the send window).
- * Reads live from ads_daily (admin client for cron / RLS-free).
+ * Reads live from ads_daily (admin client for cron / RLS-free), or from
+ * `shared` (readAlertAdsWindow) when the caller runs both detectors.
  */
 export async function detectBudgetSpikes(
   clientId: string,
   client?: SupabaseClient,
-  config: BudgetConfig = DEFAULT_BUDGET_CONFIG
+  config: BudgetConfig = DEFAULT_BUDGET_CONFIG,
+  shared?: AlertAdsWindow | Promise<AlertAdsWindow>
 ): Promise<Anomaly[]> {
   const supabase = client ?? createClient();
   const todayStr = fmtDate(new Date());
@@ -200,19 +203,23 @@ export async function detectBudgetSpikes(
   // Fetch enough history for both single-day baselines and the weekly window.
   const fetchStart = fmtDate(subDays(today, WEEK_DAYS + PRIOR_WEEKS_DAYS + 1)); // ~22 days
 
-  // Week-long chunks side by side (same rows, same order as one read).
-  const data = await fetchAllByDateChunks<Record<string, unknown>>(fetchStart, todayStr, 7, (s, e) => (from, to) =>
-    supabase
-      .from("ads_daily")
-      .select("date, campaign_id, campaign_name, spend_minor_units")
-      .eq("client_id", clientId)
-      .gte("date", s)
-      .lte("date", e)
-      .order("date", { ascending: true })
-      .order("provider", { ascending: true })
-      .order("campaign_id", { ascending: true })
-      .range(from, to)
-  );
+  // A failed shared read just means reading our own window, as before.
+  const window = await Promise.resolve(shared).catch(() => null);
+  const data: Array<Record<string, unknown>> =
+    rowsWithin(window, fetchStart, todayStr) ??
+    // Week-long chunks side by side (same rows, same order as one read).
+    (await fetchAllByDateChunks<Record<string, unknown>>(fetchStart, todayStr, 7, (s, e) => (from, to) =>
+      supabase
+        .from("ads_daily")
+        .select("date, campaign_id, campaign_name, spend_minor_units")
+        .eq("client_id", clientId)
+        .gte("date", s)
+        .lte("date", e)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ));
 
   // Date-string helpers for window membership.
   const d = (offset: number) => fmtDate(subDays(today, offset));

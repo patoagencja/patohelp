@@ -1,5 +1,6 @@
 import { cache } from "react";
 
+import { readAlertAdsWindow } from "@/lib/alerts/ads-window";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getLastSyncAt } from "@/lib/dashboard/context";
@@ -12,8 +13,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * (the spike detector needs the client's caps from notification_settings).
  * React `cache` dedupes it within one request, so the header bell's count,
  * the overview's status and the Alerty page share a single scan; the scan
- * itself (three weeks of every campaign's rows) is shared across requests
- * until the next sync lands. The caps are read live and are part of the key,
+ * itself (three weeks of every campaign's rows, read once for both
+ * detectors) is shared across requests until the next sync lands. The caps are read live and are part of the key,
  * so changing them in Ustawienia applies on the next render.
  *
  * Callers MUST pass a client id resolved through RLS (getClientBySlug): the
@@ -44,9 +45,13 @@ export const getCurrentAlerts = cache(async (clientId: string): Promise<Anomaly[
     [budgetConfig.campaignCap, budgetConfig.accountCap, budgetConfig.multiplier],
     async () => {
       const db = createAdminClient();
+      // One read of the three weeks both detectors look at. The bell and the
+      // overview's status stream in after the page, so the scan takes the
+      // background lane: it never queues the dashboard's own reads.
+      const shared = readAlertAdsWindow(db, clientId, "background");
       const [spikes, anomalies] = await Promise.all([
-        detectBudgetSpikes(clientId, db, budgetConfig),
-        detectAnomalies(clientId, db),
+        detectBudgetSpikes(clientId, db, budgetConfig, shared),
+        detectAnomalies(clientId, db, shared),
       ]);
       return [...spikes, ...anomalies];
     }

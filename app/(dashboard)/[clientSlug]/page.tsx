@@ -93,11 +93,21 @@ export default async function OverviewPage({
   // Campaign rings (gamification) are DRE-only for now.
   const isDre = params.clientSlug === "dre";
 
+  const dataPromise = loadDashboardData(
+    client.id,
+    range,
+    custom?.start ?? null,
+    custom?.end ?? null
+  );
   // Live anomaly digest (same engine as the Alerty tab): budget spikes first.
   // The very scan the header bell counts (getCurrentAlerts is request-cached
-  // and shared across requests until the next sync) - the overview used to
-  // run its own identical copy alongside the bell's.
-  const anomaliesPromise: Promise<Anomaly[]> = getCurrentAlerts(client.id);
+  // and shared across requests until the next sync). Its cards stream in
+  // after the page, so it starts once the dashboard data is in instead of
+  // racing it for the request's read slots; when the bell got there first,
+  // the scan's reads still take the background lane (lib/supabase/fetch-all).
+  const anomaliesPromise: Promise<Anomaly[]> = dataPromise.then(() =>
+    getCurrentAlerts(client.id)
+  );
   // Rejections surface where the promise is awaited (inside Suspense); this
   // only stops Node from flagging it as unhandled while it waits.
   anomaliesPromise.catch(() => {});
@@ -125,7 +135,7 @@ export default async function OverviewPage({
     engagementGoals,
     viewer,
   ] = await Promise.all([
-    loadDashboardData(client.id, range, custom?.start ?? null, custom?.end ?? null),
+    dataPromise,
     sidePromise,
     getEvents(client.id, period.start, period.end),
     // A failed read just hides the "Co dla Ciebie zrobiliśmy" card.
