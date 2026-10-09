@@ -13,7 +13,7 @@ import {
   parseGa4Credentials,
   type DateRange,
 } from "@/lib/integrations/ga4";
-import { getDemographics } from "@/lib/integrations/meta-ads";
+import { getDemographics, MetaAccessError } from "@/lib/integrations/meta-ads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: pull age/gender/geo demographics (GA4) and age/gender (Meta) for
@@ -213,6 +213,7 @@ export async function GET(request: Request) {
       const { access_token } = JSON.parse(decrypt(row.credentials_encrypted as string));
       const age = new Map<string, number>();
       const gender = new Map<string, number>();
+      const noAccess: string[] = [];
       for (const account of accounts) {
         // Sums missing some accounts would be stored as the client's whole
         // audience: keep the last complete snapshot instead.
@@ -224,11 +225,28 @@ export async function GET(request: Request) {
           for (const g of demo.gender)
             if (g.bucket) gender.set(g.bucket, (gender.get(g.bucket) ?? 0) + g.value);
         } catch (accErr) {
+          // An account the token lost access to is not part of what this
+          // client's audience can be read from any more: leave it out, or
+          // one revoked account kept the whole Meta snapshot from ever
+          // refreshing. (Every account lost: failed, below.)
+          if (accErr instanceof MetaAccessError) {
+            noAccess.push(account.id);
+            continue;
+          }
           // Same for a failed account (it used to be skipped and the partial
           // totals stored as complete). The remaining accounts aren't asked:
           // nothing of this run would be written anyway.
           return { kind: "failed", error: `${account.id}: ${describeError(accErr)}` };
         }
+      }
+      if (noAccess.length === accounts.length) {
+        return { kind: "failed", error: `brak dostępu do kont (${noAccess.length})` };
+      }
+      if (noAccess.length) {
+        accountsWithoutAccess += noAccess.length;
+        console.warn(
+          `[cron/refresh-demographics] ${noAccess.length} Meta account(s) without access left out`
+        );
       }
       const rows: Row[] = [];
       for (const [bucket, value] of age)
@@ -245,6 +263,8 @@ export async function GET(request: Request) {
   let clientsFailed = 0;
   let clientsDeferred = 0;
   let providersWritten = 0;
+  let providersDeferred = 0;
+  let accountsWithoutAccess = 0;
   const errors: string[] = [];
 
   // Written client by client: everything used to wait until every client
@@ -270,6 +290,7 @@ export async function GET(request: Request) {
     for (const job of jobs) {
       const result = await job.fetch();
       if (result.kind === "deferred") {
+        providersDeferred += 1;
         console.warn(`[cron/refresh-demographics] ${job.provider} left for the next run (time budget)`);
         continue;
       }
@@ -302,6 +323,8 @@ export async function GET(request: Request) {
     clients_failed: clientsFailed,
     clients_deferred: clientsDeferred,
     providers_written: providersWritten,
+    providers_deferred: providersDeferred,
+    accounts_without_access: accountsWithoutAccess,
     errors,
   });
 }

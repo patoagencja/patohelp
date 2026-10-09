@@ -99,6 +99,25 @@ export class MetaDataVolumeError extends Error {
   }
 }
 
+/**
+ * The token can't see this object any more (permission removed, account
+ * gone): code 10 or 200-299, or 100 with subcode 33. Asking again on the
+ * next run gets the same answer; a token-wide failure (190) is not this.
+ */
+export class MetaAccessError extends Error {
+  readonly code: number;
+  constructor(message: string, code: number) {
+    super(message);
+    this.name = "MetaAccessError";
+    this.code = code;
+  }
+}
+
+/** Codes meaning "no access to this object" (see MetaAccessError). */
+export function isAccessDenied(code: number, subcode: number | null): boolean {
+  return code === 10 || (code >= 200 && code <= 299) || (code === 100 && subcode === 33);
+}
+
 /** Short, log-safe text for a throttle (no ids, no token). */
 export function describeThrottle(err: MetaThrottledError): string {
   const wait =
@@ -243,6 +262,7 @@ async function graphFetch<T>(url: string, context: string, timeoutMs = REQUEST_T
       error_subcode: err.error_subcode,
     });
     if (/reduce the amount of data/i.test(message)) throw new MetaDataVolumeError(message);
+    if (isAccessDenied(code, subcode)) throw new MetaAccessError(message, code);
     throw new Error(message);
   }
   return body as T;

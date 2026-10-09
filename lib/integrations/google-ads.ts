@@ -2,6 +2,8 @@
 // account discovery and campaign metrics. Google reports money in micros
 // (1 unit = 1_000_000 micros); we convert to bigint minor units (grosze) with
 // Math.round(micros / 10_000).
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { GoogleAdsApi } from "google-ads-api";
 
 import { googleScopesFor } from "@/lib/integrations/google-identity";
@@ -40,15 +42,22 @@ function candidateLogins(customerId: string): string[] {
 }
 
 /**
- * Per GAQL query. Without a cap one slow history query held the 60 s ads
- * cron until Vercel killed it: nothing written for that client, its
- * sync_runs row stuck on "running", and the same heavy range retried (and
- * killed) on every run. Callers keep their queries small enough to finish
- * well inside it (the cron splits long history ranges).
+ * Per-GAQL-query cap, set only by callers with a hard clock (the 60 s ads
+ * cron: without a cap one slow history query held it until Vercel killed
+ * it - nothing written, its sync_runs row stuck on "running", the same heavy
+ * range retried and killed on every run). Everything else - the ad set
+ * sync's 35-120-day query inside a 300 s function, settings, OAuth - runs
+ * uncapped: a global 25 s cap made those fail every time on big accounts.
+ * Kept in async context so the cron sets it once for every query it makes.
  */
-const QUERY_TIMEOUT_MS = 25_000;
+const queryCap = new AsyncLocalStorage<number>();
 
-/** A GAQL query that did not answer within QUERY_TIMEOUT_MS. */
+/** Run `work` with every GAQL query inside it capped at `ms`. */
+export function withQueryTimeout<T>(ms: number, work: () => Promise<T>): Promise<T> {
+  return queryCap.run(ms, work);
+}
+
+/** A GAQL query that did not answer within the cap (withQueryTimeout). */
 export class GoogleAdsTimeoutError extends Error {
   constructor(customerId: string, ms: number) {
     super(`Google Ads nie odpowiedział w ${Math.round(ms / 1000)} s (konto ${customerId})`);
@@ -85,7 +94,9 @@ async function queryWithFallback(
         login_customer_id: login,
         refresh_token: refreshToken,
       });
-      return (await withTimeout(customer.query(gaql), QUERY_TIMEOUT_MS, customerId)) as Array<
+      const cap = queryCap.getStore();
+      const work = customer.query(gaql);
+      return (await (cap ? withTimeout(work, cap, customerId) : work)) as Array<
         Record<string, unknown>
       >;
     } catch (err) {

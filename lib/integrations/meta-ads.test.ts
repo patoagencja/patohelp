@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   AD_ACCOUNT_TOO_MANY_CALLS,
   describeThrottle,
+  isAccessDenied,
   MetaThrottledError,
   throttleScope,
 } from "./meta-ads.ts";
@@ -50,4 +51,16 @@ test("the throttle note carries the subcode and the wait", () => {
   assert.equal(err.subcode, 2446079);
   assert.match(describeThrottle(err), /kod 17\/2446079, dostęp za ~5 min/);
   assert.match(describeThrottle(new MetaThrottledError("x", 4, "app", null)), /kod 4\)/);
+});
+
+test("lost access is told apart from token, throttle and other errors", () => {
+  assert.equal(isAccessDenied(10, null), true);
+  assert.equal(isAccessDenied(200, null), true);
+  assert.equal(isAccessDenied(294, null), true);
+  assert.equal(isAccessDenied(100, 33), true);
+  // Invalid parameter, expired token, limits: not "no access to this account".
+  assert.equal(isAccessDenied(100, null), false);
+  assert.equal(isAccessDenied(190, 463), false);
+  assert.equal(isAccessDenied(17, AD_ACCOUNT_TOO_MANY_CALLS), false);
+  assert.equal(isAccessDenied(0, null), false);
 });

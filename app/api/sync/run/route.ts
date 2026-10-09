@@ -42,6 +42,8 @@ interface JobSpec {
   provider?: string;
   /** A whole-job failure that still answers 200 with ok: true. */
   failedWhen?: (body: Record<string, unknown>) => boolean;
+  /** Ran, but left part of the work (accounts, clients) for the cron. */
+  deferredWhen?: (body: Record<string, unknown>) => boolean;
   /** Needs more room than MIN_LEFT_TO_START_MS to be worth starting. */
   minLeftMs?: number;
 }
@@ -57,12 +59,22 @@ interface JobOutcome {
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
+/** Accounts or clients the handler's deadline left for the next cron run. */
+const leftSomeOut = (b: Record<string, unknown>) =>
+  num(b.accounts_deferred) + num(b.clients_deferred) > 0;
+
 // The Meta-heavy jobs read the same ad accounts, and Meta's limits are per
 // ad account: started all at once they tripped each other's limits (the cron
 // staggers them for the same reason). One after another instead, the most
 // visible data first.
 const META_CHAIN: JobSpec[] = [
-  { name: "refresh-ads-meta", label: "Meta Ads", run: refreshMeta, provider: "meta_ads" },
+  {
+    name: "refresh-ads-meta",
+    label: "Meta Ads",
+    run: refreshMeta,
+    provider: "meta_ads",
+    deferredWhen: leftSomeOut,
+  },
   {
     name: "refresh-creatives-meta",
     label: "kreacje Meta",
@@ -100,7 +112,13 @@ const META_CHAIN: JobSpec[] = [
 
 // Other APIs with limits of their own: alongside the Meta chain.
 const PARALLEL: JobSpec[] = [
-  { name: "refresh-ads-google", label: "Google Ads", run: refreshGoogle, provider: "google_ads" },
+  {
+    name: "refresh-ads-google",
+    label: "Google Ads",
+    run: refreshGoogle,
+    provider: "google_ads",
+    deferredWhen: leftSomeOut,
+  },
   { name: "refresh-ads-tiktok", label: "TikTok Ads", run: refreshTiktok, provider: "tiktok_ads" },
   { name: "refresh-ga4", label: "Google Analytics 4", run: refreshGa4, provider: "ga4" },
 ];
@@ -130,8 +148,10 @@ async function runJob(job: JobSpec, req: Request, waitMs: number): Promise<JobOu
         ? (settled.body as Record<string, unknown>)
         : {};
     const failed = !settled.res.ok || body.ok === false || (job.failedWhen?.(body) ?? false);
+    // "Dane odświeżone" must not be said over accounts that were skipped.
+    const partial = !failed && (job.deferredWhen?.(body) ?? false);
     return {
-      status: failed ? "failed" : "ok",
+      status: failed ? "failed" : partial ? "deferred" : "ok",
       label: job.label,
       http: settled.res.status,
       ...(failed && typeof body.error === "string" ? { error: body.error } : {}),
@@ -148,18 +168,56 @@ async function runJob(job: JobSpec, req: Request, waitMs: number): Promise<JobOu
   }
 }
 
+/** This client's outcome as the handler itself reported it (client_runs). */
+function reportedRun(
+  outcome: JobOutcome | undefined,
+  clientId: string
+): { status: string; error_message: string | null } | null {
+  const result = outcome?.result;
+  if (!result || typeof result !== "object") return null;
+  const runs = (result as Record<string, unknown>).client_runs;
+  if (!runs || typeof runs !== "object") return null;
+  const run = (runs as Record<string, unknown>)[clientId];
+  if (!run || typeof run !== "object") return null;
+  const r = run as Record<string, unknown>;
+  return {
+    status: String(r.status),
+    error_message: typeof r.error_message === "string" ? r.error_message : null,
+  };
+}
+
 /**
  * The ad and GA4 handlers answer ok: true even when this client's sync
  * failed - the real outcome is the sync_runs row they wrote
- * (resolveSyncOutcome). The newest row of each provider since the refresh
- * began decides; with no row (provider not connected) the answer stands.
+ * (resolveSyncOutcome). Handlers that report it (client_runs) are taken at
+ * their word; for the others the newest row of the provider since the
+ * refresh began decides - a cron run for the same client at the same time
+ * can win that race, which is why the reported one comes first. With no row
+ * (provider not connected) the answer stands.
  */
 async function applySyncRuns(
   clientId: string,
   sinceIso: string,
   outcomes: Record<string, JobOutcome>
 ): Promise<void> {
-  const jobs = DISPLAY_ORDER.filter((j) => j.provider && outcomes[j.name]?.status === "ok");
+  const ran = (j: JobSpec) =>
+    outcomes[j.name]?.status === "ok" ||
+    (outcomes[j.name]?.status === "deferred" && outcomes[j.name]?.result !== undefined);
+  const markFailed = (job: JobSpec, errorMessage: string | null) => {
+    outcomes[job.name] = {
+      ...outcomes[job.name],
+      status: "failed",
+      ...(errorMessage ? { error: errorMessage } : {}),
+    };
+  };
+  const unreported: JobSpec[] = [];
+  for (const job of DISPLAY_ORDER) {
+    if (!job.provider || !ran(job)) continue;
+    const reported = reportedRun(outcomes[job.name], clientId);
+    if (!reported) unreported.push(job);
+    else if (reported.status === "failed") markFailed(job, reported.error_message);
+  }
+  const jobs = unreported;
   if (!jobs.length) return;
   try {
     const { data, error } = await createAdminClient()
@@ -185,12 +243,7 @@ async function applySyncRuns(
     }
     for (const job of jobs) {
       const row = newest.get(job.provider as string);
-      if (row?.status !== "failed") continue;
-      outcomes[job.name] = {
-        ...outcomes[job.name],
-        status: "failed",
-        ...(row.error_message ? { error: row.error_message } : {}),
-      };
+      if (row?.status === "failed") markFailed(job, row.error_message);
     }
   } catch {
     // Unreadable: the handlers' own answers stand.

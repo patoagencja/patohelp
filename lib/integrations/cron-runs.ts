@@ -42,33 +42,37 @@ export async function closeStaleRuns(admin: SupabaseClient, now = Date.now()): P
 }
 
 /**
- * client id -> epoch ms of its newest successful `provider` run, in ONE
- * query over the newest successes. A client missing from the map has its
- * last success older than every row read (or none at all), which is exactly
- * what the ordering below needs. null = unreadable (keep the input order).
+ * client id -> epoch ms of its newest `provider` run that was actually
+ * started (any outcome), in ONE query. Attempts, not successes: ordered by
+ * the last success, a client that keeps failing (two Google accounts at the
+ * 25 s cap) led every run and its timeouts used up the deadline of all the
+ * others. Rows carrying `skipMessage` (left out unasked, e.g. an app-wide
+ * Meta limit) don't count as a turn. A client missing from the map was not
+ * started within the rows read, which is exactly what the ordering below
+ * needs. null = unreadable (keep the input order).
  */
-export async function newestSuccessByClient(
+export async function newestAttemptByClient(
   admin: SupabaseClient,
   provider: string,
-  clientIds: readonly string[]
+  clientIds: readonly string[],
+  skipMessage?: string
 ): Promise<Map<string, number> | null> {
   const out = new Map<string, number>();
   if (clientIds.length < 2) return out;
   try {
     const { data, error } = await admin
       .from("sync_runs")
-      .select("client_id, finished_at")
+      .select("client_id, started_at, error_message")
       .eq("provider", provider)
-      .eq("status", "success")
       .in("client_id", [...clientIds])
-      .not("finished_at", "is", null)
-      .order("finished_at", { ascending: false })
+      .order("started_at", { ascending: false })
       .limit(1000);
     if (error) return null;
     for (const r of data ?? []) {
       const id = String(r.client_id);
       if (out.has(id)) continue;
-      const t = Date.parse(String(r.finished_at));
+      if (skipMessage && r.error_message === skipMessage) continue;
+      const t = Date.parse(String(r.started_at));
       if (Number.isFinite(t)) out.set(id, t);
     }
     return out;
@@ -78,10 +82,29 @@ export async function newestSuccessByClient(
 }
 
 /**
+ * client id -> epoch ms of an ISO stamp kept in each client's sync state
+ * (e.g. when its history last had the run's first turn). Missing or invalid
+ * stamps are left out, so leastRecentFirst puts those clients first.
+ */
+export function stampsByClient<S>(
+  states: ReadonlyMap<string, S> | null,
+  stampOf: (state: S) => string | undefined
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [id, state] of states ?? []) {
+    const raw = state ? stampOf(state) : undefined;
+    const t = raw ? Date.parse(raw) : NaN;
+    if (Number.isFinite(t)) out.set(id, t);
+  }
+  return out;
+}
+
+/**
  * `items` with the least recently served client first: unknown (never, or
  * beyond what was read) first, then oldest; ties keep the input order. A run
  * cut short by its deadline leaves the clients it never started at the head
- * of the next run instead of starving the same ones every time.
+ * of the next run instead of starving the same ones every time. The same
+ * ordering hands out history turns (stampsByClient).
  */
 export function leastRecentFirst<T>(
   items: readonly T[],
@@ -136,6 +159,42 @@ export function splitRanges(
     }
   }
   return out;
+}
+
+/**
+ * Rows in write chunks of at most `max`, cut only between days (one day is
+ * split only when it alone holds more than `max` rows). A day counts as
+ * present once any row of it exists, so a function killed between two
+ * chunks that cut through a day left that day half-written for good.
+ */
+export function chunkByDay<T>(rows: readonly T[], dateOf: (row: T) => string, max: number): T[][] {
+  const byDay = new Map<string, T[]>();
+  for (const row of rows) {
+    const day = dateOf(row);
+    const list = byDay.get(day);
+    if (list) list.push(row);
+    else byDay.set(day, [row]);
+  }
+  const size = Math.max(1, Math.floor(max));
+  const chunks: T[][] = [];
+  let current: T[] = [];
+  for (const day of [...byDay.keys()].sort().reverse()) {
+    const dayRows = byDay.get(day) ?? [];
+    if (current.length && current.length + dayRows.length > size) {
+      chunks.push(current);
+      current = [];
+    }
+    for (let i = 0; i < dayRows.length; i += size) {
+      const part = dayRows.slice(i, i + size);
+      if (current.length + part.length > size) {
+        chunks.push(current);
+        current = [];
+      }
+      current.push(...part);
+    }
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
 }
 
 const PAGE = 1000;

@@ -44,7 +44,7 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
         );
       } else if (deferred.length) {
         toast.success(
-          `Dane odświeżone. Pozostałe (${deferred.join(", ")}) pobierzemy przy najbliższej synchronizacji (do 30 min).`,
+          `Dane odświeżone. Resztę (${deferred.join(", ")}) dociągniemy przy najbliższej synchronizacji (do 30 min).`,
           { id: "refresh", duration: 6000 }
         );
       } else {

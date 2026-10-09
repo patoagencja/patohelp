@@ -12,11 +12,13 @@ import {
   toRanges,
 } from "@/lib/integrations/ads-daily-history";
 import {
+  chunkByDay,
   deferredFirst,
   leastRecentFirst,
-  newestSuccessByClient,
+  newestAttemptByClient,
   presentAdDates,
   splitRanges,
+  stampsByClient,
 } from "@/lib/integrations/cron-runs";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
@@ -27,6 +29,7 @@ import {
   cachedActiveDays,
   isDue,
   readSyncState,
+  readSyncStates,
   rememberActiveDays,
   writeSyncState,
   type ActiveDayCache,
@@ -35,8 +38,10 @@ import {
   getCampaignMetrics,
   getDeliveryDays,
   getPurchaseMetrics,
+  GoogleAdsTimeoutError,
   syncImpressionShareSnapshot,
   syncSearchTermsSnapshot,
+  withQueryTimeout,
   type GoogleCampaignMetric,
   type GooglePurchaseMetric,
 } from "@/lib/integrations/google-ads";
@@ -55,17 +60,20 @@ const WARSAW_TZ = "Europe/Warsaw";
 
 // No client starts, and no account starts its yesterday+today query, after
 // this (the first account of a started client excepted). Every GAQL query
-// is capped at 25 s (google-ads.ts), so the last one plus its write still
-// ends inside maxDuration. Clients and accounts left out lead the next run
-// (oldest success first, deferred accounts first) - before, every client
-// ran whatever the time, and a killed function wrote nothing for the client
-// it was on and left its sync_runs row "running".
+// of this route is capped at QUERY_CAP_MS, so the last one plus its write
+// still ends inside maxDuration. Clients and accounts left out lead the next
+// run (least recently started first, deferred accounts first) - before,
+// every client ran whatever the time, and a killed function wrote nothing
+// for the client it was on and left its sync_runs row "running".
 const RUN_DEADLINE_MS = 30_000;
+/** Per GAQL query of this route (google-ads.ts withQueryTimeout). */
+const QUERY_CAP_MS = 25_000;
 // Don't START a snapshot step after this much of maxDuration (60s) is used -
 // leaves ~25s for the step itself so the function isn't killed mid-run.
 const SNAPSHOT_START_BUDGET_MS = 35_000;
-// No client starts its history setup after this much time; later clients
-// get yesterday+today and their history on a quieter tick.
+// History runs in a second pass, after every started client has its
+// yesterday+today. No client but the one whose turn it is (least recently
+// served first) starts its history setup after this much time.
 const HISTORY_BUDGET_MS = 20_000;
 // No history query (delivery probe or range) starts after this much time:
 // with the 25 s query cap it is over by ~50 s. It used to be 40 s, which let
@@ -73,6 +81,12 @@ const HISTORY_BUDGET_MS = 20_000;
 const HISTORY_STOP_MS = 25_000;
 /** Longest history range one query asks for (it must finish under the cap). */
 const MAX_RANGE_DAYS = 62;
+/**
+ * An account whose history range hit the query cap asks for half as many
+ * days next time (kept in sync state), down to this. Failing the account
+ * instead stopped its history at the same range on every run.
+ */
+const MIN_RANGE_DAYS = 7;
 /**
  * Every client pulls D-14..D-2 again once a day per account: Google keeps
  * attributing conversions to earlier clicks for weeks, for engagement
@@ -115,6 +129,18 @@ interface GoogleSyncState {
   mature?: Record<string, string>;
   /** Last purchase_source scan that found nothing left to re-pull. */
   purchaseScanCleanAt?: string;
+  /** account id -> history range length after a range hit the query cap. */
+  rangeDays?: Record<string, number>;
+  /** When this client last had the run's history turn. */
+  historyTurnAt?: string;
+}
+
+/** A started client's history step, run once every client has fresh days. */
+interface PendingHistory {
+  clientId: string;
+  failedAccounts: Set<string>;
+  history: (turn: boolean) => Promise<void>;
+  fail: (message: string) => Promise<void>;
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -139,7 +165,10 @@ export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  return withQueryTimeout(QUERY_CAP_MS, () => sync(request));
+}
 
+async function sync(request: Request) {
   const startedAt = Date.now();
   const elapsed = () => Date.now() - startedAt;
   const pastDeadline = () => elapsed() > RUN_DEADLINE_MS;
@@ -168,13 +197,22 @@ export async function GET(request: Request) {
   const eligibleIds = await seasonalOrShopIds(admin, clientIds);
   // One converter per run: each NBP block is fetched once for all clients.
   const fx = createFxConverter();
-  // Oldest successful Google sync first, so the clients a deadline left out
-  // lead the next run.
+  // Least recently started first, so the clients a deadline left out lead
+  // the next run (and a client whose queries keep timing out doesn't lead,
+  // and stall, every run).
   const ordered = leastRecentFirst(
     integrations ?? [],
     (i) => i.client_id as string,
-    await newestSuccessByClient(admin, "google_ads", clientIds)
+    await newestAttemptByClient(admin, "google_ads", clientIds)
   );
+  // Whose history turn it is: least recently served first.
+  const turnStamps = stampsByClient(
+    await readSyncStates<GoogleSyncState>(admin, clientIds, STATE_KEY),
+    (s) => s.historyTurnAt
+  );
+  const pending: PendingHistory[] = [];
+  // client id -> its recorded outcome (sync/run reads its own client's).
+  const clientRuns: Record<string, { status: string; error_message: string | null }> = {};
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
@@ -240,41 +278,6 @@ export async function GET(request: Request) {
         ((integration.account_ids ?? []) as GoogleAccount[]).filter((a) => a.selected === true),
         state.deferred
       );
-
-      const withinHistoryBudget = elapsed() < HISTORY_BUDGET_MS;
-      // Days with no row at all. Most are days nothing ran (an off-season
-      // month, a Christmas pause) - re-fetching the whole window whenever
-      // one existed did that on every run, for ever. Only days the account
-      // actually delivered on are fetched (see `active` below).
-      let gapDays: string[] = [];
-      // Rows stored before purchase-only values existed (or while the client
-      // wasn't a shop / seasonal) carry every primary conversion as
-      // "purchase value": pulled again once, newest first.
-      let noSource = new Set<string>();
-      if (withinHistoryBudget) {
-        const present = await presentAdDates(admin, clientId, "google_ads", backfillStart);
-        gapDays = backfillStart <= historyEnd
-          ? eachDay(backfillStart, historyEnd).filter((d) => !present.has(d))
-          : [];
-        if (eligible && isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)) {
-          const found = await datesMissingRawKey(
-            admin,
-            clientId,
-            "google_ads",
-            "purchase_source",
-            backfillStart,
-            since,
-            historyDays
-          );
-          if (found) {
-            noSource = found;
-            if (found.size === 0) {
-              state.purchaseScanCleanAt = new Date().toISOString();
-              stateChanged = true;
-            }
-          }
-        }
-      }
 
       const errors = new AccountErrors();
       const failedAccounts = new Set<string>();
@@ -354,10 +357,10 @@ export async function GET(request: Request) {
           );
         }
         // Chunked: a long range is thousands of rows, too big for one
-        // PostgREST request.
-        const list = [...rows.values()];
-        for (let i = 0; i < list.length; i += 1000) {
-          const chunk = list.slice(i, i + 1000);
+        // PostgREST request. Cut between days, newest first: a function
+        // killed mid-range must not leave a half-written day, which would
+        // count as present and never be fetched again.
+        for (const chunk of chunkByDay([...rows.values()], (r) => String(r.date), 1000)) {
           const { error } = await admin
             .from("ads_daily")
             .upsert(chunk, { onConflict: "client_id,provider,campaign_id,date" });
@@ -420,136 +423,30 @@ export async function GET(request: Request) {
         stateChanged = true;
       }
       await saveState();
-
-      // 2. History per account while the run has room for it (the rest
-      // continues next run).
-      for (const account of accounts) {
-        if (!withinHistoryBudget || historyStopped()) break;
-        if (!freshOk.has(account.id)) continue;
-        const videoOnly = account.video_only === true;
-        let matureDays: string[] = [];
-        // Gap days this account delivered on (account level) - for the
-        // "fetched empty" memory below.
-        let deliveredGaps = new Set<string>();
-        const knownEmpty = new Set(state.empty?.[account.id] ?? []);
-
-        const wantedDays = new Set<string>(noSource);
-        if (gapDays.length) {
-          let active = cachedActiveDays(state.active, until, account.id, gapDays[0], historyEnd);
-          if (!active) {
-            try {
-              active = await getDeliveryDays(
-                refresh_token,
-                account.id,
-                gapDays[0],
-                historyEnd,
-                videoOnly
-              );
-              state.active = rememberActiveDays(
-                state.active,
-                until,
-                account.id,
-                gapDays[0],
-                historyEnd,
-                active
-              );
-              stateChanged = true;
-            } catch (probeErr) {
-              // Unknown: fetch the missing days (the old, costlier way).
-              console.warn(
-                `[cron/refresh-ads-google] active-day probe failed for ${account.id}`,
-                describeError(probeErr)
-              );
-              active = new Set(gapDays);
-            }
-          }
-          deliveredGaps = new Set(gapDays.filter((d) => active.has(d)));
-          for (const d of deliveredGaps) if (!knownEmpty.has(d)) wantedDays.add(d);
-        }
-        // Unreadable state would make every run look due: then only at night.
-        // All clients; only the purchase-only query stays with seasonal
-        // clients and shops.
-        const matureAllowed = stateRead.ok || isNightlyWindow(now);
-        if (matureAllowed && isDue(state.mature?.[account.id], MATURE_EVERY_MS)) {
-          matureDays = eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO));
-          matureDays.forEach((d) => wantedDays.add(d));
-        }
-        const history = splitRanges(toRanges(wantedDays, MERGE_GAP_DAYS), MAX_RANGE_DAYS).slice(
-          0,
-          MAX_RANGES_PER_ACCOUNT
-        );
-
-        try {
-          for (const range of history) {
-            // A probe or an earlier range may have used the room up.
-            if (historyStopped()) break;
-            historyRanges += 1;
-            await syncRange(account, range);
-          }
-        } catch (accErr) {
-          accountFailed(account, accErr);
-        }
-
-        const track = trackOf(account.id);
-        if (matureDays.length && matureDays.every((d) => track.fetchedDays.has(d))) {
-          state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
-          stateChanged = true;
-        }
-        // Delivered (account level) yet no campaign row once fetched: only
-        // since-removed campaigns ran. Remember it, or the day stays a gap
-        // and is fetched again on every run.
-        const newlyEmpty = [...deliveredGaps].filter(
-          (d) => track.fetchedDays.has(d) && !track.daysWithRows.has(d) && !knownEmpty.has(d)
-        );
-        const kept = [...knownEmpty].filter((d) => d >= backfillStart);
-        if (newlyEmpty.length || kept.length !== knownEmpty.size) {
-          state.empty = { ...(state.empty ?? {}), [account.id]: [...kept, ...newlyEmpty].sort() };
-          stateChanged = true;
-        }
-        await saveState();
-      }
-      accountsFailed += failedAccounts.size;
-
-      // Days every account re-pulled with purchase-only values: rows still
-      // without a source belong to campaigns removed since (or to accounts
-      // no longer selected) - close them so the day stops counting as due.
-      // (An account whose segmented query failed leaves the day open.)
-      if (eligible && noSource.size && accounts.length) {
-        const doneBy = new Map<string, number>();
-        for (const t of tracks.values()) {
-          for (const d of t.purchaseDays) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
-        }
-        const closable = [...noSource].filter((d) => (doneBy.get(d) ?? 0) >= accounts.length);
-        await patchRowsMissingRawKey(admin, clientId, "google_ads", "purchase_source", closable, (row) => {
-          const p = purchaseByKey.get(`${row.campaign_id}|${row.date}`);
-          return {
-            purchases: p?.purchases ?? 0,
-            purchase_value: p?.value ?? 0,
-            purchase_source: "purchase",
-          };
-        });
-      }
-
-      await saveState();
-
       if (deferred.length) {
         console.warn(
           `[cron/refresh-ads-google] ${deferred.length} of ${accounts.length} accounts left for the next run (deadline)`
         );
       }
-      await admin
-        .from("sync_runs")
-        .update({
-          ...resolveSyncOutcome({
-            // Accounts left for the next run were neither synced nor
-            // broken: judge the run by the accounts it actually asked.
-            accountsSelected: accounts.length - deferred.length,
-            rowsWritten: writtenForClient,
-            accountErrors: errors.list(),
-          }),
-          finished_at: new Date().toISOString(),
-        })
-        .eq("id", run?.id);
+
+      const recordOutcome = async () => {
+        const outcome = resolveSyncOutcome({
+          // Accounts left for the next run were neither synced nor
+          // broken: judge the run by the accounts it actually asked.
+          accountsSelected: accounts.length - deferred.length,
+          rowsWritten: writtenForClient,
+          accountErrors: errors.list(),
+        });
+        clientRuns[clientId] = outcome;
+        await admin
+          .from("sync_runs")
+          .update({ ...outcome, finished_at: new Date().toISOString() })
+          .eq("id", run?.id);
+      };
+      // Closed now with the fresh days' outcome (updated after history):
+      // the next clients' fresh days come before anyone's history, and a
+      // row must not sit on "running" meanwhile.
+      await recordOutcome();
       integrationsProcessed += 1;
 
       // Once-a-day snapshots are deferred until EVERY client's main sync is
@@ -562,9 +459,193 @@ export async function GET(request: Request) {
         accounts,
         currencies,
       });
+
+      // 2. History - in the second pass below, after every started client
+      // has its fresh days - per account while the run has room for it (the
+      // rest continues next run).
+      const history = async (turn: boolean) => {
+        // The turn's setup may start until the query stop; the others' only
+        // within the shared budget.
+        const setupOpen = turn ? !historyStopped() : elapsed() < HISTORY_BUDGET_MS;
+        // A turn with no room left (a slow fresh pass) stays for next run.
+        if (turn && setupOpen) {
+          state.historyTurnAt = new Date().toISOString();
+          stateChanged = true;
+        }
+        // Days with no row at all. Most are days nothing ran (an off-season
+        // month, a Christmas pause) - re-fetching the whole window whenever
+        // one existed did that on every run, for ever. Only days the account
+        // actually delivered on are fetched (see `active` below).
+        let gapDays: string[] = [];
+        // Rows stored before purchase-only values existed (or while the client
+        // wasn't a shop / seasonal) carry every primary conversion as
+        // "purchase value": pulled again once, newest first.
+        let noSource = new Set<string>();
+        if (setupOpen) {
+          const present = await presentAdDates(admin, clientId, "google_ads", backfillStart);
+          gapDays = backfillStart <= historyEnd
+            ? eachDay(backfillStart, historyEnd).filter((d) => !present.has(d))
+            : [];
+          if (eligible && isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)) {
+            const found = await datesMissingRawKey(
+              admin,
+              clientId,
+              "google_ads",
+              "purchase_source",
+              backfillStart,
+              since,
+              historyDays
+            );
+            if (found) {
+              noSource = found;
+              if (found.size === 0) {
+                state.purchaseScanCleanAt = new Date().toISOString();
+                stateChanged = true;
+              }
+            }
+          }
+        }
+
+        for (const account of accounts) {
+          if (!setupOpen || historyStopped()) break;
+          if (!freshOk.has(account.id)) continue;
+          const videoOnly = account.video_only === true;
+          let matureDays: string[] = [];
+          // Gap days this account delivered on (account level) - for the
+          // "fetched empty" memory below.
+          let deliveredGaps = new Set<string>();
+          const knownEmpty = new Set(state.empty?.[account.id] ?? []);
+
+          const wantedDays = new Set<string>(noSource);
+          if (gapDays.length) {
+            let active = cachedActiveDays(state.active, until, account.id, gapDays[0], historyEnd);
+            if (!active) {
+              try {
+                active = await getDeliveryDays(
+                  refresh_token,
+                  account.id,
+                  gapDays[0],
+                  historyEnd,
+                  videoOnly
+                );
+                state.active = rememberActiveDays(
+                  state.active,
+                  until,
+                  account.id,
+                  gapDays[0],
+                  historyEnd,
+                  active
+                );
+                stateChanged = true;
+              } catch (probeErr) {
+                // Unknown: fetch the missing days (the old, costlier way).
+                console.warn(
+                  `[cron/refresh-ads-google] active-day probe failed for ${account.id}`,
+                  describeError(probeErr)
+                );
+                active = new Set(gapDays);
+              }
+            }
+            deliveredGaps = new Set(gapDays.filter((d) => active.has(d)));
+            for (const d of deliveredGaps) if (!knownEmpty.has(d)) wantedDays.add(d);
+          }
+          // Unreadable state would make every run look due: then only at night.
+          // All clients; only the purchase-only query stays with seasonal
+          // clients and shops.
+          const matureAllowed = stateRead.ok || isNightlyWindow(now);
+          if (matureAllowed && isDue(state.mature?.[account.id], MATURE_EVERY_MS)) {
+            matureDays = eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO));
+            matureDays.forEach((d) => wantedDays.add(d));
+          }
+          const rangeDays = state.rangeDays?.[account.id] ?? MAX_RANGE_DAYS;
+          const ranges = splitRanges(toRanges(wantedDays, MERGE_GAP_DAYS), rangeDays).slice(
+            0,
+            MAX_RANGES_PER_ACCOUNT
+          );
+
+          try {
+            for (const range of ranges) {
+              // A probe or an earlier range may have used the room up.
+              if (historyStopped()) break;
+              historyRanges += 1;
+              await syncRange(account, range);
+            }
+          } catch (accErr) {
+            if (accErr instanceof GoogleAdsTimeoutError && rangeDays > MIN_RANGE_DAYS) {
+              // Too much for one query: half the days next run. Not an
+              // account failure - nothing is wrong with its access.
+              state.rangeDays = {
+                ...(state.rangeDays ?? {}),
+                [account.id]: Math.max(MIN_RANGE_DAYS, Math.floor(rangeDays / 2)),
+              };
+              stateChanged = true;
+              console.warn(
+                `[cron/refresh-ads-google] history range timed out for ${account.id}, next run asks ${state.rangeDays[account.id]} days`
+              );
+            } else {
+              accountFailed(account, accErr);
+            }
+          }
+
+          const track = trackOf(account.id);
+          if (matureDays.length && matureDays.every((d) => track.fetchedDays.has(d))) {
+            state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
+            stateChanged = true;
+          }
+          // Delivered (account level) yet no campaign row once fetched: only
+          // since-removed campaigns ran. Remember it, or the day stays a gap
+          // and is fetched again on every run.
+          const newlyEmpty = [...deliveredGaps].filter(
+            (d) => track.fetchedDays.has(d) && !track.daysWithRows.has(d) && !knownEmpty.has(d)
+          );
+          const kept = [...knownEmpty].filter((d) => d >= backfillStart);
+          if (newlyEmpty.length || kept.length !== knownEmpty.size) {
+            state.empty = { ...(state.empty ?? {}), [account.id]: [...kept, ...newlyEmpty].sort() };
+            stateChanged = true;
+          }
+          await saveState();
+        }
+
+        // Days every account re-pulled with purchase-only values: rows still
+        // without a source belong to campaigns removed since (or to accounts
+        // no longer selected) - close them so the day stops counting as due.
+        // (An account whose segmented query failed leaves the day open.)
+        if (eligible && noSource.size && accounts.length) {
+          const doneBy = new Map<string, number>();
+          for (const t of tracks.values()) {
+            for (const d of t.purchaseDays) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
+          }
+          const closable = [...noSource].filter((d) => (doneBy.get(d) ?? 0) >= accounts.length);
+          await patchRowsMissingRawKey(admin, clientId, "google_ads", "purchase_source", closable, (row) => {
+            const p = purchaseByKey.get(`${row.campaign_id}|${row.date}`);
+            return {
+              purchases: p?.purchases ?? 0,
+              purchase_value: p?.value ?? 0,
+              purchase_source: "purchase",
+            };
+          });
+        }
+
+        await saveState();
+        await recordOutcome();
+      };
+
+      pending.push({
+        clientId,
+        failedAccounts,
+        history,
+        fail: async (message) => {
+          clientRuns[clientId] = { status: "failed", error_message: message };
+          await admin
+            .from("sync_runs")
+            .update({ status: "failed", finished_at: new Date().toISOString(), error_message: message })
+            .eq("id", run?.id);
+        },
+      });
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ads-google] integration failed", message);
+      clientRuns[clientId] = { status: "failed", error_message: message };
       await admin
         .from("sync_runs")
         .update({
@@ -573,6 +654,23 @@ export async function GET(request: Request) {
           error_message: message,
         })
         .eq("id", run?.id);
+    }
+  }
+
+  // Second pass: history, once every started client has today's numbers.
+  // The client whose turn it is goes first; a turn moves on once taken, so
+  // every client's history advances within a few runs instead of the first
+  // client's history pushing the others' fresh days past the deadline.
+  const historyOrder = leastRecentFirst(pending, (p) => p.clientId, turnStamps);
+  for (const [index, p] of historyOrder.entries()) {
+    try {
+      await p.history(index === 0);
+    } catch (err) {
+      const message = describeError(err);
+      console.error("[cron/refresh-ads-google] history failed", message);
+      await p.fail(message);
+    } finally {
+      accountsFailed += p.failedAccounts.size;
     }
   }
 
@@ -634,6 +732,8 @@ export async function GET(request: Request) {
     history_ranges: historyRanges,
     clients_deferred: clientsDeferred,
     accounts_deferred: accountsDeferred,
+    // Not printed by the scheduler (objects are filtered from its log).
+    client_runs: clientRuns,
   });
 }
 

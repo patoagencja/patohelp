@@ -14,8 +14,9 @@ import {
   closeStaleRuns,
   deferredFirst,
   leastRecentFirst,
-  newestSuccessByClient,
+  newestAttemptByClient,
   presentAdDates,
+  stampsByClient,
 } from "@/lib/integrations/cron-runs";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
@@ -35,6 +36,7 @@ import {
   cachedActiveDays,
   isDue,
   readSyncState,
+  readSyncStates,
   rememberActiveDays,
   writeSyncState,
   type ActiveDayCache,
@@ -56,20 +58,30 @@ const WARSAW_TZ = "Europe/Warsaw";
 
 // No client starts, and no account starts its yesterday+today batch, after
 // this much wall time (the first account of a started client excepted, see
-// below). The batch already in flight plus the client's bookkeeping then
-// end the run around 75 s - under the scheduler's 90 s curl timeout. Fresh
-// days used to run for every client whatever the time: with DRE's 46
-// accounts a run passed 90 s, the scheduler retried while it was still
-// going (overlapping runs -> Meta rate limits -> failures for every client
-// after it), and past maxDuration Vercel killed it, leaving the sync_runs
-// row "running" and later clients with no row at all. Clients and accounts
-// left out lead the next run (oldest success first, deferred accounts first).
+// below). With the history turn after it and the batch in flight the run
+// ends well under the scheduler's 150 s curl timeout. Fresh days used to run
+// for every client whatever the time: with DRE's 46 accounts a run passed
+// the scheduler's timeout, it retried while the run was still going
+// (overlapping runs -> Meta rate limits -> failures for every client after
+// it), and past maxDuration Vercel killed it, leaving the sync_runs row
+// "running" and later clients with no row at all. Clients and accounts left
+// out lead the next run (least recently started first, deferred accounts
+// first).
 const RUN_DEADLINE_MS = 70_000;
-// No history work (setup reads, active-day probes, backfill and mature
-// batches) starts after this. Earlier than the run deadline so one client's
-// backfill leaves time for the next clients' fresh days; history resumes
-// next tick (newest first).
+// "Odśwież" for one client (?client=) has the whole request to itself: all
+// of a big client's accounts get today's numbers instead of a deferred tail
+// the button could only report as missing. In-flight batch included it
+// still answers inside sync/run's 280 s.
+const SINGLE_CLIENT_DEADLINE_MS = 180_000;
+// History (setup reads, active-day probes, backfill and mature batches)
+// runs only after every started client has its fresh days, and no history
+// work starts after this - except for the client whose turn it is.
 const BACKFILL_BUDGET_MS = 45_000;
+// The run's history turn goes round the clients (least recently served
+// first) and always gets this long, measured from its own start: a fresh
+// pass that alone outlasts the budget (DRE's 46 accounts) must not mean
+// that client's history - backfill, re-pulls - never runs again.
+const TURN_SLICE_MS = 15_000;
 // Cap historical work per run (BACKFILL_BUDGET_MS cuts it shorter on big
 // accounts); successive runs (cron / manual refresh) continue.
 const MAX_BACKFILL_PER_RUN = 150;
@@ -107,6 +119,16 @@ interface MetaSyncState {
   mature?: Record<string, string>;
   /** Last purchase_value scan that found nothing left to re-pull. */
   purchaseScanCleanAt?: string;
+  /** When this client last had the run's history turn. */
+  historyTurnAt?: string;
+}
+
+/** A started client's history step, run once every client has fresh days. */
+interface PendingHistory {
+  clientId: string;
+  failedAccounts: Set<string>;
+  history: (open: () => boolean, turn: boolean) => Promise<void>;
+  fail: (message: string) => Promise<void>;
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -258,7 +280,11 @@ export async function GET(request: Request) {
   }
 
   const startedAt = Date.now();
-  const pastDeadline = () => Date.now() - startedAt > RUN_DEADLINE_MS;
+  // Optional ?client=<id> scopes the run to a single client (used by on-demand
+  // refresh) so large accounts don't time out competing with other clients.
+  const onlyClient = new URL(request.url).searchParams.get("client");
+  const deadlineMs = onlyClient ? SINGLE_CLIENT_DEADLINE_MS : RUN_DEADLINE_MS;
+  const pastDeadline = () => Date.now() - startedAt > deadlineMs;
   const withinBackfill = () => Date.now() - startedAt <= BACKFILL_BUDGET_MS;
   const admin = createAdminClient();
   // Rows a killed function left on "running" (any provider) are closed as
@@ -269,10 +295,6 @@ export async function GET(request: Request) {
   const until = formatInTimeZone(now, WARSAW_TZ, "yyyy-MM-dd");
   const since = formatInTimeZone(subDays(now, 1), WARSAW_TZ, "yyyy-MM-dd");
   const backfillEnd = addDaysIso(until, -2);
-
-  // Optional ?client=<id> scopes the run to a single client (used by on-demand
-  // refresh) so large accounts don't time out competing with other clients.
-  const onlyClient = new URL(request.url).searchParams.get("client");
 
   let q = admin
     .from("integrations")
@@ -299,15 +321,23 @@ export async function GET(request: Request) {
   const eligibleIds = await seasonalOrShopIds(admin, clientIds);
   // One converter per run: each NBP block is fetched once for all clients.
   const fx = createFxConverter();
-  // The client whose last successful Meta sync is oldest goes first: a run
-  // the deadline cuts short leaves the clients it never started at the head
-  // of the next one, instead of the same clients at the end of the list
-  // missing out every time.
+  // The client least recently started goes first: a run the deadline cuts
+  // short leaves the clients it never started at the head of the next one,
+  // instead of the same clients at the end of the list missing out every
+  // time (or one failing client leading, and stalling, every run).
   const ordered = leastRecentFirst(
     integrations ?? [],
     (i) => i.client_id as string,
-    await newestSuccessByClient(admin, "meta_ads", clientIds)
+    await newestAttemptByClient(admin, "meta_ads", clientIds, APP_THROTTLE_SKIP_MESSAGE)
   );
+  // Whose history turn it is: least recently served first.
+  const turnStamps = stampsByClient(
+    await readSyncStates<MetaSyncState>(admin, clientIds, STATE_KEY),
+    (s) => s.historyTurnAt
+  );
+  const pending: PendingHistory[] = [];
+  // client id -> its recorded outcome (sync/run reads its own client's).
+  const clientRuns: Record<string, { status: string; error_message: string | null }> = {};
 
   let integrationsProcessed = 0;
   let campaignsUpserted = 0;
@@ -338,7 +368,7 @@ export async function GET(request: Request) {
     }
     if (pastDeadline()) {
       // Not started, so no sync_runs row: a client waiting for the next
-      // tick is not a failing integration. Its older last success puts it
+      // tick is not a failing integration. Its older last start puts it
       // first next run; if that keeps not happening, the health check's
       // "no success for 12 h" still speaks up.
       clientsDeferred += 1;
@@ -363,6 +393,11 @@ export async function GET(request: Request) {
       const stateRead = await readSyncState<MetaSyncState>(admin, clientId, STATE_KEY);
       const state: MetaSyncState = { ...(stateRead.value ?? {}) };
       let stateChanged = false;
+      const saveState = async () => {
+        if (!stateChanged) return;
+        stateChanged = false;
+        await writeSyncState(admin, clientId, STATE_KEY, state);
+      };
 
       // Only accounts explicitly selected for this client (avoids pulling
       // every account the agency user can access into one client's data).
@@ -513,205 +548,233 @@ export async function GET(request: Request) {
         state.deferred = deferred.length ? deferred : undefined;
         stateChanged = true;
       }
-
-      // 2. History, only while the backfill budget lasts and only for the
-      // accounts whose fresh days went through.
-      const historyAccounts = accounts.filter((a) => freshOk.has(a.id));
-      let backfill: string[] = [];
-      let stale = new Set<string>();
-      let noPurchase = new Set<string>();
-      if (historyAccounts.length && withinBackfill() && !blockedBy()) {
-        // Keep a full year of history (clients compare year-over-year),
-        // newest first - so a run that stops mid-backfill just means the
-        // next one resumes where it stopped. Seasonal clients: ~15 months,
-        // a whole previous season (lib/season).
-        const HISTORY_DAYS = await historyDaysFor(admin, clientId);
-        const windowStart = formatInTimeZone(
-          subDays(now, HISTORY_DAYS - 1),
-          WARSAW_TZ,
-          "yyyy-MM-dd"
-        );
-        // Fill every day in the window we don't have yet (newest first).
-        // This covers both extending history backwards AND holes in the
-        // middle left by killed runs.
-        const present = await presentAdDates(admin, clientId, "meta_ads", windowStart);
-        // One-time history re-pull after migration 0034: days whose rows
-        // still carry clicks (all) count as missing, newest first, within
-        // the same per-run cap - a year converts over a few runs.
-        stale = withClicksAll
-          ? await staleClickDates(admin, clientId, windowStart, since, MAX_BACKFILL_PER_RUN)
-          : new Set<string>();
-
-        // Days synced before purchase values existed (or while the client
-        // was neither seasonal nor a shop) read 0 sales from ads - the
-        // previous season looked empty. Re-pulled once, newest first, like
-        // stale clicks.
-        if (
-          eligible &&
-          withinBackfill() &&
-          isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)
-        ) {
-          const found = await datesMissingRawKey(
-            admin,
-            clientId,
-            "meta_ads",
-            "purchase_value",
-            windowStart,
-            since,
-            MAX_BACKFILL_PER_RUN
-          );
-          if (found) {
-            noPurchase = found;
-            if (found.size === 0) {
-              state.purchaseScanCleanAt = new Date().toISOString();
-              stateChanged = true;
-            }
-          }
-        }
-
-        let candidates = windowStart <= backfillEnd
-          ? eachDay(windowStart, backfillEnd).filter(
-              (d) => !present.has(d) || stale.has(d) || noPurchase.has(d)
-            )
-          : [];
-
-        // A day with no rows is either a hole or a day with no delivery at
-        // all (history shorter than the window, an off-season month). The
-        // latter used to be re-pulled on EVERY run, forever. Meta is asked
-        // once which days had any delivery - and the answer is kept for the
-        // rest of the Warsaw day (sync-state), so the 470-day probe of a
-        // seasonal client runs once a day, not every 30 minutes. Unknown
-        // (call failed) -> keep the old behaviour.
-        const unknown = candidates.filter((d) => !present.has(d));
-        if (unknown.length && withinBackfill()) {
-          const active = new Set<string>();
-          let probeOk = true;
-          for (const account of historyAccounts) {
-            // A token / app limit: recorded where it was hit.
-            if (blockedBy()) break;
-            let days = cachedActiveDays(state.active, until, account.id, unknown[0], backfillEnd);
-            if (!days) {
-              // Probes are history work too. Past the budget the accounts
-              // not probed yet keep their unknown days out of this run;
-              // the answers already learned are cached for the next one.
-              if (!withinBackfill()) break;
-              try {
-                days = await getActiveDays(access_token, account.id, unknown[0], backfillEnd);
-                state.active = rememberActiveDays(
-                  state.active,
-                  until,
-                  account.id,
-                  unknown[0],
-                  backfillEnd,
-                  days
-                );
-                stateChanged = true;
-              } catch (activeErr) {
-                if (activeErr instanceof MetaThrottledError) {
-                  // Per-account limit: only this account sits out, the
-                  // others are still probed and synced.
-                  onThrottle(account.id, activeErr);
-                  continue;
-                }
-                probeOk = false;
-                console.warn(
-                  "[cron/refresh-ads-meta] active-day probe failed, backfilling every missing day",
-                  describeError(activeErr)
-                );
-                break;
-              }
-            }
-            days.forEach((d) => active.add(d));
-          }
-          if (probeOk) candidates = candidates.filter((d) => present.has(d) || active.has(d));
-        }
-
-        backfill = candidates.reverse().slice(0, MAX_BACKFILL_PER_RUN);
-        staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
-        // Unreadable state would make every run look due: then only at night.
-        const matureAllowed = eligible && (stateRead.ok || isNightlyWindow(now));
-        const matureDays = matureAllowed
-          ? eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO))
-          : [];
-
-        for (const account of historyAccounts) {
-          // Throttled in the probe: already recorded.
-          if (stopped.has(account.id)) continue;
-          if (!withinBackfill() || blockedBy()) break;
-          const matureDue =
-            matureDays.length > 0 && isDue(state.mature?.[account.id], MATURE_EVERY_MS);
-          try {
-            // The due mature days and the backfill, newest first, while the
-            // budget lasts (the rest continues next tick).
-            const historyDays = [...new Set([...(matureDue ? matureDays : []), ...backfill])].filter(
-              (d) => !freshDays.includes(d)
-            );
-            for (let i = 0; i < historyDays.length; i += CONCURRENCY) {
-              if (!withinBackfill() || blockedBy()) break;
-              if (!(await runBatch(account, historyDays.slice(i, i + CONCURRENCY)))) break;
-            }
-          } catch (accErr) {
-            // Anything runBatch doesn't handle itself stays this account's.
-            failedAccounts.add(account.id);
-            errors.add(account.id, describeError(accErr));
-            console.error(`[cron/refresh-ads-meta] account ${account.id} failed`, describeError(accErr));
-          }
-          const done = doneDays.get(account.id);
-          if (matureDue && done && matureDays.every((d) => done.has(d))) {
-            state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
-            stateChanged = true;
-          }
-        }
-      }
-      accountsFailed += failedAccounts.size;
-
-      // day -> accounts that fetched (and, if it had rows, wrote) it.
-      const doneBy = new Map<string, number>();
-      for (const done of doneDays.values()) {
-        for (const d of done) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
-      }
-
-      // Days every account re-pulled: leftover rows are campaigns Meta no
-      // longer reports for that day. Close them so the day stops counting
-      // as due (a day with an account error stays open for the next run).
-      const closable = (set: Set<string>) =>
-        backfill.filter((d) => set.has(d) && accounts.length > 0 && (doneBy.get(d) ?? 0) >= accounts.length);
-      if (withClicksAll && stale.size) await closeStaleClickRows(admin, clientId, closable(stale));
-      if (noPurchase.size) {
-        await patchRowsMissingRawKey(
-          admin,
-          clientId,
-          "meta_ads",
-          "purchase_value",
-          closable(noPurchase),
-          () => ({ purchases: 0, purchase_value: 0 })
-        );
-      }
-
-      if (stateChanged) await writeSyncState(admin, clientId, STATE_KEY, state);
-
       if (deferred.length) {
         console.warn(
           `[cron/refresh-ads-meta] ${deferred.length} of ${accounts.length} accounts left for the next run (deadline)`
         );
       }
-      await admin
-        .from("sync_runs")
-        .update({
-          ...resolveSyncOutcome({
-            // Accounts left for the next run were neither synced nor
-            // broken: judge the run by the accounts it actually asked.
-            accountsSelected: accounts.length - deferred.length,
-            rowsWritten: writtenForClient,
-            accountErrors: errors.list(),
-          }),
-          finished_at: new Date().toISOString(),
-        })
-        .eq("id", run?.id);
+
+      const recordOutcome = async () => {
+        const outcome = resolveSyncOutcome({
+          // Accounts left for the next run were neither synced nor
+          // broken: judge the run by the accounts it actually asked.
+          accountsSelected: accounts.length - deferred.length,
+          rowsWritten: writtenForClient,
+          accountErrors: errors.list(),
+        });
+        clientRuns[clientId] = outcome;
+        await admin
+          .from("sync_runs")
+          .update({ ...outcome, finished_at: new Date().toISOString() })
+          .eq("id", run?.id);
+      };
+      // Closed now with the fresh days' outcome (updated after history):
+      // the next clients' fresh days come before anyone's history, and a
+      // row must not sit on "running" meanwhile.
+      await saveState();
+      await recordOutcome();
       integrationsProcessed += 1;
+
+      // 2. History - in the second pass below, after every started client
+      // has its fresh days - only for the accounts whose fresh days went
+      // through, while `open` says there is room.
+      const history = async (open: () => boolean, turn: boolean) => {
+        // A turn Meta's limits leave no room for stays for next run.
+        if (turn && !blockedBy()) {
+          state.historyTurnAt = new Date().toISOString();
+          stateChanged = true;
+        }
+        const historyAccounts = accounts.filter((a) => freshOk.has(a.id));
+        let backfill: string[] = [];
+        let stale = new Set<string>();
+        let noPurchase = new Set<string>();
+        if (historyAccounts.length && open() && !blockedBy()) {
+          // Keep a full year of history (clients compare year-over-year),
+          // newest first - so a run that stops mid-backfill just means the
+          // next one resumes where it stopped. Seasonal clients: ~15 months,
+          // a whole previous season (lib/season).
+          const HISTORY_DAYS = await historyDaysFor(admin, clientId);
+          const windowStart = formatInTimeZone(
+            subDays(now, HISTORY_DAYS - 1),
+            WARSAW_TZ,
+            "yyyy-MM-dd"
+          );
+          // Fill every day in the window we don't have yet (newest first).
+          // This covers both extending history backwards AND holes in the
+          // middle left by killed runs.
+          const present = await presentAdDates(admin, clientId, "meta_ads", windowStart);
+          // One-time history re-pull after migration 0034: days whose rows
+          // still carry clicks (all) count as missing, newest first, within
+          // the same per-run cap - a year converts over a few runs.
+          stale = withClicksAll
+            ? await staleClickDates(admin, clientId, windowStart, since, MAX_BACKFILL_PER_RUN)
+            : new Set<string>();
+
+          // Days synced before purchase values existed (or while the client
+          // was neither seasonal nor a shop) read 0 sales from ads - the
+          // previous season looked empty. Re-pulled once, newest first, like
+          // stale clicks.
+          if (
+            eligible &&
+            open() &&
+            isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)
+          ) {
+            const found = await datesMissingRawKey(
+              admin,
+              clientId,
+              "meta_ads",
+              "purchase_value",
+              windowStart,
+              since,
+              MAX_BACKFILL_PER_RUN
+            );
+            if (found) {
+              noPurchase = found;
+              if (found.size === 0) {
+                state.purchaseScanCleanAt = new Date().toISOString();
+                stateChanged = true;
+              }
+            }
+          }
+
+          let candidates = windowStart <= backfillEnd
+            ? eachDay(windowStart, backfillEnd).filter(
+                (d) => !present.has(d) || stale.has(d) || noPurchase.has(d)
+              )
+            : [];
+
+          // A day with no rows is either a hole or a day with no delivery at
+          // all (history shorter than the window, an off-season month). The
+          // latter used to be re-pulled on EVERY run, forever. Meta is asked
+          // once which days had any delivery - and the answer is kept for the
+          // rest of the Warsaw day (sync-state), so the 470-day probe of a
+          // seasonal client runs once a day, not every 30 minutes. Unknown
+          // (call failed) -> keep the old behaviour.
+          const unknown = candidates.filter((d) => !present.has(d));
+          if (unknown.length && open()) {
+            const active = new Set<string>();
+            let probeOk = true;
+            for (const account of historyAccounts) {
+              // A token / app limit: recorded where it was hit.
+              if (blockedBy()) break;
+              let days = cachedActiveDays(state.active, until, account.id, unknown[0], backfillEnd);
+              if (!days) {
+                // Probes are history work too. Past the budget the accounts
+                // not probed yet keep their unknown days out of this run;
+                // the answers already learned are cached for the next one.
+                if (!open()) break;
+                try {
+                  days = await getActiveDays(access_token, account.id, unknown[0], backfillEnd);
+                  state.active = rememberActiveDays(
+                    state.active,
+                    until,
+                    account.id,
+                    unknown[0],
+                    backfillEnd,
+                    days
+                  );
+                  stateChanged = true;
+                } catch (activeErr) {
+                  if (activeErr instanceof MetaThrottledError) {
+                    // Per-account limit: only this account sits out, the
+                    // others are still probed and synced.
+                    onThrottle(account.id, activeErr);
+                    continue;
+                  }
+                  probeOk = false;
+                  console.warn(
+                    "[cron/refresh-ads-meta] active-day probe failed, backfilling every missing day",
+                    describeError(activeErr)
+                  );
+                  break;
+                }
+              }
+              days.forEach((d) => active.add(d));
+            }
+            if (probeOk) candidates = candidates.filter((d) => present.has(d) || active.has(d));
+          }
+
+          backfill = candidates.reverse().slice(0, MAX_BACKFILL_PER_RUN);
+          staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
+          // Unreadable state would make every run look due: then only at night.
+          const matureAllowed = eligible && (stateRead.ok || isNightlyWindow(now));
+          const matureDays = matureAllowed
+            ? eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO))
+            : [];
+
+          for (const account of historyAccounts) {
+            // Throttled in the probe: already recorded.
+            if (stopped.has(account.id)) continue;
+            if (!open() || blockedBy()) break;
+            const matureDue =
+              matureDays.length > 0 && isDue(state.mature?.[account.id], MATURE_EVERY_MS);
+            try {
+              // The due mature days and the backfill, newest first, while the
+              // budget lasts (the rest continues next tick).
+              const historyDays = [...new Set([...(matureDue ? matureDays : []), ...backfill])].filter(
+                (d) => !freshDays.includes(d)
+              );
+              for (let i = 0; i < historyDays.length; i += CONCURRENCY) {
+                if (!open() || blockedBy()) break;
+                if (!(await runBatch(account, historyDays.slice(i, i + CONCURRENCY)))) break;
+              }
+            } catch (accErr) {
+              // Anything runBatch doesn't handle itself stays this account's.
+              failedAccounts.add(account.id);
+              errors.add(account.id, describeError(accErr));
+              console.error(`[cron/refresh-ads-meta] account ${account.id} failed`, describeError(accErr));
+            }
+            const done = doneDays.get(account.id);
+            if (matureDue && done && matureDays.every((d) => done.has(d))) {
+              state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
+              stateChanged = true;
+            }
+          }
+        }
+
+        // day -> accounts that fetched (and, if it had rows, wrote) it.
+        const doneBy = new Map<string, number>();
+        for (const done of doneDays.values()) {
+          for (const d of done) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
+        }
+
+        // Days every account re-pulled: leftover rows are campaigns Meta no
+        // longer reports for that day. Close them so the day stops counting
+        // as due (a day with an account error stays open for the next run).
+        const closable = (set: Set<string>) =>
+          backfill.filter((d) => set.has(d) && accounts.length > 0 && (doneBy.get(d) ?? 0) >= accounts.length);
+        if (withClicksAll && stale.size) await closeStaleClickRows(admin, clientId, closable(stale));
+        if (noPurchase.size) {
+          await patchRowsMissingRawKey(
+            admin,
+            clientId,
+            "meta_ads",
+            "purchase_value",
+            closable(noPurchase),
+            () => ({ purchases: 0, purchase_value: 0 })
+          );
+        }
+
+        await saveState();
+        await recordOutcome();
+      };
+
+      pending.push({
+        clientId,
+        failedAccounts,
+        history,
+        fail: async (message) => {
+          clientRuns[clientId] = { status: "failed", error_message: message };
+          await admin
+            .from("sync_runs")
+            .update({ status: "failed", finished_at: new Date().toISOString(), error_message: message })
+            .eq("id", run?.id);
+        },
+      });
     } catch (err) {
       const message = describeError(err);
       console.error("[cron/refresh-ads-meta] integration failed", message);
+      clientRuns[clientId] = { status: "failed", error_message: message };
       await admin
         .from("sync_runs")
         .update({
@@ -720,6 +783,26 @@ export async function GET(request: Request) {
           error_message: message,
         })
         .eq("id", run?.id);
+    }
+  }
+
+  // Second pass: history, once every started client has today's numbers.
+  // The client whose turn it is goes first and gets TURN_SLICE_MS whatever
+  // the clock; the others only while the shared budget lasts. A turn moves
+  // on once taken, so every client's history advances within a few runs.
+  const historyOrder = leastRecentFirst(pending, (p) => p.clientId, turnStamps);
+  for (const [index, p] of historyOrder.entries()) {
+    const turn = index === 0;
+    const sliceStart = Date.now();
+    const open = () => withinBackfill() || (turn && Date.now() - sliceStart <= TURN_SLICE_MS);
+    try {
+      await p.history(open, turn);
+    } catch (err) {
+      const message = describeError(err);
+      console.error("[cron/refresh-ads-meta] history failed", message);
+      await p.fail(message);
+    } finally {
+      accountsFailed += p.failedAccounts.size;
     }
   }
 
@@ -734,6 +817,8 @@ export async function GET(request: Request) {
     accounts_deferred: accountsDeferred,
     link_clicks: withClicksAll,
     stale_click_days_queued: staleDaysQueued,
+    // Not printed by the scheduler (objects are filtered from its log).
+    client_runs: clientRuns,
   });
 }
 

@@ -22,7 +22,7 @@ on:
 
 # No concurrency group on purpose. With one, a tick that arrived while another
 # run was still going got QUEUED and then cancelled by the next tick - the
-# "All jobs were cancelled" failure alerts. timeout-minutes (12) is far below
+# "All jobs were cancelled" failure alerts. timeout-minutes (15) is far below
 # the 30-minute cadence, so runs cannot overlap in practice, and every endpoint
 # is idempotent even if they did.
 #
@@ -54,8 +54,9 @@ jobs:
     # Hard cap well under the 30-minute cadence. Without it a hanging endpoint
     # (curl -m 300, retried) burned 10+ minutes, runs started overlapping the
     # schedule, and the concurrency group then CANCELLED the queued run -
-    # the "All jobs were cancelled" notifications.
-    timeout-minutes: 12
+    # the "All jobs were cancelled" notifications. One attempt of every
+    # endpoint at its full curl limit is ~11 min.
+    timeout-minutes: 15
     env:
       APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -100,9 +101,13 @@ jobs:
             return 1
           }
           failed=""
-          for job in refresh-ads-meta refresh-ads-google refresh-ads-tiktok \
-                     refresh-ga4 refresh-creatives-meta refresh-demographics; do
-            if ! call_endpoint "$job"; then failed="$failed $job"; fi
+          # refresh-ads-meta: 70 s deadline + the history turn + a Meta
+          # request still in flight (60 s timeout) - 90 s turned healthy
+          # runs red. refresh-demographics has its own longer budget.
+          for spec in refresh-ads-meta:150 refresh-ads-google:90 refresh-ads-tiktok:90 \
+                      refresh-ga4:90 refresh-creatives-meta:90 refresh-demographics:125; do
+            job=${spec%%:*}; max=${spec##*:}
+            if ! call_endpoint "$job" "$max"; then failed="$failed $job"; fi
           done
           if [ -n "$failed" ]; then
             echo "::error::Data sync failed:$failed"

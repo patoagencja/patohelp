@@ -1,12 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { deferredFirst, leastRecentFirst, splitRanges } from "./cron-runs.ts";
+import {
+  chunkByDay,
+  deferredFirst,
+  leastRecentFirst,
+  splitRanges,
+  stampsByClient,
+} from "./cron-runs.ts";
 
 const client = (id: string) => ({ client_id: id });
 const ids = (list: Array<{ client_id: string }>) => list.map((c) => c.client_id);
 
-test("clients never served (or beyond what was read) go first, then the oldest success", () => {
+test("clients never started (or beyond what was read) go first, then the oldest start", () => {
   const newest = new Map([
     ["dre", Date.parse("2026-10-09T10:00:00Z")],
     ["olx", Date.parse("2026-10-09T09:00:00Z")],
@@ -15,7 +21,7 @@ test("clients never served (or beyond what was read) go first, then the oldest s
   assert.deepEqual(ids(order), ["new", "olx", "dre"]);
 });
 
-test("unreadable success times keep the input order", () => {
+test("unreadable start times keep the input order", () => {
   const list = [client("a"), client("b"), client("c")];
   assert.deepEqual(ids(leastRecentFirst(list, (c) => c.client_id, null)), ["a", "b", "c"]);
   assert.deepEqual(ids(leastRecentFirst(list, (c) => c.client_id, new Map())), ["a", "b", "c"]);
@@ -84,4 +90,58 @@ test("pieces cover every day of the range exactly once, across month and year en
   // 2025-07-01..2026-10-07 inclusive.
   assert.equal(days.size, 464);
   assert.equal(pieces[0].until, "2026-10-07");
+});
+
+test("history turns go round: never served first, then the oldest turn", () => {
+  const states = new Map<string, { historyTurnAt?: string }>([
+    ["dre", { historyTurnAt: "2026-10-09T10:00:00Z" }],
+    ["olx", { historyTurnAt: "2026-10-09T09:00:00Z" }],
+    ["elfi", {}],
+    ["sunew", { historyTurnAt: "not a date" }],
+  ]);
+  const stamps = stampsByClient(states, (s) => s.historyTurnAt);
+  assert.deepEqual([...stamps.keys()].sort(), ["dre", "olx"]);
+  const order = leastRecentFirst(
+    [client("dre"), client("olx"), client("elfi"), client("sunew")],
+    (c) => c.client_id,
+    stamps
+  );
+  assert.deepEqual(ids(order), ["elfi", "sunew", "olx", "dre"]);
+  assert.equal(stampsByClient(null, (s: { t?: string }) => s.t).size, 0);
+});
+
+const row = (date: string, n: number) => ({ date, n });
+
+test("write chunks never cut through a day that fits in one chunk", () => {
+  const rows = [
+    ...Array.from({ length: 4 }, (_, i) => row("2026-10-01", i)),
+    ...Array.from({ length: 3 }, (_, i) => row("2026-10-02", i)),
+    ...Array.from({ length: 2 }, (_, i) => row("2026-10-03", i)),
+  ];
+  const chunks = chunkByDay(rows, (r) => r.date, 5);
+  for (const chunk of chunks) {
+    assert.ok(chunk.length <= 5);
+    for (const day of new Set(chunk.map((r) => r.date))) {
+      // Every row of that day is in this chunk.
+      assert.equal(chunk.filter((r) => r.date === day).length, rows.filter((r) => r.date === day).length);
+    }
+  }
+  // Newest day first; every row written exactly once.
+  assert.equal(chunks[0][0].date, "2026-10-03");
+  assert.equal(chunks.flat().length, rows.length);
+});
+
+test("a day bigger than a chunk is split, and only that day", () => {
+  const rows = [
+    ...Array.from({ length: 12 }, (_, i) => row("2026-10-01", i)),
+    ...Array.from({ length: 2 }, (_, i) => row("2026-10-02", i)),
+  ];
+  const chunks = chunkByDay(rows, (r) => r.date, 5);
+  assert.deepEqual(
+    chunks.map((c) => c.length),
+    [2, 5, 5, 2]
+  );
+  assert.ok(chunks[0].every((r) => r.date === "2026-10-02"));
+  assert.equal(chunks.flat().length, rows.length);
+  assert.deepEqual(chunkByDay([], (r: { date: string }) => r.date, 5), []);
 });
