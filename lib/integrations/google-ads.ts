@@ -39,6 +39,36 @@ function candidateLogins(customerId: string): string[] {
   return list;
 }
 
+/**
+ * Per GAQL query. Without a cap one slow history query held the 60 s ads
+ * cron until Vercel killed it: nothing written for that client, its
+ * sync_runs row stuck on "running", and the same heavy range retried (and
+ * killed) on every run. Callers keep their queries small enough to finish
+ * well inside it (the cron splits long history ranges).
+ */
+const QUERY_TIMEOUT_MS = 25_000;
+
+/** A GAQL query that did not answer within QUERY_TIMEOUT_MS. */
+export class GoogleAdsTimeoutError extends Error {
+  constructor(customerId: string, ms: number) {
+    super(`Google Ads nie odpowiedział w ${Math.round(ms / 1000)} s (konto ${customerId})`);
+    this.name = "GoogleAdsTimeoutError";
+  }
+}
+
+/**
+ * `work`, or a GoogleAdsTimeoutError after `ms`. The library offers no way
+ * to cancel the request itself; the late answer is simply ignored (the race
+ * keeps its rejection handled).
+ */
+function withTimeout<T>(work: Promise<T>, ms: number, customerId: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new GoogleAdsTimeoutError(customerId, ms)), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
 // Run a GAQL query against a customer, trying each candidate login-customer-id
 // until one is accepted. Throws the last error if all fail.
 async function queryWithFallback(
@@ -55,8 +85,13 @@ async function queryWithFallback(
         login_customer_id: login,
         refresh_token: refreshToken,
       });
-      return (await customer.query(gaql)) as Array<Record<string, unknown>>;
+      return (await withTimeout(customer.query(gaql), QUERY_TIMEOUT_MS, customerId)) as Array<
+        Record<string, unknown>
+      >;
     } catch (err) {
+      // A timeout is not a rejected login: the next login-customer-id would
+      // only spend the same time again.
+      if (err instanceof GoogleAdsTimeoutError) throw err;
       lastErr = err;
     }
   }
