@@ -46,6 +46,9 @@ recount as (
          ), 0)::integer as conversions
   from public.ads_daily d
   where d.provider = 'meta_ads'
+    -- A row without actions recounts to 0, which it already is: skipped,
+    -- so a big account's year is not rewritten for nothing.
+    and jsonb_typeof(d.raw_data->'actions') = 'array'
 )
 update public.ads_daily d
 set conversions = r.conversions
