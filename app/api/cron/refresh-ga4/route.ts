@@ -8,7 +8,6 @@ import { describeError } from "@/lib/integrations/errors";
 import {
   getDailyMetrics,
   getItemsDaily,
-  getPropertyCurrency,
   getNewVsReturning,
   getRevenueByNewVsReturning,
   getSessionsByDayHour,
@@ -20,7 +19,6 @@ import {
   type Ga4Auth,
 } from "@/lib/integrations/ga4";
 import { mergeRows, selectedGa4Properties } from "@/lib/integrations/ga4-merge";
-import { createFxConverter, type FxConverter } from "@/lib/integrations/fx";
 import { readSyncState, writeSyncState } from "@/lib/integrations/sync-state";
 import { historyDaysFor } from "@/lib/season/history";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -41,30 +39,10 @@ const SNAPSHOT_START_BUDGET_MS = 40_000;
 // Don't START a full history rebuild (a year+ of reports per property) past this.
 const FULL_BACKFILL_START_MS = 20_000;
 
-/**
- * PLN per unit of one property's currency, for a day or (snapshots) a range.
- * Country sites (Elfi: .de, .uk, .com.br) report in their own money, which
- * must be złoty before it is stored or summed; an unknown rate drops that
- * revenue rather than adding euros to złoty.
- */
 /** What a client's stored GA4 history was built from (sync-state). */
 const GA4_HISTORY_KEY = "ga4-history";
 interface Ga4HistoryState {
   signature: string;
-  /** Reporting currency per property (null = GA4 didn't say). */
-  currencies: Record<string, string | null>;
-}
-
-type ToPln = { day: (d: string) => Promise<number>; range: (from: string, to: string) => Promise<number> };
-const SAME: ToPln = { day: async () => 1, range: async () => 1 };
-function toPln(fx: FxConverter, currency: string | null, propertyId: string): ToPln {
-  if (!currency || currency === "PLN") return SAME;
-  const warn = (what: string) =>
-    console.warn(`[refresh-ga4] no ${currency} rate for property ${propertyId} (${what}) - revenue left out`);
-  return {
-    day: async (d) => (await fx.rate(currency, d)) ?? (warn(d), 0),
-    range: async (from, to) => (await fx.averageRate(currency, from, to)) ?? (warn(`${from}..${to}`), 0),
-  };
 }
 
 export async function GET(request: Request) {
@@ -126,10 +104,9 @@ export async function GET(request: Request) {
   const snapshotJobs: Array<{
     clientId: string;
     auth: Ga4Auth;
-    properties: Array<{ propertyId: string; pln: ToPln }>;
+    propertyIds: string[];
   }> = [];
 
-  let fx: FxConverter | null = null;
   let fullBackfillsThisRun = 0;
   for (const integration of integrations ?? []) {
     // One or several properties (Elfi: a site per country); summed below.
@@ -181,7 +158,7 @@ export async function GET(request: Request) {
       // keyed on "is there any row" alone, the six new countries were only
       // ever pulled for the last two days and last season showed one
       // country, in pounds booked as złoty.
-      const signature = `${[...propertyIds].sort().join(",")}|${historyDays}|pln1`;
+      const signature = `${[...propertyIds].sort().join(",")}|${historyDays}|ga4pln`;
       const historyState = await readSyncState<Ga4HistoryState>(
         admin,
         integration.client_id as string,
@@ -239,36 +216,22 @@ export async function GET(request: Request) {
       // yesterday+today, which made the totals ~30x too small.
       const snapshotRange: DateRange = { startDate: snapshotStart, endDate: until };
 
-      // Each property's currency is asked once per history build and kept
-      // with it; amounts in any other money become złoty before they are
-      // stored or summed.
-      const knownCurrencies = fullBackfill ? {} : historyState.value?.currencies ?? {};
+      // Revenue arrives in złoty from every property: each report asks GA4
+      // for PLN (lib/integrations/ga4.ts runReport), so country sites in
+      // euros or pounds sum correctly.
       const perProperty = await Promise.all(
         propertyIds.map(async (propertyId) => {
-          const [currency, daily, sourceMedium, devices, pages, newReturning] = await Promise.all([
-            propertyId in knownCurrencies
-              ? Promise.resolve(knownCurrencies[propertyId])
-              : getPropertyCurrency(ga4Auth, propertyId).catch(() => null),
+          const [daily, sourceMedium, devices, pages, newReturning] = await Promise.all([
             getDailyMetrics(ga4Auth, propertyId, dailyRange),
             getSessionsBySourceMedium(ga4Auth, propertyId, snapshotRange),
             getSessionsByDevice(ga4Auth, propertyId, snapshotRange),
             getTopPages(ga4Auth, propertyId, snapshotRange, 10),
             getNewVsReturning(ga4Auth, propertyId, snapshotRange),
           ]);
-          if (currency && currency !== "PLN" && !fx) fx = createFxConverter();
-          const pln = fx && currency && currency !== "PLN" ? toPln(fx, currency, propertyId) : SAME;
-          const snapshotRate = await pln.range(snapshotRange.startDate, snapshotRange.endDate);
           return {
             propertyId,
-            currency,
-            pln,
-            daily: await Promise.all(
-              daily.map(async (d) => {
-                const r = await pln.day(d.date);
-                return { ...d, revenue: d.revenue * r, purchaseRevenue: d.purchaseRevenue * r };
-              })
-            ),
-            sourceMedium: sourceMedium.map((x) => ({ ...x, revenue: x.revenue * snapshotRate })),
+            daily,
+            sourceMedium,
             devices,
             pages,
             newReturning,
@@ -403,13 +366,17 @@ export async function GET(request: Request) {
         if (inserted?.[0]?.created_at) cutoff = inserted[0].created_at as string;
         rowsUpserted += rows.length;
       }
-      const { error: delError } = await admin
+      // A full rebuild also clears days before its window: rows left from
+      // an older property set (one country, unconverted pounds) would sit
+      // under "rok temu" next to the new numbers.
+      let del = admin
         .from("ga4_daily")
         .delete()
         .eq("client_id", integration.client_id)
-        .gte("date", dailyRange.startDate)
         .lte("date", until)
         .lt("created_at", cutoff);
+      if (!fullBackfill) del = del.gte("date", dailyRange.startDate);
+      const { error: delError } = await del;
       if (delError) throw new Error(delError.message);
 
       // Per-SKU sales for the same window (e-commerce properties only return
@@ -420,21 +387,19 @@ export async function GET(request: Request) {
           const items = mergeRows(
             (
               await Promise.all(
-                perProperty.map(async (p) => {
-                  const list = await getItemsDaily(ga4Auth, p.propertyId, dailyRange);
-                  return Promise.all(list.map(async (it) => ({ ...it, revenue: it.revenue * (await p.pln.day(it.date)) })));
-                })
+                perProperty.map((p) => getItemsDaily(ga4Auth, p.propertyId, dailyRange))
               )
             ).flat(),
             (it) => `${it.date}\u0000${it.itemId}\u0000${it.itemName}`,
             { sums: ["quantity", "revenue"] }
           );
-          await admin
+          let delItems = admin
             .from("ga4_items_daily")
             .delete()
             .eq("client_id", integration.client_id)
-            .gte("date", dailyRange.startDate)
             .lte("date", until);
+          if (!fullBackfill) delItems = delItems.gte("date", dailyRange.startDate);
+          await delItems;
           if (items.length) {
             const itemRows = items.map((it) => ({
               client_id: integration.client_id,
@@ -462,11 +427,9 @@ export async function GET(request: Request) {
       }
 
       // Only after the rows are in: a run that died half-way rebuilds again.
-      if (fullBackfill || Object.keys(knownCurrencies).length !== propertyIds.length) {
+      if (fullBackfill) {
         await writeSyncState(admin, integration.client_id as string, GA4_HISTORY_KEY, {
-          // A deferred rebuild only learned currencies: it must stay "to do".
-          signature: fullBackfill ? signature : historyState.value?.signature ?? "",
-          currencies: Object.fromEntries(perProperty.map((p) => [p.propertyId, p.currency ?? null])),
+          signature,
         } satisfies Ga4HistoryState);
       }
 
@@ -483,7 +446,7 @@ export async function GET(request: Request) {
       snapshotJobs.push({
         clientId: integration.client_id as string,
         auth: ga4Auth,
-        properties: perProperty.map((p) => ({ propertyId: p.propertyId, pln: p.pln })),
+        propertyIds,
       });
     } catch (err) {
       const message = describeError(err);
@@ -509,7 +472,7 @@ export async function GET(request: Request) {
           admin,
           job.clientId,
           job.auth,
-          job.properties,
+          job.propertyIds,
           until
         );
       } catch (err) {
@@ -529,7 +492,7 @@ export async function GET(request: Request) {
           admin,
           job.clientId,
           job.auth,
-          job.properties,
+          job.propertyIds,
           until
         );
       } catch (err) {
@@ -559,7 +522,7 @@ async function syncActivityHeatmap(
   admin: ReturnType<typeof createAdminClient>,
   clientId: string,
   auth: Ga4Auth,
-  properties: Array<{ propertyId: string }>,
+  propertyIds: string[],
   today: string
 ) {
   const existing = await admin
@@ -573,7 +536,7 @@ async function syncActivityHeatmap(
 
   // Every property's cells land in the same grid, so they add up.
   const cells = (
-    await Promise.all(properties.map((p) => getSessionsByDayHour(auth, p.propertyId)))
+    await Promise.all(propertyIds.map((id) => getSessionsByDayHour(auth, id)))
   ).flat();
 
   const grid = new Map<string, { sessions: number; engaged: number }>();
@@ -628,7 +591,7 @@ async function syncNewVsReturning(
   admin: ReturnType<typeof createAdminClient>,
   clientId: string,
   auth: Ga4Auth,
-  properties: Array<{ propertyId: string; pln: ToPln }>,
+  propertyIds: string[],
   today: string
 ) {
   const existing = await admin
@@ -640,20 +603,8 @@ async function syncNewVsReturning(
   if (existing.error) throw new Error(existing.error.message);
   if (existing.data?.length) return;
 
-  // Last 30 full days per property, revenue in złoty at the period's mean rate.
-  const from = formatInTimeZone(subDays(new Date(), 30), WARSAW_TZ, "yyyy-MM-dd");
-  const to = formatInTimeZone(subDays(new Date(), 1), WARSAW_TZ, "yyyy-MM-dd");
-  const segments = (
-    await Promise.all(
-      properties.map(async (p) => {
-        const [list, rate] = await Promise.all([
-          getRevenueByNewVsReturning(auth, p.propertyId),
-          p.pln.range(from, to),
-        ]);
-        return list.map((x) => ({ ...x, revenue: x.revenue * rate }));
-      })
-    )
-  ).flat();
+  // Every property's segments (revenue already in złoty) add up below.
+  const segments = (await Promise.all(propertyIds.map((id) => getRevenueByNewVsReturning(auth, id)))).flat();
 
   const totals = new Map<
     string,

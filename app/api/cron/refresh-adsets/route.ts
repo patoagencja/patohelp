@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { hasAdsetTable, syncAdsetsForClient } from "@/lib/integrations/adset-sync";
+import { ADSETS_STAMP_KEY, writeSyncState } from "@/lib/integrations/sync-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -133,19 +134,15 @@ export async function GET(request: Request) {
     note(clientId, await syncAdsetsForClient(admin, clientId, { shouldStop }));
   }
 
-  // New rows only show once the client's sync stamp moves (the dashboard
-  // caches per stamp, lib/dashboard/sync-cache.ts): this job wrote no
-  // sync_runs row, so goals kept yesterday's numbers until another sync
-  // landed. sync_runs.provider is free text; the health checks only look at
-  // connected providers, so "adsets" never raises a banner.
+  // Goal numbers are cached per sync stamp; new ad set rows move only the
+  // goals' own stamp (lib/alerts/pacing.ts), not the client's whole sync
+  // stamp - that would throw away every cached page of the client.
   const nowIso = new Date().toISOString();
-  const stamps = [...writtenBy.entries()]
-    .filter(([, n]) => n > 0)
-    .map(([clientId]) => ({ client_id: clientId, provider: "adsets", status: "success", finished_at: nowIso }));
-  if (stamps.length) {
-    const { error } = await admin.from("sync_runs").insert(stamps);
-    if (error) console.warn("[cron/refresh-adsets] stamp write failed", error.message);
-  }
+  await Promise.all(
+    [...writtenBy.entries()]
+      .filter(([, n]) => n > 0)
+      .map(([clientId]) => writeSyncState(admin, clientId, ADSETS_STAMP_KEY, { at: nowIso }))
+  );
 
   return NextResponse.json({ ok: true, rows_upserted: written, goal_campaigns: goals.length, errors });
 }

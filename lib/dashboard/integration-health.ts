@@ -42,6 +42,9 @@ export interface ProviderHealth {
   reconnected: boolean;
 }
 
+/** A failed run counts once the last success is this old (or it failed twice). */
+const FAILING_AFTER_HOURS = 2;
+
 /** Stale threshold: crons run every 30 min, so 12h means genuinely broken. */
 const STALE_HOURS = 12;
 
@@ -86,8 +89,7 @@ export async function getUnhealthyIntegrations(
             .eq("client_id", clientId)
             .eq("provider", provider)
             .order("started_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
+            .limit(2),
           admin
             .from("sync_runs")
             .select("finished_at")
@@ -100,7 +102,13 @@ export async function getUnhealthyIntegrations(
             .maybeSingle(),
         ]);
 
-        const newest = newestRes.data;
+        const recent = (newestRes.data ?? []) as Array<{
+          status: string;
+          started_at: string | null;
+          finished_at: string | null;
+          error_message: string | null;
+        }>;
+        const newest = recent[0];
         // A provider with no runs at all was just connected - not a failure yet.
         if (!newest) return null;
 
@@ -126,7 +134,18 @@ export async function getUnhealthyIntegrations(
           new Date(connectedAt).getTime() >
             new Date(newest.started_at as string).getTime();
 
-        const failing = newest.status === "failed" && !reconnected;
+        // One failed run is often a blip (a Meta rate limit, a GA4 quota
+        // hiccup) that the next run fixes; it used to put "liczby są
+        // niepełne" in front of the client and page the agency at night.
+        // Failing = the token is dead, two runs in a row failed, or the
+        // last success is over two hours old.
+        const lastFailed = newest.status === "failed" && !reconnected;
+        const failing =
+          lastFailed &&
+          (isTokenError(newest.error_message) ||
+            recent[1]?.status === "failed" ||
+            hoursSinceSuccess === null ||
+            hoursSinceSuccess > FAILING_AFTER_HOURS);
         const stale =
           hoursSinceSuccess === null || hoursSinceSuccess > STALE_HOURS;
         if (!failing && !stale) return null;

@@ -69,8 +69,18 @@ export function SeasonPageView({
   const shop = showRevenue ? view.shop : null;
   const revenue = showRevenue && (view.hasValue || !!shop);
   const shopComparable = !!shop?.hasPrev && (shop.prevSamePoint.revenue > 0 || shop.prevSamePoint.orders > 0);
+  // Return on the shop's own days: a feed two days behind divided by ad
+  // spend through yesterday read as a falling return at the peak.
+  const shopIdx = shop ? diffDaysIso(state.current.start, shop.asOf) : -1;
+  const spendTo = (pick: (d: SeasonView["days"][number]) => number | null, to: number) =>
+    view.days.reduce((sum, d) => (d.i <= to ? sum + (pick(d) ?? 0) : sum), 0);
+  const shopSpend = shop ? spendTo((d) => d.spend, shopIdx) : 0;
+  const shopPrevSpend = shop ? spendTo((d) => d.prevSpend, Math.min(shopIdx, view.days.length - 1)) : 0;
   // Day 1 compares nothing yet (load.ts): no "last season: 0 zł" lines.
-  const comparable = hasPrev && (prevSamePoint.spend > 0 || prevSamePoint.clicks > 0);
+  // A previous season synced only from mid-way read as "o 400% więcej":
+  // with a partial one, ads aren't compared at all (the note says why).
+  const comparable =
+    hasPrev && !view.prevPartialFrom && (prevSamePoint.spend > 0 || prevSamePoint.clicks > 0);
   const compareAsOf = shop?.asOf ?? view.asOf;
   const asOfLabel = running
     ? compareAsOf < today
@@ -163,14 +173,14 @@ export function SeasonPageView({
           index={1}
           label="Zwrot ze sklepu"
           explain="Cała sprzedaż sklepu (brutto) podzielona przez wszystkie wydatki na reklamy (MER). Uczciwszy niż zwrot podawany przez Meta i Google, bo każda z nich liczy u siebie to samo zamówienie."
-          value={times(ratio(shop.totals.revenue, totals.spend))}
+          value={times(ratio(shop.totals.revenue, shopSpend))}
           delta={
             shopComparable
-              ? change(ratio(shop.totals.revenue, totals.spend), ratio(shop.prevSamePoint.revenue, prevSamePoint.spend))
+              ? change(ratio(shop.totals.revenue, shopSpend), ratio(shop.prevSamePoint.revenue, shopPrevSpend))
               : null
           }
           sub={view.hasValue ? `wg Meta i Google: ${roasText(totals.value, totals.spend)}` : undefined}
-          foot={shopFoot(times(ratio(shop.prevSamePoint.revenue, prevSamePoint.spend)))}
+          foot={shopFoot(times(ratio(shop.prevSamePoint.revenue, shopPrevSpend)))}
         />,
         <StatTile
           key="orders"
@@ -284,7 +294,7 @@ export function SeasonPageView({
   }
   if (view.prevPartialFrom) {
     notes.push(
-      `Dane ${prevGen} mamy dopiero od ${dayMonthLong(view.prevPartialFrom)} - porównanie z nim jest niepełne.`
+      `Dane reklam ${prevGen} mamy dopiero od ${dayMonthLong(view.prevPartialFrom)}, więc nie porównujemy z nim wydatków ani kliknięć - wyszłyby zawyżone wzrosty.`
     );
   }
 

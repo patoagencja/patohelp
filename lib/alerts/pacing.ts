@@ -3,6 +3,7 @@ import { differenceInCalendarDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
+import { ADSETS_STAMP_KEY, readSyncState } from "@/lib/integrations/sync-state";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncCached } from "@/lib/dashboard/sync-cache";
 import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
@@ -192,7 +193,12 @@ export const getPacing = cache(async (clientId: string): Promise<PacingFlight[]>
   // The flights are read live (agency edits show at once); the delivery
   // join below only changes when a sync lands, so it is shared across
   // requests per sync stamp, keyed by the exact goal definitions.
-  return syncCached("pacing", clientId, [JSON.stringify(defs)], () =>
+  // Ad set rows arrive from their own job, which doesn't move the client's
+  // sync stamp: its own stamp joins the key so goals update right away.
+  const adsetsStamp = defs.some((d) => d.adsetId)
+    ? (await readSyncState<{ at?: string }>(admin, clientId, ADSETS_STAMP_KEY)).value?.at ?? null
+    : null;
+  return syncCached("pacing", clientId, [JSON.stringify(defs), adsetsStamp], () =>
     joinDelivery(clientId, defs, todayStr)
   );
 });

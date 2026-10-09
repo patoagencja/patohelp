@@ -8,10 +8,11 @@ import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import {
   generateIngestKey,
   toSaleRows,
+  clearPushedDays,
   upsertShopSales,
   validateCsvRecords,
 } from "@/lib/shop/ingest";
-import { decodeCsvBytes, isMissingTableError, parseSalesCsv } from "@/lib/shop/parse";
+import { decodeCsvBytes, isMissingTableError, mixedGranularityDate, parseSalesCsv } from "@/lib/shop/parse";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel rejects function request bodies over 4.5 MB before they reach us,
@@ -118,12 +119,21 @@ export async function uploadShopSalesCsv(formData: FormData): Promise<CsvUploadR
   const validated = validateCsvRecords(parsed.records);
   if (!validated.ok) return { ok: false, error: validated.error };
 
-  const saved = await upsertShopSales(
-    createAdminClient(),
-    access.clientId,
-    toSaleRows(validated.rows),
-    "csv"
-  );
+  const rows = toSaleRows(validated.rows);
+  // Same rules as the API: one level of detail per day, and a file
+  // replaces the days it contains. Only upserting kept a day's old
+  // per-product rows next to a new day total (revenue twice) and left
+  // renamed products behind.
+  const mixed = mixedGranularityDate(rows);
+  if (mixed) {
+    return {
+      ok: false,
+      error: `Dzień ${mixed} ma w pliku wiersze z produktem i bez - podaj go albo w całości per produkt, albo jedną sumą.`,
+    };
+  }
+  const admin = createAdminClient();
+  await clearPushedDays(admin, access.clientId, rows.map((r) => r.date));
+  const saved = await upsertShopSales(admin, access.clientId, rows, "csv");
   if (!saved.ok) {
     console.error(`[shop-sales] CSV upsert failed for client ${access.clientId}: ${saved.message}`);
     return { ok: false, error: saved.missingTable ? MIGRATION_HINT : "Nie udało się zapisać danych. Spróbuj ponownie." };

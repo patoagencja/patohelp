@@ -1314,14 +1314,42 @@ export function extractPurchases(
   return { purchases: Math.round(pick(actions)), value: pick(actionValues) };
 }
 
-/** Sum conversion-like actions. Tracked only - never displayed as ROAS. */
+/**
+ * Conversion families: Meta reports one event under several overlapping
+ * action types (a form lead is "lead", "onsite_conversion.lead_grouped" and
+ * maybe "offsite_conversion.fb_pixel_lead"). The old rule summed every type
+ * containing "conversion" and counted 12 leads as 27, 20 chats as 73 - and
+ * pulled in page views and add-to-carts. Now: the largest value within each
+ * family, summed across families. Mirrored in
+ * supabase/migrations/0042_meta_conversions.sql, which recounts history.
+ */
+export const CONVERSION_FAMILIES: Record<string, string[]> = {
+  lead: ["lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead", "onsite_web_lead"],
+  purchase: [...PURCHASE_TYPES, "onsite_conversion.purchase"],
+  registration: [
+    "omni_complete_registration",
+    "complete_registration",
+    "offsite_conversion.fb_pixel_complete_registration",
+  ],
+  messaging: ["onsite_conversion.messaging_conversation_started_7d"],
+  contact: ["contact_total", "contact", "offsite_conversion.fb_pixel_contact"],
+  schedule: ["schedule_total", "schedule", "offsite_conversion.fb_pixel_schedule"],
+  application: ["submit_application_total", "offsite_conversion.fb_pixel_submit_application"],
+  custom: ["offsite_conversion.fb_pixel_custom"],
+};
+
+/** Conversions (tracked, never displayed as ROAS): one count per family. */
 export function extractConversions(
   actions?: Array<{ action_type: string; value: string }>
 ): number {
   if (!actions?.length) return 0;
-  return actions
-    .filter(
-      (a) => a.action_type.includes("conversion") || a.action_type === "lead"
-    )
-    .reduce((sum, a) => sum + Math.round(parseFloat(a.value || "0")), 0);
+  let total = 0;
+  for (const types of Object.values(CONVERSION_FAMILIES)) {
+    let best = 0;
+    for (const a of actions) {
+      if (types.includes(a.action_type)) best = Math.max(best, parseFloat(a.value || "0") || 0);
+    }
+    total += Math.round(best);
+  }
+  return total;
 }

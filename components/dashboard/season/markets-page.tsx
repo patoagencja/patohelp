@@ -54,7 +54,8 @@ export function MarketsPageView({
   const asOfIdx = view.days.findIndex((d) => d.date === view.asOf);
   const cut = <T,>(list: Array<T | null>) => list.map((v, i) => (i <= asOfIdx ? v : null));
   const prevYear = view.state.previous.year;
-  const seasonLabel = `Sezon ${view.state.phase === "pre" ? view.state.next?.year ?? "" : view.state.current.year}`;
+  // The cards show state.current - before a season starts that is the last one.
+  const seasonLabel = `Sezon ${view.state.current.year}`;
 
   const adBy = new Map(view.markets.map((m) => [m.code, m]));
   const codes = Array.from(
@@ -69,12 +70,17 @@ export function MarketsPageView({
     const spend = ad?.cur.spend ?? 0;
     const spendPrev = ad?.prev.spend ?? 0;
     if (byShop) {
+      // Spend on the shop's reporting days (its feed may lag the ads by a
+      // day or two), so the return compares like with like.
+      const shopIdx = view.days.findIndex((d) => d.date === shop!.asOf);
+      const upTo = (list: Array<number | null> | undefined, to: number) =>
+        (list ?? []).reduce<number>((sum, v, i) => (i <= to ? sum + (v ?? 0) : sum), 0);
       return {
         code,
         lead: shopM?.cur.revenue ?? 0,
         leadPrev: shopM?.prev.revenue ?? 0,
-        spend,
-        spendPrev,
+        spend: days ? upTo(days.spend, shopIdx) : spend,
+        spendPrev: days ? upTo(days.prevSpend, shopIdx) : spendPrev,
         orders: shopM?.cur.orders ?? 0,
         ordersPrev: shopM?.prev.orders ?? 0,
         series: cut(shopDays?.revenue ?? []),
@@ -120,7 +126,9 @@ export function MarketsPageView({
     );
   }
 
-  const total = cards.reduce((a, c) => a + c.lead, 0);
+  // Shares of ALL shop sales, the ones without a country included: "PL to
+  // 80%" must not hide that a third of orders carry no market.
+  const total = Math.max(byShop ? shop!.totals.revenue : 0, cards.reduce((a, c) => a + c.lead, 0));
   const top = cards[0];
   const growth = cards
     .map((c) => ({ c, d: change(c.lead, c.leadPrev) }))

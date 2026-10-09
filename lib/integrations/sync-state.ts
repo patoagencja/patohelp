@@ -15,6 +15,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 const TABLE = "report_cache";
+
+/** When ad set rows last changed for a client - keys the goal cache (lib/alerts/pacing.ts). */
+export const ADSETS_STAMP_KEY = "adsets-stamp";
 const prefix = (key: string) => `sync:${key}`;
 
 export interface SyncStateRead<T> {

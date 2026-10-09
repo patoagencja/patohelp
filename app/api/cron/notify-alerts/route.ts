@@ -83,6 +83,7 @@ export async function GET(request: Request) {
     );
 
   let notified = 0;
+  let sendFailures = 0;
   const errors: string[] = [];
 
   for (const s of (settingsRows ?? []) as Settings[]) {
@@ -277,13 +278,22 @@ export async function GET(request: Request) {
 
       if (items.length === 0) continue;
 
-      // Deduplicate: only keep items not already sent today (unique constraint).
+      // Deduplicate: claim each item for today (unique constraint). Only a
+      // duplicate means "already sent"; any other insert error must not
+      // silently drop the alert, so it is sent unclaimed rather than lost.
       const fresh: AlertItem[] = [];
+      const claimed: string[] = [];
       for (const item of items) {
         const { error } = await admin
           .from("notifications_sent")
           .insert({ client_id: s.client_id, alert_key: item.key, sent_on: today });
-        if (!error) fresh.push(item); // no conflict => first time today
+        if (!error) {
+          fresh.push(item);
+          claimed.push(item.key);
+        } else if (error.code !== "23505") {
+          console.warn(`[cron/notify-alerts] claim failed for ${s.client_id}/${item.key}`, error.message);
+          fresh.push(item);
+        }
       }
 
       if (fresh.length === 0) continue;
@@ -297,11 +307,28 @@ export async function GET(request: Request) {
             : `Cele osiągnięte — ${clientName} (${reached})`
           : `Alerty — ${clientName} (${fresh.length})`;
 
-      if (s.email_enabled) await sendEmail(s.emails ?? [], subject, digest.html);
-      if (s.whatsapp_enabled)
-        await sendWhatsApp(s.whatsapp_numbers ?? [], digest.text);
-      if (s.telegram_enabled)
-        await sendTelegram(s.telegram_chat_ids ?? [], digest.telegram);
+      const results = await Promise.all([
+        s.email_enabled ? sendEmail(s.emails ?? [], subject, digest.html) : null,
+        s.whatsapp_enabled ? sendWhatsApp(s.whatsapp_numbers ?? [], digest.text) : null,
+        s.telegram_enabled ? sendTelegram(s.telegram_chat_ids ?? [], digest.telegram) : null,
+      ]);
+      const tried = results.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (tried.length > 0 && tried.every((r) => !r.ok)) {
+        // Nothing reached anyone: release the claims so the next run (30
+        // min) tries again, instead of marking a dead integration or a
+        // budget spike as delivered for the whole day.
+        if (claimed.length) {
+          await admin
+            .from("notifications_sent")
+            .delete()
+            .eq("client_id", s.client_id)
+            .eq("sent_on", today)
+            .in("alert_key", claimed);
+        }
+        sendFailures += 1;
+        errors.push(`${s.client_id}: ${tried.map((r) => r.error ?? "wysyłka nie powiodła się").join(" | ")}`);
+        continue;
+      }
 
       notified += 1;
     } catch (err) {
@@ -311,5 +338,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, clients_notified: notified, errors });
+  return NextResponse.json({ ok: true, clients_notified: notified, send_failures: sendFailures, errors });
 }

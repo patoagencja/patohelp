@@ -353,17 +353,20 @@ export async function getDashboardData(
   const label = resolved.label;
   const range: ResolvedRange = resolved;
 
-  // Long ranges ("Ostatni rok", a past season picked by hand): the baseline
-  // before them usually predates the synced history (a year, ~15 months for
-  // seasonal clients), and a half-empty baseline reads as "+300%". Where a
-  // source's history starts after the baseline's first week, that baseline
-  // is neither read nor compared. Short ranges skip the two lookups.
-  const longRange =
-    differenceInCalendarDays(new Date(`${range.end}T00:00:00`), new Date(`${range.start}T00:00:00`)) + 1 > 90;
+  // The baseline must exist in the synced history: "Ostatni rok", a past
+  // season picked by hand, or simply a client connected three weeks ago -
+  // a half-empty baseline reads as "+300%". Where a source's history starts
+  // after the baseline's first few days, that baseline is neither read nor
+  // compared. Two one-row lookups (cached with the rest per sync stamp).
+  const baselineSlack = Math.min(
+    7,
+    Math.floor(
+      (differenceInCalendarDays(new Date(`${range.prevEnd}T00:00:00`), new Date(`${range.prevStart}T00:00:00`)) + 1) / 4
+    )
+  );
   const coveredFrom = (earliest: string | null) =>
-    !longRange || (earliest !== null && earliest <= fmt(addDays(new Date(`${range.prevStart}T00:00:00`), 7)));
-  const [adsEarliest, ga4Earliest] = longRange
-    ? await Promise.all([
+    earliest !== null && earliest <= fmt(addDays(new Date(`${range.prevStart}T00:00:00`), baselineSlack));
+  const [adsEarliest, ga4Earliest] = await Promise.all([
         supabase
           .from("ads_daily")
           .select("date")
@@ -383,8 +386,7 @@ export async function getDashboardData(
           .limit(1)
           .maybeSingle()
           .then((r) => (r.data?.date as string | undefined) ?? null),
-      ])
-    : [null, null];
+      ]);
   const adsBaseline = coveredFrom(adsEarliest);
   const ga4Baseline = coveredFrom(ga4Earliest);
   const adsFrom = adsBaseline ? range.prevStart : range.start;

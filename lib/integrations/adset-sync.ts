@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { decrypt } from "@/lib/integrations/encryption";
+import { createFxConverter, normalizeCurrency, type FxConverter } from "@/lib/integrations/fx";
 import { describeError } from "@/lib/integrations/errors";
 import { getAdGroupMetrics, getCampaignAdGroupList } from "@/lib/integrations/google-ads";
 import { hasClicksAllColumnStrict, intOrZero } from "@/lib/integrations/link-clicks";
@@ -101,6 +102,17 @@ export async function adsetSyncWindow(
   return { since: plusDays(until, -2), until };
 }
 
+/**
+ * PLN per unit of an account's currency on a day: 1 for złoty (and for an
+ * account whose currency was never recorded - same rule as the campaign
+ * sync), null when NBP has no rate (the row is then skipped, never stored
+ * as złoty).
+ */
+async function plnRate(fx: FxConverter, currency: string | null, day: string): Promise<number | null> {
+  if (!currency || currency === "PLN") return 1;
+  return fx.rate(currency, day);
+}
+
 async function upsertChunks(admin: AdminClient, rows: Record<string, unknown>[]): Promise<number> {
   let written = 0;
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
@@ -169,9 +181,12 @@ export async function syncMetaAdsets(
   /** Migration 0034 ran (probed when omitted). */
   withClicksAll?: boolean,
   /** Exact days to pull (the goal pass: from the goal's start). */
-  windowOverride?: { since: string; until: string }
+  windowOverride?: { since: string; until: string },
+  /** Account currency saved at connect time, per account id. */
+  currencies: Record<string, string | undefined> = {}
 ): Promise<AdsetSyncResult> {
   const clicksAll = withClicksAll ?? (await hasClicksAllColumnStrict(admin, "ads_adset_daily"));
+  const fx = createFxConverter();
   // One campaign on demand: always the full window, it is a handful of calls.
   const { since, until } =
     windowOverride ??
@@ -182,9 +197,19 @@ export async function syncMetaAdsets(
     try {
       const insights = await getAdsetInsights(accessToken, accountId, since, until, shouldStop, campaignId);
       const now = new Date().toISOString();
+      // Spend in złoty like every other table: a EUR account's ad set goal
+      // compared euros with a złoty target.
+      const currency = normalizeCurrency(currencies[accountId]);
+      const rated: Array<{ r: (typeof insights)[number]; rate: number }> = [];
+      for (const r of insights) {
+        const rate = await plnRate(fx, currency, r.date);
+        if (rate === null) continue;
+        rated.push({ r, rate });
+      }
+      if (rated.length < insights.length) result.errors.push(`Meta ${accountId}: brak kursu NBP ${currency}`);
       result.written += await upsertChunks(
         admin,
-        insights.map((r) => ({
+        rated.map(({ r, rate }) => ({
           client_id: clientId,
           provider: "meta_ads",
           account_id: accountId,
@@ -193,7 +218,7 @@ export async function syncMetaAdsets(
           adset_id: r.adset_id,
           adset_name: r.adset_name || null,
           date: r.date,
-          spend_minor_units: Math.round(parseFloat(r.spend || "0") * 100) || 0,
+          spend_minor_units: Math.round(parseFloat(r.spend || "0") * rate * 100) || 0,
           impressions: parseInt(r.impressions, 10) || 0,
           // Link clicks in `clicks` once 0034 ran; before it, clicks (all)
           // exactly as always.
@@ -223,7 +248,7 @@ export async function syncGoogleAdGroups(
   admin: AdminClient,
   clientId: string,
   refreshToken: string,
-  accounts: Array<{ id: string; video_only?: boolean }>,
+  accounts: Array<{ id: string; video_only?: boolean; currency?: string }>,
   shouldStop: () => boolean,
   campaignId?: string,
   /** Migration 0034 ran (probed when omitted). */
@@ -232,6 +257,7 @@ export async function syncGoogleAdGroups(
   windowOverride?: { since: string; until: string }
 ): Promise<AdsetSyncResult> {
   const clicksAll = withClicksAll ?? (await hasClicksAllColumnStrict(admin, "ads_adset_daily"));
+  const fx = createFxConverter();
   const { since, until } =
     windowOverride ?? (await adsetSyncWindow(admin, clientId, "google_ads", new Date(), !!campaignId));
   const result: AdsetSyncResult = { written: 0, errors: [] };
@@ -247,11 +273,17 @@ export async function syncGoogleAdGroups(
         campaignId
       );
       const now = new Date().toISOString();
+      const currency = normalizeCurrency(account.currency);
+      const rated: Array<{ m: (typeof metrics)[number]; rate: number }> = [];
+      for (const m of metrics) {
+        if (!m.ad_group_id) continue;
+        const rate = await plnRate(fx, currency, m.date);
+        if (rate === null) continue;
+        rated.push({ m, rate });
+      }
       result.written += await upsertChunks(
         admin,
-        metrics
-          .filter((m) => m.ad_group_id)
-          .map((m) => ({
+        rated.map(({ m, rate }) => ({
             client_id: clientId,
             provider: "google_ads",
             account_id: account.id,
@@ -260,7 +292,7 @@ export async function syncGoogleAdGroups(
             adset_id: m.ad_group_id,
             adset_name: m.ad_group_name || null,
             date: m.date,
-            spend_minor_units: Math.round(m.cost_micros / 10_000),
+            spend_minor_units: Math.round((m.cost_micros / 10_000) * rate),
             impressions: m.impressions,
             clicks: m.clicks,
             // Google ad clicks are link-like already: both columns agree.
@@ -279,6 +311,7 @@ export async function syncGoogleAdGroups(
 
 interface StoredAccount {
   id: string;
+  currency?: string;
   selected?: boolean;
   video_only?: boolean;
 }
@@ -338,7 +371,8 @@ export async function syncAdsetsForClient(
               shouldStop,
               opts.campaignId,
               withClicksAll,
-              opts.window
+              opts.window,
+              Object.fromEntries(accounts.map((a) => [a.id, a.currency]))
             )
           : await syncGoogleAdGroups(
               admin,

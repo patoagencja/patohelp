@@ -254,25 +254,13 @@ async function runReport(
   });
   const res = await dataApi.properties.runReport({
     property: `properties/${propertyId}`,
-    requestBody,
+    // Revenue always in złoty: a client's country sites (Elfi .de, .uk,
+    // .com.br) report in their own money otherwise, and GA4 converts each
+    // transaction at its own day's rate - better than any after-the-fact
+    // conversion here.
+    requestBody: { currencyCode: "PLN", ...requestBody },
   });
   return res.data;
-}
-
-/**
- * The property's reporting currency (GA4 returns it with every report).
- * Several country properties of one client (Elfi: .de, .uk, .com.br) report
- * revenue in their own money, which must become złoty before it is summed.
- * null when GA4 doesn't say.
- */
-export async function getPropertyCurrency(auth: Ga4Auth, propertyId: string): Promise<string | null> {
-  const data = await runReport(auth, propertyId, {
-    dateRanges: [{ startDate: "yesterday", endDate: "yesterday" }],
-    metrics: [{ name: "sessions" }],
-    limit: 1,
-  });
-  const code = (data as { metadata?: { currencyCode?: string | null } }).metadata?.currencyCode;
-  return code && /^[A-Za-z]{3}$/.test(code) ? code.toUpperCase() : null;
 }
 
 export async function getSessionsBySourceMedium(
