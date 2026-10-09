@@ -112,7 +112,7 @@ export function GalleryCard({
     ...(video?.hook != null
       ? [
           {
-            label: en ? "Watched 3s+" : "Oglądane 3 s+",
+            label: en ? "Watched 3s+" : "Oglądane 3 s+",
             value: formatPercent(video.hook * 100, 0),
             cls: tone(hookRatio),
             hint: en

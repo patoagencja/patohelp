@@ -557,7 +557,8 @@ export function AbTestsExplorer({
             there: say once what it is, then speak of tests. */}
         <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-3">
           Każdy test to jeden zestaw reklam w Meta - kilka wersji reklamy pokazywanych tym samym osobom z jednego
-          budżetu. Zaznacz 2-4 reklamy, żeby porównać je obok siebie.
+          budżetu. „Szansa” mówi, jak pewne jest, że różnica to nie przypadek: od 95% wynik uznajemy za pewny.
+          Zaznacz 2-4 reklamy, żeby porównać je obok siebie.
         </p>
       </div>
 

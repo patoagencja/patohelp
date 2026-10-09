@@ -209,7 +209,7 @@ export function CreativesPodium({
                   />
                   {hook != null ? (
                     <MiniStat
-                      label={en ? "Watched 3s+" : "Oglądane 3 s+"}
+                      label={en ? "Watched 3s+" : "Oglądane 3 s+"}
                       value={formatPercent(hook * 100, 0)}
                       hot={primary === "hook"}
                     />

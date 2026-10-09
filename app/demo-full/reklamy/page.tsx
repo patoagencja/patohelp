@@ -16,28 +16,28 @@ import { getDemoDashboard } from "@/lib/demo/data";
 export const dynamic = "force-dynamic";
 
 // Demo search terms for lokalnepomidorki, the online vegetable shop:
-// [phrase, impressions, clicks, cost in grosze]. "warzywa" recurs on purpose:
-// the search-terms card drops a word that is in nearly every phrase.
+// [phrase, impressions, clicks, cost in grosze]. A subset of the two Search
+// campaigns' clicks and cost in the table; "dostawa" leads the topics.
 const DEMO_SEARCH_TERMS: SearchTermRow[] = (
   [
-    ["warzywa z dostawą do domu", 9840, 612, 104_040],
-    ["skrzynka warzyw", 7320, 418, 79_420],
+    ["dostawa warzyw", 9840, 612, 104_040],
+    ["skrzynka warzywna", 7320, 418, 79_420],
     ["warzywa od rolnika warszawa", 3110, 287, 51_660],
     ["pomidory malinowe sklep internetowy", 4580, 254, 38_100],
     ["dostawa warzyw cena", 6900, 241, 40_970],
-    ["ekologiczne warzywa z dostawą", 3870, 196, 37_240],
+    ["ekologiczne warzywa dostawa", 3870, 196, 37_240],
     ["pomidory na przetwory 10 kg", 2240, 171, 22_230],
-    ["skrzynka warzyw abonament", 2950, 158, 30_020],
+    ["skrzynka warzywna abonament", 2950, 158, 30_020],
     ["warzywa online kraków", 3420, 142, 25_560],
     ["lokalne pomidory", 1980, 131, 9_170],
-    ["kapusta do kiszenia zamówienie", 2610, 119, 14_280],
+    ["kapusta do kiszenia", 2610, 119, 14_280],
     ["warzywa sezonowe dostawa jutro", 2130, 104, 19_760],
     ["passata domowa", 1760, 88, 10_560],
-    ["owoce i warzywa z dostawą", 1540, 81, 15_390],
+    ["owoce i warzywa dostawa", 1540, 81, 15_390],
     ["warzywa promocja", 2890, 76, 9_880],
     ["pomidory koktajlowe kolorowe", 940, 63, 8_190],
     ["dostawa warzyw opinie", 1210, 57, 10_830],
-    ["ziemniaki 15 kg z dostawą", 1330, 52, 7_800],
+    ["ziemniaki 15 kg dostawa", 1330, 52, 7_800],
     ["warzywniak online", 880, 49, 9_310],
     ["warzywa bez chemii", 1090, 41, 6_970],
   ] as const
