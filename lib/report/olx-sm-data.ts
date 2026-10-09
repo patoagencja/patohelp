@@ -1,9 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 
+import { syncCached } from "@/lib/dashboard/sync-cache";
 import { matchesFilter, type CampaignFilter } from "@/lib/report/segment-data";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchAll } from "@/lib/supabase/fetch-all";
+import { fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import type { AdProvider } from "@/lib/types";
 
 // Data assembly for the monthly OLX Social Media PPTX report. Aggregates
@@ -66,6 +67,15 @@ export interface OlxSmReportData {
   creativesTraffic: CreativeCell[]; // Meta top by clicks
   ai: AiSections;
 }
+
+/** Everything but the AI-written sections. */
+export type OlxSmReportBase = Omit<OlxSmReportData, "ai">;
+
+/** What one month's synced rows add up to (cached per sync stamp). */
+type OlxSmMonthNumbers = Omit<
+  OlxSmReportBase,
+  "clientName" | "periodLabel" | "monthLabel" | "monthCode"
+>;
 
 const MONTHS_PL = [
   "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
@@ -210,44 +220,76 @@ async function generateAiSections(
   }
 }
 
-/**
- * Assemble everything the OLX SM monthly deck needs for the month containing
- * `monthDate` (defaults to the previous calendar month).
- */
-export async function getOlxSmReportData(
-  clientId: string,
-  clientName: string,
-  monthDate?: Date,
-  // Optional per-segment scope (the 14 OLX decks): only campaigns whose name
-  // matches the filter feed the numbers, creatives and AI narrative.
-  filter?: CampaignFilter
-): Promise<OlxSmReportData> {
-  const admin = createAdminClient();
+interface ReportMonth {
+  monthStart: Date;
+  monthEnd: Date;
+  /** 3-month lookback. */
+  fetchStart: Date;
+  /** yyyy-MM */
+  targetKey: string;
+}
 
+/** The month containing `monthDate` (defaults to the previous calendar month). */
+function resolveMonth(monthDate?: Date): ReportMonth {
   const target = monthDate ?? subMonths(new Date(), 1);
   const monthStart = startOfMonth(target);
-  const monthEnd = endOfMonth(target);
-  const fetchStart = startOfMonth(subMonths(target, 2)); // 3-month lookback
+  return {
+    monthStart,
+    monthEnd: endOfMonth(target),
+    fetchStart: startOfMonth(subMonths(target, 2)),
+    targetKey: format(monthStart, "yyyy-MM"),
+  };
+}
 
+const filterKeyOf = (filter?: CampaignFilter) =>
+  filter
+    ? `:${[...(filter.all_of ?? []), "|", ...(filter.any_of ?? [])].join("+").toLowerCase()}`
+    : "";
+
+/**
+ * The numbers and creatives of one month. Reads side by side: three months
+ * of ads_daily (~70 000 rows for OLX) in two-week chunks - one OFFSET-paged
+ * read re-walked every earlier page for each new one - and the creatives.
+ */
+async function computeMonthNumbers(
+  clientId: string,
+  month: ReportMonth,
+  filter?: CampaignFilter
+): Promise<OlxSmMonthNumbers> {
+  const admin = createAdminClient();
+  const { monthStart, monthEnd, fetchStart, targetKey } = month;
   const fmtIso = (d: Date) => format(d, "yyyy-MM-dd");
-  const fmtDot = (d: Date) => format(d, "dd.MM.yyyy");
 
-  const rows = await fetchAll<Record<string, unknown>>((from, to) =>
+  const [rows, { data: creativeRows }] = await Promise.all([
+    // Ordered by date first, so the chunks concatenate to exactly the rows
+    // (and order) of one read of the window.
+    fetchAllByDateChunks<Record<string, unknown>>(fmtIso(fetchStart), fmtIso(monthEnd), 14, (s, e) =>
+      (from, to) =>
+        admin
+          .from("ads_daily")
+          .select("provider, campaign_id, campaign_name, date, spend_minor_units, impressions, clicks, reach")
+          .eq("client_id", clientId)
+          .gte("date", s)
+          .lte("date", e)
+          .order("date", { ascending: true })
+          .order("provider", { ascending: true })
+          .order("campaign_id", { ascending: true })
+          .range(from, to)
+    ),
+    // Creatives (Meta only in the creatives table today). Ad names follow the
+    // same naming convention, so the segment filter applies to them too; fetch
+    // wide and narrow in JS since the filter is substring-based.
     admin
-      .from("ads_daily")
-      .select("provider, campaign_id, campaign_name, date, spend_minor_units, impressions, clicks, reach")
+      .from("creatives")
+      .select("ad_name, thumbnail_url, spend_minor_units, clicks, impressions, ctr")
       .eq("client_id", clientId)
-      .gte("date", fmtIso(fetchStart))
-      .lte("date", fmtIso(monthEnd))
-      .order("date", { ascending: true })
-      .order("provider", { ascending: true })
-      .order("campaign_id", { ascending: true })
-      .range(from, to)
-  );
+      .eq("provider", "meta_ads")
+      .order("spend_minor_units", { ascending: false })
+      .limit(filter ? 200 : 12),
+  ]);
 
   // Aggregate per provider per month-bucket, and per campaign for the target month.
   const monthKey = (d: string) => d.slice(0, 7); // yyyy-MM
-  const targetKey = format(monthStart, "yyyy-MM");
   const byProviderMonth = new Map<string, Agg>();
   const byCampaign = new Map<string, { provider: AdProvider; name: string; cost: number }>();
 
@@ -314,17 +356,6 @@ export async function getOlxSmReportData(
     ? withFreq.reduce((m, c) => (c.frequency! > m.frequency! ? c : m))
     : null;
 
-  // Creatives (Meta only in the creatives table today). Ad names follow the
-  // same naming convention, so the segment filter applies to them too; fetch
-  // wide and narrow in JS since the filter is substring-based.
-  const { data: creativeRows } = await admin
-    .from("creatives")
-    .select("ad_name, thumbnail_url, spend_minor_units, clicks, impressions, ctr")
-    .eq("client_id", clientId)
-    .eq("provider", "meta_ads")
-    .order("spend_minor_units", { ascending: false })
-    .limit(filter ? 200 : 12);
-
   const creatives = (creativeRows ?? []).filter(
     (c) => !filter || matchesFilter((c.ad_name as string) || "", filter)
   );
@@ -348,52 +379,7 @@ export async function getOlxSmReportData(
     ? parseNaming(topCampaignNames[0].name)
     : [];
 
-  // AI sections are cached per client+month (report_cache) so viewing the
-  // report tab doesn't re-run the LLM. Cache errors (e.g. table not yet
-  // migrated) degrade to generating fresh each time.
-  const filterKey = filter
-    ? `:${[...(filter.all_of ?? []), "|", ...(filter.any_of ?? [])].join("+").toLowerCase()}`
-    : "";
-  const cacheKey = `olx-sm-ai:${targetKey}${filterKey}`;
-  let ai: AiSections | null = null;
-  try {
-    const { data: cached } = await admin
-      .from("report_cache")
-      .select("payload")
-      .eq("client_id", clientId)
-      .eq("cache_key", cacheKey)
-      .maybeSingle();
-    if (cached?.payload) ai = cached.payload as unknown as AiSections;
-  } catch {
-    // table missing - ignore
-  }
-  if (!ai) {
-    ai = await generateAiSections(
-      `${MONTHS_PL[monthStart.getMonth()]} ${monthStart.getFullYear()}`,
-      channels,
-      lookback,
-      topCampaignNames
-    );
-    try {
-      await admin.from("report_cache").upsert(
-        {
-          client_id: clientId,
-          cache_key: cacheKey,
-          payload: ai as unknown as Record<string, unknown>,
-          generated_at: new Date().toISOString(),
-        },
-        { onConflict: "client_id,cache_key" }
-      );
-    } catch {
-      // table missing - ignore
-    }
-  }
-
   return {
-    clientName,
-    periodLabel: `${fmtDot(monthStart)}-${fmtDot(monthEnd)}`,
-    monthLabel: `${MONTHS_PL[monthStart.getMonth()]} ${monthStart.getFullYear()}`,
-    monthCode: `${MONTH_CODES[monthStart.getMonth()]}_${monthStart.getFullYear()}`,
     channels,
     totalCost,
     totalReach,
@@ -406,6 +392,99 @@ export async function getOlxSmReportData(
     namingSegments,
     creativesReach,
     creativesTraffic,
-    ai,
   };
+}
+
+/**
+ * The OLX SM monthly deck in two parts a page can render separately:
+ *
+ * - `base`: the numbers and creatives, shared per month across views (and
+ *   the PPTX routes) until the next sync lands - a past month barely moves,
+ *   but a backfill can still fill a hole in it, so the sync stamp stays in
+ *   the key.
+ * - `ai`: the narrative sections, cached per client+month (report_cache) so
+ *   viewing the report doesn't re-run the LLM. That lookup runs alongside
+ *   the numbers; only a miss waits for them (the prompt is built from them)
+ *   and then calls Claude (15-40 s). Cache errors (e.g. table not yet
+ *   migrated) degrade to generating fresh each time. Never rejects on its
+ *   own account; it does when `base` does.
+ */
+export function loadOlxSmReport(
+  clientId: string,
+  clientName: string,
+  monthDate?: Date,
+  // Optional per-segment scope (the 14 OLX decks): only campaigns whose name
+  // matches the filter feed the numbers, creatives and AI narrative.
+  filter?: CampaignFilter
+): { base: Promise<OlxSmReportBase>; ai: Promise<AiSections> } {
+  const month = resolveMonth(monthDate);
+  const { monthStart, monthEnd, targetKey } = month;
+  const filterKey = filterKeyOf(filter);
+  const fmtDot = (d: Date) => format(d, "dd.MM.yyyy");
+  const monthLabel = `${MONTHS_PL[monthStart.getMonth()]} ${monthStart.getFullYear()}`;
+
+  const base: Promise<OlxSmReportBase> = syncCached(
+    "olx-sm-month",
+    clientId,
+    [targetKey, filterKey],
+    () => computeMonthNumbers(clientId, month, filter)
+  ).then((numbers) => ({
+    clientName,
+    periodLabel: `${fmtDot(monthStart)}-${fmtDot(monthEnd)}`,
+    monthLabel,
+    monthCode: `${MONTH_CODES[monthStart.getMonth()]}_${monthStart.getFullYear()}`,
+    ...numbers,
+  }));
+
+  const admin = createAdminClient();
+  const cacheKey = `olx-sm-ai:${targetKey}${filterKey}`;
+  const stored = (async (): Promise<AiSections | null> => {
+    try {
+      const { data: cached } = await admin
+        .from("report_cache")
+        .select("payload")
+        .eq("client_id", clientId)
+        .eq("cache_key", cacheKey)
+        .maybeSingle();
+      return cached?.payload ? (cached.payload as unknown as AiSections) : null;
+    } catch {
+      // table missing - ignore
+      return null;
+    }
+  })();
+  const ai = stored.then(async (hit) => {
+    if (hit) return hit;
+    const { channels, lookback, topCampaignNames } = await base;
+    const fresh = await generateAiSections(monthLabel, channels, lookback, topCampaignNames);
+    try {
+      await admin.from("report_cache").upsert(
+        {
+          client_id: clientId,
+          cache_key: cacheKey,
+          payload: fresh as unknown as Record<string, unknown>,
+          generated_at: new Date().toISOString(),
+        },
+        { onConflict: "client_id,cache_key" }
+      );
+    } catch {
+      // table missing - ignore
+    }
+    return fresh;
+  });
+  return { base, ai };
+}
+
+/**
+ * Assemble everything the OLX SM monthly deck needs for the month containing
+ * `monthDate` (defaults to the previous calendar month).
+ */
+export async function getOlxSmReportData(
+  clientId: string,
+  clientName: string,
+  monthDate?: Date,
+  filter?: CampaignFilter
+): Promise<OlxSmReportData> {
+  const { base, ai } = loadOlxSmReport(clientId, clientName, monthDate, filter);
+  const [numbers, sections] = await Promise.all([base, ai]);
+  return { ...numbers, ai: sections };
 }

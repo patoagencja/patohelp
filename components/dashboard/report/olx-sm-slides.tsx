@@ -1,11 +1,15 @@
-import { Fragment } from "react";
+import { Fragment, Suspense } from "react";
 
 import {
   ContentSlide,
   Slide,
   Stat,
 } from "@/components/dashboard/report/deck";
-import type { OlxSmReportData } from "@/lib/report/olx-sm-data";
+import type {
+  AiSections,
+  OlxSmReportBase,
+  OlxSmReportData,
+} from "@/lib/report/olx-sm-data";
 import { numCompact, numFmt, plnCompact, plnFmt } from "@/lib/report/olx-sm-data";
 import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -56,8 +60,38 @@ function Td({
   );
 }
 
+/**
+ * The deck's data. `ai` may still be on its way: on a report_cache miss it
+ * is a Claude call (15-40 s), so its three slides stream in behind
+ * <Suspense> while every number is already on screen.
+ */
+export type OlxSmSlidesData = OlxSmReportBase & {
+  ai: AiSections | Promise<AiSections>;
+};
+
+/** Holds an AI slide's place (same section and title) until the text lands. */
+function AiPendingSlide({
+  section,
+  title,
+  subtitle,
+  foot,
+}: {
+  section: string;
+  title: string;
+  subtitle: string;
+  foot: string;
+}) {
+  return (
+    <ContentSlide section={section} title={title} subtitle={subtitle} foot={foot}>
+      <p className="animate-pulse text-sm text-slate-500 motion-reduce:animate-none">
+        Przygotowuję analizę AI…
+      </p>
+    </ContentSlide>
+  );
+}
+
 /** Cover in OLX brand dark teal. */
-function OlxCover({ data }: { data: OlxSmReportData }) {
+function OlxCover({ data }: { data: OlxSmReportBase }) {
   return (
     <Slide dark className="justify-between p-12" key="cover">
       <div
@@ -115,7 +149,191 @@ function OlxCover({ data }: { data: OlxSmReportData }) {
   );
 }
 
-export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNode[] {
+async function DeepDiveSlide({
+  ai: aiPromise,
+  foot,
+}: {
+  ai: AiSections | Promise<AiSections>;
+  foot: string;
+}) {
+  const ai = await aiPromise;
+  return (
+    <ContentSlide
+      section="4 · Deep Dive"
+      title="Deep Dive"
+      subtitle="Analiza per kanał · flagi · pytania do OLX"
+      foot={foot}
+    >
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="grid min-h-0 flex-1 grid-cols-3 gap-4">
+          {(
+            [
+              ["Meta", ai.metaFlag, ai.metaBullets],
+              ["TikTok", ai.tiktokFlag, ai.tiktokBullets],
+              ["Kampanie / kategorie", ai.categoriesFlag, ai.categoriesBullets],
+            ] as Array<[string, string, string[]]>
+          ).map(([title, flag, bullets]) => (
+            <div
+              key={title}
+              className="min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4"
+            >
+              <p className="text-sm font-bold text-slate-800">{title}</p>
+              <div className="mt-1.5">
+                <FlagChip flag={flag} />
+              </div>
+              <ul className="mt-2.5 space-y-1.5">
+                {bullets.slice(0, 4).map((b, i) => (
+                  <li key={i} className="flex gap-2 text-[11px] leading-snug text-slate-600">
+                    <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-teal-500" />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="shrink-0 rounded-xl bg-[#002F34] px-5 py-3 text-xs leading-relaxed text-white">
+          <span className="font-bold text-teal-300">PYTANIA / DECYZJE DLA OLX: </span>
+          {ai.questions}
+        </div>
+      </div>
+    </ContentSlide>
+  );
+}
+
+async function LearningsSlide({
+  ai: aiPromise,
+  foot,
+}: {
+  ai: AiSections | Promise<AiSections>;
+  foot: string;
+}) {
+  const ai = await aiPromise;
+  return (
+    <ContentSlide
+      section="5 · Learnings & Reco"
+      title="Learnings & Recommendations"
+      subtitle="Co zadziałało · co robić dalej · priorytety"
+      foot={foot}
+    >
+      <div className="grid h-full grid-cols-2 gap-6">
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-teal-600">
+            Key learnings
+          </p>
+          <div className="space-y-3">
+            {ai.learnings.slice(0, 3).map((l, i) => (
+              <div key={i} className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <span className="text-lg font-black text-teal-600">L{i + 1}</span>
+                <p className="text-sm leading-relaxed text-slate-700">{l}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-teal-600">
+            Recommendations
+          </p>
+          <div className="space-y-3">
+            {ai.recommendations.slice(0, 3).map((r, i) => (
+              <div key={i} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <span
+                  className={cn(
+                    "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold",
+                    r.priority === "HIGH"
+                      ? "bg-teal-600 text-white"
+                      : "bg-slate-200 text-slate-700"
+                  )}
+                >
+                  {r.priority}
+                </span>
+                <p className="text-sm leading-relaxed text-slate-700">{r.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </ContentSlide>
+  );
+}
+
+function AiBlockFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <Slide dark className="p-12">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "#002F34" }}
+      />
+      <div className="relative flex h-full flex-col">
+        <div className="flex items-center justify-between">
+          <h3 className="text-3xl font-bold text-white">AI Summary Block</h3>
+          <span className="rounded-md bg-teal-300 px-2.5 py-1 text-sm font-black text-[#002F34]">
+            6
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-slate-400">
+          Machine-readable - generowane automatycznie z Kaleido.
+        </p>
+        {children}
+      </div>
+    </Slide>
+  );
+}
+
+async function AiBlockSlide({
+  data,
+  ai: aiPromise,
+}: {
+  data: OlxSmReportBase;
+  ai: AiSections | Promise<AiSections>;
+}) {
+  const ai = await aiPromise;
+  return (
+    <AiBlockFrame>
+      <div className="mt-6 grid flex-1 grid-cols-[auto_1fr] content-start gap-x-8 gap-y-2.5 font-mono text-[13px]">
+        {(
+          [
+            ["REPORT_ID", `OLX_SM_${data.monthCode}`],
+            ["PERIOD", data.periodLabel],
+            ["CHANNELS", data.channels.map((c) => PROVIDER_SHORT[c.provider]).join(".") || "-"],
+            [
+              "BUDGET_SPENT",
+              `${plnFmt(data.totalCost)} (${data.channels
+                .map((c) => `${PROVIDER_SHORT[c.provider]}: ${plnFmt(c.cost)}`)
+                .join(" · ")})`,
+            ],
+            [
+              "TOP_CPM",
+              data.bestCpm
+                ? `${PROVIDER_SHORT[data.bestCpm.provider]}: ${plnFmt(Math.round(data.bestCpm.cpm))}`
+                : "-",
+            ],
+            [
+              "TOP_REACH",
+              data.totalReach > 0 ? `Total: ${numFmt(data.totalReach)} (bez dedup.)` : "-",
+            ],
+            ["MAIN_LEARNING_1", ai.mainLearnings[0] ?? "-"],
+            ["MAIN_LEARNING_2", ai.mainLearnings[1] ?? "-"],
+            ["MAIN_LEARNING_3", ai.mainLearnings[2] ?? "-"],
+            ["FLAG_ANOMALY", ai.flagAnomaly],
+            ["TREND_VS_PREV_MONTH", ai.trendVsPrev],
+            ["AGENCY_CODE", "PATO"],
+          ] as Array<[string, string]>
+        ).map(([k, v]) => (
+          <Fragment key={k}>
+            <span className="font-bold text-teal-300">{k}:</span>
+            <span className="break-words text-slate-100">{v}</span>
+          </Fragment>
+        ))}
+      </div>
+    </AiBlockFrame>
+  );
+}
+
+export function olxSmSlides(
+  data: OlxSmSlidesData | OlxSmReportData,
+  foot: string
+): React.ReactNode[] {
   const channelLabel = (p: AdProvider) => AD_PROVIDER_LABEL[p];
 
   return [
@@ -348,149 +566,46 @@ export function olxSmSlides(data: OlxSmReportData, foot: string): React.ReactNod
       </div>
     </ContentSlide>,
 
-    // ---- 4. Deep Dive ----
-    <ContentSlide
+    // ---- 4-6: written by AI - streamed in when it lands ----
+    <Suspense
       key="deepdive"
-      section="4 · Deep Dive"
-      title="Deep Dive"
-      subtitle="Analiza per kanał · flagi · pytania do OLX"
-      foot={foot}
+      fallback={
+        <AiPendingSlide
+          section="4 · Deep Dive"
+          title="Deep Dive"
+          subtitle="Analiza per kanał · flagi · pytania do OLX"
+          foot={foot}
+        />
+      }
     >
-      <div className="flex h-full min-h-0 flex-col gap-4">
-        <div className="grid min-h-0 flex-1 grid-cols-3 gap-4">
-          {(
-            [
-              ["Meta", data.ai.metaFlag, data.ai.metaBullets],
-              ["TikTok", data.ai.tiktokFlag, data.ai.tiktokBullets],
-              ["Kampanie / kategorie", data.ai.categoriesFlag, data.ai.categoriesBullets],
-            ] as Array<[string, string, string[]]>
-          ).map(([title, flag, bullets]) => (
-            <div
-              key={title}
-              className="min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4"
-            >
-              <p className="text-sm font-bold text-slate-800">{title}</p>
-              <div className="mt-1.5">
-                <FlagChip flag={flag} />
-              </div>
-              <ul className="mt-2.5 space-y-1.5">
-                {bullets.slice(0, 4).map((b, i) => (
-                  <li key={i} className="flex gap-2 text-[11px] leading-snug text-slate-600">
-                    <span className="mt-1.5 inline-block h-1 w-1 shrink-0 rounded-full bg-teal-500" />
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <div className="shrink-0 rounded-xl bg-[#002F34] px-5 py-3 text-xs leading-relaxed text-white">
-          <span className="font-bold text-teal-300">PYTANIA / DECYZJE DLA OLX: </span>
-          {data.ai.questions}
-        </div>
-      </div>
-    </ContentSlide>,
+      <DeepDiveSlide ai={data.ai} foot={foot} />
+    </Suspense>,
 
-    // ---- 5. Learnings & Recommendations ----
-    <ContentSlide
+    <Suspense
       key="learnings"
-      section="5 · Learnings & Reco"
-      title="Learnings & Recommendations"
-      subtitle="Co zadziałało · co robić dalej · priorytety"
-      foot={foot}
+      fallback={
+        <AiPendingSlide
+          section="5 · Learnings & Reco"
+          title="Learnings & Recommendations"
+          subtitle="Co zadziałało · co robić dalej · priorytety"
+          foot={foot}
+        />
+      }
     >
-      <div className="grid h-full grid-cols-2 gap-6">
-        <div>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-teal-600">
-            Key learnings
-          </p>
-          <div className="space-y-3">
-            {data.ai.learnings.slice(0, 3).map((l, i) => (
-              <div key={i} className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <span className="text-lg font-black text-teal-600">L{i + 1}</span>
-                <p className="text-sm leading-relaxed text-slate-700">{l}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-teal-600">
-            Recommendations
-          </p>
-          <div className="space-y-3">
-            {data.ai.recommendations.slice(0, 3).map((r, i) => (
-              <div key={i} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <span
-                  className={cn(
-                    "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold",
-                    r.priority === "HIGH"
-                      ? "bg-teal-600 text-white"
-                      : "bg-slate-200 text-slate-700"
-                  )}
-                >
-                  {r.priority}
-                </span>
-                <p className="text-sm leading-relaxed text-slate-700">{r.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </ContentSlide>,
+      <LearningsSlide ai={data.ai} foot={foot} />
+    </Suspense>,
 
-    // ---- 6. AI Summary Block ----
-    <Slide key="aiblock" dark className="p-12">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "#002F34" }}
-      />
-      <div className="relative flex h-full flex-col">
-        <div className="flex items-center justify-between">
-          <h3 className="text-3xl font-bold text-white">AI Summary Block</h3>
-          <span className="rounded-md bg-teal-300 px-2.5 py-1 text-sm font-black text-[#002F34]">
-            6
-          </span>
-        </div>
-        <p className="mt-1 text-sm text-slate-400">
-          Machine-readable - generowane automatycznie z Kaleido.
-        </p>
-        <div className="mt-6 grid flex-1 grid-cols-[auto_1fr] content-start gap-x-8 gap-y-2.5 font-mono text-[13px]">
-          {(
-            [
-              ["REPORT_ID", `OLX_SM_${data.monthCode}`],
-              ["PERIOD", data.periodLabel],
-              ["CHANNELS", data.channels.map((c) => PROVIDER_SHORT[c.provider]).join(".") || "-"],
-              [
-                "BUDGET_SPENT",
-                `${plnFmt(data.totalCost)} (${data.channels
-                  .map((c) => `${PROVIDER_SHORT[c.provider]}: ${plnFmt(c.cost)}`)
-                  .join(" · ")})`,
-              ],
-              [
-                "TOP_CPM",
-                data.bestCpm
-                  ? `${PROVIDER_SHORT[data.bestCpm.provider]}: ${plnFmt(Math.round(data.bestCpm.cpm))}`
-                  : "-",
-              ],
-              [
-                "TOP_REACH",
-                data.totalReach > 0 ? `Total: ${numFmt(data.totalReach)} (bez dedup.)` : "-",
-              ],
-              ["MAIN_LEARNING_1", data.ai.mainLearnings[0] ?? "-"],
-              ["MAIN_LEARNING_2", data.ai.mainLearnings[1] ?? "-"],
-              ["MAIN_LEARNING_3", data.ai.mainLearnings[2] ?? "-"],
-              ["FLAG_ANOMALY", data.ai.flagAnomaly],
-              ["TREND_VS_PREV_MONTH", data.ai.trendVsPrev],
-              ["AGENCY_CODE", "PATO"],
-            ] as Array<[string, string]>
-          ).map(([k, v]) => (
-            <Fragment key={k}>
-              <span className="font-bold text-teal-300">{k}:</span>
-              <span className="break-words text-slate-100">{v}</span>
-            </Fragment>
-          ))}
-        </div>
-      </div>
-    </Slide>,
+    <Suspense
+      key="aiblock"
+      fallback={
+        <AiBlockFrame>
+          <p className="mt-6 animate-pulse text-sm text-slate-400 motion-reduce:animate-none">
+            Przygotowuję analizę AI…
+          </p>
+        </AiBlockFrame>
+      }
+    >
+      <AiBlockSlide data={data} ai={data.ai} />
+    </Suspense>,
   ];
 }

@@ -21,7 +21,7 @@ import { ShareCopyButton } from "../settings/share-copy-button";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
-import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
+import { loadOlxSmReport } from "@/lib/report/olx-sm-data";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { clientLogo } from "@/components/dashboard/client-logo";
 import { regionPL } from "@/components/dashboard/website/audience";
@@ -272,10 +272,14 @@ export default async function RaportPage({
       monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)
         ? new Date(`${monthParam}-15T00:00:00`)
         : undefined;
-    const [sm, { isAgency }] = await Promise.all([
-      getOlxSmReportData(client.id, client.name, monthDate),
-      viewerPromise,
-    ]);
+    // The numbers (cached per month until the next sync) gate the page; the
+    // AI-written slides stream in behind <Suspense> - on a report_cache miss
+    // they are a 15-40 s Claude call that used to hold the whole page.
+    const report = loadOlxSmReport(client.id, client.name, monthDate);
+    // Awaited inside the AI slides; this only stops Node flagging it as
+    // unhandled when the numbers fail first (the page errors on those).
+    report.ai.catch(() => {});
+    const [sm, { isAgency }] = await Promise.all([report.base, viewerPromise]);
     const smFoot = `${client.name} · ${sm.periodLabel} · patoagencja`;
 
     return (
@@ -330,7 +334,7 @@ export default async function RaportPage({
           rangeLabel={sm.monthLabel}
           foot={smFoot}
         >
-          {olxSmSlides(sm, smFoot)}
+          {olxSmSlides({ ...sm, ai: report.ai }, smFoot)}
         </ReportDeck>
       </div>
     );

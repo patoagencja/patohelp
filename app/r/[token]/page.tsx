@@ -6,7 +6,7 @@ import { olxSmSlides } from "@/components/dashboard/report/olx-sm-slides";
 import { AgencySignature, AgencyWatermark } from "@/components/ui/agency-mark";
 import { Sky } from "@/components/ui/sky";
 import { ReportDeck } from "@/components/dashboard/report/report-deck";
-import { getOlxSmReportData } from "@/lib/report/olx-sm-data";
+import { loadOlxSmReport } from "@/lib/report/olx-sm-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Public, read-only report view behind an unguessable token (see share_links).
@@ -66,7 +66,10 @@ export default async function SharedReportPage({
     monthParam <= currentMonth;
   const monthDate = monthOk ? new Date(`${monthParam}-15T00:00:00`) : undefined;
 
-  const sm = await getOlxSmReportData(client.id, client.name, monthDate);
+  // Same deck as the Raporty tab: numbers first, AI slides streamed in.
+  const report = loadOlxSmReport(client.id, client.name, monthDate);
+  report.ai.catch(() => {});
+  const sm = await report.base;
   const foot = `${client.name} · ${sm.periodLabel} · patoagencja`;
 
   return (
@@ -95,7 +98,7 @@ export default async function SharedReportPage({
           foot={foot}
           shareMode
         >
-          {olxSmSlides(sm, foot)}
+          {olxSmSlides({ ...sm, ai: report.ai }, foot)}
         </ReportDeck>
       </main>
 
