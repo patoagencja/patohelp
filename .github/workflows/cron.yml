@@ -27,13 +27,26 @@ on:
 # is idempotent even if they did.
 #
 # LOGS ARE PUBLIC (public repo). Response bodies carry client ids, ad account
-# ids and error texts, so every job prints only the HTTP status and the
-# top-level numbers / booleans of the body (counts, "ok") - never the body.
+# ids and error texts, so every job prints only the HTTP status, the
+# top-level numbers / booleans of the body (counts, "ok") and the LENGTH of
+# its `errors` array, if it has one - never the body.
 #
 # The Meta-heavy jobs start staggered (data sync at once - refresh-ads-meta
 # first -, ad sets after 60 s, creative tests after 150 s): Meta's limits are
 # per ad account, and three heavy readers hitting the same accounts in the
 # same second is what trips them.
+#
+# Retries: an endpoint is called a second time only when the first call got
+# no answer at all (connection error) or a 5xx. Never after curl's own
+# timeout (exit 28): the function is then most likely still running, and the
+# retry started a second, overlapping run of it - on the same Meta accounts,
+# which is what tripped the rate limits.
+
+env:
+  # Status line of a response (public logs): numbers and booleans, plus the
+  # number of entries in `errors` (the texts carry client data).
+  SUMMARY_JQ: 'if type == "object" then with_entries(select(.value | type == "number" or type == "boolean")) + (if (.errors | type) == "array" then {errors: (.errors | length)} else {} end) else {} end'
+  ERRORS_JQ: 'if type == "object" and (.errors | type) == "array" then (.errors | length) else 0 end'
 
 jobs:
   sync:
@@ -55,30 +68,104 @@ jobs:
 
       # Fast, idempotent data pulls. These must stay green - a failure here
       # means the dashboard is going stale, so it turns the run red.
-      - name: Data sync (ads, ga4, creatives, demographics, alerts)
+      - name: Data sync (ads, ga4, creatives, demographics)
         run: |
-          # Status + top-level counts only (public logs, see the header).
           summary() {
-            jq -c 'if type == "object" then with_entries(select(.value | type == "number" or type == "boolean")) else {} end' /tmp/body 2>/dev/null | head -c 300 || true
+            jq -c "$SUMMARY_JQ" /tmp/body 2>/dev/null | head -c 300 || true
+          }
+          # call_endpoint <job> [max seconds]: retry policy in the header.
+          call_endpoint() {
+            job=$1; max=${2:-90}
+            for attempt in 1 2; do
+              rm -f /tmp/body
+              rc=0
+              code=$(curl -sS -m "$max" -o /tmp/body -w "%{http_code}" \
+                -H "Authorization: Bearer $CRON_SECRET" \
+                "$APP_URL/api/cron/$job" 2>/dev/null) || rc=$?
+              [ -n "$code" ] || code=000
+              echo "-> $job (attempt $attempt): HTTP $code $(summary)"
+              errs=$(jq -r "$ERRORS_JQ" /tmp/body 2>/dev/null || echo 0)
+              if [ "${errs:-0}" -gt 0 ] 2>/dev/null; then
+                echo "::warning::$job reported $errs error(s) in its response"
+              fi
+              if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then return 0; fi
+              if [ "$rc" -eq 28 ]; then
+                echo "::warning::$job timed out after ${max} s - not retried (it is probably still running)"
+                return 1
+              fi
+              # 4xx (bad secret, missing route): a retry gets the same answer.
+              if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then return 1; fi
+              if [ "$attempt" -eq 1 ]; then sleep 5; fi
+            done
+            return 1
           }
           failed=""
           for job in refresh-ads-meta refresh-ads-google refresh-ads-tiktok \
-                     refresh-ga4 refresh-creatives-meta refresh-demographics \
-                     evaluate-alerts notify-alerts; do
-            ok=""
-            for attempt in 1 2; do
-              rm -f /tmp/body
-              code=$(curl -sS -m 90 -o /tmp/body -w "%{http_code}" \
-                -H "Authorization: Bearer $CRON_SECRET" \
-                "$APP_URL/api/cron/$job" 2>/dev/null || echo "000")
-              echo "-> $job (attempt $attempt): HTTP $code $(summary)"
-              if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then ok=1; break; fi
-              sleep 5
-            done
-            if [ -z "$ok" ]; then failed="$failed $job"; fi
+                     refresh-ga4 refresh-creatives-meta refresh-demographics; do
+            if ! call_endpoint "$job"; then failed="$failed $job"; fi
           done
           if [ -n "$failed" ]; then
             echo "::error::Data sync failed:$failed"
+            exit 1
+          fi
+
+  # Alerts in a job of their own. As the last two endpoints of `sync` they
+  # were the first thing the 12-minute job limit cut whenever the platform
+  # was slow (8 endpoints x 2 attempts x 95 s). They work from what is
+  # already in the database, so they need not wait for this tick's sync.
+  # Same retry policy and red-on-failure as the data sync.
+  alerts:
+    runs-on: ubuntu-latest
+    # 2 endpoints x up to 2 attempts (notify-alerts may take 120 s) + start-up.
+    timeout-minutes: 10
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Guard - secret present
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET repo secret is missing"; exit 1
+          fi
+
+      - name: Alerts (evaluate, then notify)
+        run: |
+          summary() {
+            jq -c "$SUMMARY_JQ" /tmp/body 2>/dev/null | head -c 300 || true
+          }
+          # call_endpoint <job> [max seconds]: retry policy in the header.
+          call_endpoint() {
+            job=$1; max=${2:-90}
+            for attempt in 1 2; do
+              rm -f /tmp/body
+              rc=0
+              code=$(curl -sS -m "$max" -o /tmp/body -w "%{http_code}" \
+                -H "Authorization: Bearer $CRON_SECRET" \
+                "$APP_URL/api/cron/$job" 2>/dev/null) || rc=$?
+              [ -n "$code" ] || code=000
+              echo "-> $job (attempt $attempt): HTTP $code $(summary)"
+              errs=$(jq -r "$ERRORS_JQ" /tmp/body 2>/dev/null || echo 0)
+              if [ "${errs:-0}" -gt 0 ] 2>/dev/null; then
+                echo "::warning::$job reported $errs error(s) in its response"
+              fi
+              if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then return 0; fi
+              if [ "$rc" -eq 28 ]; then
+                echo "::warning::$job timed out after ${max} s - not retried (it is probably still running)"
+                return 1
+              fi
+              # 4xx (bad secret, missing route): a retry gets the same answer.
+              if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then return 1; fi
+              if [ "$attempt" -eq 1 ]; then sleep 5; fi
+            done
+            return 1
+          }
+          failed=""
+          # Evaluate first: notify sends what evaluation found. notify-alerts
+          # has maxDuration 120, so its call may take that long.
+          call_endpoint evaluate-alerts || failed="$failed evaluate-alerts"
+          call_endpoint notify-alerts 125 || failed="$failed notify-alerts"
+          if [ -n "$failed" ]; then
+            echo "::error::Alerts failed:$failed"
             exit 1
           fi
 
@@ -100,11 +187,15 @@ jobs:
           code=$(curl -sS -m 290 -o /tmp/body -w "%{http_code}" \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/cron/refresh-adsets" 2>/dev/null || echo "000")
-          # Status + top-level counts only (public logs, see the header).
-          counts=$(jq -c 'if type == "object" then with_entries(select(.value | type == "number" or type == "boolean")) else {} end' /tmp/body 2>/dev/null | head -c 300 || true)
+          # Status, top-level counts, errors count only (public logs, see the header).
+          counts=$(jq -c "$SUMMARY_JQ" /tmp/body 2>/dev/null | head -c 300 || true)
           echo "-> refresh-adsets: HTTP $code $counts"
           if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
             echo "::warning::Ad set sync HTTP $code"
+          fi
+          errs=$(jq -r "$ERRORS_JQ" /tmp/body 2>/dev/null || echo 0)
+          if [ "${errs:-0}" -gt 0 ] 2>/dev/null; then
+            echo "::warning::Ad set sync reported $errs error(s)"
           fi
 
   # Ad x day rows with purchases for creative A/B tests (seasonal and
@@ -128,8 +219,8 @@ jobs:
           code=$(curl -sS -m 290 -o /tmp/body -w "%{http_code}" \
             -H "Authorization: Bearer $CRON_SECRET" \
             "$APP_URL/api/cron/refresh-ads-meta-ads" 2>/dev/null || echo "000")
-          # Status + top-level counts only (public logs, see the header).
-          counts=$(jq -c 'if type == "object" then with_entries(select(.value | type == "number" or type == "boolean")) else {} end' /tmp/body 2>/dev/null | head -c 300 || true)
+          # Status, top-level counts, errors count only (public logs, see the header).
+          counts=$(jq -c "$SUMMARY_JQ" /tmp/body 2>/dev/null | head -c 300 || true)
           echo "-> refresh-ads-meta-ads: HTTP $code $counts"
           if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
             echo "::warning::Ad-level sync HTTP $code"
@@ -168,8 +259,8 @@ jobs:
             code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
               -H "Authorization: Bearer $CRON_SECRET" \
               "$APP_URL/api/cron/$job" 2>/dev/null || echo "000")
-            # Status + top-level counts only (public logs, see the header).
-            counts=$(jq -c 'if type == "object" then with_entries(select(.value | type == "number" or type == "boolean")) else {} end' /tmp/body 2>/dev/null | head -c 300 || true)
+            # Status, top-level counts, errors count only (public logs, see the header).
+            counts=$(jq -c "$SUMMARY_JQ" /tmp/body 2>/dev/null | head -c 300 || true)
             echo "-> $job: HTTP $code $counts"
             if [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
               echo "::warning::$job returned HTTP $code (retried next tick)"
