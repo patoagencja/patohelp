@@ -216,12 +216,13 @@ async function sync(request: Request) {
     await newestAttemptByClient(admin, "google_ads", clientIds)
   );
   // Whose history turn it is: least recently served first.
-  const turnStamps = stampsByClient(
-    await readSyncStates<GoogleSyncState>(admin, clientIds, STATE_KEY),
-    (s) => s.historyTurnAt
-  );
+  const turnStates = await readSyncStates<GoogleSyncState>(admin, clientIds, STATE_KEY);
+  const turnStamps = stampsByClient(turnStates, (s) => s.historyTurnAt);
   const lastTurn = Math.max(0, ...turnStamps.values());
-  const reserveTurn = !onlyClient && clientIds.length > 0 && Date.now() - lastTurn > TURN_GAP_MS;
+  // Unreadable stamps say nothing about the last turn: no reservation then,
+  // or every run would start fewer clients for as long as the store is down.
+  const reserveTurn =
+    !onlyClient && turnStates !== null && clientIds.length > 0 && Date.now() - lastTurn > TURN_GAP_MS;
   if (reserveTurn) deadlineMs = RESERVED_DEADLINE_MS;
   const pending: PendingHistory[] = [];
   // client id -> its recorded outcome (sync/run reads its own client's).
