@@ -165,13 +165,15 @@ function pct0(fraction: number): number {
   return Math.round(fraction * 100);
 }
 
-/** "Zatrzymuje uwagę: w 34 na 100 wyświetleń ktoś ogląda dłużej niż 3 sekundy." */
+/** "Oglądane 3 s+: w 34 na 100 wyświetleń ktoś ogląda dłużej niż 3 sekundy." */
 export function hookSentence(hook: number, lang: Lang): string {
   // Phrased per 100 *views*, not people: both counts are per impression.
+  // Led by the figure's own label (gallery + podium), so the sentence and
+  // the number next to it don't go by two names.
   const n = pct0(hook);
   return lang === "en"
-    ? `Stops the scroll: in ${n} of every 100 views, people watch for more than 3 seconds.`
-    : `Zatrzymuje uwagę: w ${n} na 100 wyświetleń ktoś ogląda dłużej niż 3 sekundy.`;
+    ? `Watched 3s+: in ${n} of every 100 views, people watch for more than 3 seconds.`
+    : `Oglądane 3 s+: w ${n} na 100 wyświetleń ktoś ogląda dłużej niż 3 sekundy.`;
 }
 
 /** "Do końca dotrwało 12% oglądających." */

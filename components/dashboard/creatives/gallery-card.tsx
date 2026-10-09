@@ -91,6 +91,10 @@ export function GalleryCard({
       : null;
 
   // `top`: shown at the card's top right from sm, so the list skips it there.
+  // Short labels: on a phone two cards share the width and the panel has
+  // room for ~10 characters next to the figure ("Koszt kliknięcia" and
+  // "Zatrzymuje uwagę" were cut to "Koszt klik…"). The same words as the
+  // podium's figures.
   const stats: Array<{ label: string; value: string; cls: string; hint?: string; top?: boolean }> = [
     { label: en ? "Spend" : "Wydatki", value: formatPlnWhole(c.spend), cls: "" },
     {
@@ -99,15 +103,16 @@ export function GalleryCard({
       cls: tone(score.ctrRatio),
     },
     {
-      label: en ? "Cost per click" : "Koszt kliknięcia",
+      label: en ? "Per click" : "Za klik",
       value: cpc != null ? formatMoneyPLN(Math.round(cpc)) : "-",
       cls: tone(score.cpcRatio),
+      hint: en ? "Cost per click" : "Koszt kliknięcia",
       top: true,
     },
     ...(video?.hook != null
       ? [
           {
-            label: en ? "Stops the scroll" : "Zatrzymuje uwagę",
+            label: en ? "Watched 3s+" : "Oglądane 3 s+",
             value: formatPercent(video.hook * 100, 0),
             cls: tone(hookRatio),
             hint: en
@@ -148,8 +153,10 @@ export function GalleryCard({
       </CreativeThumb>
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 px-1">
         <div className="flex min-w-0 items-start justify-between gap-3">
+          {/* Three lines on phones: half a screen fits ~15 characters a
+              line, so two cut most real ad names mid-word. */}
           <p
-            className="line-clamp-2 min-h-[2.5rem] min-w-0 break-words text-[15px] font-medium leading-5"
+            className="line-clamp-3 min-h-[2.5rem] min-w-0 break-words text-[15px] font-medium leading-5 sm:line-clamp-2"
             title={c.name}
           >
             {c.name}
@@ -178,7 +185,8 @@ export function GalleryCard({
               className={cn("flex items-baseline justify-between gap-2", s.top && "sm:hidden")}
               title={s.hint}
             >
-              <dt className="truncate text-[11px] text-ink-3 sm:text-xs">
+              {/* Wraps rather than truncates if a label still doesn't fit. */}
+              <dt className="min-w-0 break-words text-[11px] leading-tight text-ink-3 sm:text-xs">
                 {s.label}
               </dt>
               <dd

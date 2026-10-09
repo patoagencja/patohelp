@@ -62,9 +62,11 @@ function AwardChip({ kind, lang }: { kind: AwardKind; lang: Lang }) {
 }
 
 function MiniStat({ label, value, hot }: { label: string; value: string; hot?: boolean }) {
+  // A label that wraps (two columns on a phone) pushes its figure to the
+  // bottom, level with its neighbours', instead of being cut to "Oglądane …".
   return (
-    <div className="min-w-0">
-      <dt className="truncate text-xs text-ink-3">{label}</dt>
+    <div className="flex min-w-0 flex-col justify-between">
+      <dt className="break-words text-xs leading-tight text-ink-3">{label}</dt>
       <dd className="mt-0.5 whitespace-nowrap text-[15px] font-semibold tabular-nums">
         {/* The stat the award is about sits on a lime pill: readable on the
             ink card and on glass, in both themes (lime text would not be). */}
@@ -207,7 +209,7 @@ export function CreativesPodium({
                   />
                   {hook != null ? (
                     <MiniStat
-                      label={en ? "Watch 3s+" : "Oglądane 3 s+"}
+                      label={en ? "Watched 3s+" : "Oglądane 3 s+"}
                       value={formatPercent(hook * 100, 0)}
                       hot={primary === "hook"}
                     />
