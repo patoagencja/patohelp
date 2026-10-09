@@ -57,6 +57,46 @@ const BUDGET_RATIO = 0.5; // ±50%
 const BUDGET_MIN_BASE = 2_000;
 const BUDGET_MIN_DELTA = 3_000;
 const BUDGET_COOLDOWN_DAYS = 7;
+// Importance is judged on the range plus this many days before it.
+const NEAR_DAYS = 7;
+
+/**
+ * How many days before the range detection ever looks at: the budget check's
+ * baseline (BUDGET_BASE_DAYS before a BUDGET_CUR_DAYS window that starts on
+ * the range's first day) reaches furthest; the zero runs (ZERO_RUN_DAYS), a
+ * stop's magnitude (the 7 days before it) and the importance window
+ * (NEAR_DAYS) stay inside it. Older rows and known days never change the
+ * result - except through a campaign's latest name and its first
+ * appearance (the tie-break between campaigns of equal importance).
+ */
+export const EVENT_LOOKBACK_DAYS = BUDGET_CUR_DAYS - 1 + BUDGET_BASE_DAYS;
+/** The importance window reaches this many days before the range. */
+export const EVENT_NEAR_DAYS = NEAR_DAYS;
+
+/**
+ * The campaigns detectCampaignEvents may pick as meaningful, from each
+ * campaign's spend over the importance window (the range plus the
+ * EVENT_NEAR_DAYS before it - the same sums it ranks by): a share of at least
+ * MIN_SHARE, or a place in the top TOP_N, ties at the cut included. Every
+ * other campaign can only rank below all of these, so it counts through the
+ * window's total alone, never with its own days.
+ */
+export function eventCandidates(nearSpend: ReadonlyMap<string, number>): Set<string> {
+  let total = 0;
+  const positive: number[] = [];
+  for (const v of nearSpend.values()) {
+    total += v;
+    if (v > 0) positive.push(v);
+  }
+  const out = new Set<string>();
+  if (total <= 0) return out;
+  positive.sort((a, b) => b - a);
+  const cut = positive.length > TOP_N ? positive[TOP_N - 1] : 0;
+  nearSpend.forEach((v, key) => {
+    if (v > 0 && (v >= cut || v / total >= MIN_SHARE)) out.add(key);
+  });
+  return out;
+}
 
 export const MAX_CHART_MARKERS = 8;
 
@@ -116,6 +156,7 @@ export function detectCampaignEvents({
   rangeStart,
   rangeEnd,
   today,
+  knownDates,
   lang = "pl",
 }: {
   rows: CampaignSpendRow[];
@@ -123,6 +164,12 @@ export function detectCampaignEvents({
   rangeStart: string;
   rangeEnd: string;
   today?: string;
+  /**
+   * Days that have ads_daily rows even where `rows` leaves them out - for
+   * callers that pass day-by-day rows only for the campaigns that can matter
+   * (eventCandidates) and the rest as totals.
+   */
+  knownDates?: Iterable<string>;
   lang?: Lang;
 }): ChartEvent[] {
   const origin = toDate(dataStart);
@@ -135,6 +182,12 @@ export function detectCampaignEvents({
   // A day with no ads_daily rows at all is a sync gap, not every campaign
   // pausing at once - treat it as unknown so it can't fake a stop/start.
   const known = new Array<boolean>(nDays).fill(false);
+  if (knownDates) {
+    for (const d of knownDates) {
+      const i = idx(d);
+      if (i >= 0 && i < nDays) known[i] = true;
+    }
+  }
 
   interface Camp {
     key: string;
@@ -147,7 +200,7 @@ export function detectCampaignEvents({
   let rangeTotal = 0;
   // Importance is judged on the range plus the week before it, so a big
   // campaign paused on day 2 of the range still qualifies for a "stop".
-  const nearFrom = rStart - 7;
+  const nearFrom = rStart - NEAR_DAYS;
   let nearTotal = 0;
 
   for (const row of rows) {

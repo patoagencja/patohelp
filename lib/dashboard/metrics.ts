@@ -12,7 +12,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 
 import {
+  adsTotalsViewUsable,
+  getAdsDayTotals,
+  type AdsDayTotal,
+} from "@/lib/dashboard/ads-totals";
+import {
   detectCampaignEvents,
+  EVENT_LOOKBACK_DAYS,
+  EVENT_NEAR_DAYS,
+  eventCandidates,
+  type CampaignSpendRow,
   type ChartEvent,
 } from "@/lib/dashboard/chart-events";
 import {
@@ -22,7 +31,11 @@ import {
 } from "@/lib/dashboard/ranges";
 import { syncCached } from "@/lib/dashboard/sync-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchAll, fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
+import {
+  fetchAll,
+  fetchAllByDateChunks,
+  fetchAllSequential,
+} from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import type { AdProvider } from "@/lib/types";
 
@@ -178,6 +191,7 @@ export interface DashboardData {
   comparable?: boolean;
 }
 
+/** A raw ads_daily row as the row-reading path reads it. */
 interface AdsRow {
   provider: AdProvider;
   campaign_id: string;
@@ -188,6 +202,530 @@ interface AdsRow {
   impressions: number | string;
   conversions: number | string | null;
   frequency: number | string | null;
+}
+
+/** One campaign over the range: what the table, its status and spark use. */
+interface CampaignTotals {
+  campaignId: string;
+  provider: AdProvider;
+  name: string;
+  spend: number;
+  clicks: number;
+  impressions: number;
+  conversions: number;
+  /** The range's last 2 days ("w ostatnich 48 godzinach"). */
+  recentSpend: number;
+  recentImpressions: number;
+  earlierSpend: number;
+  freqSum: number;
+  freqCount: number;
+  /** Spend on each of the range's last 7 days, oldest first. */
+  spark: number[];
+}
+
+/** The ads side of the dashboard, whichever way it was read. */
+interface AdsInputs {
+  /** Per day and platform in [start, end]. */
+  range: AdsDayTotal[];
+  /** Per day and platform in [prevStart, prevEnd]; empty without a baseline. */
+  prev: AdsDayTotal[];
+  /**
+   * In order of first appearance by (date, provider, campaign_id): the
+   * campaign table's spend sort is stable, so this order breaks its ties.
+   */
+  campaigns: CampaignTotals[];
+  autoEvents: ChartEvent[];
+}
+
+interface AdsLoad {
+  db: SupabaseClient;
+  clientId: string;
+  range: ResolvedRange;
+  todayStr: string;
+  adsBaseline: boolean;
+  /** First day of ads history in play: prevStart with a baseline, else start. */
+  adsFrom: string;
+}
+
+const shiftDate = (d: string, days: number) => fmt(addDays(new Date(`${d}T00:00:00`), days));
+const laterDate = (a: string, b: string) => (a > b ? a : b);
+const campaignKey = (provider: string, campaignId: string) => `${provider}:${campaignId}`;
+
+// Ranges longer than this read per-campaign totals from Postgres (migration
+// 0043) instead of one row per campaign per day.
+const LONG_RANGE_DAYS = 45;
+// "Ta sama osoba widziała reklamę średnio ponad 4 razy".
+const FREQ_ATTENTION = 4;
+
+/** Sums rows per (date, provider) - integers, so the order never matters. */
+function sumByDay(rows: AdsRow[]): AdsDayTotal[] {
+  const byKey = new Map<string, AdsDayTotal>();
+  for (const r of rows) {
+    const key = `${r.date}|${r.provider}`;
+    let t = byKey.get(key);
+    if (!t) {
+      t = { date: r.date, provider: r.provider, spend: 0, clicks: 0, impressions: 0, conversions: 0 };
+      byKey.set(key, t);
+    }
+    t.spend += Number(r.spend_minor_units);
+    t.clicks += Number(r.clicks);
+    t.impressions += Number(r.impressions);
+    t.conversions += Number(r.conversions ?? 0);
+  }
+  return Array.from(byKey.values());
+}
+
+/**
+ * provider/campaign_id/date/spend rows in [from, to], ordered like every
+ * ads_daily read here (date, provider, campaign_id). `keys` limits them to
+ * those campaigns (null: all); names only when asked for.
+ */
+async function readSpendRows(
+  a: AdsLoad,
+  from: string,
+  to: string,
+  keys: ReadonlySet<string> | null,
+  withNames: boolean
+): Promise<CampaignSpendRow[]> {
+  if (from > to || (keys && keys.size === 0)) return [];
+  const ids = keys
+    ? Array.from(new Set(Array.from(keys, (k) => k.slice(k.indexOf(":") + 1))))
+    : null;
+  type Row = {
+    provider: AdProvider;
+    campaign_id: string;
+    campaign_name?: string | null;
+    date: string;
+    spend_minor_units: number | string;
+  };
+  const rows = await fetchAllByDateChunks<Row>(from, to, keys ? 31 : 14, (chunkStart, chunkEnd) =>
+    (pageFrom, pageTo) => {
+      let q = a.db
+        .from("ads_daily")
+        .select(
+          withNames
+            ? "provider, campaign_id, campaign_name, date, spend_minor_units"
+            : "provider, campaign_id, date, spend_minor_units"
+        )
+        .eq("client_id", a.clientId)
+        .gte("date", chunkStart)
+        .lte("date", chunkEnd);
+      if (ids) q = q.in("campaign_id", ids);
+      return q
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(pageFrom, pageTo) as unknown as PromiseLike<{
+        data: Row[] | null;
+        error: { message: string } | null;
+      }>;
+    }
+  );
+  const out: CampaignSpendRow[] = [];
+  for (const r of rows) {
+    // campaign_id alone can match the same id on another platform.
+    if (keys && !keys.has(campaignKey(r.provider, r.campaign_id))) continue;
+    out.push({
+      provider: r.provider,
+      campaignId: r.campaign_id,
+      campaignName: withNames ? (r.campaign_name ?? null) : null,
+      date: r.date,
+      spendMinorUnits: Number(r.spend_minor_units),
+    });
+  }
+  return out;
+}
+
+/**
+ * Chart annotations from rows that start at `leadFrom` (EVENT_LOOKBACK_DAYS
+ * before the range) instead of at the baseline's first day. Detection never
+ * looks at days before that, so its result only depends on the older rows
+ * through two things: a campaign's latest non-empty name, and its first
+ * appearance - the tie-break between campaigns of exactly equal spend in the
+ * importance window. For the campaigns where either could differ (a
+ * candidate without a name in the rows, or tied with another candidate) the
+ * older rows are read and put first, as in one read from the baseline's
+ * start; everyone else's result is the same by construction.
+ */
+async function detectAutoEvents(
+  a: AdsLoad,
+  leadFrom: string,
+  rows: CampaignSpendRow[],
+  nearSpend: Map<string, number>,
+  named: ReadonlySet<string>,
+  knownDates?: Iterable<string>
+): Promise<ChartEvent[]> {
+  let all = rows;
+  if (a.adsFrom < leadFrom) {
+    const involved = new Set<string>();
+    const firstAt = new Map<number, string>();
+    for (const key of eventCandidates(nearSpend)) {
+      if (!named.has(key)) involved.add(key);
+      const spend = nearSpend.get(key) ?? 0;
+      const other = firstAt.get(spend);
+      if (other === undefined) {
+        firstAt.set(spend, key);
+      } else {
+        involved.add(other);
+        involved.add(key);
+      }
+    }
+    if (involved.size > 0) {
+      const older = await readSpendRows(a, a.adsFrom, shiftDate(leadFrom, -1), involved, true);
+      all = [...older, ...rows];
+    }
+  }
+  return detectCampaignEvents({
+    rows: all,
+    dataStart: a.range.prevStart,
+    rangeStart: a.range.start,
+    rangeEnd: a.range.end,
+    today: a.todayStr,
+    knownDates,
+  });
+}
+
+/**
+ * Short ranges: the range's rows (plus the lead-in days chart annotations
+ * look at) one per campaign per day, the baseline as per-day totals
+ * (ads_daily_totals) - the baseline only ever needed sums per day, and its
+ * rows were half of every read. Where the rows already cover the baseline
+ * ("Ostatnie 7 dni") or the view is known to be missing, the baseline is
+ * summed from the rows as before.
+ */
+async function loadAdsFromRows(a: AdsLoad): Promise<AdsInputs> {
+  const { db, clientId, range } = a;
+  const leadFrom = adsTotalsViewUsable()
+    ? laterDate(a.adsFrom, shiftDate(range.start, -EVENT_LOOKBACK_DAYS))
+    : a.adsFrom;
+  const prevFromRows = leadFrom <= range.prevStart;
+
+  // Paginated reads: a long range on a large account easily exceeds
+  // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
+  // Read in two-week chunks side by side (same rows, same order as one read):
+  // one long OFFSET-paged read re-walked every earlier page for each new one.
+  const [prevTotals, rows] = await Promise.all([
+    a.adsBaseline && !prevFromRows
+      ? getAdsDayTotals(db, clientId, range.prevStart, range.prevEnd)
+      : Promise.resolve([] as AdsDayTotal[]),
+    fetchAllByDateChunks<AdsRow>(leadFrom, range.end, 14, (chunkStart, chunkEnd) =>
+      (from, to) =>
+        db
+          .from("ads_daily")
+          .select(
+            "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
+          )
+          .eq("client_id", clientId)
+          .gte("date", chunkStart)
+          .lte("date", chunkEnd)
+          .order("date", { ascending: true })
+          .order("provider", { ascending: true })
+          .order("campaign_id", { ascending: true })
+          .range(from, to)
+    ),
+  ]);
+
+  const rangeRows = rows.filter((r) => r.date >= range.start && r.date <= range.end);
+  const prev =
+    a.adsBaseline && prevFromRows
+      ? sumByDay(rows.filter((r) => r.date >= range.prevStart && r.date <= range.prevEnd))
+      : prevTotals;
+
+  // --- Campaigns with health inputs ---
+  const endDate = new Date(`${range.end}T00:00:00`);
+  const sparkStart = fmt(subDays(endDate, 6));
+  const recentStart = fmt(subDays(endDate, 1)); // last 2 days
+  interface CampAgg extends Omit<CampaignTotals, "spark"> {
+    sparkByDate: Map<string, number>;
+  }
+  const campaignMap = new Map<string, CampAgg>();
+  for (const row of rangeRows) {
+    const key = campaignKey(row.provider, row.campaign_id);
+    const agg =
+      campaignMap.get(key) ??
+      ({
+        campaignId: row.campaign_id,
+        provider: row.provider,
+        name: row.campaign_name || row.campaign_id,
+        spend: 0,
+        clicks: 0,
+        impressions: 0,
+        conversions: 0,
+        recentSpend: 0,
+        recentImpressions: 0,
+        earlierSpend: 0,
+        freqSum: 0,
+        freqCount: 0,
+        sparkByDate: new Map<string, number>(),
+      } as CampAgg);
+
+    const spend = Number(row.spend_minor_units);
+    const impressions = Number(row.impressions);
+    agg.spend += spend;
+    agg.clicks += Number(row.clicks);
+    agg.impressions += impressions;
+    agg.conversions += Number(row.conversions ?? 0);
+
+    if (row.date >= recentStart) {
+      agg.recentSpend += spend;
+      agg.recentImpressions += impressions;
+    } else {
+      agg.earlierSpend += spend;
+    }
+    if (row.frequency != null) {
+      agg.freqSum += Number(row.frequency);
+      agg.freqCount += 1;
+    }
+    if (row.date >= sparkStart) {
+      agg.sparkByDate.set(row.date, (agg.sparkByDate.get(row.date) ?? 0) + spend);
+    }
+    campaignMap.set(key, agg);
+  }
+  const campaigns: CampaignTotals[] = Array.from(campaignMap.values(), (c) => {
+    const { sparkByDate, ...totals } = c;
+    // Zero-filled 7-day spend sparkline.
+    const spark: number[] = [];
+    for (let i = 6; i >= 0; i--) spark.push(sparkByDate.get(fmt(subDays(endDate, i))) ?? 0);
+    return { ...totals, spark };
+  });
+
+  // --- Chart annotations ---
+  const nearFrom = shiftDate(range.start, -EVENT_NEAR_DAYS);
+  const nearSpend = new Map<string, number>();
+  const named = new Set<string>();
+  const eventRows: CampaignSpendRow[] = rows.map((r) => {
+    const key = campaignKey(r.provider, r.campaign_id);
+    const spend = Number(r.spend_minor_units);
+    if (r.date >= nearFrom) nearSpend.set(key, (nearSpend.get(key) ?? 0) + spend);
+    if (r.campaign_name) named.add(key);
+    return {
+      provider: r.provider,
+      campaignId: r.campaign_id,
+      campaignName: r.campaign_name,
+      date: r.date,
+      spendMinorUnits: spend,
+    };
+  });
+  const autoEvents = await detectAutoEvents(a, leadFrom, eventRows, nearSpend, named);
+
+  return { range: sumByDay(rangeRows), prev, campaigns, autoEvents };
+}
+
+interface CampaignRangeRow {
+  provider: AdProvider;
+  campaign_id: string;
+  first_date: string;
+  first_name: string | null;
+  last_name: string | null;
+  spend_minor_units: number | string;
+  clicks: number | string;
+  impressions: number | string;
+  conversions: number | string;
+  recent_spend: number | string;
+  recent_impressions: number | string;
+  earlier_spend: number | string;
+  freq_sum: number | string | null;
+  freq_count: number | string;
+  spark: Array<number | string>;
+}
+
+const CAMPAIGN_TOTALS_RPC = "campaign_range_totals";
+const RETRY_RPC_AFTER_MS = 10 * 60_000;
+let rpcMissingUntil = 0;
+
+/**
+ * Long ranges: per-campaign totals summed in Postgres (0043), per-day totals
+ * from ads_daily_totals, and day-by-day rows only where something needs the
+ * days: the lead-in days of the chart annotations and the campaigns that can
+ * become one (eventCandidates). "Ostatni rok" of an OLX-size account was
+ * ~285 000 rows; this is a few thousand.
+ */
+async function loadAdsFromTotals(a: AdsLoad): Promise<AdsInputs> {
+  const { db, clientId, range } = a;
+  const leadFrom = laterDate(a.adsFrom, shiftDate(range.start, -EVENT_LOOKBACK_DAYS));
+  const [days, totals, leadRows] = await Promise.all([
+    // Without the view, plan B is the row path, not every row of the window.
+    getAdsDayTotals(db, clientId, a.adsFrom, range.end, { rawFallback: false }),
+    // One page for any realistic account (a campaign per row); each page
+    // re-runs the aggregate, hence no count and no speculative pages.
+    fetchAllSequential<CampaignRangeRow>((from, to) =>
+      db
+        .rpc(CAMPAIGN_TOTALS_RPC, {
+          p_client_id: clientId,
+          p_start: range.start,
+          p_end: range.end,
+        })
+        // = first appearance in rows ordered (date, provider, campaign_id).
+        .order("first_date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+    ),
+    readSpendRows(a, leadFrom, shiftDate(range.start, -1), null, true),
+  ]);
+
+  const rangeDays = days.filter((t) => t.date >= range.start && t.date <= range.end);
+  const prev = days.filter((t) => t.date >= range.prevStart && t.date <= range.prevEnd);
+
+  // --- Chart annotations: which campaigns need their days ---
+  const nearFrom = shiftDate(range.start, -EVENT_NEAR_DAYS);
+  const nearSpend = new Map<string, number>();
+  const named = new Set<string>();
+  for (const r of leadRows) {
+    const key = campaignKey(r.provider, r.campaignId);
+    if (r.date >= nearFrom) nearSpend.set(key, (nearSpend.get(key) ?? 0) + r.spendMinorUnits);
+    if (r.campaignName) named.add(key);
+  }
+  for (const t of totals) {
+    const key = campaignKey(t.provider, t.campaign_id);
+    nearSpend.set(key, (nearSpend.get(key) ?? 0) + Number(t.spend_minor_units));
+    if (t.last_name) named.add(key);
+  }
+  const candidates = eventCandidates(nearSpend);
+  const candidatesInRange = new Set(
+    totals.map((t) => campaignKey(t.provider, t.campaign_id)).filter((k) => candidates.has(k))
+  );
+
+  // avgFreq is only ever compared with FREQ_ATTENTION. The exact numeric sum
+  // decides it unless the average sits within 1e-9 of the threshold, where
+  // the old per-row float sum (error < 1e-11 for any real range) could land
+  // on the other side: those few campaigns are summed from their rows, as
+  // before.
+  const borderline = new Set(
+    totals
+      .filter((t) => {
+        const n = Number(t.freq_count);
+        return n > 0 && Math.abs(Number(t.freq_sum) / n - FREQ_ATTENTION) <= 1e-9;
+      })
+      .map((t) => campaignKey(t.provider, t.campaign_id))
+  );
+
+  const [candidateRows, exactFreq] = await Promise.all([
+    readSpendRows(a, range.start, range.end, candidatesInRange, false),
+    readFrequencySums(a, borderline),
+  ]);
+
+  const campaigns: CampaignTotals[] = totals.map((t) => {
+    const exact = exactFreq.get(campaignKey(t.provider, t.campaign_id));
+    return {
+      campaignId: t.campaign_id,
+      provider: t.provider,
+      // The first row in the range names the campaign (as the row loop did).
+      name: t.first_name || t.campaign_id,
+      spend: Number(t.spend_minor_units),
+      clicks: Number(t.clicks),
+      impressions: Number(t.impressions),
+      conversions: Number(t.conversions),
+      recentSpend: Number(t.recent_spend),
+      recentImpressions: Number(t.recent_impressions),
+      earlierSpend: Number(t.earlier_spend),
+      freqSum: exact ? exact.sum : Number(t.freq_sum ?? 0),
+      freqCount: exact ? exact.count : Number(t.freq_count),
+      spark: t.spark.map(Number),
+    };
+  });
+
+  // Detection input, equivalent to every row from leadFrom on:
+  // - lead-in rows of every campaign (as read, names included),
+  // - candidates' range rows; their latest non-empty name (0043) rides on
+  //   one of them - detection keeps the last name it sees, and these come
+  //   after every lead-in row,
+  // - everyone else's range spend as one row on a day it really has a row:
+  //   only its total counts (importance, account average),
+  // - days with any row (ads_daily_totals), so sync gaps stay gaps.
+  const lastName = new Map(totals.map((t) => [campaignKey(t.provider, t.campaign_id), t.last_name]));
+  const eventRows: CampaignSpendRow[] = [...leadRows];
+  const nameGiven = new Set<string>();
+  for (const r of candidateRows) {
+    const key = campaignKey(r.provider, r.campaignId);
+    let campaignName: string | null = null;
+    if (!nameGiven.has(key)) {
+      nameGiven.add(key);
+      campaignName = lastName.get(key) || null;
+    }
+    eventRows.push({ ...r, campaignName });
+  }
+  for (const t of totals) {
+    const spend = Number(t.spend_minor_units);
+    if (candidates.has(campaignKey(t.provider, t.campaign_id)) || spend === 0) continue;
+    eventRows.push({
+      provider: t.provider,
+      campaignId: t.campaign_id,
+      campaignName: null,
+      date: t.first_date,
+      spendMinorUnits: spend,
+    });
+  }
+  const autoEvents = await detectAutoEvents(
+    a,
+    leadFrom,
+    eventRows,
+    nearSpend,
+    named,
+    rangeDays.map((t) => t.date)
+  );
+
+  return { range: rangeDays, prev, campaigns, autoEvents };
+}
+
+/** Per-row frequency sums (in date order, as the row loop added them). */
+async function readFrequencySums(
+  a: AdsLoad,
+  keys: ReadonlySet<string>
+): Promise<Map<string, { sum: number; count: number }>> {
+  const out = new Map<string, { sum: number; count: number }>();
+  if (keys.size === 0) return out;
+  const ids = Array.from(new Set(Array.from(keys, (k) => k.slice(k.indexOf(":") + 1))));
+  type Row = { provider: string; campaign_id: string; frequency: number | string | null };
+  const rows = await fetchAllByDateChunks<Row>(a.range.start, a.range.end, 31, (chunkStart, chunkEnd) =>
+    (from, to) =>
+      a.db
+        .from("ads_daily")
+        .select("provider, campaign_id, date, frequency")
+        .eq("client_id", a.clientId)
+        .in("campaign_id", ids)
+        .gte("date", chunkStart)
+        .lte("date", chunkEnd)
+        .order("date", { ascending: true })
+        .order("provider", { ascending: true })
+        .order("campaign_id", { ascending: true })
+        .range(from, to)
+  );
+  for (const r of rows) {
+    const key = campaignKey(r.provider, r.campaign_id);
+    if (!keys.has(key)) continue;
+    const acc = out.get(key) ?? { sum: 0, count: 0 };
+    if (r.frequency != null) {
+      acc.sum += Number(r.frequency);
+      acc.count += 1;
+    }
+    out.set(key, acc);
+  }
+  return out;
+}
+
+async function loadAdsInputs(a: AdsLoad): Promise<AdsInputs> {
+  const days =
+    differenceInCalendarDays(
+      new Date(`${a.range.end}T00:00:00`),
+      new Date(`${a.range.start}T00:00:00`)
+    ) + 1;
+  if (days > LONG_RANGE_DAYS && Date.now() >= rpcMissingUntil && adsTotalsViewUsable()) {
+    try {
+      return await loadAdsFromTotals(a);
+    } catch (err) {
+      // Until 0043 has run the function doesn't exist ("Could not find the
+      // function public.campaign_range_totals(...) in the schema cache"):
+      // remember that for a while instead of paying a failed call on every
+      // miss. Anything else (a timeout, the view missing - ads-totals keeps
+      // its own note) just falls back this once. Same numbers either way.
+      const msg = String((err as Error)?.message ?? err);
+      if (msg.includes(CAMPAIGN_TOTALS_RPC)) {
+        rpcMissingUntil = Date.now() + RETRY_RPC_AFTER_MS;
+      }
+    }
+  }
+  return loadAdsFromRows(a);
 }
 
 function kpi(value: number, previous: number): Kpi {
@@ -241,7 +779,7 @@ function cpcOf(spend: number, clicks: number): number {
 // Zero-filled daily series for the comparison period, so the chart can draw
 // "previous period" aligned by day index without a second round-trip.
 function buildPrevTrend(
-  rows: AdsRow[],
+  rows: AdsDayTotal[],
   ga4Rows: Array<{
     date: string;
     sessions: number | string;
@@ -275,10 +813,10 @@ function buildPrevTrend(
   for (const r of rows) {
     const p = byDate.get(r.date);
     if (!p) continue;
-    p.spendMinorUnits += Number(r.spend_minor_units);
-    p.clicks += Number(r.clicks);
-    p.impressions += Number(r.impressions);
-    p.conversions += Number(r.conversions ?? 0);
+    p.spendMinorUnits += r.spend;
+    p.clicks += r.clicks;
+    p.impressions += r.impressions;
+    p.conversions += r.conversions;
   }
   for (const r of ga4Rows) {
     const p = byDate.get(r.date);
@@ -417,27 +955,11 @@ export async function getDashboardData(
         .range(from, to)
     );
 
-  // Paginated reads: a long range on a large account easily exceeds
-  // PostgREST's silent ~1000-row cap, which would truncate KPIs and trends.
-  // Read in two-week chunks side by side (same rows, same order as one read):
-  // 90 days + baseline of an OLX-size account is ~70 000 rows, and one long
-  // OFFSET-paged read re-walked every earlier page for each new one.
-  const [rows, ga4Rows] = await Promise.all([
-    fetchAllByDateChunks<AdsRow>(adsFrom, range.end, 14, (chunkStart, chunkEnd) =>
-      (from, to) =>
-        supabase
-          .from("ads_daily")
-          .select(
-            "provider, campaign_id, campaign_name, date, spend_minor_units, clicks, impressions, conversions, frequency"
-          )
-          .eq("client_id", clientId)
-          .gte("date", chunkStart)
-          .lte("date", chunkEnd)
-          .order("date", { ascending: true })
-          .order("provider", { ascending: true })
-          .order("campaign_id", { ascending: true })
-          .range(from, to)
-    ),
+  // The ads side, read by range length (loadAdsInputs): every number is a
+  // sum of the same integers the old one-row-per-campaign-per-day read
+  // summed, so it does not depend on the path.
+  const [ads, ga4Rows] = await Promise.all([
+    loadAdsInputs({ db: supabase, clientId, range, todayStr, adsBaseline, adsFrom }),
     // GA4 daily totals only (dimension columns null). The revenue columns
     // land with migration 0016: ask for them straight away and only fall
     // back to the base columns when that select errors. This used to be a
@@ -458,29 +980,23 @@ export async function getDashboardData(
   let todSpend = 0, todClicks = 0, todImpr = 0, todConv = 0;
   let todSessions = 0, todRevenue = 0, todTransactions = 0;
 
-  for (const row of rows) {
-    const spend = Number(row.spend_minor_units);
-    const clicks = Number(row.clicks);
-    const impressions = Number(row.impressions);
-    const conversions = Number(row.conversions ?? 0);
-
-    if (inRange(row.date)) {
-      curSpend += spend;
-      curClicks += clicks;
-      curImpr += impressions;
-      curConv += conversions;
-      if (row.date === todayStr) {
-        todSpend += spend;
-        todClicks += clicks;
-        todImpr += impressions;
-        todConv += conversions;
-      }
-    } else if (inPrev(row.date)) {
-      prevSpend += spend;
-      prevClicks += clicks;
-      prevImpr += impressions;
-      prevConv += conversions;
+  for (const t of ads.range) {
+    curSpend += t.spend;
+    curClicks += t.clicks;
+    curImpr += t.impressions;
+    curConv += t.conversions;
+    if (t.date === todayStr) {
+      todSpend += t.spend;
+      todClicks += t.clicks;
+      todImpr += t.impressions;
+      todConv += t.conversions;
     }
+  }
+  for (const t of ads.prev) {
+    prevSpend += t.spend;
+    prevClicks += t.clicks;
+    prevImpr += t.impressions;
+    prevConv += t.conversions;
   }
 
   let curSessions = 0;
@@ -598,24 +1114,23 @@ export async function getDashboardData(
   >();
   const byDateProvider = new Map<string, { spend: number; clicks: number }>();
 
-  for (const row of rows) {
-    if (!inRange(row.date)) continue;
-    const agg = byDate.get(row.date) ?? {
+  for (const t of ads.range) {
+    const agg = byDate.get(t.date) ?? {
       spend: 0,
       clicks: 0,
       impressions: 0,
       conversions: 0,
     };
-    agg.spend += Number(row.spend_minor_units);
-    agg.clicks += Number(row.clicks);
-    agg.impressions += Number(row.impressions);
-    agg.conversions += Number(row.conversions ?? 0);
-    byDate.set(row.date, agg);
+    agg.spend += t.spend;
+    agg.clicks += t.clicks;
+    agg.impressions += t.impressions;
+    agg.conversions += t.conversions;
+    byDate.set(t.date, agg);
 
-    const pKey = `${row.date}:${row.provider}`;
+    const pKey = `${t.date}:${t.provider}`;
     const pAgg = byDateProvider.get(pKey) ?? { spend: 0, clicks: 0 };
-    pAgg.spend += Number(row.spend_minor_units);
-    pAgg.clicks += Number(row.clicks);
+    pAgg.spend += t.spend;
+    pAgg.clicks += t.clicks;
     byDateProvider.set(pKey, pAgg);
   }
 
@@ -650,39 +1165,22 @@ export async function getDashboardData(
     });
   }
 
-  // --- Previous-period trend + chart annotations (from rows already read) ---
+  // --- Previous-period trend (per-day baseline totals already read) ---
   // Half a baseline drawn as a line is the same lie as half a baseline in a %.
   const prevTrend =
-    adsBaseline && ga4Baseline ? buildPrevTrend(rows, ga4Rows, range.prevStart, range.prevEnd) : undefined;
-  const autoEvents = detectCampaignEvents({
-    rows: rows.map((r) => ({
-      provider: r.provider,
-      campaignId: r.campaign_id,
-      campaignName: r.campaign_name,
-      date: r.date,
-      spendMinorUnits: Number(r.spend_minor_units),
-    })),
-    dataStart: range.prevStart,
-    rangeStart: range.start,
-    rangeEnd: range.end,
-    today: todayStr,
-  });
+    adsBaseline && ga4Baseline ? buildPrevTrend(ads.prev, ga4Rows, range.prevStart, range.prevEnd) : undefined;
 
   // --- Platform split ---
   let metaSpend = 0;
   let googleSpend = 0;
   let tiktokSpend = 0;
-  for (const row of rows) {
-    if (!inRange(row.date)) continue;
-    const spend = Number(row.spend_minor_units);
-    if (row.provider === "meta_ads") metaSpend += spend;
-    else if (row.provider === "tiktok_ads") tiktokSpend += spend;
-    else googleSpend += spend;
+  for (const t of ads.range) {
+    if (t.provider === "meta_ads") metaSpend += t.spend;
+    else if (t.provider === "tiktok_ads") tiktokSpend += t.spend;
+    else googleSpend += t.spend;
   }
 
   // --- Campaigns with health status ---
-  const sparkStart = fmt(subDays(endDate, 6));
-  const recentStart = fmt(subDays(endDate, 1)); // last 2 days
   // "Last 48 hours" only means now when the range reaches yesterday; in a
   // past range (prev month, custom) a campaign that stopped before its end
   // simply ended - flagging it critical with "w ostatnich 48 godzinach" was
@@ -692,71 +1190,7 @@ export async function getDashboardData(
   const clientAvgCtr = ctrOf(curClicks, curImpr);
   const clientAvgCpc = cpcOf(curSpend, curClicks);
 
-  interface CampAgg {
-    campaignId: string;
-    provider: AdProvider;
-    name: string;
-    spend: number;
-    clicks: number;
-    impressions: number;
-    conversions: number;
-    recentSpend: number;
-    recentImpressions: number;
-    earlierSpend: number;
-    freqSum: number;
-    freqCount: number;
-    sparkByDate: Map<string, number>;
-  }
-  const campaignMap = new Map<string, CampAgg>();
-
-  for (const row of rows) {
-    if (!inRange(row.date)) continue;
-    const key = `${row.provider}:${row.campaign_id}`;
-    const agg =
-      campaignMap.get(key) ??
-      ({
-        campaignId: row.campaign_id,
-        provider: row.provider,
-        name: row.campaign_name || row.campaign_id,
-        spend: 0,
-        clicks: 0,
-        impressions: 0,
-        conversions: 0,
-        recentSpend: 0,
-        recentImpressions: 0,
-        earlierSpend: 0,
-        freqSum: 0,
-        freqCount: 0,
-        sparkByDate: new Map<string, number>(),
-      } as CampAgg);
-
-    const spend = Number(row.spend_minor_units);
-    const impressions = Number(row.impressions);
-    agg.spend += spend;
-    agg.clicks += Number(row.clicks);
-    agg.impressions += impressions;
-    agg.conversions += Number(row.conversions ?? 0);
-
-    if (row.date >= recentStart) {
-      agg.recentSpend += spend;
-      agg.recentImpressions += impressions;
-    } else {
-      agg.earlierSpend += spend;
-    }
-    if (row.frequency != null) {
-      agg.freqSum += Number(row.frequency);
-      agg.freqCount += 1;
-    }
-    if (row.date >= sparkStart) {
-      agg.sparkByDate.set(
-        row.date,
-        (agg.sparkByDate.get(row.date) ?? 0) + spend
-      );
-    }
-    campaignMap.set(key, agg);
-  }
-
-  const campaigns: CampaignRow[] = Array.from(campaignMap.values())
+  const campaigns: CampaignRow[] = ads.campaigns
     .map((c) => {
       const ctr = ctrOf(c.clicks, c.impressions);
       const cpc = c.clicks > 0 ? c.spend / c.clicks : null;
@@ -776,7 +1210,7 @@ export async function getDashboardData(
         } else if (cpc != null && clientAvgCpc > 0 && cpc > 3 * clientAvgCpc) {
           status = "critical";
           statusReason = "Koszt kliknięcia ponad 3× wyższy niż średnia konta";
-        } else if (avgFreq > 4) {
+        } else if (avgFreq > FREQ_ATTENTION) {
           status = "attention";
           statusReason = "Ta sama osoba widziała reklamę średnio ponad 4 razy - czas ją odświeżyć";
         } else if (
@@ -787,13 +1221,6 @@ export async function getDashboardData(
           status = "attention";
           statusReason = "Klikalność poniżej połowy średniej konta";
         }
-      }
-
-      // Zero-filled 7-day spend sparkline.
-      const spark: number[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = fmt(subDays(endDate, i));
-        spark.push(c.sparkByDate.get(d) ?? 0);
       }
 
       return {
@@ -808,7 +1235,7 @@ export async function getDashboardData(
         conversions: c.conversions,
         status,
         statusReason,
-        spark,
+        spark: c.spark,
       };
     })
     .sort((a, b) => b.spendMinorUnits - a.spendMinorUnits);
@@ -830,7 +1257,7 @@ export async function getDashboardData(
     rangeEnd: range.end,
     prevTrend,
     comparable: adsBaseline || ga4Baseline,
-    autoEvents,
+    autoEvents: ads.autoEvents,
     engagementRate:
       curEngSessions > 0 ? (curEngWeighted / curEngSessions) * 100 : null,
   };

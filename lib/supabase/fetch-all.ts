@@ -204,3 +204,30 @@ export async function fetchAllByDateChunks<T>(
   const parts = await Promise.all(chunks.map(([s, e]) => fetchAll(build(s, e), options)));
   return parts.flat();
 }
+
+/**
+ * Page-by-page drain WITHOUT the exact-count hint, for sources that are
+ * computed per request (set-returning SQL functions): a count would run the
+ * whole aggregation a second time, and speculative parallel pages would run
+ * it once per page. Almost always one page; `build` must apply a total order.
+ */
+export async function fetchAllSequential<T>(
+  build: (from: number, to: number) => PromiseLike<PageResult<T>>,
+  options: FetchOptions = {}
+): Promise<T[]> {
+  const limiter = getLimiter();
+  const out: T[] = [];
+  for (let index = 0; ; index++) {
+    const release = await limiter.acquire(options.lane);
+    let rows: T[];
+    try {
+      const res = await build(index * PAGE, index * PAGE + PAGE - 1);
+      if (res.error) throw new Error(res.error.message);
+      rows = res.data ?? [];
+    } finally {
+      release();
+    }
+    out.push(...rows);
+    if (rows.length < PAGE) return out;
+  }
+}

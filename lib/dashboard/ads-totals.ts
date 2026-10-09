@@ -35,6 +35,15 @@ function viewUsable(): boolean {
   return Date.now() >= viewMissingUntil;
 }
 
+/**
+ * False while the view is known to be missing (0036 not run): callers that
+ * would otherwise read the same days twice (view fallback + their own rows)
+ * read their rows once instead.
+ */
+export function adsTotalsViewUsable(): boolean {
+  return viewUsable();
+}
+
 function markViewMissing(err: unknown) {
   const msg = String((err as Error)?.message ?? err);
   // Only a missing relation is remembered; anything else (timeout, network)
@@ -63,15 +72,19 @@ function toTotal(r: Record<string, unknown>): AdsDayTotal {
  * zero), exactly as when the callers summed raw rows. `db` decides the
  * access path: the cookie client reads through RLS (the view is
  * security_invoker), the service-role client only after the caller has
- * verified access to `clientId`.
+ * verified access to `clientId`. `rawFallback: false` throws instead of
+ * reading raw rows when the view is unavailable (for callers that have a
+ * cheaper plan B than summing every campaign row of a long window).
  */
 export async function getAdsDayTotals(
   db: SupabaseClient,
   clientId: string,
   start: string,
-  end: string
+  end: string,
+  { rawFallback = true }: { rawFallback?: boolean } = {}
 ): Promise<AdsDayTotal[]> {
   if (start > end) return [];
+  if (!rawFallback && !viewUsable()) throw new Error("ads_daily_totals unavailable");
   if (viewUsable()) {
     try {
       const rows = await fetchAll<Record<string, unknown>>((from, to) =>
@@ -89,6 +102,7 @@ export async function getAdsDayTotals(
       return rows.map(toTotal);
     } catch (err) {
       markViewMissing(err);
+      if (!rawFallback) throw err;
     }
   }
 
