@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { revalidatePath } from "next/cache";
@@ -194,15 +195,13 @@ export default async function AlertyPage({
   // One list, grouped by urgency: the client shouldn't have to know which
   // detector found what. Spend spikes go first within their severity. Shared
   // (per request) with the header bell's count.
-  const [alerts, pacing, viewer, campaignOptions, adsetOptions, clicksAllAvailable] =
-    await Promise.all([
-      getCurrentAlerts(client.id),
-      getPacing(client.id),
-      viewerPromise,
-      campaignOptionsPromise,
-      adsetOptionsPromise,
-      clicksAllPromise,
-    ]);
+  // The goal form's dropdowns (60 days of campaigns and ad sets - tens of
+  // thousands of rows on OLX) no longer hold the page: they stream in below.
+  const [alerts, pacing, viewer] = await Promise.all([
+    getCurrentAlerts(client.id),
+    getPacing(client.id),
+    viewerPromise,
+  ]);
   const isAgency = viewer.isAgency;
   const goalTiles = buildGoalTiles(
     pacing,
@@ -221,16 +220,41 @@ export default async function AlertyPage({
       <AlertsBoard alerts={alerts} />
 
       {showPacing ? (
-        <CampaignGoals
-          pacing={pacing}
-          isAgency={isAgency}
-          clientSlug={params.clientSlug}
-          campaignOptions={campaignOptions}
-          adsetOptions={adsetOptions}
-          clicksAllAvailable={clicksAllAvailable}
-          addAction={addFlight}
-          deleteAction={deleteFlight}
-        />
+        isAgency ? (
+          // Until the options land: the goal cards as the client sees them
+          // (no form, no delete), so the page doesn't jump.
+          <Suspense
+            fallback={
+              <CampaignGoals
+                pacing={pacing}
+                isAgency={false}
+                clientSlug={params.clientSlug}
+                campaignOptions={[]}
+                adsetOptions={[]}
+                clicksAllAvailable={false}
+                addAction={addFlight}
+                deleteAction={deleteFlight}
+              />
+            }
+          >
+            <AgencyGoals
+              pacing={pacing}
+              clientSlug={params.clientSlug}
+              options={Promise.all([campaignOptionsPromise, adsetOptionsPromise, clicksAllPromise])}
+            />
+          </Suspense>
+        ) : (
+          <CampaignGoals
+            pacing={pacing}
+            isAgency={false}
+            clientSlug={params.clientSlug}
+            campaignOptions={[]}
+            adsetOptions={[]}
+            clicksAllAvailable={false}
+            addAction={addFlight}
+            deleteAction={deleteFlight}
+          />
+        )
       ) : null}
 
       <p className="max-w-3xl text-[13px] leading-relaxed text-ink-3">
@@ -287,6 +311,31 @@ function getCampaignOptions(clientId: string): Promise<CampaignOption[]> {
       .slice(0, 1500)
       .map(([id, v]) => ({ id, name: v.name, provider: v.provider, spend: v.spend }));
   });
+}
+
+/** The agency's goal section once the form's options are in. */
+async function AgencyGoals({
+  pacing,
+  clientSlug,
+  options,
+}: {
+  pacing: Awaited<ReturnType<typeof getPacing>>;
+  clientSlug: string;
+  options: Promise<[CampaignOption[], AdsetOption[] | null, boolean]>;
+}) {
+  const [campaignOptions, adsetOptions, clicksAllAvailable] = await options;
+  return (
+    <CampaignGoals
+      pacing={pacing}
+      isAgency
+      clientSlug={clientSlug}
+      campaignOptions={campaignOptions}
+      adsetOptions={adsetOptions}
+      clicksAllAvailable={clicksAllAvailable}
+      addAction={addFlight}
+      deleteAction={deleteFlight}
+    />
+  );
 }
 
 /**

@@ -1251,12 +1251,14 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
     transform: translate3d(var(--drift, 0px), 340px, 0);
   }
 }
-/* The whole-dashboard variant: a fixed viewport layer above the cards (but
-   under menus and dialogs), flakes falling the full screen height. */
+/* The whole-dashboard variant: a fixed viewport layer above everything
+   (it never takes a click), flakes falling the full screen height. */
 .snowfall-page {
   position: fixed;
   inset: 0;
-  z-index: 35;
+  /* Above the frosted bars and menus (z-50): under them, every falling
+     flake made each blurred layer re-blur on every frame, even when idle. */
+  z-index: 60;
   -webkit-mask-image: none;
   mask-image: none;
 }
