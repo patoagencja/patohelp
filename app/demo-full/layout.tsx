@@ -38,6 +38,8 @@ export default function DemoFullLayout({
       isSeasonal={false}
       isAgency={false}
       omit={OMIT}
+      // ...but its phone header still says "Sezon" there (it would be blank).
+      unlistedPages={[{ href: `${BASE}/sezon`, label: "Sezon" }]}
       brand={
         <ClientBrandMark
           name="lokalnepomidorki"

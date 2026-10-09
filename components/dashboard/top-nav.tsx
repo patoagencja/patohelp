@@ -59,22 +59,31 @@ export function TopNav({
   );
 }
 
+/** A page reachable by link but kept out of the nav (the demo's Sezon). */
+export type UnlistedPage = { href: string; label: string };
+
 /** Phone header: the current page's short name ("Przegląd"). */
 export function PageName({
   base,
   isEcommerce,
   isSeasonal = false,
   isAgency,
+  unlisted = [],
   className,
 }: {
   base: string;
   isEcommerce: boolean;
   isSeasonal?: boolean;
   isAgency: boolean;
+  /** Named here though not in the nav, so their header isn't left blank. */
+  unlisted?: UnlistedPage[];
   className?: string;
 }) {
   const pathname = usePathname();
-  const page = findActive(buildNav({ base, isEcommerce, isSeasonal, isAgency }), pathname, base);
-  if (!page) return null;
-  return <span className={className}>{page.short ?? page.label}</span>;
+  const item = findActive(buildNav({ base, isEcommerce, isSeasonal, isAgency }), pathname, base);
+  const name =
+    (item ? item.short ?? item.label : null) ??
+    unlisted.find((p) => pathname === p.href || pathname.startsWith(`${p.href}/`))?.label;
+  if (!name) return null;
+  return <span className={className}>{name}</span>;
 }

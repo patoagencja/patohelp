@@ -1,4 +1,4 @@
-import { PageName, TopNav } from "@/components/dashboard/top-nav";
+import { PageName, TopNav, type UnlistedPage } from "@/components/dashboard/top-nav";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { AgencySignature, AgencyWatermark } from "@/components/ui/agency-mark";
 import { Sky } from "@/components/ui/sky";
@@ -29,6 +29,7 @@ export function AppShell({
   isSeasonal = false,
   isAgency,
   omit,
+  unlistedPages,
   brand,
   phoneBrand,
   live,
@@ -52,6 +53,11 @@ export function AppShell({
   isSeasonal?: boolean;
   isAgency: boolean;
   omit?: string[];
+  /**
+   * Pages reachable by direct link but not in the nav (the demo's Sezon):
+   * the phone header still names them - it reads its title from the nav.
+   */
+  unlistedPages?: UnlistedPage[];
   /** Client mark for the bar (md+). */
   brand: React.ReactNode;
   /** Smaller mark for the phone header. */
@@ -107,6 +113,7 @@ export function AppShell({
                 isEcommerce={isEcommerce}
                 isSeasonal={isSeasonal}
                 isAgency={isAgency}
+                unlisted={unlistedPages}
                 className="truncate text-[15px] font-semibold"
               />
               {phoneLive}
