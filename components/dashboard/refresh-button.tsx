@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const labels = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s !== "") : [];
+
 export function RefreshButton({ clientSlug }: { clientSlug: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -22,10 +25,26 @@ export function RefreshButton({ clientSlug }: { clientSlug: string }) {
       if (!res.ok) throw new Error();
       const body = (await res.json().catch(() => ({}))) as {
         still_running?: boolean;
+        failed?: unknown;
+        deferred?: unknown;
       };
-      if (body.still_running) {
+      // The route answers 200 whatever each source did; "Dane odświeżone"
+      // over a failed Meta pull read as fresh numbers that weren't.
+      const failed = labels(body.failed);
+      const deferred = labels(body.deferred);
+      if (failed.length) {
+        toast.warning(`Odświeżono, ale nie udało się pobrać: ${failed.join(", ")}`, {
+          id: "refresh",
+          duration: 8000,
+        });
+      } else if (body.still_running) {
         toast.success(
           "Odświeżanie trwa w tle - przy dużym koncie historię pobieramy partiami, więc dane będą pojawiać się stopniowo.",
+          { id: "refresh", duration: 6000 }
+        );
+      } else if (deferred.length) {
+        toast.success(
+          `Dane odświeżone. Pozostałe (${deferred.join(", ")}) pobierzemy przy najbliższej synchronizacji (do 30 min).`,
           { id: "refresh", duration: 6000 }
         );
       } else {
