@@ -1054,6 +1054,23 @@ html [data-sonner-toaster] [data-sonner-toast] :focus-visible {
 .seg-track[data-sliding="on"] .seg-active:not(:focus-visible) {
   box-shadow: none !important;
 }
+/* A track too wide for its box scrolls; segmented-track.tsx names the
+   edge(s) hiding items in data-more. Fade that edge so the cut-off pill
+   reads as "more this way" (on phones "Poprzedni" and "Własny" sat past
+   the edge with no hint). A mask, not an overlay: it fades the track's own
+   fill on any background, in both themes. */
+.seg-track[data-more="end"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.75rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.75rem), transparent);
+}
+.seg-track[data-more="start"] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 2.75rem), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 2.75rem), transparent);
+}
+.seg-track[data-more="start end"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2.75rem, #000 calc(100% - 2.75rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 2.75rem, #000 calc(100% - 2.75rem), transparent);
+}
 .seg-indicator {
   position: absolute;
   left: 0;

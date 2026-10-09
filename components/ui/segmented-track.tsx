@@ -22,6 +22,11 @@ const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayout
  *   selection. After that `data-sliding="on"` hands the fill to the pill.
  * - Measured on every render and on resize (variable-width items, wrap).
  * - Reduced motion: no transition (globals.css), it just jumps.
+ * - Too wide for its box (the date ranges on a phone), the track scrolls:
+ *   `data-more` names the edge(s) with more items and globals.css fades
+ *   that edge out, so a cut-off "Poprzedni" reads as "scroll for more"
+ *   rather than as the last option. An active item that starts out of
+ *   view is scrolled into it once.
  */
 export function SegmentedTrack({
   as: Tag = "div",
@@ -35,10 +40,29 @@ export function SegmentedTrack({
   const indRef = useRef<HTMLElement>(null);
   const placed = useRef(false);
 
+  // Which edges hide items; 1px of slack for sub-pixel widths.
+  const edges = () => {
+    const track = ref.current;
+    if (!track) return;
+    // Only a track that can scroll gets a fade: content overflowing a
+    // non-scrolling one is a layout bug a fade would only hide.
+    const scrolls = /auto|scroll/.test(getComputedStyle(track).overflowX);
+    const max = scrolls ? track.scrollWidth - track.clientWidth : 0;
+    const more = [
+      max > 1 && track.scrollLeft > 1 ? "start" : "",
+      max > 1 && track.scrollLeft < max - 1 ? "end" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    if (more) track.setAttribute("data-more", more);
+    else track.removeAttribute("data-more");
+  };
+
   const measure = () => {
     const track = ref.current;
     const ind = indRef.current;
     if (!track || !ind) return;
+    edges();
     const active = track.querySelector<HTMLElement>(".seg-active");
     if (!active || active.offsetWidth === 0) {
       ind.style.opacity = "0";
@@ -62,6 +86,12 @@ export function SegmentedTrack({
     track.setAttribute("data-sliding", "on");
     if (first) {
       placed.current = true;
+      // A picked "Poprzedni" past a phone's edge: bring it into view (the
+      // track only - scrollIntoView would also move the page).
+      if (x + active.offsetWidth > track.scrollLeft + track.clientWidth || x < track.scrollLeft) {
+        track.scrollLeft = Math.max(0, x - 24);
+        edges();
+      }
       // Re-enable the spring after this frame.
       requestAnimationFrame(() => {
         if (indRef.current) indRef.current.style.transition = "";
@@ -76,9 +106,13 @@ export function SegmentedTrack({
     if (!track) return;
     const ro = new ResizeObserver(() => measure());
     ro.observe(track);
+    track.addEventListener("scroll", edges, { passive: true });
     // Fonts swapping in change item widths.
     document.fonts?.ready.then(() => measure()).catch(() => {});
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      track.removeEventListener("scroll", edges);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
