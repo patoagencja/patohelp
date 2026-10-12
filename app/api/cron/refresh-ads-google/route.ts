@@ -665,7 +665,10 @@ async function sync(request: Request) {
         history,
         fail: async (message) => {
           // The fresh days stand; the failed history step is a note on them.
+          // What it learned (the turn taken, probes, stamps) is kept too, or
+          // the same turn would come round again on every run.
           errors.add("historia", message);
+          await saveState();
           await recordOutcome();
         },
       });
