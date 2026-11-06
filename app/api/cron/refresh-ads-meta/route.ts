@@ -38,6 +38,7 @@ import {
   readSyncState,
   readSyncStates,
   rememberActiveDays,
+  unknownActiveRanges,
   writeSyncState,
   type ActiveDayCache,
 } from "@/lib/integrations/sync-state";
@@ -85,6 +86,8 @@ const TURN_SLICE_MS = 15_000;
 // Cap historical work per run (BACKFILL_BUDGET_MS cuts it shorter on big
 // accounts); successive runs (cron / manual refresh) continue.
 const MAX_BACKFILL_PER_RUN = 150;
+/** Newest unknown days asked about per run: one probe request per account. */
+const PROBE_DAYS = 92;
 /**
  * Seasonal clients and shops pull D-7..D-2 again once a day: Meta keeps
  * attributing purchases to past days for its whole attribution window, and
@@ -648,34 +651,36 @@ export async function GET(request: Request) {
           // A day with no rows is either a hole or a day with no delivery at
           // all (history shorter than the window, an off-season month). The
           // latter used to be re-pulled on EVERY run, forever. Meta is asked
-          // once which days had any delivery - and the answer is kept for the
-          // rest of the Warsaw day (sync-state), so the 470-day probe of a
-          // seasonal client runs once a day, not every 30 minutes. Unknown
-          // (call failed) -> keep the old behaviour.
+          // which days had any delivery, and the answers are kept for good
+          // (sync-state): a later run asks only about days never asked
+          // before. Only the newest PROBE_DAYS unknown days are asked about,
+          // one request per account: asking a whole year per account every
+          // day used up the run's history time before a single day was
+          // filled, so the weeks a Meta outage left empty stayed empty.
+          // Unknown (call failed) -> keep the old behaviour.
           const unknown = candidates.filter((d) => !present.has(d));
           if (unknown.length && open()) {
+            const asked = unknown.slice(-PROBE_DAYS);
+            const askFrom = asked[0];
+            const askTo = asked[asked.length - 1];
             const active = new Set<string>();
             let probeOk = true;
             for (const account of historyAccounts) {
               // A token / app limit: recorded where it was hit.
               if (blockedBy()) break;
-              let days = cachedActiveDays(state.active, until, account.id, unknown[0], backfillEnd);
+              let days = cachedActiveDays(state.active, until, account.id, askFrom, askTo);
               if (!days) {
                 // Probes are history work too. Past the budget the accounts
                 // not probed yet keep their unknown days out of this run;
-                // the answers already learned are cached for the next one.
+                // the answers already learned are kept for the next one.
                 if (!open()) break;
                 try {
-                  days = await getActiveDays(access_token, account.id, unknown[0], backfillEnd);
-                  state.active = rememberActiveDays(
-                    state.active,
-                    until,
-                    account.id,
-                    unknown[0],
-                    backfillEnd,
-                    days
-                  );
-                  stateChanged = true;
+                  for (const r of unknownActiveRanges(state.active, account.id, askFrom, askTo)) {
+                    const got = await getActiveDays(access_token, account.id, r.since, r.until);
+                    state.active = rememberActiveDays(state.active, until, account.id, r.since, r.until, got);
+                    stateChanged = true;
+                  }
+                  days = cachedActiveDays(state.active, until, account.id, askFrom, askTo) ?? new Set<string>();
                 } catch (activeErr) {
                   if (activeErr instanceof MetaThrottledError) {
                     // Per-account limit: only this account sits out, the
@@ -693,6 +698,7 @@ export async function GET(request: Request) {
               }
               days.forEach((d) => active.add(d));
             }
+            // Unknown days older than the asked window wait for a later run.
             if (probeOk) candidates = candidates.filter((d) => present.has(d) || active.has(d));
           }
 

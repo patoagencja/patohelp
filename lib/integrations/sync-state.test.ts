@@ -2,8 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  cachedActiveDays,
   markAccountsProcessed,
   oldestAccountsFirst,
+  rememberActiveDays,
+  unknownActiveRanges,
   type AccountRotationState,
 } from "./sync-state.ts";
 
@@ -72,4 +75,42 @@ test("stamps merge into the state without dropping other accounts", () => {
   assert.deepEqual(markAccountsProcessed(null, [["a", "2026-10-07T00:00:00Z"]]), {
     accounts: { a: "2026-10-07T00:00:00Z" },
   });
+});
+
+test("active-day answers are kept across days and only new edges are asked", () => {
+  const first = rememberActiveDays(null, "2026-11-01", "acc", "2026-09-01", "2026-10-30", new Set(["2026-09-02", "2026-10-29", "2026-10-30"]));
+  // A later Warsaw day still uses the answer.
+  assert.deepEqual([...(cachedActiveDays(first, "2026-11-04", "acc", "2026-10-01", "2026-10-30") ?? [])], ["2026-10-29", "2026-10-30"]);
+  assert.deepEqual(unknownActiveRanges(first, "acc", "2026-09-01", "2026-10-30"), []);
+  // Wider on both sides: only the two edges are asked.
+  assert.deepEqual(unknownActiveRanges(first, "acc", "2026-08-25", "2026-11-02"), [
+    { since: "2026-08-25", until: "2026-08-31" },
+    { since: "2026-10-31", until: "2026-11-02" },
+  ]);
+  // Never asked, or an answer that doesn't touch the range: all of it.
+  assert.deepEqual(unknownActiveRanges(first, "other", "2026-10-01", "2026-10-05"), [{ since: "2026-10-01", until: "2026-10-05" }]);
+  assert.deepEqual(unknownActiveRanges(first, "acc", "2026-12-01", "2026-12-05"), [{ since: "2026-12-01", until: "2026-12-05" }]);
+});
+
+test("an edge answer extends the kept range, written compactly", () => {
+  const days = new Set<string>();
+  for (let d = 1; d <= 30; d++) days.add(`2026-09-${String(d).padStart(2, "0")}`);
+  let cache = rememberActiveDays(null, "2026-11-01", "acc", "2026-09-01", "2026-09-30", days);
+  // A full month of delivery is one entry.
+  assert.deepEqual(cache.byAccount.acc.active, ["2026-09-01..2026-09-30"]);
+  cache = rememberActiveDays(cache, "2026-11-02", "acc", "2026-10-01", "2026-10-03", new Set(["2026-10-02"]));
+  assert.equal(cache.byAccount.acc.from, "2026-09-01");
+  assert.equal(cache.byAccount.acc.to, "2026-10-03");
+  const all = cachedActiveDays(cache, "2026-11-05", "acc", "2026-09-01", "2026-10-03");
+  assert.equal(all?.size, 31);
+  assert.ok(all?.has("2026-10-02") && !all.has("2026-10-01"));
+  // Other accounts are left alone.
+  cache = rememberActiveDays(cache, "2026-11-02", "b", "2026-10-01", "2026-10-01", new Set());
+  assert.equal(cache.byAccount.acc.to, "2026-10-03");
+  assert.deepEqual(cache.byAccount.b.active, []);
+});
+
+test("answers saved before this change (plain day lists) still read", () => {
+  const old = { day: "2026-10-01", byAccount: { acc: { from: "2026-09-01", to: "2026-09-10", active: ["2026-09-03", "2026-09-04"] } } };
+  assert.deepEqual([...(cachedActiveDays(old, "2026-11-01", "acc", "2026-09-01", "2026-09-10") ?? [])].sort(), ["2026-09-03", "2026-09-04"]);
 });
