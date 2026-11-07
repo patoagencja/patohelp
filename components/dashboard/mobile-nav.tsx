@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight, HelpCircle, MoreHorizontal, X } from "lucide-react";
+import { ChevronRight, HelpCircle, MoreHorizontal, Smartphone, X } from "lucide-react";
 
+import { useInstallApp } from "@/components/dashboard/install-app";
 import {
   buildNav,
   findActive,
@@ -45,6 +46,7 @@ export function MobileNav({
   const closeRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
   useModalFocus(sheetRef, open, close, closeRef);
+  const { mode: installMode, install } = useInstallApp();
 
   // Close the sheet whenever navigation happens.
   useEffect(() => setOpen(false), [pathname]);
@@ -164,6 +166,20 @@ export function MobileNav({
                 <HelpCircle className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 Jak czytać panel
               </button>
+              {installMode ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    close();
+                    install();
+                  }}
+                  className="glass flex w-full items-center gap-3 rounded-[22px] px-4 py-3 text-left text-[15px] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted"
+                >
+                  <Smartphone className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="flex-1">Zainstaluj aplikację</span>
+                  <span className="text-xs text-muted-foreground">ikona na ekranie</span>
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

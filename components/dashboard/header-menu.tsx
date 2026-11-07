@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, HelpCircle, LogOut, Moon, MoreHorizontal, Printer, Search, Sun } from "lucide-react";
+import { Bell, HelpCircle, LogOut, Moon, MoreHorizontal, Printer, Search, Smartphone, Sun } from "lucide-react";
 
+import { useInstallApp } from "@/components/dashboard/install-app";
 import { buildNav, findActive, HELP_EVENT, topNavItems } from "@/components/dashboard/nav-items";
 import { useThemeToggle } from "@/components/dashboard/theme-toggle";
 import { CountBadge, iconButton } from "@/components/ui/primitives";
@@ -150,6 +151,7 @@ export function HeaderMenu({
   };
 
   const openSearch = openCommandPalette;
+  const { mode: installMode, install } = useInstallApp();
 
   // Everything the top bar doesn't show (Raporty, Newsy, Słowniczek, agency
   // tools): same model as the bar, the phone sheet and the palette.
@@ -259,6 +261,12 @@ export function HeaderMenu({
             )}
             {dark ? "Tryb jasny" : "Tryb ciemny"}
           </button>
+          {installMode ? (
+            <button type="button" role="menuitem" tabIndex={-1} className={itemClass} onClick={run(install)}>
+              <Smartphone className="h-4 w-4 text-muted-foreground" aria-hidden />
+              Zainstaluj aplikację
+            </button>
+          ) : null}
           {agency.length > 0 ? (
             <>
               <div role="separator" className="mx-3 my-1.5 h-px bg-border" />

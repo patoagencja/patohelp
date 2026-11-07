@@ -6,7 +6,20 @@ import { isLoginAllowed } from "@/lib/auth/login-policy";
 // Public paths that must stay reachable without a session. /r and /s are
 // token-gated share pages (report deck / board overview) - the page itself
 // validates the token, so the middleware must not bounce them to /login.
-const PUBLIC_PATHS = ["/login", "/auth", "/privacy", "/terms", "/r", "/s", "/demo", "/demo-full"];
+// The app manifest too: the phone fetches it without a session (before
+// login, and without cookies), and a redirect to /login broke the "Dodaj do
+// ekranu początkowego" install. (Icons are .png - the matcher skips them.)
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth",
+  "/privacy",
+  "/terms",
+  "/r",
+  "/s",
+  "/demo",
+  "/demo-full",
+  "/manifest.webmanifest",
+];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

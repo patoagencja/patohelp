@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -43,7 +43,17 @@ const fontVars = [geist, geistExt, geistMono, geistMonoExt].map((f) => f.variabl
 
 export const metadata: Metadata = {
   title: "Kaleido",
+  applicationName: "Kaleido",
   description: "Kaleido by patoagencja - live Meta Ads, Google Ads & GA4 results for clients.",
+  // Home-screen app on the iPhone (Android reads app/manifest.ts).
+  appleWebApp: { capable: true, title: "Kaleido", statusBarStyle: "default" },
+};
+
+// The phone's status bar takes the canvas colour (--bg), like the manifest.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#F5F3EE",
 };
 
 // Apply the saved theme before first paint to avoid a light→dark flash.
