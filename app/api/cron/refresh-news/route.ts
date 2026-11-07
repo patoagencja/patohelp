@@ -1,127 +1,171 @@
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
-import {
-  NEWS_CATEGORIES,
-  fetchOneCategory,
-  type NewsCategory,
-} from "@/lib/news/fetch";
 import { isCronAuthorized } from "@/lib/integrations/cron-auth";
+import { NEWS_CATEGORIES, isNewsCategory, type NewsCategory } from "@/lib/news/fetch";
+import {
+  MIN_RESEARCH_MS,
+  NEWS_START_HOUR_PL,
+  TICK_MS,
+  planNewsTick,
+  remainingAfter,
+  researchBudgetMs,
+  type NewsTarget,
+} from "@/lib/news/plan";
+import {
+  claimTarget,
+  readNewsDay,
+  recentNewsTitles,
+  researchAndStore,
+} from "@/lib/news/runs";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Refreshes the "Newsy" industry feed via Claude + web search.
+// Builds the daily "Newsy" feed (Claude + web search), one step per call.
 //
-// ONE CATEGORY PER INVOCATION on purpose. Researching all four in a single
-// request meant ~8 Claude calls with web search back to back, which ran past
-// the serverless time limit - the request died, nothing was written, and the
-// feed silently froze for weeks. The external cron pings this every 30 min, so
-// each run fills the next category still missing for today and all four are in
-// place shortly after 06:00 PL.
-//   ?category=meta  - refresh a specific category
-//   ?force=1        - ignore the "already done today" / before-06:00 guards
+// Every call used to run past the scheduler's curl limit (HTTP 000 on every
+// tick): one Claude call with no deadline, three searches, 5000 output tokens
+// and the SDK's two silent retries could outlive curl (180 s) and even
+// maxDuration, and a killed or empty category was simply researched again on
+// the next tick, all day. Now (lib/news/plan.ts):
+// - most calls answer in a second: before 06:00 PL, day complete, or the
+//   remaining categories are being researched by another call;
+// - otherwise up to two categories are claimed in news_runs and researched in
+//   parallel, each call cut at RESEARCH_DEADLINE_MS (keeping what streamed in),
+//   so the response comes back by ~255 s, under maxDuration and curl's 310 s;
+// - each category is researched at most twice a day, never by two calls at
+//   once, and a claim left by a killed call expires after the lease.
+//   ?category=meta  - research that category now (even if done today)
+//   ?force=1        - ignore the before-06:00 guard and the attempts cap
 export const dynamic = "force-dynamic";
+// Keep in step with RESEARCH_DEADLINE_MS / CLAIM_LEASE_MS (lib/news/plan.ts)
+// and the curl limit of the news job in .github/workflows/cron.yml.
 export const maxDuration = 300;
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const admin = createAdminClient();
   const { searchParams } = new URL(request.url);
-  const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
   const force = searchParams.get("force") === "1";
-  const only = searchParams.get("category") as NewsCategory | null;
-
-  if (!force && !only) {
-    const hourPl = Number(formatInTimeZone(new Date(), "Europe/Warsaw", "H"));
-    if (hourPl < 6) {
-      return NextResponse.json({ ok: true, items_inserted: 0, note: "before 6:00" });
-    }
+  const only = searchParams.get("category");
+  if (only !== null && !isNewsCategory(only)) {
+    return NextResponse.json({ ok: false, error: "Unknown category" }, { status: 400 });
   }
 
-  // Which categories already have items for today?
-  const { data: todayRows, error: todayErr } = await admin
-    .from("news_items")
-    .select("category")
-    .eq("published_on", today);
-  if (todayErr) {
-    return NextResponse.json({ ok: false, error: todayErr.message }, { status: 500 });
+  const now = new Date(startedAt);
+  const today = formatInTimeZone(now, "Europe/Warsaw", "yyyy-MM-dd");
+  const hourPl = Number(formatInTimeZone(now, "Europe/Warsaw", "H"));
+  // Most night ticks end here, without a database round trip.
+  if (!force && !only && hourPl < NEWS_START_HOUR_PL) {
+    return NextResponse.json({ ok: true, items_inserted: 0, note: "before 6:00" });
   }
-  const done = new Set((todayRows ?? []).map((r) => r.category as string));
 
-  // Rotate through the MISSING categories instead of always taking the first
-  // one. Picking `find(...)` meant a category that keeps coming back empty was
-  // retried on every tick forever and the ones after it in the list were never
-  // attempted at all - which is why the feed only ever had Meta items.
-  const missing = NEWS_CATEGORIES.filter((c) => !done.has(c));
-  const slot = Math.floor(Date.now() / (30 * 60 * 1000)); // advances each tick
-  const target =
-    only ?? (missing.length ? missing[slot % missing.length] : null);
-  if (!target) {
+  const admin = createAdminClient();
+  const day = await readNewsDay(admin, today);
+  if (!day.ok) {
+    return NextResponse.json({ ok: false, error: day.error }, { status: 500 });
+  }
+  const { withItems, runs } = day.state;
+  const migrated = runs !== null;
+
+  const plan = planNewsTick({
+    categories: NEWS_CATEGORIES,
+    hourPl,
+    withItems,
+    runs,
+    now: startedAt,
+    only,
+    force,
+    rotation: Math.floor(startedAt / TICK_MS),
+  });
+  if (plan.kind === "before-start") {
+    return NextResponse.json({ ok: true, items_inserted: 0, note: "before 6:00" });
+  }
+  const counts = {
+    done: plan.done.length,
+    running: plan.running.length,
+    given_up: plan.given_up.length,
+    migrated,
+  };
+  if (plan.kind === "idle") {
     return NextResponse.json({
       ok: true,
       items_inserted: 0,
-      note: "all categories done today",
-      done: [...done],
+      note: plan.reason === "busy" ? "being researched by another call" : "all categories done today",
+      ...counts,
+      remaining: remainingAfter(NEWS_CATEGORIES, plan, []).length,
     });
   }
 
-  // Titles from recent days so the model skips already-covered stories.
-  const { data: recent } = await admin
-    .from("news_items")
-    .select("title")
-    .order("published_on", { ascending: false })
-    .limit(40);
-  const recentTitles = (recent ?? []).map((r) => r.title as string);
-
-  // No backfill pass here either: this runs unattended every 30 min with no
-  // human watching the cost. A thin category some day (fewer than 4 fresh
-  // items) is fine - it is NOT worth silently doubling the Claude spend on an
-  // automated path. Use ?category= manually if a category genuinely needs the
-  // wider sweep.
-  const { items, diags } = await fetchOneCategory(target, recentTitles, {
-    backfill: false,
-  });
-
-  if (items.length === 0) {
-    return NextResponse.json({
-      ok: false,
-      category: target,
-      items_inserted: 0,
-      note: "no items for this category",
-      diags,
-    });
-  }
-
-  // Replace only this category's rows for today (other categories untouched).
-  await admin
-    .from("news_items")
-    .delete()
-    .eq("published_on", today)
-    .eq("category", target);
-
-  const { error } = await admin.from("news_items").insert(
-    items.map((i) => ({
-      published_on: today,
-      category: i.category,
-      title: i.title,
-      summary: i.summary,
-      source_name: i.source_name,
-      source_url: i.source_url,
+  // Claim before paying for the research: a category another call got first
+  // is skipped. Without news_runs (not migrated) there's nothing to claim.
+  const nowIso = new Date().toISOString();
+  const claims = await Promise.all(
+    plan.targets.map(async (target) => ({
+      target,
+      result: migrated ? await claimTarget(admin, today, target, nowIso) : ("claimed" as const),
     }))
   );
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  const mine: NewsTarget[] = claims.filter((c) => c.result === "claimed").map((c) => c.target);
+  const claimErrors = claims
+    .filter((c) => c.result === "error")
+    .map((c) => `${c.target.category}: claim failed`);
+  if (mine.length === 0) {
+    return NextResponse.json({
+      ok: claimErrors.length === 0,
+      items_inserted: 0,
+      note: "claimed by another call",
+      ...counts,
+      ...(claimErrors.length ? { errors: claimErrors } : {}),
+    });
   }
 
-  const remaining = NEWS_CATEGORIES.filter(
-    (c) => c !== target && !done.has(c)
+  const recentTitles = await recentNewsTitles(admin);
+  const budget = researchBudgetMs(Date.now() - startedAt);
+  if (budget < MIN_RESEARCH_MS) {
+    // Practically unreachable (the reads above take a second or two); the
+    // claims expire after the lease and the next tick takes them again.
+    return NextResponse.json({ ok: false, items_inserted: 0, note: "no time left", ...counts });
+  }
+
+  // Independent categories side by side: the call takes as long as the
+  // slowest one, not their sum, and every one stops at the same deadline.
+  const results = await Promise.all(
+    mine.map((target) =>
+      researchAndStore(
+        admin,
+        today,
+        target.category as NewsCategory,
+        migrated ? target.attempt : null,
+        recentTitles,
+        budget
+      )
+    )
   );
+
+  const filled = results.filter((r) => r.items > 0).map((r) => r.category);
+  const sum = (pick: (r: (typeof results)[number]) => number | undefined) =>
+    results.reduce((acc, r) => acc + (pick(r) ?? 0), 0);
+  const errors = [
+    ...claimErrors,
+    ...results.filter((r) => r.error).map((r) => `${r.category}: ${r.error}`),
+  ];
   return NextResponse.json({
-    ok: true,
-    category: target,
-    items_inserted: items.length,
-    remaining,
+    ok: filled.length === results.length && claimErrors.length === 0,
+    researched: results.length,
+    items_inserted: sum((r) => r.items),
+    timed_out: results.filter((r) => r.diag.timed_out).length,
+    ...counts,
+    remaining: remainingAfter(NEWS_CATEGORIES, plan, filled).length,
+    // Usage of this call's research, to keep an eye on the cost per day.
+    input_tokens: sum((r) => r.diag.input_tokens),
+    output_tokens: sum((r) => r.diag.output_tokens),
+    web_searches: sum((r) => r.diag.web_searches),
+    seconds: Math.round((Date.now() - startedAt) / 1000),
+    categories: results.map((r) => ({ category: r.category, items: r.items })),
+    ...(errors.length ? { errors } : {}),
+    diags: results.map((r) => r.diag),
   });
 }

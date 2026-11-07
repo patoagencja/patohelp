@@ -252,18 +252,18 @@ jobs:
             echo "CRON_SECRET repo secret is missing"; exit 1
           fi
 
-      # Self-healing: each tick fills the next missing news category, and the
-      # summary is once per client per day. A miss is retried 30 minutes later,
-      # so this warns instead of failing. No retry - it would double wall time.
+      # Self-healing: the summary is once per client per day. A miss is
+      # retried 30 minutes later, so this warns instead of failing. No retry
+      # - it would double wall time. (News has its own job, below.)
       # weekly-digest self-gates to Monday 8-11 Warsaw and dedupes per ISO week,
       # season-pulse to 7-10 Warsaw once a day in a client's season,
       # monthly-digest to days 1-3 of the month 8-20 Warsaw and dedupes per
       # client and month - every other tick is a cheap no-op for all three
       # (and none of them uses AI). monthly-digest goes last so it can never
-      # delay the daily season pulse.
-      - name: AI jobs (news, summary) + weekly/monthly digest - best effort
+      # delay the daily season pulse. refresh-news has its own job.
+      - name: AI jobs (summary) + weekly/monthly digest - best effort
         run: |
-          for job in refresh-news generate-summary weekly-digest season-pulse monthly-digest; do
+          for job in generate-summary weekly-digest season-pulse monthly-digest; do
             rm -f /tmp/body
             code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
               -H "Authorization: Bearer $CRON_SECRET" \
@@ -275,3 +275,41 @@ jobs:
               echo "::warning::$job returned HTTP $code (retried next tick)"
             fi
           done
+
+  # The "Newsy" feed (one prasówka a day from 06:00 PL). Own job: a research
+  # call takes minutes, so it must neither wait behind nor delay the summary.
+  # Under the shared `curl -m 180` every call ended in HTTP 000 - the route
+  # ran longer than that. It now answers by ~255 s at worst (research cut at
+  # 250 s, maxDuration 300 s) and in a second on all other ticks: before
+  # 06:00, day complete, or claimed by another call. curl waits 310 s, longer
+  # than the function can live, so it never gives up on a working call.
+  # Best effort, no retry: a missed category is taken by the next tick.
+  news:
+    runs-on: ubuntu-latest
+    # One call of up to 310 s + runner start-up.
+    timeout-minutes: 8
+    env:
+      APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: News (refresh-news) - best effort
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET missing"; exit 0; fi
+          rm -f /tmp/body
+          rc=0
+          code=$(curl -sS -m 310 -o /tmp/body -w "%{http_code}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/refresh-news" 2>/dev/null) || rc=$?
+          [ -n "$code" ] || code=000
+          # Status, top-level counts, errors count only (public logs, see the header).
+          counts=$(jq -c "$SUMMARY_JQ" /tmp/body 2>/dev/null | head -c 300 || true)
+          echo "-> refresh-news: HTTP $code $counts"
+          errs=$(jq -r "$ERRORS_JQ" /tmp/body 2>/dev/null || echo 0)
+          if [ "${errs:-0}" -gt 0 ] 2>/dev/null; then
+            echo "::warning::refresh-news reported $errs error(s) in its response"
+          fi
+          if [ "$rc" -eq 28 ]; then
+            echo "::warning::refresh-news timed out after 310 s (retried next tick)"
+          elif [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+            echo "::warning::refresh-news returned HTTP $code (retried next tick)"
+          fi
