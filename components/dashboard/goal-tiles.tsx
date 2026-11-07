@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  * card on Alerty. Server-safe; renders nothing when no goal is running.
  */
 
-const METRIC_LABEL: Record<FlightMetric, string> = {
+export const METRIC_LABEL: Record<FlightMetric, string> = {
   clicks: "Kliknięcia linku",
   clicks_all: "Wszystkie kliknięcia",
   impressions: "Wyświetlenia",

@@ -12,6 +12,7 @@ import {
   Newspaper,
   Settings,
   ShoppingBag,
+  Sunrise,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,6 +22,11 @@ export type NavItem = {
   /** Shorter label for the phone tab bar. */
   short?: string;
   icon: LucideIcon;
+  /**
+   * Phone-first place: it leads the phone tab bar but stays out of the
+   * desktop bar (there it is in the "…" menu and ⌘K).
+   */
+  phoneFirst?: boolean;
   /**
    * Sub-pages that belong to this place (Kreacje inside Reklamy). The
    * sidebar reveals them only while you are in that place, so the resting
@@ -45,10 +51,13 @@ export const HELP_EVENT = "pato:help";
  * "Więcej" sheet, the phone header's page name, the command palette).
  *
  *   engagement client: Przegląd · Reklamy · Strona www · Raporty · Więcej
- *   e-commerce client: Przegląd · Sprzedaż · Reklamy · Strona www · Więcej
- *                      (Raporty moves into Więcej)
+ *   e-commerce client: Dziś · Przegląd · Sprzedaż · Reklamy · Więcej on the
+ *                      phone (Strona www and Raporty in Więcej); the
+ *                      desktop bar is unchanged - Przegląd · Sprzedaż ·
+ *                      Reklamy · Strona www - with Dziś in its "…" menu
+ *                      (`phoneFirst`)
  *   seasonal client:   Sezon right after Przegląd; the phone tab bar keeps
- *                      its first four, so the last main place drops into
+ *                      its first four, so the last main places drop into
  *                      the "Więcej" sheet (mobile-nav.tsx)
  *
  * Kreacje lives inside Reklamy; Alerty, Newsy and Słowniczek are under
@@ -74,9 +83,16 @@ export function buildNav({
   const reports: NavItem = { href: `${base}/raport`, label: "Raporty", icon: FileText };
 
   const main: NavItem[] = [
+    // Shops: the first phone tab, the one under the thumb - "how did we sell
+    // yesterday, what do we do today" is a shop owner's first question of
+    // the day. Engagement clients keep Przegląd first: their day isn't
+    // counted in sales (the page still works for them on a direct link, in
+    // clicks and visits).
+    ...(isEcommerce ? [{ href: `${base}/dzis`, label: "Dziś", icon: Sunrise, phoneFirst: true }] : []),
     { href: base, label: "Przegląd", icon: LayoutDashboard },
-    // Second on purpose: in season it is the page a seasonal client opens
-    // first, so it must keep a phone tab slot over the pages after it.
+    // Right after Przegląd on purpose: in season it is the page a seasonal
+    // client opens first, so it must keep a phone tab slot over the pages
+    // after it (a seasonal shop: Dziś · Przegląd · Sezon · Sprzedaż).
     ...(isSeasonal ? [{ href: `${base}/sezon`, label: "Sezon", icon: CalendarRange }] : []),
     ...(isEcommerce ? [{ href: `${base}/sprzedaz`, label: "Sprzedaż", icon: ShoppingBag }] : []),
     {
@@ -162,7 +178,9 @@ export function topNavItems(groups: NavGroup[]): NavItem[] {
   const main = groups.find((g) => g.id === "main")?.items ?? [];
   const more = groups.find((g) => g.id === "more")?.items ?? [];
   const alerts = more.find((i) => i.href.endsWith("/alerty"));
-  const tabs = main.filter((i) => !i.href.endsWith("/raport"));
+  // Dziś is phone-first: on a desktop Przegląd shows the whole day at once,
+  // and a seasonal shop's bar has no room for a sixth tab.
+  const tabs = main.filter((i) => !i.href.endsWith("/raport") && !i.phoneFirst);
   // A seasonal shop has five main tabs; a sixth (Alerty) no longer fits the
   // bar next to the header controls and was cut to "Al…". The bell right
   // beside it opens the same page.

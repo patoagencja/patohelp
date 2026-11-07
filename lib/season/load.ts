@@ -376,7 +376,7 @@ export function computeSeasonView(
 }
 
 /** Last shop push or CSV upload marker; null before migration 0038 / no key. */
-async function shopPushStamp(clientId: string): Promise<string | null> {
+export async function shopPushStamp(clientId: string): Promise<string | null> {
   const { data, error } = await createAdminClient()
     .from("shop_ingest_keys")
     .select("last_used_at")

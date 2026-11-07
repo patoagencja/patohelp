@@ -32,6 +32,7 @@ import {
   Search,
   Settings,
   ShoppingBag,
+  Sunrise,
   SunMoon,
 } from "lucide-react";
 
@@ -95,8 +96,8 @@ const RECENT_MAX = 3;
 
 // Tabs whose pages ignore ?range= - picking a range there lands on the
 // overview instead of silently doing nothing. Sezon is framed by the season
-// window itself (lib/season), not by a date range.
-const NO_RANGE_TABS = new Set(["alerty", "newsy", "settings", "sezon"]);
+// window itself (lib/season), not by a date range; Dziś by today.
+const NO_RANGE_TABS = new Set(["alerty", "newsy", "settings", "sezon", "dzis"]);
 
 // One output char per input char keeps match indices valid for highlighting
 // the original (accented) label. "ł" has no Unicode decomposition, hence the
@@ -336,6 +337,10 @@ export function CommandPalette({
     const tab = pathname.split("/")[2] ?? "";
 
     const tabs: Array<{ path: string; label: string; icon: Icon; keywords?: string }> = [
+      // Shops only, first - as in the phone tab bar (nav-items.ts).
+      ...(isEcommerce
+        ? [{ path: "dzis", label: "Dziś", icon: Sunrise, keywords: "today dzisiaj rano poranek wczoraj brief co robimy na co uwazac najlepszy produkt asystent" }]
+        : []),
       { path: "", label: "Przegląd", icon: LayoutDashboard, keywords: "overview start home kpi podsumowanie wyniki budzet cele rekordy wydatki ile wydalismy" },
       ...(isSeasonal
         ? [{ path: "sezon", label: "Sezon", icon: CalendarRange, keywords: "season sezonowy swieta boze narodzenie wigilia mikolajki black friday poprzedni sezon porownanie rok do roku prognoza" }]

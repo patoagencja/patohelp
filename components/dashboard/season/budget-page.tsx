@@ -19,8 +19,8 @@ const dm = (iso: string) => `${Number(iso.slice(8, 10))}.${iso.slice(5, 7)}`;
 const WEEKDAY = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
 const weekday = (iso: string) => WEEKDAY[new Date(`${iso}T00:00:00Z`).getUTCDay()];
 
-/** Over / under plan in words, with the tone the tiles use. */
-function paceWords(pace: number | null): { text: string; tone: "good" | "bad" | "flat" } | null {
+/** Over / under plan in words, with the tone the tiles use (also the Dziś view's budget line). */
+export function paceWords(pace: number | null): { text: string; tone: "good" | "bad" | "flat" } | null {
   if (pace === null) return null;
   const pct = Math.round(Math.abs(pace - 1) * 100);
   if (pct <= 5) return { text: "zgodnie z planem", tone: "good" };
