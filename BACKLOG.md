@@ -26,7 +26,6 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 ## W toku (PR)
 
 - Miesięczne podsumowanie mailem („Twój październik w skrócie”).
-- Testy kreacji prostym językiem (alerty i werdykty przy reklamach).
 - Mądrzejsze alerty: serie spadków na tle tego samego dnia tygodnia, z podpowiedzią co sprawdzić.
 - „Dziś” — asystent e-commerce w telefonie: poranny skrót, na co uważać, co dziś robimy.
 - Pobierz do Excela przy tabelach.
@@ -35,4 +34,5 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 
 ## Zrobione
 
+- Testy kreacji prostym językiem (alerty i werdykty przy reklamach).
 - Panel jako aplikacja na telefonie (ikona na ekranie głównym, „Zainstaluj aplikację” w menu).
