@@ -34,3 +34,6 @@ yarn-error.log*
 
 # supabase
 .supabase/
+
+# Working copies of parallel coding agents (git worktrees) - never part of the app
+.claude/worktrees/
