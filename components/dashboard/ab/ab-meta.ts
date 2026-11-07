@@ -9,7 +9,7 @@ import {
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
-import { FATIGUE_RECENT_DAYS } from "@/lib/ab/stats";
+import { FATIGUE_RECENT_DAYS, formatEstimateZl, formatPerZl, sureText, timesWord } from "@/lib/ab/stats";
 import type { AbAction, AbActionKind, AbAd, AbVerdictKind, AbWindowKey } from "@/lib/ab/types";
 import { guessFormat, type CreativeFormat } from "@/lib/dashboard/creatives";
 import { plPlural } from "@/lib/dashboard/story";
@@ -85,42 +85,29 @@ export const ACTION: Record<AbActionKind, KindMeta & { impact: string; plus: boo
 };
 
 /**
- * The tag already names the move, so the title drops its verb lead-in
- * ("Wyłącz „X”: ..." -> "„X”: ...") - only right before the quoted name, so
- * a title that is a sentence of its own stays whole.
+ * The tag already names the move, so the title drops its lead-in
+ * ("Proponujemy wyłączyć reklamę „X”: ..." -> "„X”: ...") - only right
+ * before the quoted name, so a title that is a sentence of its own stays
+ * whole. The bare verbs ("Wyłącz") are titles from before the owner's words.
  */
 export function stripKindPrefix(title: string): string {
-  return title.replace(/^(Wyłącz|Odśwież|Obserwuj|Daj więcej budżetu|Zwiększ budżet)\s*:?\s+(?=„)/, "");
+  return title.replace(
+    /^(Proponujemy (wyłączyć reklamę|dołożyć budżet reklamie|nową wersję reklamy)|Obserwujemy reklamę|Wyłącz|Odśwież|Obserwuj|Daj więcej budżetu|Zwiększ budżet)\s*:?\s+(?=„)/,
+    ""
+  );
 }
 
-/**
- * How sure a call is, in words: "prawie na pewno" reads to an owner where
- * "99% szans" reads like a betting slip. null below 90% (no word claims it).
- */
-export function sureText(p: number | null | undefined): string | null {
-  if (p == null) return null;
-  if (p > 0.99) return "prawie na pewno";
-  if (p >= 0.95) return "z dużą pewnością";
-  if (p >= 0.9) return "najpewniej";
-  return null;
-}
+// The certainty words live with the verdicts (lib/ab/stats), so the page,
+// the verdict lines and the alerts can never disagree on what "prawie na
+// pewno" means.
+export { sureText };
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-/** Sales per 1 zł of ads: 4.83 -> "4,8 zł". */
-const perZl = (r: number) =>
-  `${r.toLocaleString("pl-PL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} zł`;
-
-/** "2 razy", "2,5 raza" (a fraction takes the genitive). */
-function times(r: number): string {
-  const v = Math.round(r * 10) / 10;
-  return Number.isInteger(v) ? `${v} razy` : `${v.toLocaleString("pl-PL")} raza`;
-}
 
 /**
  * One action in the owner's words, from the numbers the statistics already
  * used (AbAction.facts) - nothing is recomputed. Views cached before facts
- * existed fall back to the marketer sentence.
+ * existed fall back to the action's own title and detail.
  */
 export function actionCopy(a: AbAction, ad: AbAd | undefined): { title: string; detail: string } {
   const f = a.facts;
@@ -129,7 +116,7 @@ export function actionCopy(a: AbAction, ad: AbAd | undefined): { title: string; 
   const roas = ad.rates.roas;
   const versus =
     roas != null && f.restRoas != null
-      ? ` (z każdej złotówki na tę reklamę ${perZl(roas)} sprzedaży, na pozostałe ${perZl(f.restRoas)})`
+      ? ` (z każdej złotówki na tę reklamę ${formatPerZl(roas)} sprzedaży, na pozostałe ${formatPerZl(f.restRoas)})`
       : "";
   const sure = cap(sureText(ad.verdict.probability) ?? "wyraźnie");
 
@@ -138,7 +125,7 @@ export function actionCopy(a: AbAction, ad: AbAd | undefined): { title: string; 
       return {
         title:
           f.cpaRatio != null && f.cpaRatio >= 1.05
-            ? `${name}: zakup ${times(f.cpaRatio)} droższy niż z pozostałych reklam w tym teście`
+            ? `${name}: zakup ${timesWord(f.cpaRatio)} droższy niż z pozostałych reklam w tym teście`
             : `${name} sprzedaje słabiej niż pozostałe reklamy w tym teście`,
         detail: `${sure} to nie przypadek${versus}. Kosztuje ok. ${fmtMoney(f.dailySpend)} dziennie - po wyłączeniu Meta wyda te pieniądze na lepsze reklamy z tego testu, więc sprzedaż wzrośnie.`,
       };
@@ -150,7 +137,7 @@ export function actionCopy(a: AbAction, ad: AbAd | undefined): { title: string; 
     case "refresh": {
       const drop =
         f.roasBefore != null && f.roasRecent != null
-          ? `W ostatnich ${FATIGUE_RECENT_DAYS} dniach z każdej złotówki wraca ${perZl(f.roasRecent)} sprzedaży, tydzień wcześniej wracało ${perZl(f.roasBefore)}`
+          ? `W ostatnich ${FATIGUE_RECENT_DAYS} dniach z każdej złotówki wraca ${formatPerZl(f.roasRecent)} sprzedaży, tydzień wcześniej wracało ${formatPerZl(f.roasBefore)}`
           : "Sprzedaje coraz słabiej, szybciej niż pozostałe reklamy w tym teście";
       return {
         title: `${name} się opatrzyła - sprzedaje coraz słabiej`,
@@ -180,12 +167,9 @@ export const fmtMoney = (minor: number) => formatPlnWhole(minor);
 
 /**
  * Estimates ("~1 240 zł dziennie") rounded to 10 zł: "~3 197 zł" would
- * claim a precision the estimate doesn't have.
+ * claim a precision the estimate doesn't have. The alerts round the same way.
  */
-export const fmtEstimate = (minor: number) => {
-  const zl = minor / 100;
-  return fmtMoney((zl >= 100 ? Math.round(zl / 10) * 10 : Math.round(zl)) * 100);
-};
+export const fmtEstimate = formatEstimateZl;
 
 /** Cost per purchase keeps grosze: 8,40 zł vs 9,10 zł is the story. */
 export const fmtCpa = (minor: number | null) => (minor == null ? "-" : formatMoneyPLN(Math.round(minor)));

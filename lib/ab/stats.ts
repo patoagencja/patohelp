@@ -41,6 +41,7 @@
 import type {
   AbAction,
   AbActionFacts,
+  AbActionKind,
   AbAd,
   AbAdTotals,
   AbDay,
@@ -187,9 +188,25 @@ export function formatX(ratio: number): string {
   return `${(Math.round(ratio * 10) / 10).toFixed(1).replace(".", ",")}×`;
 }
 
-/** Probability as a whole percent, never claiming 0% or 100%. */
-export function formatChance(p: number): string {
-  return `${Math.min(99, Math.max(1, Math.round(p * 100)))}%`;
+/**
+ * An estimate in whole złoty, rounded to 10 zł from 100 zł up: "ok. 3 197 zł"
+ * would claim a precision the estimate doesn't have.
+ */
+export function formatEstimateZl(minor: number): string {
+  const zl = minor / 100;
+  return formatZl((zl >= 100 ? Math.round(zl / 10) * 10 : Math.round(zl)) * 100);
+}
+
+/** ROAS the owner's way - sales per 1 zł of ads: 4.83 -> "4,8 zł". */
+export function formatPerZl(ratio: number): string {
+  return `${formatDec1(ratio)}${NBSP}zł`;
+}
+
+/** "1 raz", "2 razy", "4,5 raza" (a fraction takes the genitive). */
+export function timesWord(r: number): string {
+  const v = Math.round(r * 10) / 10;
+  if (v === 1) return "1 raz";
+  return Number.isInteger(v) ? `${v} razy` : `${formatDec1(v)} raza`;
 }
 
 /** 0.975 -> "97,5%", 0.95 -> "95%" (thresholds in copy). */
@@ -224,6 +241,52 @@ export function quoted(name: string, max = 48): string {
   const s = name.trim();
   return `„${s.length > max ? `${s.slice(0, max - 1)}…` : s}”`;
 }
+
+// ------------------------------------------------------------------ the owner's words
+//
+// Verdicts, proposals and alerts are read by the shop owner, not a marketer:
+// certainty in words, ROAS as "z każdej złotówki ... zł sprzedaży", and an ad
+// set is a "test" (the page explains Meta's term once). The page
+// (components/dashboard/ab) words its proposals with the same helpers.
+
+/**
+ * How sure a call is, in words: "prawie na pewno" reads to an owner where
+ * "99% szans" reads like a betting slip. null below 90% (no word claims it).
+ */
+export function sureText(p: number | null | undefined): string | null {
+  if (p == null) return null;
+  if (p > 0.99) return "prawie na pewno";
+  if (p >= 0.95) return "z dużą pewnością";
+  if (p >= 0.9) return "najpewniej";
+  return null;
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "Prawie na pewno" at the start of a line; callers are past the 90% bar, so a word always fits. */
+const sureCap = (p: number) => cap(sureText(p) ?? "wyraźnie");
+
+const OTHERS = "pozostałe reklamy w tym teście";
+
+/** " (z każdej złotówki na tę reklamę 6,0 zł sprzedaży, na pozostałe 5,0 zł)"; "" without purchase value. */
+function perZlVersus(roas: number, restRoas: number | null): string {
+  return restRoas != null
+    ? ` (z każdej złotówki na tę reklamę ${formatPerZl(roas)} sprzedaży, na pozostałe ${formatPerZl(restRoas)})`
+    : "";
+}
+
+/** "W ostatnich 3 dniach z każdej złotówki wraca 5,3 zł sprzedaży, tydzień wcześniej wracało 9,1 zł". */
+function returnFellText(before: number, recent: number): string {
+  return `W ostatnich ${FATIGUE_RECENT_DAYS} dniach z każdej złotówki wraca ${formatPerZl(recent)} sprzedaży, tydzień wcześniej wracało ${formatPerZl(before)}`;
+}
+
+/** How each proposal opens when it stands alone (alerts, e-mails); the page shows it as a tag instead. */
+export const PROPOSAL: Record<AbActionKind, string> = {
+  cut: "Proponujemy wyłączyć reklamę",
+  scale: "Proponujemy dołożyć budżet reklamie",
+  refresh: "Proponujemy nową wersję reklamy",
+  watch: "Obserwujemy reklamę",
+};
 
 // ------------------------------------------------------------------ probability
 
@@ -430,10 +493,11 @@ export function detectFatigue(
 }
 
 export function fatigueText(f: Pick<FatigueSignal, "roasBefore" | "roasRecent" | "frequencyRising" | "freqRecent">): string {
-  const base = `Zwrot spadł z ${formatX(f.roasBefore)} do ${formatX(f.roasRecent)} w ostatnich 3 dniach (wobec tygodnia wcześniej)`;
+  const base = returnFellText(f.roasBefore, f.roasRecent);
+  // freqRecent is an average DAILY frequency (see detectFatigue).
   return f.frequencyRising
-    ? `${base}, częstotliwość rośnie`
-    : `${base}, częstotliwość już ${formatDec1(f.freqRecent)}`;
+    ? `${base}, a te same osoby widzą ją coraz częściej`
+    : `${base}, a te same osoby widzą ją już średnio ${timesWord(f.freqRecent)} dziennie`;
 }
 
 /** A known sales day (Black Friday, Mikołajki, ...). */
@@ -489,9 +553,6 @@ export function loserBar(dailySpend: number): number {
   return dailySpend > BIG_SPENDER_DAILY ? LOSER_SIGNIFICANCE_BIG : SIGNIFICANCE;
 }
 
-const vs = (roas: number, restRoas: number | null) =>
-  restRoas != null ? ` (zwrot ${formatX(roas)} wobec ${formatX(restRoas)} w reszcie zestawu)` : "";
-
 /**
  * Precedence, most urgent first:
  * - loser: P(sells less than the rest) >= 95% (97.5% above 1 000 zł a day),
@@ -527,7 +588,7 @@ export function verdictFor(v: VerdictInput): AbVerdict {
       return {
         kind: "loser",
         probability: 1 - p,
-        text: `${formatChance(1 - p)} szans, że sprzedaje słabiej niż reszta zestawu${vs(roas, restRoas)}`,
+        text: `${sureCap(1 - p)} sprzedaje słabiej niż ${OTHERS}${perZlVersus(roas, restRoas)}`,
       };
     }
   }
@@ -548,7 +609,7 @@ export function verdictFor(v: VerdictInput): AbVerdict {
     return {
       kind: "winner",
       probability: p,
-      text: `${formatChance(p)} szans, że sprzedaje lepiej niż reszta zestawu${vs(roas, restRoas)}`,
+      text: `${sureCap(p)} sprzedaje lepiej niż ${OTHERS}${perZlVersus(roas, restRoas)}`,
     };
   }
   return { kind: "steady", probability: p, text: steadyText(v, p, roas, restRoas) };
@@ -582,42 +643,58 @@ function tooEarly(purchases: number, clicks: number, deliveryDays: number): AbVe
   return {
     kind: "too_early",
     probability: null,
-    text: `Za wcześnie - oceniamy po ${MIN_DECISION_DAYS} pełnych dniach emisji (na razie ${deliveryDays} ${deliveryDays === 1 ? "dzień" : "dni"})`,
+    text: `Za wcześnie - oceniamy po ${MIN_DECISION_DAYS} pełnych dniach wyświetlania (na razie ${deliveryDays} ${deliveryDays === 1 ? "dzień" : "dni"})`,
     purchasesNeeded: null,
   };
 }
 
+/** "..., ale z każdej złotówki daje 5,7 zł sprzedaży, a pozostałe 5,0 zł". */
+const perZlBut = (roas: number, restRoas: number) =>
+  `ale z każdej złotówki daje ${formatPerZl(roas)} sprzedaży, a pozostałe ${formatPerZl(restRoas)}`;
+
+/**
+ * Why an ad with a clear difference is still "Na równi", or how it leans
+ * when the difference isn't clear. The branches mirror verdictFor's rules
+ * one to one - only the words are for the owner.
+ */
 function steadyText(v: VerdictInput, p: number | null, roas: number, restRoas: number | null): string {
   if (p == null) {
     return v.alone
-      ? "Jedyna reklama w zestawie - nie ma z czym porównać"
-      : "Reszta zestawu ma za mało danych, by porównać";
+      ? "Jedyna reklama w tym teście - nie ma jej z czym porównać"
+      : "Pozostałe reklamy w tym teście mają za mało danych, żeby porównać";
   }
   if (v.seasonalDip) {
     const d = v.seasonalDip;
-    return `Zwrot spadł z ${formatX(d.roasBefore)} do ${formatX(d.roasRecent)} w ostatnich 3 dniach, ale to okolice szczytu sprzedaży (${d.label}) - zmęczenia wtedy nie oceniamy`;
+    return `${returnFellText(d.roasBefore, d.roasRecent)}, ale to okolice szczytu sprzedaży (${d.label}) - wtedy wyniki mocno się wahają, więc tego nie oceniamy`;
   }
   if (p >= SIGNIFICANCE) {
-    const head = `Sprzedaje częściej niż reszta zestawu (${formatChance(p)} szans)`;
+    const head = `${sureCap(p)} sprzedaje częściej niż ${OTHERS}`;
     if (restRoas != null && roas < WINNER_ROAS_RATIO * restRoas) {
-      return `${head}, ale zwrot ${formatX(roas)} nie przebija reszty zestawu (${formatX(restRoas)}) o 15%`;
+      return `${head}, ${perZlBut(roas, restRoas)} - za mało, żeby dokładać jej budżet`;
     }
-    return `${head}, ale przewaga może być mniejsza niż 5%`;
+    return `${head}, ale przewaga może być bardzo mała, więc nie warto dokładać jej budżetu`;
   }
   if (1 - p >= SIGNIFICANCE) {
-    const head = `${formatChance(1 - p)} szans, że sprzedaje słabiej niż reszta zestawu`;
+    const head = `${sureCap(1 - p)} sprzedaje słabiej niż ${OTHERS}`;
     if (v.spendShare < LOSER_MIN_SPEND_SHARE) {
-      return `${head}, ale wydaje tylko ${formatShare(v.spendShare)} budżetu zestawu`;
+      return `${head}, ale wydaje tylko ${formatShare(v.spendShare)} budżetu tego testu - wyłączenie niewiele zmieni`;
     }
     if (restRoas != null && roas > LOSER_ROAS_RATIO * restRoas) {
-      return `${head}, ale zwrot ${formatX(roas)} nie odstaje od reszty zestawu (${formatX(restRoas)})`;
+      return `${head}, ${perZlBut(roas, restRoas)} - za mała różnica, żeby ją wyłączać`;
     }
     if (1 - p < loserBar(v.dailySpend)) {
-      return `${head} - przy ponad ${formatZl(BIG_SPENDER_DAILY)} dziennie czekamy na ${formatPct(LOSER_SIGNIFICANCE_BIG)} pewności`;
+      return `${head}, ale wydaje ponad ${formatZl(BIG_SPENDER_DAILY)} dziennie - tak dużą reklamę wyłączamy dopiero przy mocniejszych dowodach`;
     }
-    return `${head}, ale różnica jest za mała, by wyłączać`;
+    return `${head}, ale różnica jest za mała, żeby ją wyłączać`;
   }
-  return `W normie - ${formatChance(p)} szans, że sprzedaje lepiej niż reszta zestawu`;
+  // Under the 95% bar: lean in words from 90% ("najpewniej"), else no call.
+  if (sureText(p)) {
+    return `${sureCap(p)} sprzedaje lepiej niż ${OTHERS}, ale to jeszcze za mało pewne, żeby dokładać jej budżet`;
+  }
+  if (sureText(1 - p)) {
+    return `${sureCap(1 - p)} sprzedaje słabiej niż ${OTHERS}, ale to jeszcze za mało pewne, żeby ją wyłączać`;
+  }
+  return "Na razie bez wyraźnej różnicy wobec pozostałych reklam w tym teście";
 }
 
 // ------------------------------------------------------------------ view
@@ -1137,11 +1214,13 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
           kind: "cut",
           adId: ad.adId,
           adsetId: ad.adsetId,
+          // Under 1.05 "1 raz droższy" would say nothing; the verdict in the
+          // detail carries the złoty per złotówka either way.
           title:
-            cpaRatio != null && cpaRatio >= 1
-              ? `Wyłącz ${name}: zakup ${formatX(cpaRatio)} droższy niż w reszcie zestawu`
-              : `Wyłącz ${name}: zwrot ${formatX(roas)} przy ${formatX(a.restRoas)} w reszcie zestawu`,
-          detail: `${ad.verdict.text}. Wydaje ok. ${formatZl(a.recentDailySpend)} dziennie - po wyłączeniu Meta przesunie ten budżet na pozostałe reklamy zestawu.`,
+            cpaRatio != null && cpaRatio >= 1.05
+              ? `${PROPOSAL.cut} ${name}: zakup ${timesWord(cpaRatio)} droższy niż z pozostałych reklam w tym teście`
+              : `${PROPOSAL.cut} ${name}`,
+          detail: `${ad.verdict.text}. Kosztuje ok. ${formatZl(a.recentDailySpend)} dziennie - po wyłączeniu Meta wyda te pieniądze na lepsze reklamy z tego testu, co da ok. +${formatEstimateZl(impact)} sprzedaży dziennie.`,
           impactPerDay: impact,
           facts: facts({}),
         },
@@ -1156,8 +1235,9 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
           kind: "scale" as const,
           adId: ad.adId,
           adsetId: ad.adsetId,
-          title: `Daj więcej budżetu ${name}: wyłącz słabsze reklamy w zestawie albo przenieś ją do osobnego zestawu`,
-          detail: `${ad.verdict.text}. Przy +30% budżetu (ok. ${formatZl(extraSpend)} dziennie ze słabszych reklam) to ok. +${formatZl(impact)} sprzedaży dziennie - liczymy połowę różnicy, bo dodatkowy budżet sprzedaje gorzej.`,
+          // The verdict opening the detail already says it sells better.
+          title: `${PROPOSAL.scale} ${name}`,
+          detail: `${ad.verdict.text}. Dołożenie jej ok. ${formatZl(extraSpend)} dziennie, zabranych słabszym reklamom, to ok. +${formatEstimateZl(impact)} sprzedaży dziennie - liczymy ostrożnie, bo dodatkowy budżet zwykle sprzedaje trochę gorzej.`,
           impactPerDay: impact,
           facts: facts({ extraSpend }),
         },
@@ -1172,8 +1252,8 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
           kind: "refresh",
           adId: ad.adId,
           adsetId: ad.adsetId,
-          title: `Odśwież ${name}: kreacja się wypala`,
-          detail: `${ad.verdict.text}. Przy obecnym budżecie to ok. ${formatZl(a.fatigue.valueDropPerDay)} sprzedaży mniej dziennie, niż gdyby szła jak reszta zestawu - przygotuj nową wersję.`,
+          title: `${PROPOSAL.refresh} ${name} - sprzedaje coraz słabiej`,
+          detail: `${ad.verdict.text}. Bez nowej wersji to ok. ${formatEstimateZl(a.fatigue.valueDropPerDay)} sprzedaży mniej dziennie.`,
           impactPerDay: a.fatigue.valueDropPerDay,
           facts: facts({
             roasBefore: a.fatigue.roasBefore,
@@ -1193,7 +1273,7 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
             kind: "watch",
             adId: ad.adId,
             adsetId: ad.adsetId,
-            title: `Obserwuj ${name}: wydaje ${formatZl(daily)} dziennie bez rozstrzygnięcia`,
+            title: `${PROPOSAL.watch} ${name}: wydaje ${formatZl(daily)} dziennie, a wynik jest jeszcze niepewny`,
             detail: `To ${formatShare(share)} wydatków, a ma dopiero ${p} ${plural(p, "zakup", "zakupy", "zakupów")}. ${ad.verdict.text}.`,
             impactPerDay: daily,
             facts: facts({ dailySpend: daily, spendShare: share }),
@@ -1213,6 +1293,18 @@ function buildActions(analyses: AbAdAnalysis[], totalSpend: number): AbAction[] 
   const all = [...decisions, ...watches];
   for (const { a, action } of all) a.action = action;
   return all.slice(0, MAX_ACTIONS).map((x) => x.action);
+}
+
+/**
+ * A reaction alert (lib/alerts/creative-tests.ts) in the owner's words: the
+ * proposal and the ad as the title, the proposal's reasons as the text.
+ * Short on purpose - it goes out by e-mail. null for an ad without a cut or
+ * refresh proposal (nothing to alert about).
+ */
+export function creativeAlertCopy(a: AbAdAnalysis): { title: string; description: string } | null {
+  const { action } = a;
+  if (!action || (action.kind !== "cut" && action.kind !== "refresh")) return null;
+  return { title: `${PROPOSAL[action.kind]} ${quoted(a.ad.adName)}`, description: action.detail };
 }
 
 // ------------------------------------------------------------------ compare series

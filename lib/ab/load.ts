@@ -159,8 +159,9 @@ async function readCreativeMeta(
 
 const todayWarsaw = () => formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
 
-// Bump when the cached AbView shape or the verdict rules change.
-const CACHE_VERSION = "ab-v3";
+// Bump when the cached AbView shape, the verdict rules or their wording
+// change (v4: verdicts and proposals in the owner's words).
+const CACHE_VERSION = "ab-v4";
 const CACHE_TTL_SECONDS = 15 * 60;
 
 /**

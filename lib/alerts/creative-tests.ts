@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getAbClient } from "@/lib/ab/eligibility";
 import { readAbData, readAbStamp } from "@/lib/ab/load";
-import { analyzeAb, formatX, formatZl } from "@/lib/ab/stats";
+import { analyzeAb, creativeAlertCopy } from "@/lib/ab/stats";
 import { resolveAbWindow, salesMomentsFor } from "@/lib/ab/window";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { marketOf } from "@/lib/season/markets";
@@ -18,11 +18,14 @@ import { marketOf } from "@/lib/season/markets";
  * never pages at night.
  *
  * Only what costs real money right now:
- * - a "Wyłącz" action on an ad still spending >= 300 zł a day over the last
- *   3 finished days;
+ * - a proposal to switch off an ad still spending >= 300 zł a day over the
+ *   last 3 finished days;
  * - fatigue with >= 1 000 zł of sales a day at stake (against the rest of
  *   its set's trend, at the current spend).
  * Ads Meta reports as switched off are skipped - the owner already acted.
+ *
+ * Worded for the shop owner like the page's proposals (creativeAlertCopy):
+ * certainty in words, money per złotówka, no percentages of "szans".
  */
 
 /** 300 zł a day, grosze. */
@@ -57,6 +60,10 @@ export async function detectCreativeAlerts(
   for (const a of ads) {
     if (a.off) continue;
     const { ad } = a;
+    // A fatigue verdict always carries its refresh proposal (same 7 finished
+    // days, same ad still on), so every alert below has its copy.
+    const copy = creativeAlertCopy(a);
+    if (!copy) continue;
     const scopeLabel = `Testy kreacji · ${ad.adsetName || ad.campaignName || "zestaw reklam"}`;
     const roas = ad.rates.roas ?? 0;
 
@@ -69,8 +76,7 @@ export async function detectCreativeAlerts(
         metric: "roas",
         direction: "down",
         changePct: a.restRoas ? (roas / a.restRoas - 1) * 100 : 0,
-        title: `Reklama sprzedaje drożej niż reszta zestawu: „${ad.adName}”`,
-        description: `${a.action.title}. ${ad.verdict.text}. Wydaje ok. ${formatZl(a.recentDailySpend)} dziennie; ten budżet w reszcie zestawu sprzedałby ok. ${formatZl(a.action.impactPerDay)} więcej dziennie. Rozważ wyłączenie.`,
+        ...copy,
       });
     } else if (
       ad.verdict.kind === "fatigue" &&
@@ -85,8 +91,7 @@ export async function detectCreativeAlerts(
         metric: "roas",
         direction: "down",
         changePct: (a.fatigue.roasRecent / a.fatigue.roasBefore - 1) * 100,
-        title: `Kreacja się wypala: „${ad.adName}”`,
-        description: `${ad.verdict.text}. Spada szybciej niż reszta zestawu (zwrot ${formatX(roas)} w ostatnich 7 dniach) - przy obecnym budżecie to ok. ${formatZl(a.fatigue.valueDropPerDay)} sprzedaży mniej dziennie. Czas na nową wersję.`,
+        ...copy,
       });
     }
   }

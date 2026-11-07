@@ -7,16 +7,22 @@ import {
   betaPosterior,
   buildAbSeries,
   computeAbView,
+  creativeAlertCopy,
   detectFatigue,
   fixedWindow,
+  formatEstimateZl,
   formatPct,
+  formatPerZl,
   formatX,
   formatZl,
   normalCdf,
   probAbove,
   probAboveBy,
   probBest,
+  sureText,
+  timesWord,
   verdictFor,
+  type AbAdAnalysis,
   type AbInput,
   type AbRow,
   type FatiguePeriod,
@@ -26,6 +32,18 @@ import {
 const NBSP = "\u00a0";
 const close = (a: number, b: number, eps = 1e-9) =>
   assert.ok(Math.abs(a - b) <= eps, `${a} !~ ${b} (eps ${eps})`);
+/** Copy keeps "5,0 z\u0142" together with non-breaking spaces; expectations are written with plain ones. */
+const says = (actual: string, expected: string) => assert.equal(actual.replace(/\u00a0/g, " "), expected);
+
+/**
+ * What the owner must never read: a chance as a percentage ("99% szans",
+ * "97,5% pewno\u015bci") or the marketer's "przepala" / "oszcz\u0119dza".
+ */
+function assertOwnersWords(text: string): void {
+  assert.doesNotMatch(text, /szans/i, text);
+  assert.doesNotMatch(text, /\d\s*%\s*(pewno\u015bci|prawdopodobie)/i, text);
+  assert.doesNotMatch(text, /przepala|oszcz\u0119dz/i, text);
+}
 
 describe("Beta posterior probabilities", () => {
   test("posterior mean and variance follow Beta(1 + s, 1 + f)", () => {
@@ -131,10 +149,10 @@ describe("verdicts", () => {
     assert.equal(clicksShort.text, "Za wcześnie - potrzeba jeszcze ok. 50 kliknięć");
     const daysShort = verdictFor({ ...base, deliveryDays: 2 });
     assert.equal(daysShort.kind, "too_early");
-    assert.equal(daysShort.text, "Za wcześnie - oceniamy po 3 pełnych dniach emisji (na razie 2 dni)");
+    assert.equal(daysShort.text, "Za wcześnie - oceniamy po 3 pełnych dniach wyświetlania (na razie 2 dni)");
     assert.equal(
       verdictFor({ ...base, deliveryDays: 1 }).text,
-      "Za wcześnie - oceniamy po 3 pełnych dniach emisji (na razie 1 dzień)"
+      "Za wcześnie - oceniamy po 3 pełnych dniach wyświetlania (na razie 1 dzień)"
     );
     // Exactly at every threshold the ad is judged.
     assert.equal(
@@ -148,14 +166,22 @@ describe("verdicts", () => {
     const w = verdictFor({ ...base, ad: strong, roas: 6 });
     assert.equal(w.kind, "winner");
     assert.ok(w.probability! > 0.99);
-    assert.equal(w.text, "99% szans, że sprzedaje lepiej niż reszta zestawu (zwrot 6,0× wobec 5,0× w reszcie zestawu)");
+    says(
+      w.text,
+      "Prawie na pewno sprzedaje lepiej niż pozostałe reklamy w tym teście (z każdej złotówki na tę reklamę 6,0 zł sprzedaży, na pozostałe 5,0 zł)"
+    );
     // Exactly 1.15x counts; just under does not.
     assert.equal(verdictFor({ ...base, ad: strong, roas: 5.75 }).kind, "winner");
     const thin = verdictFor({ ...base, ad: strong, roas: 5.7 });
     assert.equal(thin.kind, "steady");
-    assert.equal(
+    says(
       thin.text,
-      "Sprzedaje częściej niż reszta zestawu (99% szans), ale zwrot 5,7× nie przebija reszty zestawu (5,0×) o 15%"
+      "Prawie na pewno sprzedaje częściej niż pozostałe reklamy w tym teście, ale z każdej złotówki daje 5,7 zł sprzedaży, a pozostałe 5,0 zł - za mało, żeby dokładać jej budżet"
+    );
+    // Without purchase value there is no złotówka to show.
+    says(
+      verdictFor({ ...base, ad: strong, roas: null, restRoas: null }).text,
+      "Prawie na pewno sprzedaje lepiej niż pozostałe reklamy w tym teście"
     );
   });
 
@@ -166,7 +192,10 @@ describe("verdicts", () => {
     assert.ok(probAboveBy(ad, rest, 1.05) < 0.9);
     const v = verdictFor({ ...base, ad, rest, roas: null, restRoas: null });
     assert.equal(v.kind, "steady");
-    assert.equal(v.text, "Sprzedaje częściej niż reszta zestawu (99% szans), ale przewaga może być mniejsza niż 5%");
+    assert.equal(
+      v.text,
+      "Prawie na pewno sprzedaje częściej niż pozostałe reklamy w tym teście, ale przewaga może być bardzo mała, więc nie warto dokładać jej budżetu"
+    );
     // 2.4% vs 2.0%: the lift is clearly above 5%.
     assert.equal(
       verdictFor({ ...base, ad: { purchases: 24_000, clicks: 1_000_000 }, rest, roas: null, restRoas: null }).kind,
@@ -179,14 +208,23 @@ describe("verdicts", () => {
     const l = verdictFor({ ...base, ad: weak, roas: 3.9 });
     assert.equal(l.kind, "loser");
     assert.ok(l.probability! > 0.99);
-    assert.equal(l.text, "99% szans, że sprzedaje słabiej niż reszta zestawu (zwrot 3,9× wobec 5,0× w reszcie zestawu)");
+    says(
+      l.text,
+      "Prawie na pewno sprzedaje słabiej niż pozostałe reklamy w tym teście (z każdej złotówki na tę reklamę 3,9 zł sprzedaży, na pozostałe 5,0 zł)"
+    );
     assert.equal(verdictFor({ ...base, ad: weak, roas: 4 }).kind, "loser"); // exactly 0.8x
     const near = verdictFor({ ...base, ad: weak, roas: 4.1 });
     assert.equal(near.kind, "steady");
-    assert.equal(near.text, "99% szans, że sprzedaje słabiej niż reszta zestawu, ale zwrot 4,1× nie odstaje od reszty zestawu (5,0×)");
+    says(
+      near.text,
+      "Prawie na pewno sprzedaje słabiej niż pozostałe reklamy w tym teście, ale z każdej złotówki daje 4,1 zł sprzedaży, a pozostałe 5,0 zł - za mała różnica, żeby ją wyłączać"
+    );
     const small = verdictFor({ ...base, ad: weak, roas: 2, spendShare: 0.09 });
     assert.equal(small.kind, "steady");
-    assert.equal(small.text, "99% szans, że sprzedaje słabiej niż reszta zestawu, ale wydaje tylko 9% budżetu zestawu");
+    assert.equal(
+      small.text,
+      "Prawie na pewno sprzedaje słabiej niż pozostałe reklamy w tym teście, ale wydaje tylko 9% budżetu tego testu - wyłączenie niewiele zmieni"
+    );
   });
 
   test("big spenders (> 1 000 zł a day) need 97.5% to be called losers", () => {
@@ -198,9 +236,10 @@ describe("verdicts", () => {
     assert.equal(verdictFor({ ...input, dailySpend: 100_000 }).kind, "loser"); // exactly 1 000 zł
     const big = verdictFor({ ...input, dailySpend: 150_000 });
     assert.equal(big.kind, "steady");
+    // 96%: "z dużą pewnością", not "prawie na pewno" - and no 97,5% bar in words.
     assert.equal(
       big.text,
-      `96% szans, że sprzedaje słabiej niż reszta zestawu - przy ponad 1${NBSP}000${NBSP}zł dziennie czekamy na 97,5% pewności`
+      `Z dużą pewnością sprzedaje słabiej niż pozostałe reklamy w tym teście, ale wydaje ponad 1${NBSP}000${NBSP}zł dziennie - tak dużą reklamę wyłączamy dopiero przy mocniejszych dowodach`
     );
   });
 
@@ -233,7 +272,10 @@ describe("verdicts", () => {
     assert.ok(1 - probAbove(ad, rest) > 0.99);
     const v = verdictFor({ ...base, ad, rest, roas: null, restRoas: null });
     assert.equal(v.kind, "steady");
-    assert.equal(v.text, "99% szans, że sprzedaje słabiej niż reszta zestawu, ale różnica jest za mała, by wyłączać");
+    assert.equal(
+      v.text,
+      "Prawie na pewno sprzedaje słabiej niż pozostałe reklamy w tym teście, ale różnica jest za mała, żeby ją wyłączać"
+    );
     assert.equal(
       verdictFor({ ...base, ad: { purchases: 17_000, clicks: 1_000_000 }, rest, roas: null, restRoas: null }).kind,
       "loser"
@@ -244,7 +286,34 @@ describe("verdicts", () => {
     const v = verdictFor({ ...base, rest: null, alone: true });
     assert.equal(v.kind, "steady");
     assert.equal(v.probability, null);
-    assert.equal(v.text, "Jedyna reklama w zestawie - nie ma z czym porównać");
+    assert.equal(v.text, "Jedyna reklama w tym teście - nie ma jej z czym porównać");
+    assert.equal(
+      verdictFor({ ...base, rest: null }).text,
+      "Pozostałe reklamy w tym teście mają za mało danych, żeby porównać"
+    );
+  });
+
+  test("under the 95% bar the line leans in words from 90%, else says there is no clear difference", () => {
+    // 50 vs 40 purchases per 1 500 clicks: ~92% that it sells more often.
+    const up = verdictFor({ ...base, ad: { purchases: 50, clicks: 1500 } });
+    assert.equal(up.kind, "steady");
+    assert.ok(up.probability! >= 0.9 && up.probability! < 0.95, `p ${up.probability}`);
+    assert.equal(
+      up.text,
+      "Najpewniej sprzedaje lepiej niż pozostałe reklamy w tym teście, ale to jeszcze za mało pewne, żeby dokładać jej budżet"
+    );
+    const down = verdictFor({ ...base, ad: { purchases: 30, clicks: 1500 } });
+    assert.equal(down.kind, "steady");
+    assert.ok(1 - down.probability! >= 0.9 && 1 - down.probability! < 0.95, `p ${down.probability}`);
+    assert.equal(
+      down.text,
+      "Najpewniej sprzedaje słabiej niż pozostałe reklamy w tym teście, ale to jeszcze za mało pewne, żeby ją wyłączać"
+    );
+    // ~88%: no word claims it.
+    assert.equal(
+      verdictFor({ ...base, ad: { purchases: 48, clicks: 1500 } }).text,
+      "Na razie bez wyraźnej różnicy wobec pozostałych reklam w tym teście"
+    );
   });
 
   const before: FatiguePeriod = { spend: 700_000, purchases: 40, value: 6_370_000, frequency: 1.5 };
@@ -259,9 +328,9 @@ describe("verdicts", () => {
     assert.equal(f.valueDropPerDay, Math.round(100_000 * (9.1 - 5.3)));
     const v = verdictFor({ ...base, fatigue: f });
     assert.equal(v.kind, "fatigue");
-    assert.equal(
+    says(
       v.text,
-      "Zwrot spadł z 9,1× do 5,3× w ostatnich 3 dniach (wobec tygodnia wcześniej), częstotliwość rośnie"
+      "W ostatnich 3 dniach z każdej złotówki wraca 5,3 zł sprzedaży, tydzień wcześniej wracało 9,1 zł, a te same osoby widzą ją coraz częściej"
     );
 
     assert.equal(detectFatigue(6, before, recent), null); // < 7 days of history
@@ -280,9 +349,10 @@ describe("verdicts", () => {
     const high = detectFatigue(8, { ...before, frequency: 3.5 }, { ...recent, frequency: 3.2 });
     assert.ok(high);
     assert.equal(high.frequencyRising, false);
-    assert.equal(
+    // Frequency is a daily average: "3,2 raza dziennie".
+    says(
       verdictFor({ ...base, fatigue: high }).text,
-      "Zwrot spadł z 9,1× do 5,3× w ostatnich 3 dniach (wobec tygodnia wcześniej), częstotliwość już 3,2"
+      "W ostatnich 3 dniach z każdej złotówki wraca 5,3 zł sprzedaży, tydzień wcześniej wracało 9,1 zł, a te same osoby widzą ją już średnio 3,2 raza dziennie"
     );
   });
 
@@ -320,6 +390,26 @@ describe("formatting", () => {
     assert.equal(formatPct(0.975), "97,5%");
     assert.equal(formatPct(0.95), "95%");
     assert.equal(formatPct(1 - 0.9), "10%");
+  });
+
+  test("the owner's words: złoty per złotówka, rounded estimates, 'razy'", () => {
+    assert.equal(formatPerZl(4.83), `4,8${NBSP}zł`);
+    assert.equal(formatPerZl(5), `5,0${NBSP}zł`);
+    // Estimates don't claim złoty precision from 100 zł up.
+    assert.equal(formatEstimateZl(319_700), `3${NBSP}200${NBSP}zł`);
+    assert.equal(formatEstimateZl(5_240), `52${NBSP}zł`);
+    assert.equal(timesWord(1), "1 raz");
+    assert.equal(timesWord(2.04), "2 razy");
+    assert.equal(timesWord(4.46), "4,5 raza");
+  });
+
+  test("certainty in words, nothing below 90%", () => {
+    assert.equal(sureText(0.995), "prawie na pewno");
+    assert.equal(sureText(0.99), "z dużą pewnością");
+    assert.equal(sureText(0.95), "z dużą pewnością");
+    assert.equal(sureText(0.9), "najpewniej");
+    assert.equal(sureText(0.89), null);
+    assert.equal(sureText(null), null);
   });
 });
 
@@ -409,7 +499,7 @@ describe("computeAbView", () => {
     assert.equal(s1.leaderAdId, "Elf 15s");
     assert.equal(byId["Elf 15s"].market, "PL");
     assert.equal(byId["Nowa"].firstDate, "2026-10-05");
-    assert.equal(view.tests[1].ads[0].verdict.text, "Jedyna reklama w zestawie - nie ma z czym porównać");
+    assert.equal(view.tests[1].ads[0].verdict.text, "Jedyna reklama w tym teście - nie ma jej z czym porównać");
     // One day-total series for the sparklines, no per-ad series.
     assert.equal(view.days.length, 7);
     assert.equal(view.days[0].spend, 100_000 + 124_000 + 50_000);
@@ -425,15 +515,94 @@ describe("computeAbView", () => {
     const restOfLoser = roasOf(7 * 1_000_000 + 2 * 40_000, 7 * 100_000 + 2 * 60_000);
     assert.equal(cut.impactPerDay, Math.round(124_000 * (restOfLoser - roasOf(300_000, 124_000))));
     // 868 000 / 42 purchases against (700 000 + 120 000) / 177 on the same days.
-    assert.equal(cut.title, "Wyłącz „Elf Fajtłapa 15s”: zakup 4,5× droższy niż w reszcie zestawu");
+    assert.equal(
+      cut.title,
+      "Proponujemy wyłączyć reklamę „Elf Fajtłapa 15s”: zakup 4,5 raza droższy niż z pozostałych reklam w tym teście"
+    );
     assert.doesNotMatch(cut.title + cut.detail, /przepala|oszczędz/);
+    // The detail: the verdict, then where the money goes and what it brings.
+    says(
+      cut.detail,
+      "Prawie na pewno sprzedaje słabiej niż pozostałe reklamy w tym teście (z każdej złotówki na tę reklamę 2,4 zł sprzedaży, na pozostałe 8,6 zł). " +
+        `Kosztuje ok. 1 240 zł dziennie - po wyłączeniu Meta wyda te pieniądze na lepsze reklamy z tego testu, co da ok. +${formatEstimateZl(cut.impactPerDay).replace(/ /g, " ")} sprzedaży dziennie.`
+    );
     // Scale: half of +30% of daily spend x (its ROAS - rest ROAS).
     const restOfWinner = roasOf(7 * 300_000 + 2 * 40_000, 7 * 124_000 + 2 * 60_000);
     assert.equal(scale.impactPerDay, Math.round(0.5 * 0.3 * 100_000 * (10 - restOfWinner)));
-    assert.equal(
-      scale.title,
-      "Daj więcej budżetu „Elf 15s”: wyłącz słabsze reklamy w zestawie albo przenieś ją do osobnego zestawu"
+    // No "wyłącz słabsze reklamy" under a proposal to give one MORE budget.
+    assert.equal(scale.title, "Proponujemy dołożyć budżet reklamie „Elf 15s”");
+    assert.match(scale.detail, /^Prawie na pewno sprzedaje lepiej niż pozostałe reklamy w tym teście/);
+  });
+
+  test("alerts carry the cut / refresh proposal in the owner's words, nothing else", () => {
+    const { ads } = analyzeAb(input);
+    const byId = (id: string) => ads.find((a) => a.ad.adId === id)!;
+    const loser = byId("Elf Fajtłapa 15s");
+    const copy = creativeAlertCopy(loser);
+    assert.ok(copy);
+    assert.equal(copy.title, "Proponujemy wyłączyć reklamę „Elf Fajtłapa 15s”");
+    assert.equal(copy.description, loser.action!.detail);
+    // A scale proposal, a watch and a quiet ad raise no alert.
+    assert.equal(byId("Elf 15s").action?.kind, "scale");
+    assert.equal(creativeAlertCopy(byId("Elf 15s")), null);
+    assert.equal(byId("Nowa").action?.kind, "watch");
+    assert.equal(creativeAlertCopy(byId("Nowa")), null);
+    assert.equal(creativeAlertCopy({ ...byId("Solo"), action: null } as AbAdAnalysis), null);
+  });
+
+  test("no chance as a percentage anywhere the owner reads: verdicts, proposals, alerts", () => {
+    const texts: string[] = [];
+    const collect = (view: ReturnType<typeof computeAbView>) => {
+      for (const t of view.tests) for (const a of t.ads) texts.push(a.verdict.text);
+      for (const a of view.actions) texts.push(a.title, a.detail);
+    };
+    const { view, ads } = analyzeAb(input);
+    collect(view);
+    for (const a of ads) {
+      const copy = creativeAlertCopy(a);
+      if (copy) texts.push(copy.title, copy.description);
+    }
+    collect(computeAbView({ ...input, windowKey: "today", start: today, end: today, rows: [...rows, ...todayRows] }));
+    // Every verdict branch on its own, from "too early" to the big spender.
+    const base: VerdictInput = {
+      ad: { purchases: 40, clicks: 1500 },
+      rest: { purchases: 160, clicks: 6000 },
+      deliveryDays: 7,
+      roas: 5,
+      restRoas: 5,
+      spendShare: 0.3,
+      dailySpend: 50_000,
+      fatigue: null,
+    };
+    const tired = detectFatigue(
+      8,
+      { spend: 700_000, purchases: 40, value: 6_370_000, frequency: 3.5 },
+      { spend: 300_000, purchases: 8, value: 1_590_000, frequency: 3.2 }
     );
+    const variants: Array<Partial<VerdictInput>> = [
+      { ad: { purchases: 4, clicks: 150 } },
+      { ad: { purchases: 30, clicks: 150 } },
+      { deliveryDays: 2 },
+      { ad: { purchases: 80, clicks: 1500 }, roas: 6 },
+      { ad: { purchases: 80, clicks: 1500 }, roas: 5.7 },
+      { ad: { purchases: 21_000, clicks: 1_000_000 }, rest: { purchases: 20_000, clicks: 1_000_000 }, roas: null, restRoas: null },
+      { ad: { purchases: 20, clicks: 1500 }, roas: 3.9 },
+      { ad: { purchases: 20, clicks: 1500 }, roas: 4.1 },
+      { ad: { purchases: 20, clicks: 1500 }, roas: 2, spendShare: 0.09 },
+      { ad: { purchases: 125, clicks: 5_000 }, rest: { purchases: 300, clicks: 10_000 }, roas: 3, dailySpend: 150_000 },
+      { ad: { purchases: 20_000, clicks: 1_000_000 }, rest: { purchases: 20_600, clicks: 1_000_000 }, roas: null, restRoas: null },
+      { ad: { purchases: 50, clicks: 1500 } },
+      { ad: { purchases: 30, clicks: 1500 } },
+      { ad: { purchases: 48, clicks: 1500 } },
+      { rest: null, alone: true },
+      { rest: null },
+      { fatigue: tired },
+      { seasonalDip: { roasBefore: 9, roasRecent: 5, label: "Black Friday" } },
+    ];
+    for (const v of variants) texts.push(verdictFor({ ...base, ...v }).text);
+
+    assert.ok(texts.length > 30, `only ${texts.length} texts`);
+    for (const text of texts) assertOwnersWords(text);
   });
 
   test("today never enters a decision: the period is cut at yesterday", () => {
@@ -472,7 +641,7 @@ describe("computeAbView", () => {
     assert.equal(ads.find((x) => x.ad.adId === "A")!.restRoas, 6);
     const cut = view.actions.find((x) => x.kind === "cut")!;
     assert.equal(cut.impactPerDay, 70_000 * (6 - 4));
-    assert.equal(cut.title, "Wyłącz „A”: zakup 1,5× droższy niż w reszcie zestawu");
+    assert.equal(cut.title, "Proponujemy wyłączyć reklamę „A”: zakup 1,5 raza droższy niż z pozostałych reklam w tym teście");
   });
 
   test("an ad is compared with the rest only on the days it delivered", () => {
@@ -493,7 +662,7 @@ describe("computeAbView", () => {
     const ad = view.tests[0].ads.find((a) => a.adId === "New")!;
     assert.equal(ad.deliveryDays, 3);
     assert.equal(ad.verdict.kind, "steady");
-    assert.equal(ad.verdict.text, "W normie - 50% szans, że sprzedaje lepiej niż reszta zestawu");
+    assert.equal(ad.verdict.text, "Na razie bez wyraźnej różnicy wobec pozostałych reklam w tym teście");
   });
 
   test("at most one 'Zwiększ budżet' per ad set: the one with the most at stake", () => {
@@ -564,13 +733,20 @@ describe("fatigue in the view", () => {
     const view = computeAbView(input(rowsFor(earlier)));
     const f = view.tests[0].ads.find((a) => a.adId === "F")!;
     assert.equal(f.verdict.kind, "fatigue");
-    assert.equal(
+    says(
       f.verdict.text,
-      "Zwrot spadł z 9,0× do 5,0× w ostatnich 3 dniach (wobec tygodnia wcześniej), częstotliwość rośnie"
+      "W ostatnich 3 dniach z każdej złotówki wraca 5,0 zł sprzedaży, tydzień wcześniej wracało 9,0 zł, a te same osoby widzą ją coraz częściej"
     );
     const refresh = view.actions.find((a) => a.kind === "refresh")!;
     assert.equal(refresh.adId, "F");
     assert.equal(refresh.impactPerDay, 100_000 * (9 - 5));
+    assert.equal(refresh.title, "Proponujemy nową wersję reklamy „F” - sprzedaje coraz słabiej");
+    says(refresh.detail, `${f.verdict.text.replace(/ /g, " ")}. Bez nowej wersji to ok. 4 000 zł sprzedaży mniej dziennie.`);
+    // The fatigue alert: the proposal as the title, its reasons as the text.
+    const { ads } = analyzeAb(input(rowsFor(earlier)));
+    const copy = creativeAlertCopy(ads.find((a) => a.ad.adId === "F")!);
+    assert.deepEqual(copy, { title: "Proponujemy nową wersję reklamy „F”", description: refresh.detail });
+    assertOwnersWords(copy.title + copy.description);
   });
 
   test("a seasonal peak is NOT fatigue: the whole set falls together after it", () => {
@@ -584,9 +760,9 @@ describe("fatigue in the view", () => {
     const view = computeAbView(input(rowsFor(earlier), peak));
     const f = view.tests[0].ads.find((a) => a.adId === "F")!;
     assert.equal(f.verdict.kind, "steady");
-    assert.equal(
+    says(
       f.verdict.text,
-      "Zwrot spadł z 9,0× do 5,0× w ostatnich 3 dniach, ale to okolice szczytu sprzedaży (Mikołajki) - zmęczenia wtedy nie oceniamy"
+      "W ostatnich 3 dniach z każdej złotówki wraca 5,0 zł sprzedaży, tydzień wcześniej wracało 9,0 zł, ale to okolice szczytu sprzedaży (Mikołajki) - wtedy wyniki mocno się wahają, więc tego nie oceniamy"
     );
     assert.ok(!view.actions.some((a) => a.kind === "refresh"));
     // Two days before the look-back is far enough.

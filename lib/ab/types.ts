@@ -79,7 +79,11 @@ export interface AbVerdict {
    * too_early and preview.
    */
   probability: number | null;
-  /** One plain Polish sentence for the UI, e.g. "97% szans, że sprzedaje lepiej niż reszta zestawu". */
+  /**
+   * One plain Polish sentence for the shop owner, certainty in words, e.g.
+   * "Prawie na pewno sprzedaje lepiej niż pozostałe reklamy w tym teście
+   * (z każdej złotówki na tę reklamę 6,0 zł sprzedaży, na pozostałe 5,0 zł)".
+   */
   text: string;
   /** For too_early: roughly how many more purchases before a call (null when purchases are not what's missing). */
   purchasesNeeded?: number | null;
@@ -134,9 +138,9 @@ export interface AbTest {
 export type AbActionKind = "scale" | "cut" | "refresh" | "watch";
 
 /**
- * The numbers behind an action's title and detail, so the client view can
- * word it for a shop owner (components/dashboard/ab) while the marketer
- * sentences stay as they are for the alerts. Nothing here is computed
+ * The numbers behind an action's title and detail, so the page can word the
+ * proposal next to its tag (components/dashboard/ab) while title and detail
+ * stand alone in the alerts and the morning e-mail. Nothing here is computed
  * anew: these are the very values the title, detail and impact were built
  * from. Money in grosze.
  */
@@ -166,9 +170,12 @@ export interface AbAction {
   kind: AbActionKind;
   adId: string;
   adsetId: string;
-  /** Headline, e.g. "Wyłącz „Elf 15s”: zakup 2,1× droższy niż w reszcie zestawu". */
+  /**
+   * The proposal on its own, e.g. "Proponujemy wyłączyć reklamę „Elf 15s”:
+   * zakup 2,1 raza droższy niż z pozostałych reklam w tym teście".
+   */
   title: string;
-  /** Why, in one sentence with the numbers. */
+  /** Why, with the numbers: the verdict, then what the move costs or brings. */
   detail: string;
   /** Absent on views cached before it existed: the UI then shows title + detail. */
   facts?: AbActionFacts;
