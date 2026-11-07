@@ -338,9 +338,10 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
 
   const [headline, why, action] = copy[kind][en ? "en" : "pl"];
   // Streak alerts are already written for the client (title, why, and a
-  // hint picked from the other metrics on the same days): keep their words.
+  // hint picked from the other metrics on the same days), and so are the
+  // same-day data-flow guards (what broke, what to check): keep their words.
   return {
-    headline: a.streak ? stripEmoji(a.title) : headline,
+    headline: a.streak || a.intraday ? stripEmoji(a.title) : headline,
     happened,
     why: a.why ?? why,
     action: a.action ?? action,
@@ -437,6 +438,7 @@ export function AlertCard({
                 · {en ? `${a.streak.days} days in a row` : `${a.streak.days} dni z rzędu`}
               </span>
             ) : null}
+            {a.intraday ? <span className="shrink-0">· {a.intraday.label}</span> : null}
             {good ? (
               <span className="text-positive">· {en ? "good news" : "dobra wiadomość"}</span>
             ) : null}

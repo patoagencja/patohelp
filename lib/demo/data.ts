@@ -1,6 +1,8 @@
 import { format, subDays } from "date-fns";
+import { getTimezoneOffset } from "date-fns-tz";
 
 import type { Anomaly } from "@/lib/alerts/anomalies";
+import { buildFlowAlert, clockLabel, localClock, type FlowAlert, type FlowIncident } from "@/lib/alerts/data-flow";
 import { buildStreakAlert, STREAK_WINDOW_DAYS, type DayTotals } from "@/lib/alerts/streaks";
 import type {
   CampaignRow,
@@ -111,6 +113,117 @@ function demoStreakAlert(today: Date, en: boolean): Anomaly[] {
       streak,
     },
   ];
+}
+
+/**
+ * The same-day data-flow guards (lib/alerts/data-flow.ts) on the demo shop:
+ * payments stuck for 3 hours (Pilne), Analytics catching almost nobody, the
+ * Meta pixel counting no purchases, and the shop's sales feed gone quiet.
+ * Polish runs through the very wording live clients get; the times are
+ * relative to now, so "od 11:00" never lies about the clock the viewer sees.
+ */
+function demoFlowAlerts(now: Date, en: boolean): Anomaly[] {
+  const offset = Math.round(getTimezoneOffset("Europe/Warsaw", now) / 60_000);
+  const ago = (min: number) => new Date(now.getTime() - min * 60_000).toISOString();
+  const local = (iso: string) => localClock(iso, offset);
+  const fromHour = Math.max(0, local(now.toISOString()).hour - 3);
+  const lastPushAt = ago(4 * 60 + 20);
+  const seen = ago(10);
+  const incident = (
+    guard: FlowIncident["guard"],
+    startedMinAgo: number,
+    severity: FlowIncident["severity"],
+    facts: FlowIncident["facts"]
+  ): FlowIncident => ({
+    id: `demo-flow-${guard}`,
+    guard,
+    since: ago(startedMinAgo),
+    startedAt: ago(startedMinAgo),
+    lastSeen: seen,
+    severity,
+    facts,
+  });
+  const incidents: FlowIncident[] = [
+    incident("checkout", 40, "critical", {
+      guard: "checkout",
+      hint: "payment",
+      fromHour,
+      hours: 3,
+      carts: 34,
+      checkouts: 12,
+      expected: 7.4,
+      orders: null,
+    }),
+    incident("ga4", 65, "high", { guard: "ga4", users: 1, events: 6, usual: 14, clicks: 52, minutes: 60 }),
+    incident("meta-pixel", 70, "high", {
+      guard: "meta-pixel",
+      clicks: 1_240,
+      usualClicks: 1_180,
+      purchases: 0,
+      expected: 9.3,
+      shopPurchases: 23,
+      source: "shop",
+    }),
+    incident("shop-feed", 40, "high", { guard: "shop-feed", lastPushAt, ageMin: 260, usualGapMin: 60 }),
+  ];
+  const pl = incidents.map((inc) => buildFlowAlert(inc, true, offset)).filter((a): a is FlowAlert => a !== null);
+  const ga4From = clockLabel(Math.floor(Math.max(0, local(ago(65)).mod - 30) / 5) * 5);
+  const pushAt = clockLabel(local(lastPushAt).mod);
+  const english: Record<string, Pick<Anomaly, "scopeLabel" | "metric" | "title" | "description" | "why" | "action"> & { label: string }> = {
+    checkout: {
+      scopeLabel: "Shop",
+      metric: "Cart and payments",
+      title: "Cart or payments may be broken",
+      description: `${fromHour === 0 ? "Nobody has bought today" : `Nobody has bought since ${fromHour}:00`}, although there were 34 add-to-carts and 12 checkouts started. With this traffic there would usually be about 7 purchases by now.`,
+      why: "People want to buy, but something stops them — every hour without purchases is lost sales.",
+      action: `Check payments — customers reach the checkout, but nobody has paid ${fromHour === 0 ? "since the morning" : "for 3 hours"}.`,
+      label: fromHour === 0 ? "today" : `since ${fromHour}:00`,
+    },
+    ga4: {
+      scopeLabel: "Website traffic · GA4",
+      metric: "Analytics",
+      title: "Analytics data isn't coming in",
+      description: `Since about ${ga4From}, Google Analytics sees only 1 person on the site per half hour, usually about 14 at this time. The ads brought 52 clicks in the last hour.`,
+      why: "Without Analytics data you can't see what happens in the shop, and the campaigns lose the signal of who buys. If the site itself went down, every hour means lost orders.",
+      action: "Check that the Google tag (gtag/GTM) is on the site — ad traffic is coming, but Analytics sees nothing. Also check that the site opens at all.",
+      label: `since about ${ga4From}`,
+    },
+    "meta-pixel": {
+      scopeLabel: "Sales tracking · Meta",
+      metric: "Meta pixel",
+      title: "Meta pixel isn't counting purchases",
+      description: "Meta shows no purchase from ads today, although the ads brought 1,240 clicks — as many as usual by this time. With this traffic Meta usually counts about 9 purchases by now, and the shop has 23 orders today.",
+      why: "Meta learns from purchases — without them, sales campaigns don't know whom to look for and get weaker and pricier every hour.",
+      action: "Check the Meta pixel / Conversions API — the shop sells, but Meta doesn't see purchases.",
+      label: "today",
+    },
+    "shop-feed": {
+      scopeLabel: "Shop",
+      metric: "Shop data",
+      title: "Shop orders stopped coming in",
+      description: `The shop last sent its sales at ${pushAt} (over 4 hours ago); it usually does every hour. The panel doesn't see new orders.`,
+      why: "Without the shop's data the panel shows understated sales and won't notice if orders really stop. If the shop itself is down, every hour means lost orders.",
+      action: "Check that the shop works and that its job sending sales to the panel (hourly, with an API key) hasn't stopped.",
+      label: `since ${pushAt}`,
+    },
+  };
+  return pl.map((a) => {
+    const e = english[a.guard];
+    return {
+      id: a.id,
+      severity: a.severity,
+      scope: "client",
+      scopeLabel: en ? e.scopeLabel : a.scopeLabel,
+      metric: en ? e.metric : a.label,
+      direction: "down",
+      changePct: a.changePct,
+      title: en ? e.title : a.title,
+      description: en ? e.description : a.description,
+      why: en ? e.why : a.why,
+      action: en ? e.action : a.action,
+      intraday: { since: a.since, label: en ? e.label : a.sinceLabel },
+    };
+  });
 }
 
 interface DemoDashboard {
@@ -403,6 +516,7 @@ export function getDemoDashboard(
   const alerts: Anomaly[] = [
     { id: "a1", severity: "critical", scope: "campaign", scopeLabel: en ? "PMAX | Veg shop · Google" : "PMAX | Sklep z warzywami · Google", metric: "spend", direction: "up", changePct: 128, title: en ? `Spend spike today: ${zl(pmaxToday)}` : `Skok wydatków dziś: ${zl(pmaxToday)}`, description: en ? "Campaign spend well above the daily average." : "Wydatki kampanii znacząco powyżej średniej dziennej." },
     { id: "a2", severity: "high", scope: "campaign", scopeLabel: en ? "REMARKETING | Shop · Meta" : "REMARKETING | Sklep · Meta", metric: "spend", direction: "up", changePct: 42, title: en ? `Elevated spend (7 days): ${zl(remarketingWeek)}` : `Podwyższone wydatki (7 dni): ${zl(remarketingWeek)}`, description: en ? "This week above the previous two weeks." : "Tydzień powyżej poprzednich dwóch tygodni." },
+    ...demoFlowAlerts(today, en),
     ...demoStreakAlert(today, en),
     { id: "a3", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "ctr", direction: "up", changePct: 11, title: en ? "CTR rising: +11% vs normal" : "Klikalność rośnie: +11% względem normy", description: en ? "Engagement higher than usual this week." : "Zaangażowanie w tym tygodniu wyższe niż zwykle." },
     { id: "a4", severity: "high", scope: "campaign", scopeLabel: en ? "SEARCH | Veg delivery · Google" : "SEARCH | Warzywa z dostawą · Google", metric: "cpc", direction: "up", changePct: 24, title: en ? "CPC up 24% (7 days)" : "CPC wyższe o 24% (7 dni)", description: en ? "More grocery shops bid on the same searches, which pushes the cost per click up." : "Więcej sklepów spożywczych licytuje te same wyszukiwania, co podbija koszt kliknięcia." },

@@ -246,20 +246,24 @@ function normalizeGa4Date(raw: string): string {
 async function runReport(
   auth: Ga4Auth,
   propertyId: string,
-  requestBody: Record<string, unknown>
+  requestBody: Record<string, unknown>,
+  options?: { timeout?: number }
 ) {
   const dataApi = google.analyticsdata({
     version: "v1beta",
     auth: authedClient(auth),
   });
-  const res = await dataApi.properties.runReport({
-    property: `properties/${propertyId}`,
-    // Revenue always in złoty: a client's country sites (Elfi .de, .uk,
-    // .com.br) report in their own money otherwise, and GA4 converts each
-    // transaction at its own day's rate - better than any after-the-fact
-    // conversion here.
-    requestBody: { currencyCode: "PLN", ...requestBody },
-  });
+  const res = await dataApi.properties.runReport(
+    {
+      property: `properties/${propertyId}`,
+      // Revenue always in złoty: a client's country sites (Elfi .de, .uk,
+      // .com.br) report in their own money otherwise, and GA4 converts each
+      // transaction at its own day's rate - better than any after-the-fact
+      // conversion here.
+      requestBody: { currencyCode: "PLN", ...requestBody },
+    },
+    options ?? {}
+  );
   return res.data;
 }
 
@@ -566,6 +570,84 @@ export async function getRevenueByNewVsReturning(
       sessions: metric(r, 3),
     };
   });
+}
+
+/**
+ * Who is on the site right now: active users and events in the last 30
+ * minutes, from the Realtime API (minutes behind, where the daily and hourly
+ * tables lag by hours). One row, no dimensions; a property with nobody on it
+ * returns no row at all, which reads as zero. Feeds the "Nie spływają dane z
+ * Analytics" guard (lib/alerts/data-flow.ts) - asked at most once per
+ * property per refresh-ga4 run.
+ */
+export async function getRealtimeActivity(
+  auth: Ga4Auth,
+  propertyId: string,
+  timeoutMs = 8_000
+): Promise<{ users: number; events: number }> {
+  const dataApi = google.analyticsdata({
+    version: "v1beta",
+    auth: authedClient(auth),
+  });
+  const res = await dataApi.properties.runRealtimeReport(
+    {
+      property: `properties/${propertyId}`,
+      requestBody: {
+        metrics: [{ name: "activeUsers" }, { name: "eventCount" }],
+        // The whole window a standard property allows.
+        minuteRanges: [{ startMinutesAgo: 29, endMinutesAgo: 0 }],
+      },
+    },
+    { timeout: timeoutMs }
+  );
+  const row = rows(res.data)[0];
+  return { users: metric(row, 0), events: metric(row, 1) };
+}
+
+/**
+ * E-commerce per hour (property timezone): all events (to tell a processed
+ * hour from one GA4 hasn't got to yet), add_to_cart, begin_checkout and
+ * purchase events. Feeds the cart guard (lib/alerts/data-flow.ts): one small
+ * report per run for today, a 4-week one once a day for the baseline.
+ */
+export async function getEcommerceByHour(
+  auth: Ga4Auth,
+  propertyId: string,
+  range: DateRange,
+  timeoutMs = 8_000
+): Promise<
+  Array<{ date: string; hour: number; events: number; carts: number; checkouts: number; purchases: number }>
+> {
+  const data = await runReport(
+    auth,
+    propertyId,
+    {
+      dateRanges: [range],
+      dimensions: [{ name: "dateHour" }],
+      metrics: [
+        { name: "eventCount" },
+        { name: "addToCarts" },
+        { name: "checkouts" },
+        { name: "ecommercePurchases" },
+      ],
+      // 29 days x 24 hours = 696 rows at most.
+      limit: 1000,
+    },
+    { timeout: timeoutMs }
+  );
+  return rows(data)
+    .map((r) => {
+      const raw = dim(r, 0); // "YYYYMMDDHH"
+      return {
+        date: normalizeGa4Date(raw.slice(0, 8)),
+        hour: Number.parseInt(raw.slice(8, 10), 10),
+        events: metric(r, 0),
+        carts: metric(r, 1),
+        checkouts: metric(r, 2),
+        purchases: metric(r, 3),
+      };
+    })
+    .filter((r) => r.date.length === 10 && Number.isInteger(r.hour) && r.hour >= 0 && r.hour <= 23);
 }
 
 /**

@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
+import { runDataFlowChecks, type FlowRunSummary } from "@/lib/alerts/data-flow-check";
 import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
@@ -38,6 +39,9 @@ const WARSAW_TZ = "Europe/Warsaw";
 const SNAPSHOT_START_BUDGET_MS = 40_000;
 // Don't START a full history rebuild (a year+ of reports per property) past this.
 const FULL_BACKFILL_START_MS = 20_000;
+// Don't START a client's data-flow check past this: one realtime call (and
+// one hourly report for shops) per property, each capped at 8 s.
+const FLOW_CHECK_START_BUDGET_MS = 40_000;
 
 /** What a client's stored GA4 history was built from (sync-state). */
 const GA4_HISTORY_KEY = "ga4-history";
@@ -462,6 +466,17 @@ export async function GET(request: Request) {
     }
   }
 
+  // Same-day data-flow guards ("Strażnik sklepu": GA4 tag, cart, Meta
+  // pixel, shop feed - lib/alerts/data-flow.ts) ride on this cron instead of
+  // a cron of their own. Before the once-a-day snapshots: they matter on
+  // every tick, the snapshots catch up on a later one. Never fails the run.
+  let flow: FlowRunSummary | null = null;
+  try {
+    flow = await runDataFlowChecks(admin, snapshotJobs, { startBy: startedAt + FLOW_CHECK_START_BUDGET_MS });
+  } catch (err) {
+    console.error("[refresh-ga4] data-flow checks failed", describeError(err));
+  }
+
   // Isolated like the items sync: a snapshot failure must never touch a
   // run's outcome. None starts once the budget is spent - a skipped snapshot
   // is retried on the next tick, while a killed function helps nobody.
@@ -504,7 +519,12 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, integrations_processed: processed, rows_upserted: rowsUpserted });
+  return NextResponse.json({
+    ok: true,
+    integrations_processed: processed,
+    rows_upserted: rowsUpserted,
+    data_flow: flow ? { checked: flow.checked, open: flow.open, errors: flow.errors.length } : null,
+  });
 }
 
 // How long old heatmap snapshots are kept - only the latest is shown, but a

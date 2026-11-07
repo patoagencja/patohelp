@@ -3,6 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { rowsWithin, type AlertAdsWindow } from "@/lib/alerts/ads-window";
+import { currentFlowAlerts, readFlowState } from "@/lib/alerts/data-flow-read";
 import { detectEcomAnomalies } from "@/lib/alerts/ecom";
 import { readStreakSources } from "@/lib/alerts/streak-sources";
 import {
@@ -41,6 +42,12 @@ export interface Anomaly {
    * streak's first day, and notify-alerts sends one e-mail per streak.
    */
   streak?: { start: string; end: string; days: number };
+  /**
+   * Same-day data-flow guards (lib/alerts/data-flow.ts): the incident's
+   * start and how the card names it ("od ok. 13:55"). The id stays the same
+   * for the whole incident, so notify-alerts e-mails it once.
+   */
+  intraday?: { since: string; label: string };
 }
 
 /** What an e-mail / Telegram line says under the title: the numbers + the hint. */
@@ -116,6 +123,9 @@ export async function detectAnomalies(
     console.warn(`[alerts/anomalies] streak sources for ${clientId} failed`, (err as Error)?.message);
     return null;
   });
+  // Today's data-flow incidents (GA4 tag, cart, Meta pixel, shop feed):
+  // checked by refresh-ga4, one small read here.
+  const flowStatePromise = readFlowState(supabase, clientId).catch(() => null);
 
   const [rows, ga4Rows] = await Promise.all([
     // A failed shared read just means reading our own window, as before.
@@ -403,6 +413,26 @@ export async function detectAnomalies(
         streak: { start: streak.start, end: streak.end, days: streak.days },
       });
     }
+  }
+
+  // ---- Same-day data-flow incidents ----
+  // Not tied to the season: a broken tag or cart matters whenever the ads
+  // run. Unknown client type reads as engagement: no sales words.
+  for (const f of currentFlowAlerts(await flowStatePromise, sources?.shop ?? false)) {
+    out.push({
+      id: f.id,
+      severity: f.severity,
+      scope: "client",
+      scopeLabel: f.scopeLabel,
+      metric: f.label,
+      direction: "down",
+      changePct: f.changePct,
+      title: f.title,
+      description: f.description,
+      why: f.why,
+      action: f.action,
+      intraday: { since: f.since, label: f.sinceLabel },
+    });
   }
 
   const rank = { critical: 0, high: 1, medium: 2 };

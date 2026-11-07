@@ -250,8 +250,12 @@ export default async function AlertyPage({
 
       <p className="max-w-3xl text-[13px] leading-relaxed text-ink-3">
         {isAgency
-          ? "Skoki wydatków trafiają natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach."
-          : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami, a każdy dzień także z tym samym dniem tygodnia z ostatnich 4 tygodni. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}
+          ? `Skoki wydatków trafiają natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach. W ciągu dnia (7-23) co pół godziny sprawdzamy też, czy spływają dane z Analytics${
+              client.clientType === "ecommerce" ? ", czy działa koszyk, czy piksel Meta liczy zakupy i czy sklep wysyła sprzedaż" : ""
+            } - pilna awaria idzie od razu na e-mail, raz.`
+          : `Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami, a każdy dzień także z tym samym dniem tygodnia z ostatnich 4 tygodni. W ciągu dnia co pół godziny sprawdzamy też, czy dane z Google Analytics spływają na bieżąco${
+              client.clientType === "ecommerce" ? ", a w sklepie - czy działają koszyk i płatności oraz piksel Meta" : ""
+            }. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu.`}
       </p>
     </div>
   );
