@@ -55,6 +55,12 @@ export async function startHistoryProgress(
     accounts: readonly string[];
     known?: Readonly<Record<string, readonly string[] | undefined>>;
     now?: number;
+    /**
+     * Epoch ms after which no further count query starts: the search then
+     * answers null (nothing assumed) and the next run tries again - a slow
+     * database must not run a 60 s function out of time.
+     */
+    deadline?: number;
   }
 ): Promise<ProgressView | null> {
   const present = await readPresentAdDates(admin, opts.clientId, opts.provider, opts.windowStart);
@@ -68,7 +74,9 @@ export async function startHistoryProgress(
       days: older,
       rowsOnDay: present.rows,
       countWrittenSince: (from, to) =>
-        countRowsWrittenSince(admin, opts.clientId, opts.provider, writtenSince, from, to),
+        opts.deadline !== undefined && Date.now() > opts.deadline
+          ? Promise.resolve(null)
+          : countRowsWrittenSince(admin, opts.clientId, opts.provider, writtenSince, from, to),
       maxRequests: SUSPECT_REQUESTS,
     });
     if (!found) return null;

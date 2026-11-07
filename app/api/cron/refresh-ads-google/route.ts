@@ -106,6 +106,11 @@ const RESERVED_DEADLINE_MS = 10_000;
 // with the 25 s query cap it is over by ~50 s. It used to be 40 s, which let
 // a range query start too late to finish inside the 60 s function.
 const HISTORY_STOP_MS = 25_000;
+// A history range may start at HISTORY_STOP_MS and wait QUERY_CAP_MS: the
+// removed-campaign patches after it (a read and a write per flagged day)
+// stop here, leaving the rest uncounted (re-pulled later) instead of
+// running the 60 s function out of time.
+const PATCH_STOP_MS = 52_000;
 /** Longest history range one query asks for (it must finish under the cap). */
 const MAX_RANGE_DAYS = 62;
 /**
@@ -483,6 +488,10 @@ async function sync(request: Request) {
           );
           unpatchable.forEach((d) => unpatched.add(d));
           for (const [date, byCampaign] of byDay) {
+            if (elapsed() > PATCH_STOP_MS) {
+              unpatched.add(date);
+              continue;
+            }
             if (await patchRowsByKey(admin, clientId, "google_ads", "purchase_source", date, byCampaign)) continue;
             unpatched.add(date);
             console.warn(
@@ -604,6 +613,8 @@ async function sync(request: Request) {
               today: until,
               accounts: accounts.map((a) => a.id),
               known: state.empty,
+              // The bootstrap's count queries end with the history queries.
+              deadline: startedAt + HISTORY_STOP_MS,
             });
           }
           // Rows stored before purchase-only values existed (or while the
