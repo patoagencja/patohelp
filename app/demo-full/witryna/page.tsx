@@ -57,7 +57,15 @@ export default function DemoFullWitryna({
 
       {/* Full-width, one after the other (Strona-www board). */}
       <TrafficSources sources={w.sources} lang={lang} />
-      <TopPages pages={w.topPages} lang={lang} />
+      <TopPages
+        pages={w.topPages}
+        lang={lang}
+        exportScope={{
+          client: "demo",
+          from: w.sessionsTrend[0]?.date ?? null,
+          to: w.sessionsTrend[w.sessionsTrend.length - 1]?.date ?? null,
+        }}
+      />
 
       <DetailsDisclosure
         storageKey="pato:details:witryna"

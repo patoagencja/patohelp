@@ -57,6 +57,8 @@ export default async function AdsPage({
     searchParams.camp === "active" || searchParams.camp === "attention"
       ? searchParams.camp
       : "all";
+  // "Pobierz do Excela" names the file after the client and the range shown.
+  const exportScope = { client: params.clientSlug, from: data.rangeStart, to: data.rangeEnd };
 
   // Page skeleton: header + tabs -> 4 numbers -> one chart -> one table ->
   // one "Pokaż szczegóły". Each top-level child is a presentation slide, and
@@ -98,6 +100,7 @@ export default async function AdsPage({
           campaigns={data.campaigns}
           variant="simple"
           initialFilter={initialFilter}
+          exportScope={exportScope}
         />
       </SectionBoundary>
 
@@ -119,6 +122,7 @@ export default async function AdsPage({
             campaigns={data.campaigns}
             initialFilter={initialFilter}
             title="Kampanie - wszystkie liczby"
+            exportScope={exportScope}
           />
         </SectionBoundary>
       </DetailsDisclosure>

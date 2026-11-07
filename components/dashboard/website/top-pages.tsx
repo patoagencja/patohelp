@@ -1,6 +1,8 @@
+import { CsvDownloadButton } from "@/components/dashboard/csv-download-button";
 import { ShowMoreList } from "@/components/dashboard/show-more-list";
 import { Card } from "@/components/ui/card";
 
+import { csvFileName, type CsvColumn, type CsvValue, type ExportScope } from "@/lib/export/csv";
 import { cn, formatNumberPL, formatPercent } from "@/lib/utils";
 
 function segments(path: string): string[] {
@@ -56,6 +58,36 @@ function pathContext(path: string): string | null {
   return parents.map((s) => slugToWords(s) ?? s).join(" › ");
 }
 
+/**
+ * "Pobierz do Excela": the list's columns and order. The name and the raw
+ * address both show on screen (the address in mono under the name), so the
+ * file has both; English shows the address as the name, so just that.
+ */
+function topPagesCsv(
+  pages: Array<{ path: string; views: number; engagementRate: number }>,
+  en: boolean
+): { columns: CsvColumn[]; rows: CsvValue[][] } {
+  const tail: CsvColumn[] = [
+    { header: en ? "Views" : "Wyświetlenia", kind: "int" },
+    // Whole percent, as on screen.
+    { header: en ? "Engaged" : "Zainteresowani", kind: "percent", digits: 0 },
+  ];
+  return en
+    ? {
+        columns: [{ header: "#", kind: "int" }, { header: "Page", kind: "text" }, ...tail],
+        rows: pages.map((p, i) => [i + 1, p.path, p.views, p.engagementRate]),
+      }
+    : {
+        columns: [
+          { header: "#", kind: "int" },
+          { header: "Podstrona", kind: "text" },
+          { header: "Adres", kind: "text" },
+          ...tail,
+        ],
+        rows: pages.map((p, i) => [i + 1, prettyPath(p.path), p.path, p.views, p.engagementRate]),
+      };
+}
+
 // TODO: avg session duration per page (not stored in ga4_daily yet).
 export function TopPages({
   pages,
@@ -63,6 +95,7 @@ export function TopPages({
   headingLevel = 2,
   periodNote,
   limit = 5,
+  exportScope,
 }: {
   /** Rows shown before "Pokaż wszystkie". */
   limit?: number;
@@ -72,16 +105,31 @@ export function TopPages({
   lang?: "pl" | "en";
   /** 3 when nested under a section heading (Sprzedaż). */
   headingLevel?: 2 | 3;
+  /** Client and the data window; shows "Pobierz do Excela" when given. */
+  exportScope?: ExportScope;
 }) {
   const en = lang === "en";
   const Heading = headingLevel === 3 ? "h3" : "h2";
   const cols = "grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[30px_minmax(0,1fr)_7rem_8.5rem] sm:gap-x-4";
+  const csv = exportScope && pages.length > 0 ? topPagesCsv(pages, en) : null;
   return (
     <Card className="flex flex-col p-6 sm:p-[28px_30px]">
-      <p className="kick">{en ? "Pages" : "Podstrony"}</p>
-      <Heading className="mt-2 text-[22px] font-medium leading-tight tracking-[-0.03em] text-foreground">
-        {en ? "Top pages" : "Najczęściej oglądane strony"}
-      </Heading>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="kick">{en ? "Pages" : "Podstrony"}</p>
+          <Heading className="mt-2 text-[22px] font-medium leading-tight tracking-[-0.03em] text-foreground">
+            {en ? "Top pages" : "Najczęściej oglądane strony"}
+          </Heading>
+        </div>
+        {csv && exportScope ? (
+          <CsvDownloadButton
+            columns={csv.columns}
+            rows={csv.rows}
+            fileName={csvFileName(exportScope, en ? "pages" : "podstrony")}
+            lang={lang}
+          />
+        ) : null}
+      </div>
       <p className="mt-1.5 text-sm leading-relaxed text-ink-2">
         {en
           ? "Most viewed pages and how engaging they are."

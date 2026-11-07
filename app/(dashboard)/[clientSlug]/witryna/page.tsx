@@ -132,7 +132,14 @@ export default async function WebsitePage({
         <TrafficSources sources={data.sources} />
       </SectionBoundary>
       <SectionBoundary name="website/top-pages">
-        <TopPages pages={data.topPages} />
+        <TopPages
+          pages={data.topPages}
+          exportScope={{
+            client: params.clientSlug,
+            from: data.rangeStart ?? null,
+            to: data.rangeEnd ?? null,
+          }}
+        />
       </SectionBoundary>
 
       <DetailsDisclosure

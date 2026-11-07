@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { CsvDownloadButton } from "@/components/dashboard/csv-download-button";
 import { DeltaPill } from "@/components/ui/pill";
 import { Ping, type PingTone } from "@/components/ui/primitives";
 import { SegmentedTrack, segmentedItem, segmentedTrack } from "@/components/ui/segmented";
 import { Sparkline } from "@/components/ui/sparkline";
 
 import type { CampaignRow, CampaignStatus } from "@/lib/dashboard/metrics";
+import { csvFileName, type CsvColumn, type CsvValue, type ExportScope } from "@/lib/export/csv";
 import { AD_PROVIDER_LABEL, type AdProvider } from "@/lib/types";
 import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
@@ -204,6 +206,81 @@ function cpcText(c: CampaignRow): string {
   return c.cpcMinorUnits != null ? formatMoneyPLN(Math.round(c.cpcMinorUnits)) : "-";
 }
 
+/**
+ * "Pobierz do Excela" for either table: the rows as filtered and sorted on
+ * screen (collapsed ones included), under the table's own column labels.
+ * Platform and status ride under the name on screen, so they get their own
+ * columns; the 7-day sparkline is a picture and stays out.
+ */
+function CampaignsCsvButton({
+  rows,
+  lang,
+  scope,
+  full,
+  className,
+}: {
+  rows: CampaignRow[];
+  lang: Lang;
+  scope: ExportScope;
+  full: boolean;
+  className?: string;
+}) {
+  const t = COPY[lang];
+  const columns: CsvColumn[] = full
+    ? [
+        { header: t.campaign, kind: "text" },
+        { header: t.platform, kind: "text" },
+        { header: t.status, kind: "text" },
+        { header: t.spend, kind: "money" },
+        { header: t.clicks, kind: "int" },
+        { header: t.ctr, kind: "percent" },
+        { header: t.cpc, kind: "money" },
+        // Whole percent, as the row's pill shows it.
+        { header: t.change, kind: "percent", digits: 0 },
+      ]
+    : [
+        { header: t.status, kind: "text" },
+        { header: t.campaign, kind: "text" },
+        { header: t.platform, kind: "text" },
+        { header: t.spend, kind: "money" },
+        { header: t.clicks, kind: "int" },
+        { header: t.ctr, kind: "percent" },
+      ];
+  const values: CsvValue[][] = rows.map((c) => {
+    const status = STATUS_LABEL[lang][c.status];
+    const platform = AD_PROVIDER_LABEL[c.provider];
+    return full
+      ? [
+          c.name,
+          platform,
+          status,
+          c.spendMinorUnits,
+          c.clicks,
+          c.ctr,
+          c.cpcMinorUnits,
+          spendChange(c.spark),
+        ]
+      : [status, c.name, platform, c.spendMinorUnits, c.clicks, c.ctr];
+  });
+  const table =
+    lang === "en"
+      ? full
+        ? "campaigns-details"
+        : "campaigns"
+      : full
+        ? "kampanie-szczegoly"
+        : "kampanie";
+  return (
+    <CsvDownloadButton
+      columns={columns}
+      rows={values}
+      fileName={csvFileName(scope, table)}
+      lang={lang}
+      className={className}
+    />
+  );
+}
+
 function TableRow({ c, lang }: { c: CampaignRow; lang: Lang }) {
   const change = spendChange(c.spark);
   const hasSpark = c.spark.some((v) => v > 0);
@@ -322,11 +399,13 @@ function SimpleCampaigns({
   filter,
   limit,
   lang,
+  exportScope,
 }: {
   campaigns: CampaignRow[];
   filter: PositionFilter;
   limit: number;
   lang: Lang;
+  exportScope?: ExportScope;
 }) {
   const t = COPY[lang];
   const en = lang === "en";
@@ -350,8 +429,10 @@ function SimpleCampaigns({
 
   return (
     <section aria-labelledby="campaigns-simple-heading" className={CARD}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
+      {/* Phones: the Excel button sits beside the heading and the platform
+          filter wraps under it; md+: heading left, filter + button right. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-4 md:flex-nowrap md:items-end">
+        <div className="min-w-0 flex-[1_1_10rem]">
           <p className="kick">{t.kicker}</p>
           <h2 id="campaigns-simple-heading" className={H2}>
             {t.title}
@@ -365,6 +446,15 @@ function SimpleCampaigns({
             {t.spent}
           </p>
         </div>
+        {exportScope && campaigns.length > 0 ? (
+          <CampaignsCsvButton
+            rows={rows}
+            lang={lang}
+            scope={exportScope}
+            full={false}
+            className="md:order-last"
+          />
+        ) : null}
         {providers.length > 1 ? (
           <SegmentedTrack
             role="group"
@@ -515,6 +605,7 @@ export function CampaignPositions({
   variant = "full",
   limit = 6,
   title,
+  exportScope,
 }: {
   campaigns: CampaignRow[];
   initialFilter?: PositionFilter;
@@ -528,6 +619,8 @@ export function CampaignPositions({
   limit?: number;
   /** Overrides the card heading (e.g. inside "Pokaż szczegóły"). */
   title?: string;
+  /** Client and date window; shows "Pobierz do Excela" when given. */
+  exportScope?: ExportScope;
 }) {
   if (variant === "simple") {
     return (
@@ -536,6 +629,7 @@ export function CampaignPositions({
         filter={initialFilter}
         limit={limit}
         lang={lang}
+        exportScope={exportScope}
       />
     );
   }
@@ -545,6 +639,7 @@ export function CampaignPositions({
       initialFilter={initialFilter}
       lang={lang}
       title={title}
+      exportScope={exportScope}
     />
   );
 }
@@ -554,11 +649,13 @@ function FullCampaigns({
   initialFilter,
   lang,
   title,
+  exportScope,
 }: {
   campaigns: CampaignRow[];
   initialFilter: PositionFilter;
   lang: Lang;
   title?: string;
+  exportScope?: ExportScope;
 }) {
   const t = COPY[lang];
   // Client-side filtering: instant, no navigation, immune to stale-chunk errors
@@ -588,8 +685,10 @@ function FullCampaigns({
 
   return (
     <section aria-labelledby="campaigns-full-heading" className={CARD}>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
+      {/* Phones: the Excel button sits beside the heading and the filter
+          takes the full row under it; md+: one row, button last. */}
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-4 md:flex-nowrap md:items-end md:justify-between">
+        <div className="min-w-0 flex-1">
           <p className="kick">{t.kicker}</p>
           <h2 id="campaigns-full-heading" className={H2}>
             {title ?? t.title}
@@ -603,6 +702,16 @@ function FullCampaigns({
             {t.spent}
           </p>
         </div>
+
+        {exportScope && campaigns.length > 0 ? (
+          <CampaignsCsvButton
+            rows={filtered}
+            lang={lang}
+            scope={exportScope}
+            full
+            className="md:order-last"
+          />
+        ) : null}
 
         <SegmentedTrack
           className={cn(segmentedTrack, "flex w-full md:inline-flex md:w-auto")}

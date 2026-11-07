@@ -127,7 +127,16 @@ export default function DemoFullKreacje({
         }
       />
 
-      <CreativesExplorer creatives={creatives} lang={lang} />
+      <CreativesExplorer
+        creatives={creatives}
+        lang={lang}
+        // The demo's one fixed period is its 30-day trend.
+        exportScope={{
+          client: "demo",
+          from: d.trend[0]?.date ?? null,
+          to: d.trend[d.trend.length - 1]?.date ?? null,
+        }}
+      />
     </>
   );
 }

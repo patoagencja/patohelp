@@ -3,7 +3,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { LayoutGrid, Table2 } from "lucide-react";
 
-import { CreativeModal, CreativesTable } from "@/components/dashboard/creatives-table";
+import { CsvDownloadButton } from "@/components/dashboard/csv-download-button";
+import {
+  CreativeModal,
+  CreativesTable,
+  creativesCsv,
+  sortForTable,
+  type CreativesSort,
+} from "@/components/dashboard/creatives-table";
 import { GalleryCard } from "@/components/dashboard/creatives/gallery-card";
 import { RefreshList } from "@/components/dashboard/creatives/insight-bits";
 import { CreativesPodium, PodiumFootnote } from "@/components/dashboard/creatives/podium";
@@ -20,6 +27,7 @@ import {
   type GallerySort,
   type Lang,
 } from "@/lib/dashboard/creatives";
+import { csvFileName, type ExportScope } from "@/lib/export/csv";
 import { cn, formatMoneyPLN, formatNumberPL, formatPercent } from "@/lib/utils";
 
 // Enough to fill a few rows on desktop without rendering 300 images at once.
@@ -75,13 +83,18 @@ function Segmented<T extends string>({
 export function CreativesExplorer({
   creatives,
   lang = "pl",
+  exportScope,
 }: {
   creatives: CreativeItem[];
   lang?: Lang;
+  /** Client and the creatives' window; shows "Pobierz do Excela" when given. */
+  exportScope?: ExportScope;
 }) {
   const en = lang === "en";
   const [view, setView] = useState<View>("gallery");
   const [sort, setSort] = useState<GallerySort>("best");
+  // Lifted from the table so the Excel file follows its order too.
+  const [tableSort, setTableSort] = useState<CreativesSort>("spend");
   const [limit, setLimit] = useState(PAGE);
   const [selected, setSelected] = useState<CreativeItem | null>(null);
 
@@ -94,6 +107,15 @@ export function CreativesExplorer({
   const sorted = useMemo(
     () => sortCreatives(creatives, sort, bench),
     [creatives, sort, bench]
+  );
+  // Every ad (not just the 50 the table renders), in the order on screen,
+  // under the table's columns whichever view is open.
+  const csv = useMemo(
+    () =>
+      exportScope
+        ? creativesCsv(view === "table" ? sortForTable(creatives, tableSort) : sorted, lang)
+        : null,
+    [exportScope, view, creatives, tableSort, sorted, lang]
   );
 
   const fatigued = useMemo(
@@ -228,6 +250,14 @@ export function CreativesExplorer({
                   { value: "table", label: en ? "Table" : "Tabela", icon: Table2 },
                 ]}
               />
+              {csv && exportScope ? (
+                <CsvDownloadButton
+                  columns={csv.columns}
+                  rows={csv.rows}
+                  fileName={csvFileName(exportScope, en ? "creatives" : "kreacje")}
+                  lang={lang}
+                />
+              ) : null}
             </div>
           </div>
 
@@ -265,7 +295,13 @@ export function CreativesExplorer({
           </div>
 
           {view === "table" ? (
-            <CreativesTable creatives={creatives} lang={lang} embedded />
+            <CreativesTable
+              creatives={creatives}
+              lang={lang}
+              embedded
+              sort={tableSort}
+              onSortChange={setTableSort}
+            />
           ) : (
             <>
               <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3 min-[1360px]:grid-cols-4">

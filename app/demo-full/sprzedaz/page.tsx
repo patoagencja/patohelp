@@ -59,7 +59,10 @@ export default function DemoSprzedazPage({
 
       <MonthPacingCard pacing={d.pacing} clientSlug={DEMO_SLUG} isAgency={false} />
 
-      <TopProducts products={d.products} />
+      <TopProducts
+        products={d.products}
+        exportScope={{ client: "demo", from: d.rangeStart, to: d.rangeEnd }}
+      />
 
       <DetailsDisclosure
         storageKey="pato:details:sprzedaz"

@@ -88,6 +88,12 @@ export default function DemoFullReklamy({
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
   const d = getDemoDashboard(lang);
+  // The demo's one fixed period is its 30-day trend.
+  const exportScope = {
+    client: "demo",
+    from: d.trend[0]?.date ?? null,
+    to: d.trend[d.trend.length - 1]?.date ?? null,
+  };
 
   // Same skeleton as the real Reklamy tab: header + tabs -> 4 numbers ->
   // one chart -> one table -> one "Pokaż szczegóły". The ads teaser that
@@ -124,7 +130,12 @@ export default function DemoFullReklamy({
 
       <CostTrends costTrend={d.costTrend} lang={lang} />
 
-      <CampaignPositions campaigns={d.campaigns} lang={lang} variant="simple" />
+      <CampaignPositions
+        campaigns={d.campaigns}
+        lang={lang}
+        variant="simple"
+        exportScope={exportScope}
+      />
 
       <DetailsDisclosure
         storageKey="pato:details:reklamy"
@@ -143,6 +154,7 @@ export default function DemoFullReklamy({
           campaigns={d.campaigns}
           lang={lang}
           title={en ? "Campaigns - all numbers" : "Kampanie - wszystkie liczby"}
+          exportScope={exportScope}
         />
       </DetailsDisclosure>
     </>

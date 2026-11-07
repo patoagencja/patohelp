@@ -228,6 +228,7 @@ export default async function SprzedazPage({
           products={products}
           tableMissing={itemsTableMissing}
           isAgency={isAgency}
+          exportScope={{ client: params.clientSlug, from: period.start, to: period.end }}
         />
       </SectionBoundary>
 

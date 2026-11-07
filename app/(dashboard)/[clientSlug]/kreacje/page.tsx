@@ -84,10 +84,9 @@ export default async function KreacjePage({
         : null,
   }));
 
-  const period = periodLabel(
-    (rows[0]?.period_start as string | null) ?? null,
-    (rows[0]?.period_end as string | null) ?? null
-  );
+  const periodStart = (rows[0]?.period_start as string | null) ?? null;
+  const periodEnd = (rows[0]?.period_end as string | null) ?? null;
+  const period = periodLabel(periodStart, periodEnd);
 
   // Creatives are a fixed synced window (not the page's range picker), but
   // the range chosen on Kampanie is carried through so the way back keeps it.
@@ -132,7 +131,11 @@ export default async function KreacjePage({
           description="Grafiki i filmy z Meta pojawią się tu po najbliższym odświeżeniu danych (co 6 godzin)."
         />
       ) : (
-        <CreativesExplorer creatives={creatives} />
+        <CreativesExplorer
+          creatives={creatives}
+          // The file is named after the synced window the ads cover.
+          exportScope={{ client: params.clientSlug, from: periodStart, to: periodEnd }}
+        />
       )}
     </div>
   );

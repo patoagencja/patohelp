@@ -30,6 +30,12 @@ export interface WebsiteData {
   };
   newVsReturning: { newUsers: number; returningUsers: number };
   sessionsTrend: Array<{ date: string; sessions: number }>;
+  /**
+   * The 30 Warsaw days read (yyyy-MM-dd), e.g. for export file names.
+   * Optional so hand-built WebsiteData (demo) stays valid.
+   */
+  rangeStart?: string;
+  rangeEnd?: string;
 }
 
 const SOCIAL_SOURCES = [
@@ -246,6 +252,8 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
       engagement: { engagementRate: 0, bounceRate: 0, avgDailySessions: 0 },
       newVsReturning: { newUsers: 0, returningUsers: 0 },
       sessionsTrend: [],
+      rangeStart: start,
+      rangeEnd: todayStr,
     };
   }
 
@@ -327,5 +335,7 @@ export async function getWebsiteData(clientId: string): Promise<WebsiteData> {
       returningUsers: Number(nvr?.users_returning ?? 0),
     },
     sessionsTrend,
+    rangeStart: start,
+    rangeEnd: todayStr,
   };
 }

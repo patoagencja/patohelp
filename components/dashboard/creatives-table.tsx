@@ -23,15 +23,93 @@ import {
   type CreativeItem,
   type CreativeScore,
 } from "@/lib/dashboard/creatives";
+import type { CsvColumn, CsvValue } from "@/lib/export/csv";
 import { cn, formatMoneyPLN,
   formatPlnWhole, formatNumberPL, formatPercent } from "@/lib/utils";
 
 // Re-exported so existing imports (demo data, pages) keep working.
 export type { CreativeItem } from "@/lib/dashboard/creatives";
 
-type SortKey = "spend" | "ctr" | "cpc" | "clicks";
+export type CreativesSort = "spend" | "ctr" | "cpc" | "clicks";
+type SortKey = CreativesSort;
 
 const SORT_KEYS: SortKey[] = ["spend", "clicks", "ctr", "cpc"];
+
+// Column labels, shared by the table head and its Excel export so the file
+// always says exactly what the screen says.
+const HEAD = {
+  pl: {
+    creative: "Reklama",
+    spend: "Wydatki",
+    impressions: "Wyśw.",
+    clicks: "Klik.",
+    ctr: "Klikalność",
+    cpc: "Koszt klik.",
+    freq: "Częst.",
+    freqHint: "Ile razy 1 osoba widziała reklamę",
+    hook: "3 s+",
+    hookHint: "Część wyświetleń oglądanych dłużej niż 3 s (filmy)",
+  },
+  en: {
+    creative: "Creative",
+    spend: "Spend",
+    impressions: "Impr.",
+    clicks: "Clicks",
+    ctr: "CTR",
+    cpc: "CPC",
+    freq: "Freq.",
+    freqHint: "Times seen per person",
+    hook: "3s+",
+    hookHint: "Share of views watched 3s+ (videos)",
+  },
+} as const;
+
+/** Rows in the table's order for a sort key (the Excel export follows it). */
+export function sortForTable(creatives: CreativeItem[], sort: CreativesSort): CreativeItem[] {
+  return [...creatives].sort((a, b) => {
+    if (sort === "ctr") return (b.ctr ?? -1) - (a.ctr ?? -1);
+    if (sort === "cpc") return (a.cpc ?? Infinity) - (b.cpc ?? Infinity);
+    if (sort === "clicks") return b.clicks - a.clicks;
+    return b.spend - a.spend;
+  });
+}
+
+/**
+ * "Pobierz do Excela": the table's columns and labels for the given ads, in
+ * the order given. Values are the ones the cells show, as plain numbers
+ * (the frequency to one decimal, the 3 s+ share in whole percent).
+ */
+export function creativesCsv(
+  creatives: CreativeItem[],
+  lang: "pl" | "en" = "pl"
+): { columns: CsvColumn[]; rows: CsvValue[][] } {
+  const h = HEAD[lang];
+  return {
+    columns: [
+      { header: h.creative, kind: "text" },
+      { header: h.spend, kind: "money" },
+      { header: h.impressions, kind: "int" },
+      { header: h.clicks, kind: "int" },
+      { header: h.ctr, kind: "percent" },
+      { header: h.cpc, kind: "money" },
+      { header: h.freq, kind: "decimal", digits: 1 },
+      { header: h.hook, kind: "percent", digits: 0 },
+    ],
+    rows: creatives.map((c) => {
+      const hook = videoRatesOf(c)?.hook;
+      return [
+        c.name,
+        c.spend,
+        c.impressions,
+        c.clicks,
+        c.ctr,
+        c.cpc,
+        frequencyOf(c),
+        hook != null ? hook * 100 : null,
+      ];
+    }),
+  };
+}
 
 // Modal preview of a single creative - "click an ad, see it big".
 export function CreativeModal({
@@ -208,27 +286,31 @@ export function CreativesTable({
   creatives,
   lang = "pl",
   embedded = false,
+  sort: sortProp,
+  onSortChange,
 }: {
   creatives: CreativeItem[];
   lang?: "pl" | "en";
   embedded?: boolean;
+  /** Controlled sort (the explorer's Excel export follows it); own state otherwise. */
+  sort?: CreativesSort;
+  onSortChange?: (sort: CreativesSort) => void;
 }) {
   const en = lang === "en";
+  const head = HEAD[lang];
   const sortLabel: Record<SortKey, string> = en
     ? { spend: "Spend", clicks: "Clicks", ctr: "CTR", cpc: "CPC" }
     : { spend: "Wydatki", clicks: "Kliknięcia", ctr: "Klikalność", cpc: "Koszt kliknięcia" };
-  const [sort, setSort] = useState<SortKey>("spend");
+  const [ownSort, setOwnSort] = useState<SortKey>("spend");
+  const sort = sortProp ?? ownSort;
+  const setSort = (key: SortKey) => {
+    setOwnSort(key);
+    onSortChange?.(key);
+  };
   const [selected, setSelected] = useState<CreativeItem | null>(null);
   const bench = useMemo(() => computeBenchmarks(creatives), [creatives]);
 
-  const table = [...creatives]
-    .sort((a, b) => {
-      if (sort === "ctr") return (b.ctr ?? -1) - (a.ctr ?? -1);
-      if (sort === "cpc") return (a.cpc ?? Infinity) - (b.cpc ?? Infinity);
-      if (sort === "clicks") return b.clicks - a.clicks;
-      return b.spend - a.spend;
-    })
-    .slice(0, 50);
+  const table = sortForTable(creatives, sort).slice(0, 50);
 
   return (
     <section
@@ -268,17 +350,17 @@ export function CreativesTable({
         <table className="w-full min-w-[40rem]">
           <thead>
             <tr className="text-left [&>th]:kick [&>th]:text-[10.5px] [&>th]:font-normal">
-              <th className="py-2 pr-3 font-medium">{en ? "Creative" : "Reklama"}</th>
-              <th className="py-2 pr-3 text-right font-medium">{en ? "Spend" : "Wydatki"}</th>
-              <th className="py-2 pr-3 text-right font-medium">{en ? "Impr." : "Wyśw."}</th>
-              <th className="py-2 pr-3 text-right font-medium">{en ? "Clicks" : "Klik."}</th>
-              <th className="py-2 pr-3 text-right font-medium">{en ? "CTR" : "Klikalność"}</th>
-              <th className="py-2 pr-3 text-right font-medium">{en ? "CPC" : "Koszt klik."}</th>
-              <th className="py-2 pr-3 text-right font-medium" title={en ? "Times seen per person" : "Ile razy 1 osoba widziała reklamę"}>
-                {en ? "Freq." : "Częst."}
+              <th className="py-2 pr-3 font-medium">{head.creative}</th>
+              <th className="py-2 pr-3 text-right font-medium">{head.spend}</th>
+              <th className="py-2 pr-3 text-right font-medium">{head.impressions}</th>
+              <th className="py-2 pr-3 text-right font-medium">{head.clicks}</th>
+              <th className="py-2 pr-3 text-right font-medium">{head.ctr}</th>
+              <th className="py-2 pr-3 text-right font-medium">{head.cpc}</th>
+              <th className="py-2 pr-3 text-right font-medium" title={head.freqHint}>
+                {head.freq}
               </th>
-              <th className="py-2 text-right font-medium" title={en ? "Share of views watched 3s+ (videos)" : "Część wyświetleń oglądanych dłużej niż 3 s (filmy)"}>
-                {en ? "3s+" : "3 s+"}
+              <th className="py-2 text-right font-medium" title={head.hookHint}>
+                {head.hook}
               </th>
             </tr>
           </thead>
