@@ -212,27 +212,33 @@ const PAGE = 1000;
  *
  * Only that bootstrap reads it now: which days are missing is per account
  * (history-progress.ts) - a day with ANY row used to count as done for all.
+ * `rows` (campaign rows per day) comes with the view only.
  */
 export async function readPresentAdDates(
   admin: SupabaseClient,
   clientId: string,
   provider: string,
   fromDate: string
-): Promise<{ ok: boolean; dates: Set<string> }> {
+): Promise<{ ok: boolean; dates: Set<string>; rows: Map<string, number> | null }> {
   try {
     const present = new Set<string>();
+    const rows = new Map<string, number>();
     for (let offset = 0; ; offset += PAGE) {
       const { data, error } = await admin
         .from("ads_daily_totals")
-        .select("date")
+        .select("date, campaign_rows")
         .eq("client_id", clientId)
         .eq("provider", provider)
         .gte("date", fromDate)
         .order("date", { ascending: true })
         .range(offset, offset + PAGE - 1);
       if (error) throw new Error(error.message);
-      for (const r of data ?? []) present.add(String(r.date).slice(0, 10));
-      if (!data || data.length < PAGE) return { ok: true, dates: present };
+      for (const r of data ?? []) {
+        const day = String(r.date).slice(0, 10);
+        present.add(day);
+        rows.set(day, Number(r.campaign_rows) || 0);
+      }
+      if (!data || data.length < PAGE) return { ok: true, dates: present, rows };
     }
   } catch (err) {
     console.warn(
@@ -252,12 +258,12 @@ export async function readPresentAdDates(
         .gte("date", fromDate)
         .order("date", { ascending: true })
         .range(offset, offset + PAGE - 1);
-      if (error) return { ok: false, dates: present };
+      if (error) return { ok: false, dates: present, rows: null };
       for (const r of data ?? []) present.add(r.date as string);
       if (!data || data.length < PAGE) break;
     }
   } catch {
-    return { ok: false, dates: present };
+    return { ok: false, dates: present, rows: null };
   }
-  return { ok: true, dates: present };
+  return { ok: true, dates: present, rows: null };
 }

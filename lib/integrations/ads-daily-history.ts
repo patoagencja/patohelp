@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readPresentAdDates } from "@/lib/integrations/cron-runs";
-import { bootstrapProgress, type ProgressView } from "@/lib/integrations/history-progress";
+import {
+  bootstrapProgress,
+  findSuspectDays,
+  type ProgressView,
+} from "@/lib/integrations/history-progress";
 import { addDaysIso } from "@/lib/season/config";
 
 /**
@@ -22,18 +26,22 @@ import { addDaysIso } from "@/lib/season/config";
  * delivered days in it, spread over the history turns of a few days.
  */
 export const RECHECK_DAYS = 45;
-/** Pages (1000 rows each) read for lately filled old days at bootstrap. */
-const SUSPECT_PAGES = 20;
+/**
+ * Count requests the bootstrap may spend finding lately filled old days. A
+ * block of them costs a few; past the cap the days not settled yet are taken
+ * as lately filled (re-checked per account), never assumed done.
+ */
+const SUSPECT_REQUESTS = 80;
 
 /**
  * The first per-account history record for a client (bootstrapProgress in
  * history-progress.ts explains the trade-off): stored days count as fetched
  * by every selected account, except the last RECHECK_DAYS days and older days
  * whose rows were first written in that time (filled by the backfill under
- * the old "any row = present" rule). One account alone can't have left
- * another one's day out, so a single-account client skips that scan. null
- * when the stored days can't be read: nothing is assumed (a failed read is
- * not "no rows"), the next run tries again.
+ * the old "any row = present" rule; findSuspectDays). One account alone
+ * can't have left another one's day out, so a single-account client skips
+ * that search. null when the stored days can't be read: nothing is assumed
+ * (a failed read is not "no rows"), the next run tries again.
  */
 export async function startHistoryProgress(
   admin: SupabaseClient,
@@ -53,18 +61,23 @@ export async function startHistoryProgress(
   if (!present.ok) return null;
   const recheckFrom = addDaysIso(opts.today, -RECHECK_DAYS);
   let suspect = new Set<string>();
-  if (opts.accounts.length > 1 && opts.windowStart < recheckFrom) {
-    const found = await datesWrittenSince(
-      admin,
-      opts.clientId,
-      opts.provider,
-      new Date((opts.now ?? Date.now()) - RECHECK_DAYS * 86_400_000).toISOString(),
-      opts.windowStart,
-      recheckFrom,
-      SUSPECT_PAGES
-    );
+  const older = [...present.dates].filter((d) => d < recheckFrom);
+  if (opts.accounts.length > 1 && older.length) {
+    const writtenSince = new Date((opts.now ?? Date.now()) - RECHECK_DAYS * 86_400_000).toISOString();
+    const found = await findSuspectDays({
+      days: older,
+      rowsOnDay: present.rows,
+      countWrittenSince: (from, to) =>
+        countRowsWrittenSince(admin, opts.clientId, opts.provider, writtenSince, from, to),
+      maxRequests: SUSPECT_REQUESTS,
+    });
     if (!found) return null;
-    suspect = found;
+    if (found.capped) {
+      console.warn(
+        `[ads-daily-history] ${opts.provider} bootstrap for ${opts.clientId}: lately filled days not fully narrowed down in ${found.requests} counts, ${found.suspect.size} old days re-checked per account`
+      );
+    }
+    suspect = found.suspect;
   }
   return bootstrapProgress({
     start: opts.today,
@@ -146,44 +159,34 @@ export async function datesMissingRawKey(
 }
 
 /**
- * Days in [fromDate, beforeDate) holding a `provider` row first written at
- * or after `writtenSince` (an ISO timestamp; an upsert keeps created_at):
- * old days filled by the history backfill lately rather than synced as they
- * happened. Walks back from the newest such day a page at a time, at most
- * `maxPages` pages (older days beyond that are not looked at). null when the
- * first page can't be read.
+ * How many `provider` rows dated [fromDate, toDate] were first written at or
+ * after `writtenSince` (an ISO timestamp; an upsert keeps created_at): rows
+ * the history backfill filled lately rather than synced as they happened.
+ * A count, not the rows: DRE writes hundreds of rows a day, so paging them
+ * reached only weeks back. null when it can't be read.
  */
-export async function datesWrittenSince(
+async function countRowsWrittenSince(
   admin: SupabaseClient,
   clientId: string,
   provider: string,
   writtenSince: string,
   fromDate: string,
-  beforeDate: string,
-  maxPages: number
-): Promise<Set<string> | null> {
-  const out = new Set<string>();
-  let upper = beforeDate;
-  for (let page = 0; page < maxPages; page += 1) {
-    const { data, error } = await admin
+  toDate: string
+): Promise<number | null> {
+  try {
+    const { count, error } = await admin
       .from("ads_daily")
-      .select("date")
+      .select("date", { count: "exact", head: true })
       .eq("client_id", clientId)
       .eq("provider", provider)
       .gte("created_at", writtenSince)
       .gte("date", fromDate)
-      .lt("date", upper)
-      .order("date", { ascending: false })
-      .limit(1000);
-    if (error) return page === 0 ? null : out;
-    if (!data || data.length === 0) break;
-    for (const r of data) out.add(String(r.date).slice(0, 10));
-    // Continue strictly before the oldest day of this page: each page
-    // yields at least one new day, however many rows a day has.
-    upper = String(data[data.length - 1].date).slice(0, 10);
-    if (data.length < 1000) break;
+      .lte("date", toDate);
+    if (error || count == null) return null;
+    return count;
+  } catch {
+    return null;
   }
-  return out;
 }
 
 /**
@@ -191,9 +194,7 @@ export async function datesWrittenSince(
  * again from every account - campaigns the platform no longer reports for
  * the day. `patch` returns the keys to merge into their raw_data (null =
  * leave the row). Without this they would keep their day "due" for ever.
- * Upsert of the key columns + raw_data only touches raw_data. `campaignIds`
- * narrows the read to those campaigns (rows patched before every account
- * re-pulled the day - other accounts' rows would fill the page otherwise).
+ * Upsert of the key columns + raw_data only touches raw_data.
  */
 export async function patchRowsMissingRawKey(
   admin: SupabaseClient,
@@ -201,20 +202,18 @@ export async function patchRowsMissingRawKey(
   provider: string,
   key: string,
   days: string[],
-  patch: (row: { campaign_id: string; date: string; raw: Record<string, unknown> }) => Record<string, unknown> | null,
-  campaignIds?: readonly string[]
+  patch: (row: { campaign_id: string; date: string; raw: Record<string, unknown> }) => Record<string, unknown> | null
 ): Promise<number> {
-  if (!days.length || (campaignIds && !campaignIds.length)) return 0;
-  let query = admin
+  if (!days.length) return 0;
+  const { data, error } = await admin
     .from("ads_daily")
     .select("campaign_id, date, raw_data")
     .eq("client_id", clientId)
     .eq("provider", provider)
     .in("date", days)
-    .is(`raw_data->>${key}`, null);
-  if (campaignIds) query = query.in("campaign_id", [...campaignIds]);
-  // PostgREST caps a page at 1000; any rest is patched on a later run.
-  const { data, error } = await query.limit(1000);
+    .is(`raw_data->>${key}`, null)
+    // PostgREST caps a page at 1000; any rest is patched on a later run.
+    .limit(1000);
   if (error || !data?.length) return 0;
   const rows: Array<Record<string, unknown>> = [];
   for (const r of data) {
@@ -239,6 +238,59 @@ export async function patchRowsMissingRawKey(
     }
   }
   return rows.length;
+}
+
+/** Campaign ids per read of patchRowsByKey (one row each on one day). */
+const KEY_CHUNK = 100;
+
+/**
+ * Merges `byCampaign` (campaign id -> raw_data keys) into the rows of those
+ * campaigns on `date` that still lack raw_data `key`. Read by exact key - one
+ * day, the given campaigns, at most KEY_CHUNK rows a read - so other rows of
+ * the day (accounts that haven't re-pulled it yet) can't crowd them out of a
+ * page. Upsert of the key columns + raw_data only touches raw_data. False
+ * when a read or write failed: the caller must not count the day as done.
+ */
+export async function patchRowsByKey(
+  admin: SupabaseClient,
+  clientId: string,
+  provider: string,
+  key: string,
+  date: string,
+  byCampaign: ReadonlyMap<string, Record<string, unknown>>
+): Promise<boolean> {
+  const ids = [...byCampaign.keys()];
+  try {
+    for (let i = 0; i < ids.length; i += KEY_CHUNK) {
+      const { data, error } = await admin
+        .from("ads_daily")
+        .select("campaign_id, raw_data")
+        .eq("client_id", clientId)
+        .eq("provider", provider)
+        .eq("date", date)
+        .in("campaign_id", ids.slice(i, i + KEY_CHUNK))
+        .is(`raw_data->>${key}`, null);
+      if (error) return false;
+      const rows = (data ?? []).map((r) => {
+        const raw = (r.raw_data && typeof r.raw_data === "object" ? r.raw_data : {}) as Record<string, unknown>;
+        return {
+          client_id: clientId,
+          provider,
+          campaign_id: r.campaign_id,
+          date,
+          raw_data: { ...raw, ...(byCampaign.get(String(r.campaign_id)) ?? {}) },
+        };
+      });
+      if (!rows.length) continue;
+      const { error: upErr } = await admin
+        .from("ads_daily")
+        .upsert(rows, { onConflict: "client_id,provider,campaign_id,date" });
+      if (upErr) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** One message per account, so "every account failed" counts accounts. */

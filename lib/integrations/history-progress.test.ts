@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { accountKey } from "./account-selection.ts";
 import {
   bootstrapProgress,
   clearRedo,
@@ -10,12 +11,15 @@ import {
   decodeProgress,
   encodeProgress,
   expandDays,
+  findSuspectDays,
   leastServedFirst,
   markFetched,
   markRedone,
   markServed,
   pendingDays,
   plannedDays,
+  probeRanges,
+  progressKey,
   sameProgress,
   settleUndelivered,
   type DeliveryAnswer,
@@ -331,7 +335,7 @@ test("state stays small for 46 accounts x 470 days", () => {
   const stored = encodeProgress(view, { from: window.from, accounts });
   for (const acc of accounts) {
     assert.equal(pendingDays(view, acc, window).length, 0, acc);
-    assert.deepEqual(stored.done[acc], [`${window.from}..${window.to}`]);
+    assert.deepEqual(stored.done[progressKey(acc)], [`${window.from}..${window.to}`]);
   }
   const bytes = JSON.stringify(stored).length;
   assert.ok(bytes < 4_000, `caught-up state ${bytes} B`);
@@ -347,14 +351,158 @@ test("state stays small for 46 accounts x 470 days", () => {
   assert.ok(JSON.stringify(worstStored).length < 46 * 235 * 14 + 46 * 40);
 });
 
-test("stored days before the window and deselected accounts are dropped", () => {
+test("stored days before the window are dropped; a deselected account keeps its progress", () => {
   const view = fresh(["A", "B"]);
   markFetched(view, "A", ["2026-09-29", "2026-09-30", "2026-10-01"], "2026-11-07");
   markFetched(view, "B", ["2026-10-01"], "2026-11-07");
   markRedone(view, "clicks", "B", ["2026-10-01"], new Set(["2026-10-01"]));
+  markServed(view, ["B", "A"]);
+  // B deselected for a run: nothing of it is lost.
   const stored = encodeProgress(view, { from: "2026-10-01", accounts: ["A"] });
-  assert.deepEqual(stored.done, { A: ["2026-10-01"] });
-  assert.equal(stored.redo, undefined);
+  assert.deepEqual(stored.done, { A: ["2026-10-01"], B: ["2026-10-01"] });
+  assert.deepEqual(stored.redo, { clicks: { B: ["2026-10-01"] } });
+  assert.deepEqual(stored.order, ["B", "A"]);
+  // Reselected, it does not fetch that day again.
+  const back = decodeProgress(JSON.parse(JSON.stringify(stored)))!;
+  const all = answer("2026-10-01", "2026-10-01", ["2026-10-01"]);
+  assert.deepEqual(plannedDays(back, "B", all, { from: "2026-10-01", to: "2026-10-01" }, [], { includeUnknown: false, cap: 9 }), []);
+});
+
+test("an account left unselected ages out with the window, not before", () => {
+  const view = fresh(["A", "GONE"]);
+  markFetched(view, "GONE", ["2026-10-01", "2026-10-02"], "2026-11-07");
+  markServed(view, ["GONE"]);
+  // Still inside the window: kept.
+  assert.deepEqual(encodeProgress(view, { from: "2026-10-02", accounts: ["A"] }).done.GONE, ["2026-10-02"]);
+  // Every day of it left the window: gone, from `order` too.
+  const later = encodeProgress(view, { from: "2026-10-03", accounts: ["A"] });
+  assert.equal(later.done.GONE, undefined);
+  assert.equal(later.order, undefined);
+});
+
+test("no account selected for a run (\"0 of 46\") wipes nothing", () => {
+  const accounts = Array.from({ length: 46 }, (_, i) => `act_${100 + i}`);
+  const view = bootstrapProgress({ start: "2026-11-07", accounts, present: OCTOBER, recheckFrom: "2026-11-01" });
+  markServed(view, accounts.slice(0, 5));
+  const stored = encodeProgress(view, { from: WINDOW.from, accounts: [] });
+  assert.equal(Object.keys(stored.done).length, 46);
+  assert.equal(stored.order?.length, 5);
+});
+
+test("record keys follow account-selection: act_ prefix and Google dashes don't matter", () => {
+  for (const id of ["act_123", "123", "123-456-7890", "1234567890", 42]) assert.equal(progressKey(id), accountKey(id));
+  // Recorded under "act_123", the account comes back listed as "123".
+  const view = fresh(["act_123", "111-222-3333"]);
+  markFetched(view, "act_123", ["2026-10-05"], "2026-11-07");
+  markFetched(view, "111-222-3333", ["2026-10-06"], "2026-11-07");
+  markRedone(view, "clicks", "act_123", ["2026-10-05"], new Set(["2026-10-05"]));
+  markServed(view, ["act_123"]);
+  const back = roundTrip(view, { accounts: ["123", "1112223333"] });
+  const w = { from: "2026-10-05", to: "2026-10-06" };
+  const ans = answer(w.from, w.to, ["2026-10-05", "2026-10-06"]);
+  assert.deepEqual(plannedDays(back, "123", ans, w, [], { includeUnknown: false, cap: 9 }), ["2026-10-06"]);
+  assert.deepEqual(plannedDays(back, "1112223333", ans, w, [], { includeUnknown: false, cap: 9 }), ["2026-10-05"]);
+  assert.deepEqual(closableDays(back, "clicks", new Set(["2026-10-05"]), ["123"]), ["2026-10-05"]);
+  assert.deepEqual(leastServedFirst([{ id: "123" }, { id: "1112223333" }], back.order).map((a) => a.id), ["1112223333", "123"]);
+  // A record holding both spellings (written before keys were normalised) merges them.
+  const merged = decodeProgress({ start: "x", done: { act_9: ["2026-10-01"], "9": ["2026-10-02"] }, order: ["act_9", "9"] })!;
+  assert.deepEqual([...(merged.done.get("9") ?? [])].sort(), ["2026-10-01", "2026-10-02"]);
+  assert.deepEqual(merged.order, ["9"]);
+});
+
+test("probe ranges grow the answer from its edges: at most two, the older one a span long", () => {
+  // No answer yet: the span ending at the newest pending day.
+  assert.deepEqual(probeRanges(["2026-01-05", "2026-10-30"], null, 92), [{ since: "2026-07-31", until: "2026-10-30" }]);
+  assert.deepEqual(probeRanges(["2026-10-20", "2026-10-30"], undefined, 92), [{ since: "2026-10-20", until: "2026-10-30" }]);
+  // Known 2026-08-01..2026-10-20: the days since, and one span of older ones,
+  // however sparse the pending days are (a year back takes a few runs).
+  const known = answer("2026-08-01", "2026-10-20", ["2026-09-01"]);
+  assert.deepEqual(probeRanges(["2025-11-10", "2026-02-03", "2026-09-01", "2026-10-30"], known, 92), [
+    { since: "2026-10-21", until: "2026-10-30" },
+    { since: "2026-05-01", until: "2026-07-31" },
+  ]);
+  // Close to the known range: no further back than needed.
+  assert.deepEqual(probeRanges(["2026-07-25"], known, 92), [{ since: "2026-07-25", until: "2026-07-31" }]);
+  // Everything pending is covered: nothing to ask.
+  assert.deepEqual(probeRanges(["2026-09-01", "2026-10-01"], known, 92), []);
+  assert.deepEqual(probeRanges([], known, 92), []);
+});
+
+test("sparse pending days are all reached, a span per run, and each run asks little", () => {
+  const window = { from: "2025-11-08", to: "2026-11-05" };
+  const view = bootstrapProgress({ start: "2026-11-07", accounts: ["A"], present: daysIn(window.from, window.to), recheckFrom: "2026-11-07", suspect: ["2025-11-20", "2026-03-03", "2026-10-01"] });
+  const truth = new Set(["2025-11-20", "2026-10-01"]); // delivered on these
+  let cache: DeliveryAnswer | null = null;
+  const fetched: string[] = [];
+  for (let run = 0; run < 6; run += 1) {
+    settleUndelivered(view, "A", cache, window);
+    const ranges = probeRanges(pendingDays(view, "A", window), cache, 92);
+    assert.ok(ranges.length <= 2);
+    for (const r of ranges) {
+      const lo = cache && cache.from < r.since ? cache.from : r.since;
+      const hi = cache && cache.to > r.until ? cache.to : r.until;
+      cache = answer(lo, hi, [...truth].filter((d) => d >= lo && d <= hi));
+    }
+    settleUndelivered(view, "A", cache, window);
+    const plan = plannedDays(view, "A", cache, window, [], { includeUnknown: false, cap: 150 });
+    fetched.push(...plan);
+    markFetched(view, "A", plan, "2026-11-07");
+  }
+  assert.deepEqual(fetched.sort(), [...truth].sort());
+  assert.equal(pendingDays(view, "A", window).length, 0);
+});
+
+/** A fake ads_daily: day -> [old rows, rows written lately]. */
+function counter(rows: Record<string, [number, number]>) {
+  let calls = 0;
+  const count = async (from: string, to: string) => {
+    calls += 1;
+    return Object.entries(rows)
+      .filter(([d]) => d >= from && d <= to)
+      .reduce((n, [, [, recent]]) => n + recent, 0);
+  };
+  const totals = new Map(Object.entries(rows).map(([d, [old, recent]]) => [d, old + recent]));
+  return { count, totals, calls: () => calls };
+}
+
+test("lately filled old days are found by counts, however many rows a day has", async () => {
+  // A year of history; an outage gap (60 days) filled lately, hundreds of
+  // rows a day, plus one older day where one account's campaigns were added.
+  const rows: Record<string, [number, number]> = {};
+  for (const d of daysIn("2025-11-08", "2026-09-22")) rows[d] = [400, 0];
+  for (const d of daysIn("2026-03-01", "2026-04-29")) rows[d] = [0, 450];
+  rows["2025-12-24"] = [300, 40];
+  const fake = counter(rows);
+  const found = await findSuspectDays({ days: Object.keys(rows), rowsOnDay: fake.totals, countWrittenSince: fake.count, maxRequests: 80 });
+  assert.ok(found && !found.capped);
+  assert.deepEqual([...found.suspect].sort(), [...daysIn("2026-03-01", "2026-04-29"), "2025-12-24"].sort());
+  // A fully filled block settles in a few counts, not a page per day
+  // (paging DRE's hundreds of rows a day reached ~60 days in 20 pages).
+  assert.ok(fake.calls() <= 25, `${fake.calls()} counts`);
+  assert.equal(found.requests, fake.calls());
+});
+
+test("past the count cap the unsettled days are taken as lately filled, not as done", async () => {
+  const rows: Record<string, [number, number]> = {};
+  // Every other day has one lately written row: the worst case for halving.
+  for (const [i, d] of daysIn("2025-11-08", "2026-09-22").entries()) rows[d] = [100, i % 2];
+  const fake = counter(rows);
+  const found = await findSuspectDays({ days: Object.keys(rows), rowsOnDay: fake.totals, countWrittenSince: fake.count, maxRequests: 30 });
+  assert.ok(found?.capped);
+  assert.equal(fake.calls(), 30);
+  // Conservative: every truly suspect day is in, whatever the cap left open.
+  for (const [d, [, recent]] of Object.entries(rows)) if (recent) assert.ok(found.suspect.has(d), d);
+});
+
+test("without per-day totals the search is still exact; an unreadable count assumes nothing", async () => {
+  const rows: Record<string, [number, number]> = {};
+  for (const d of daysIn("2026-01-01", "2026-01-31")) rows[d] = [10, d === "2026-01-17" ? 3 : 0];
+  const fake = counter(rows);
+  const found = await findSuspectDays({ days: Object.keys(rows), rowsOnDay: null, countWrittenSince: fake.count, maxRequests: 80 });
+  assert.deepEqual([...(found?.suspect ?? [])], ["2026-01-17"]);
+  assert.equal(await findSuspectDays({ days: Object.keys(rows), countWrittenSince: async () => null, maxRequests: 80 }), null);
+  const none = await findSuspectDays({ days: [], countWrittenSince: async () => 0, maxRequests: 80 });
+  assert.deepEqual(none, { suspect: new Set(), capped: false, requests: 0 });
 });
 
 test("unchanged progress compares equal whatever the key order (no rewrite every run)", () => {

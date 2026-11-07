@@ -8,6 +8,7 @@ import {
   AccountErrors,
   datesMissingRawKey,
   eachDay,
+  patchRowsByKey,
   patchRowsMissingRawKey,
   startHistoryProgress,
   toRanges,
@@ -41,6 +42,7 @@ import {
   type HistoryWindow,
 } from "@/lib/integrations/history-progress";
 import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
+import { purchaseCreditedDays, removedPurchasePatches } from "@/lib/integrations/removed-purchases";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import {
   cachedActiveDays,
@@ -319,9 +321,6 @@ async function sync(request: Request) {
       const errors = new AccountErrors();
       const failedAccounts = new Set<string>();
       const currencies = new Map<string, string | null>();
-      // campaign|date -> purchase-only numbers (PLN), for the leftover rows
-      // of removed campaigns when a day is closed below.
-      const purchaseByKey = new Map<string, { purchases: number; value: number }>();
       const tracks = new Map<string, AccountTrack>();
       const trackOf = (accountId: string): AccountTrack => {
         let t = tracks.get(accountId);
@@ -339,6 +338,10 @@ async function sync(request: Request) {
       // the history stop cut off before that day never fetched it. null =
       // not known this run (no record yet, unreadable state): no backfill.
       let progress = stateRead.ok ? decodeProgress(state.history) : null;
+      if (stateRead.ok && state.history !== undefined && !progress) {
+        // Started again below (bootstrap): say so, it re-checks the recent window.
+        console.warn(`[cron/refresh-ads-google] history progress of ${clientId} unreadable, starting it again`);
+      }
       // Set once history has its window; the flagged days once scanned.
       let historyWindow: HistoryWindow | null = null;
       let noSource: Set<string> | null = null;
@@ -346,7 +349,9 @@ async function sync(request: Request) {
       const served = new Set<string>();
       /** This run's fetches into the record (idempotent); kept if it changed. */
       const recordProgress = () => {
-        if (!progress) return;
+        // No selected account (a reconnect gone wrong, "0 of 46"): nothing
+        // learned, and nothing of the record may be lost over it.
+        if (!progress || !accounts.length) return;
         for (const [accountId, t] of tracks) {
           // Today is still changing; yesterday from the fresh pass counts.
           markFetched(progress, accountId, t.fetchedDays, until);
@@ -455,24 +460,44 @@ async function sync(request: Request) {
           campaignsUpserted += chunk.length;
           writtenForClient += chunk.length;
         }
-        if (purchases && currency) {
-          // Removed campaigns appear only here; keep them for closing (the
-          // campaigns written above already carry their numbers).
+        // Removed campaigns appear only in the purchase query, and their
+        // numbers exist only now: on flagged history days their rows are
+        // patched here, by exact key, before the account counts as having
+        // re-pulled the day (lib/integrations/removed-purchases). A day that
+        // can't be (no rate, a failed read or write) isn't counted, so the
+        // account re-pulls it - and closing a day writes 0 only for
+        // campaigns that truly had no purchases.
+        const unpatched = new Set<string>();
+        if (isHistory && purchases && noSource?.size) {
+          const flaggedDays = noSource;
+          const rates = new Map<string, number | null>();
           for (const p of purchases.values()) {
-            if (rows.has(`${p.campaign_id}|${p.date}`)) continue;
-            const rate = await fx.rate(currency, p.date);
-            if (rate != null) {
-              purchaseByKey.set(`${p.campaign_id}|${p.date}`, {
-                purchases: p.purchases,
-                value: round2(p.value * rate),
-              });
-            }
+            if (!flaggedDays.has(p.date) || rates.has(p.date) || rows.has(`${p.campaign_id}|${p.date}`)) continue;
+            rates.set(p.date, currency ? await fx.rate(currency, p.date) : null);
+          }
+          const { byDay, unpatchable } = removedPurchasePatches(
+            purchases.values(),
+            new Set(rows.keys()),
+            flaggedDays,
+            (d) => rates.get(d) ?? null
+          );
+          unpatchable.forEach((d) => unpatched.add(d));
+          for (const [date, byCampaign] of byDay) {
+            if (await patchRowsByKey(admin, clientId, "google_ads", "purchase_source", date, byCampaign)) continue;
+            unpatched.add(date);
+            console.warn(
+              `[cron/refresh-ads-google] removed campaigns' purchases on ${date} not written for ${account.id}, day re-pulled later`
+            );
           }
         }
-        for (const d of eachDay(range.since, range.until)) {
-          if (skippedDays.has(d)) continue;
-          track.fetchedDays.add(d);
-          if (purchases) track.purchaseDays.add(d);
+        const rangeDays = eachDay(range.since, range.until);
+        for (const d of rangeDays) if (!skippedDays.has(d)) track.fetchedDays.add(d);
+        for (const d of purchaseCreditedDays(rangeDays, {
+          purchasesAnswered: purchases !== null,
+          skipped: skippedDays,
+          unpatched,
+        })) {
+          track.purchaseDays.add(d);
         }
       };
 
@@ -719,44 +744,21 @@ async function sync(request: Request) {
         if (progress) {
           recordProgress();
           if (eligible && noSource?.size) {
-            // Removed campaigns' purchase-only numbers come only from this
-            // run's purchase queries: their rows are patched now, before
-            // every account has re-pulled the day.
-            const removedDays = new Set<string>();
-            const removedCampaigns = new Set<string>();
-            for (const k of purchaseByKey.keys()) {
-              const [campaignId, date] = k.split("|");
-              if (!noSource.has(date)) continue;
-              removedDays.add(date);
-              removedCampaigns.add(campaignId);
-            }
-            const purchaseRow = (row: { campaign_id: string; date: string }) => {
-              const p = purchaseByKey.get(`${row.campaign_id}|${row.date}`);
-              return p ? { purchases: p.purchases, purchase_value: p.value, purchase_source: "purchase" } : null;
-            };
-            await patchRowsMissingRawKey(
-              admin,
-              clientId,
-              "google_ads",
-              "purchase_source",
-              [...removedDays].sort(),
-              purchaseRow,
-              [...removedCampaigns]
-            );
             // Days every account has re-pulled with purchase-only values, in
-            // this run or an earlier one: rows still without a source belong
-            // to campaigns removed since with no purchases (or to accounts no
-            // longer selected) - close them so the day stops counting as due.
-            // Counted within one run, accounts the history stop cut off kept
-            // the day open for ever. (An account whose segmented query failed
-            // leaves the day open.)
+            // this run or an earlier one. Each re-pull already wrote its
+            // removed campaigns' purchases (syncRange) before it counted, so
+            // rows still without a source are campaigns with no purchases
+            // that day (or of accounts no longer selected): close them with
+            // 0 so the day stops counting as due. Counted within one run,
+            // accounts the history stop cut off kept the day open for ever.
+            // (An account whose segmented query failed leaves the day open.)
             await patchRowsMissingRawKey(
               admin,
               clientId,
               "google_ads",
               "purchase_source",
               closableDays(progress, "purchase", noSource, accounts.map((a) => a.id)),
-              (row) => purchaseRow(row) ?? { purchases: 0, purchase_value: 0, purchase_source: "purchase" }
+              () => ({ purchases: 0, purchase_value: 0, purchase_source: "purchase" })
             );
           }
           // Nothing flagged any more (or no purchase values wanted): the

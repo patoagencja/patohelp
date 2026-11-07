@@ -20,6 +20,12 @@
  * - `order`: whose history was served least recently, so one account's long
  *   backlog does not take every run's history time.
  *
+ * Accounts are keyed like account-selection.ts keys them (progressKey), so a
+ * reconnect that lists "act_123" as "123", or a Google id with or without
+ * dashes, keeps its progress. An account no longer selected keeps its entry
+ * until its days leave the window: a deselect (or a run that saw no selected
+ * account at all) must not cost the whole window again.
+ *
  * Days are run-length encoded like the delivery-day cache (sync-state.ts):
  * "2026-01-01..2026-03-31" or a single day. An account that is caught up is
  * one entry for its whole window, so 46 accounts stay a few KB.
@@ -32,11 +38,11 @@
 export interface HistoryProgress {
   /** Day the record was started (bootstrap). Informational. */
   start: string;
-  /** account id -> days with nothing left to fetch (run-length encoded). */
+  /** account key -> days with nothing left to fetch (run-length encoded). */
   done: Record<string, string[]>;
-  /** re-pull kind -> account id -> flagged days it re-pulled (encoded). */
+  /** re-pull kind -> account key -> flagged days it re-pulled (encoded). */
   redo?: Record<string, Record<string, string[]>>;
-  /** Account ids, the one whose history was served longest ago first. */
+  /** Account keys, the one whose history was served longest ago first. */
   order?: string[];
 }
 
@@ -74,6 +80,13 @@ export interface FlaggedDays {
   ignoreDelivery?: boolean;
 }
 
+/**
+ * The record's key for an account id: the same normalisation as
+ * account-selection.ts (Meta "act_123" = "123", Google "123-456-7890" =
+ * "1234567890"), so a reconnect that changes the id's format keeps progress.
+ */
+export const progressKey = (id: unknown): string => String(id).replace(/^act_/, "").replace(/-/g, "");
+
 const DAY_MS = 86_400_000;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** A stored run longer than this is a corrupt record, not history. */
@@ -102,6 +115,7 @@ function isoOf(n: number): string {
   if (dayByNum.size < MEMO_MAX) dayByNum.set(n, iso);
   return iso;
 }
+const shift = (iso: string, days: number): string => isoOf(dayNo(iso) + days);
 const isDay = (v: unknown): v is string => typeof v === "string" && Number.isFinite(dayNoOrNaN(v));
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -148,55 +162,68 @@ export function compactDays(days: Iterable<string>): string[] {
   return out;
 }
 
+/** account key -> days, keys normalised (two spellings of one account merge). */
+function decodeByAccount(raw: Record<string, unknown>): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [account, list] of Object.entries(raw)) {
+    const key = progressKey(account);
+    const days = expandDays(list);
+    const had = out.get(key);
+    if (had) days.forEach((d) => had.add(d));
+    else out.set(key, days);
+  }
+  return out;
+}
+
 /** The stored record as a working view; null when absent or unreadable. */
 export function decodeProgress(raw: unknown): ProgressView | null {
   if (!isRecord(raw) || !isRecord(raw.done)) return null;
-  const done = new Map<string, Set<string>>();
-  for (const [account, list] of Object.entries(raw.done)) done.set(account, expandDays(list));
   const redo = new Map<string, Map<string, Set<string>>>();
   if (isRecord(raw.redo)) {
     for (const [kind, byAccount] of Object.entries(raw.redo)) {
-      if (!isRecord(byAccount)) continue;
-      const m = new Map<string, Set<string>>();
-      for (const [account, list] of Object.entries(byAccount)) m.set(account, expandDays(list));
-      redo.set(kind, m);
+      if (isRecord(byAccount)) redo.set(kind, decodeByAccount(byAccount));
     }
   }
   const order = Array.isArray(raw.order)
-    ? [...new Set(raw.order.filter((x): x is string => typeof x === "string"))]
+    ? [...new Set(raw.order.filter((x): x is string => typeof x === "string").map(progressKey))]
     : [];
-  return { start: typeof raw.start === "string" ? raw.start : "", done, redo, order };
+  return {
+    start: typeof raw.start === "string" ? raw.start : "",
+    done: decodeByAccount(raw.done),
+    redo,
+    order,
+  };
 }
 
 /**
- * The view as stored: days before `keep.from` (out of the window now) and
- * accounts not in `keep.accounts` (no longer selected) are dropped, empty
- * lists are left out. A dropped account that comes back starts from nothing
- * and fetches its window again - extra work, never a missing day.
+ * The view as stored: days before `keep.from` (out of the window now) are
+ * dropped, and with them, in time, an account no longer selected - once its
+ * last day leaves the window its entry is empty and left out. Selected
+ * accounts (`keep.accounts`) keep their place in `order`.
  */
 export function encodeProgress(
   view: ProgressView,
   keep: { from?: string; accounts?: readonly string[] } = {}
 ): HistoryProgress {
-  const accounts = keep.accounts ? new Set(keep.accounts) : null;
   const encode = (byAccount: Map<string, Set<string>>): Record<string, string[]> => {
     const out: Record<string, string[]> = {};
     for (const [account, days] of byAccount) {
-      if (accounts && !accounts.has(account)) continue;
       const list = compactDays(keep.from ? [...days].filter((d) => d >= keep.from!) : days);
       if (list.length) out[account] = list;
     }
     return out;
   };
+  const done = encode(view.done);
   const redo: Record<string, Record<string, string[]>> = {};
   for (const [kind, byAccount] of view.redo) {
     const enc = encode(byAccount);
     if (Object.keys(enc).length) redo[kind] = enc;
   }
-  const order = accounts ? view.order.filter((a) => accounts.has(a)) : [...view.order];
+  const listed = new Set((keep.accounts ?? []).map(progressKey));
+  const order = view.order.filter((a) => listed.has(a) || a in done);
   return {
     start: view.start,
-    done: encode(view.done),
+    done,
     ...(Object.keys(redo).length ? { redo } : {}),
     ...(order.length ? { order } : {}),
   };
@@ -233,7 +260,7 @@ export function sameProgress(a: unknown, b: unknown): boolean {
  *   holes most recently, and where the numbers are looked at most;
  * - `suspect` days: older days whose rows were written recently, i.e. filled
  *   by the history backfill under the old "any row = present" rule - the
- *   very days an account may have filled alone.
+ *   very days an account may have filled alone (findSuspectDays).
  * Trade-off: an older day an account missed long ago stays as it is (as it
  * did before); new accounts start with nothing done and fetch everything.
  * `known` adds per-account days already known to be fetched (e.g. Google's
@@ -249,37 +276,110 @@ export function bootstrapProgress(opts: {
 }): ProgressView {
   const suspect = new Set(opts.suspect ?? []);
   const assumed = [...opts.present].filter((d) => isDay(d) && d < opts.recheckFrom && !suspect.has(d));
+  const known = new Map<string, string[]>();
+  for (const [account, list] of Object.entries(opts.known ?? {})) {
+    // Read from stored state: anything but a list of days is ignored.
+    const days: unknown = list;
+    if (Array.isArray(days)) known.set(progressKey(account), days.filter(isDay));
+  }
   const done = new Map<string, Set<string>>();
   for (const account of opts.accounts) {
-    // Read from stored state: anything but a list of days is ignored.
-    const known: unknown = opts.known?.[account];
-    done.set(account, new Set([...assumed, ...(Array.isArray(known) ? known.filter(isDay) : [])]));
+    const key = progressKey(account);
+    done.set(key, new Set([...assumed, ...(known.get(key) ?? [])]));
   }
   return { start: opts.start, done, redo: new Map(), order: [] };
 }
 
-const redoOf = (view: ProgressView, kind: string, account: string): Set<string> | undefined =>
-  view.redo.get(kind)?.get(account);
+/**
+ * Old days (`days`, ascending - the present days before the recent window)
+ * holding rows first written lately: filled by the history backfill rather
+ * than synced as they happened. Found by halving the days with counts, so a
+ * block of such days costs a few requests whatever its length, not a page of
+ * rows per day or two:
+ * - `countWrittenSince(from, to)`: rows first written lately in [from, to]
+ *   (null = could not be read);
+ * - `rowsOnDay`: all rows per day (ads_daily_totals), when known - a range
+ *   whose rows are ALL recent is settled in one request.
+ * Past `maxRequests`, the ranges not settled yet are taken as suspect - they
+ * are re-checked per account rather than assumed done (`capped` says so).
+ * null when a count can't be read: nothing should be assumed then.
+ */
+export async function findSuspectDays(opts: {
+  days: readonly string[];
+  rowsOnDay?: ReadonlyMap<string, number> | null;
+  countWrittenSince: (from: string, to: string) => Promise<number | null>;
+  maxRequests: number;
+}): Promise<{ suspect: Set<string>; capped: boolean; requests: number } | null> {
+  const days = [...new Set(opts.days.filter(isDay))].sort();
+  const suspect = new Set<string>();
+  let requests = 0;
+  let capped = false;
+  // Prefix sums of rows per day, for "every row of [a, b] is recent".
+  const totals = opts.rowsOnDay ?? null;
+  const prefix = [0];
+  for (const d of days) prefix.push(prefix[prefix.length - 1] + (totals?.get(d) ?? 0));
+  const rowsIn = (a: number, b: number) => prefix[b + 1] - prefix[a];
+  const markAll = (a: number, b: number) => {
+    for (let i = a; i <= b; i += 1) suspect.add(days[i]);
+  };
+  /** One count, or undefined past the cap (the range is then taken whole). */
+  const count = async (a: number, b: number): Promise<number | null | undefined> => {
+    if (requests >= opts.maxRequests) return undefined;
+    requests += 1;
+    return opts.countWrittenSince(days[a], days[b]);
+  };
+  // Ranges with their count when already known; newest first, iteratively.
+  const stack: Array<[number, number, number | null]> = days.length ? [[0, days.length - 1, null]] : [];
+  while (stack.length) {
+    const [a, b, known] = stack.pop()!;
+    const n = known ?? (await count(a, b));
+    if (n === null) return null;
+    if (n === undefined) {
+      capped = true;
+      markAll(a, b);
+      continue;
+    }
+    if (n <= 0) continue;
+    if (a === b || (totals && n >= rowsIn(a, b))) {
+      markAll(a, b);
+      continue;
+    }
+    // Only the newer half is counted: the older one is what is left.
+    const mid = Math.floor((a + b) / 2);
+    const newer = await count(mid + 1, b);
+    if (newer === null) return null;
+    if (newer === undefined) {
+      capped = true;
+      markAll(a, b);
+      continue;
+    }
+    stack.push([a, mid, Math.max(0, n - newer)], [mid + 1, b, newer]);
+  }
+  return { suspect, capped, requests };
+}
 
-function redoSet(view: ProgressView, kind: string, account: string): Set<string> {
+const redoOf = (view: ProgressView, kind: string, key: string): Set<string> | undefined =>
+  view.redo.get(kind)?.get(key);
+
+function redoSet(view: ProgressView, kind: string, key: string): Set<string> {
   let byAccount = view.redo.get(kind);
   if (!byAccount) {
     byAccount = new Map();
     view.redo.set(kind, byAccount);
   }
-  let days = byAccount.get(account);
+  let days = byAccount.get(key);
   if (!days) {
     days = new Set();
-    byAccount.set(account, days);
+    byAccount.set(key, days);
   }
   return days;
 }
 
-function doneSet(view: ProgressView, account: string): Set<string> {
-  let days = view.done.get(account);
+function doneSet(view: ProgressView, key: string): Set<string> {
+  let days = view.done.get(key);
   if (!days) {
     days = new Set();
-    view.done.set(account, days);
+    view.done.set(key, days);
   }
   return days;
 }
@@ -296,10 +396,10 @@ export function pendingDays(
   window: HistoryWindow,
   flagged: readonly FlaggedDays[] = []
 ): string[] {
-  const done = view.done.get(account);
+  const key = progressKey(account);
+  const done = view.done.get(key);
   return daysIn(window.from, window.to).filter(
-    (d) =>
-      !done?.has(d) || flagged.some((f) => f.days.has(d) && !redoOf(view, f.kind, account)?.has(d))
+    (d) => !done?.has(d) || flagged.some((f) => f.days.has(d) && !redoOf(view, f.kind, key)?.has(d))
   );
 }
 
@@ -313,6 +413,38 @@ function coverageOf(answer: DeliveryAnswer | null | undefined): Coverage | null 
   if (!answer || !isDay(answer.from) || !isDay(answer.to) || answer.from > answer.to) return null;
   if (!Array.isArray(answer.active)) return null;
   return { from: answer.from, to: answer.to, active: expandDays(answer.active) };
+}
+
+/**
+ * What to ask Meta about `pending` (an account's pending days, ascending)
+ * that `answer` doesn't cover yet, grown from the edges of what is known so
+ * the cache stays one contiguous range: the newer edge whole (days since the
+ * last answer), the older edge at most `span` days a run. Without an answer,
+ * the `span` days ending at the newest pending day. So a run asks an account
+ * at most two ranges (usually one request), however sparse its pending
+ * days; older ones come into reach a span per run.
+ */
+export function probeRanges(
+  pending: readonly string[],
+  answer: DeliveryAnswer | null | undefined,
+  span: number
+): Array<{ since: string; until: string }> {
+  const days = pending.filter(isDay);
+  if (!days.length) return [];
+  const step = Math.max(1, Math.floor(span));
+  const newest = days[days.length - 1];
+  const cov = coverageOf(answer);
+  if (!cov) {
+    const from = shift(newest, -(step - 1));
+    return [{ since: from > days[0] ? from : days[0], until: newest }];
+  }
+  const out: Array<{ since: string; until: string }> = [];
+  if (newest > cov.to) out.push({ since: shift(cov.to, 1), until: newest });
+  if (days[0] < cov.from) {
+    const from = shift(cov.from, -step);
+    out.push({ since: from > days[0] ? from : days[0], until: shift(cov.from, -1) });
+  }
+  return out;
 }
 
 /**
@@ -334,12 +466,13 @@ export function settleUndelivered(
   const from = cov.from > window.from ? cov.from : window.from;
   const to = cov.to < window.to ? cov.to : window.to;
   if (from > to) return;
-  const done = doneSet(view, account);
+  const key = progressKey(account);
+  const done = doneSet(view, key);
   for (const d of daysIn(from, to)) {
     if (cov.active.has(d)) continue;
     done.add(d);
     for (const f of flagged) {
-      if (!f.ignoreDelivery && f.days.has(d)) redoSet(view, f.kind, account).add(d);
+      if (!f.ignoreDelivery && f.days.has(d)) redoSet(view, f.kind, key).add(d);
     }
   }
 }
@@ -359,12 +492,13 @@ export function plannedDays(
   flagged: readonly FlaggedDays[],
   opts: { includeUnknown: boolean; cap: number }
 ): string[] {
+  const key = progressKey(account);
   const cov = coverageOf(answer);
   const always = flagged.filter((f) => f.ignoreDelivery);
   return pendingDays(view, account, window, flagged)
     .filter(
       (d) =>
-        always.some((f) => f.days.has(d) && !redoOf(view, f.kind, account)?.has(d)) ||
+        always.some((f) => f.days.has(d) && !redoOf(view, f.kind, key)?.has(d)) ||
         (cov && d >= cov.from && d <= cov.to ? cov.active.has(d) : opts.includeUnknown)
     )
     .reverse()
@@ -381,7 +515,7 @@ export function markFetched(
   days: Iterable<string>,
   before: string
 ): void {
-  const done = doneSet(view, account);
+  const done = doneSet(view, progressKey(account));
   for (const d of days) if (isDay(d) && d < before) done.add(d);
 }
 
@@ -393,7 +527,8 @@ export function markRedone(
   days: Iterable<string>,
   flagged: ReadonlySet<string>
 ): void {
-  for (const d of days) if (flagged.has(d)) redoSet(view, kind, account).add(d);
+  const key = progressKey(account);
+  for (const d of days) if (flagged.has(d)) redoSet(view, kind, key).add(d);
 }
 
 /**
@@ -409,9 +544,8 @@ export function closableDays(
   accounts: readonly string[]
 ): string[] {
   if (!accounts.length) return [];
-  return [...flagged]
-    .filter((d) => accounts.every((a) => redoOf(view, kind, a)?.has(d)))
-    .sort();
+  const keys = accounts.map(progressKey);
+  return [...flagged].filter((d) => keys.every((k) => redoOf(view, kind, k)?.has(d))).sort();
 }
 
 /** Nothing of `kind` is flagged any more: its record is no longer needed. */
@@ -428,17 +562,17 @@ export function leastServedFirst<T extends { id: string }>(
   accounts: readonly T[],
   order: readonly string[] | null | undefined
 ): T[] {
-  const rank = new Map((order ?? []).map((id, i) => [id, i]));
+  const rank = new Map((order ?? []).map((key, i) => [progressKey(key), i]));
   return accounts
-    .map((a, index) => ({ a, index, r: rank.get(a.id) ?? -1 }))
+    .map((a, index) => ({ a, index, r: rank.get(progressKey(a.id)) ?? -1 }))
     .sort((x, y) => x.r - y.r || x.index - y.index)
     .map((x) => x.a);
 }
 
 /** Accounts whose history ran this run go to the back, in the order served. */
 export function markServed(view: ProgressView, served: Iterable<string>): void {
-  const list = [...new Set(served)];
+  const list = [...new Set([...served].map(progressKey))];
   if (!list.length) return;
   const set = new Set(list);
-  view.order = [...view.order.filter((id) => !set.has(id)), ...list];
+  view.order = [...view.order.filter((key) => !set.has(key)), ...list];
 }

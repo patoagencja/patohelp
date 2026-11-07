@@ -3,7 +3,7 @@
 // server-only import.
 
 /** Account ids across formats: "act_123" (Meta), "123-456-7890" (Google). */
-const accountKey =(id: unknown) => String(id).replace(/^act_/, "").replace(/-/g, "");
+export const accountKey =(id: unknown) => String(id).replace(/^act_/, "").replace(/-/g, "");
 
 /**
  * The new account list with the previous per-account choices carried over.

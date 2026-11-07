@@ -32,6 +32,7 @@ import {
   markServed,
   pendingDays,
   plannedDays,
+  probeRanges,
   sameProgress,
   settleUndelivered,
   type FlaggedDays,
@@ -54,7 +55,6 @@ import {
   readSyncState,
   readSyncStates,
   rememberActiveDays,
-  unknownActiveRanges,
   writeSyncState,
   type ActiveDayCache,
 } from "@/lib/integrations/sync-state";
@@ -102,7 +102,10 @@ const TURN_SLICE_MS = 15_000;
 // Cap historical work per run (BACKFILL_BUDGET_MS cuts it shorter on big
 // accounts); successive runs (cron / manual refresh) continue.
 const MAX_BACKFILL_PER_RUN = 150;
-/** Newest unknown days asked about per run: one probe request per account. */
+/**
+ * Older days an account's delivery is asked about per run, next to what is
+ * known (probeRanges): one request (getActiveDays asks 92 days at a time).
+ */
 const PROBE_DAYS = 92;
 /**
  * Seasonal clients and shops pull D-7..D-2 again once a day: Meta keeps
@@ -469,6 +472,10 @@ export async function GET(request: Request) {
       // a run's budget cut off before that day never fetched it. null = not
       // known this run (no record yet, unreadable state): no backfill then.
       let progress = stateRead.ok ? decodeProgress(state.history) : null;
+      if (stateRead.ok && state.history !== undefined && !progress) {
+        // Started again below (bootstrap): say so, it re-checks the recent window.
+        console.warn(`[cron/refresh-ads-meta] history progress of ${clientId} unreadable, starting it again`);
+      }
       // Set once history has its window; the flagged days once scanned.
       let historyWindow: HistoryWindow | null = null;
       let stale: Set<string> | null = null;
@@ -477,7 +484,9 @@ export async function GET(request: Request) {
       const served = new Set<string>();
       /** This run's fetches into the record (idempotent); kept if it changed. */
       const recordProgress = () => {
-        if (!progress) return;
+        // No selected account (a reconnect gone wrong, "0 of 46"): nothing
+        // learned, and nothing of the record may be lost over it.
+        if (!progress || !accounts.length) return;
         for (const [accountId, days] of doneDays) {
           // Today is still changing; yesterday from the fresh pass counts.
           markFetched(progress, accountId, days, until);
@@ -656,8 +665,6 @@ export async function GET(request: Request) {
           accounts.filter((a) => freshOk.has(a.id)),
           progress?.order
         );
-        // account -> its backfill this run, newest first.
-        const plans = new Map<string, string[]>();
         if (historyAccounts.length && open() && !blockedBy()) {
           // Keep a full year of history (clients compare year-over-year),
           // newest first - so a run that stops mid-backfill just means the
@@ -685,8 +692,12 @@ export async function GET(request: Request) {
             });
           }
           const view = progress;
+          // Backfill needs the record and a window; without them, mature days only.
+          const backfillOn = view !== null && windowStart <= backfillEnd;
+          const flagged: FlaggedDays[] = [];
+          const answerOf = (accountId: string) => state.active?.byAccount?.[accountId];
 
-          if (view && windowStart <= backfillEnd) {
+          if (view && backfillOn) {
             // One-time history re-pull after migration 0034: days whose rows
             // still carry clicks (all) are re-pulled by every account that
             // delivered on them, newest first, within the same per-run cap -
@@ -721,73 +732,16 @@ export async function GET(request: Request) {
                 }
               }
             }
-            const flagged: FlaggedDays[] = [];
             if (stale) flagged.push({ kind: "clicks", days: stale });
             if (noPurchase) flagged.push({ kind: "purchase", days: noPurchase });
-            const answerOf = (accountId: string) => state.active?.byAccount?.[accountId];
-
-            // A day an account hasn't fetched is either a hole or a day it
-            // delivered nothing on (history shorter than the window, an
-            // off-season month, a paused account). The latter used to be
-            // re-pulled on EVERY run, forever. Meta is asked which days had
-            // any delivery, and the answers are kept for good (sync-state): a
-            // later run asks only about days never asked before. Only each
-            // account's newest PROBE_DAYS pending days are asked about, one
-            // request per account: asking a whole year per account every day
-            // used up the run's history time before a single day was filled,
-            // so the weeks a Meta outage left empty stayed empty. Unknown
-            // (call failed) -> keep the old behaviour.
-            let probeOk = true;
-            for (const account of historyAccounts) {
-              // A token / app limit: recorded where it was hit.
-              if (blockedBy()) break;
+            // Delivery answers kept from earlier runs settle the quiet days of
+            // every selected account - also those out of this run's history
+            // (deferred, failing their fresh days, unlisted), at no cost: an
+            // account known to have had no delivery never holds a flagged day
+            // open. (One with no answer still does: it may have delivered.)
+            for (const account of accounts) {
               settleUndelivered(view, account.id, answerOf(account.id), window, flagged);
-              const pending = pendingDays(view, account.id, window, flagged);
-              if (!pending.length) continue;
-              const asked = pending.slice(-PROBE_DAYS);
-              const ranges = unknownActiveRanges(state.active, account.id, asked[0], asked[asked.length - 1]);
-              if (!ranges.length) continue;
-              // Probes are history work too. Past the budget the accounts
-              // not probed yet keep their unknown days out of this run; the
-              // answers already learned are kept for the next one.
-              if (!open()) break;
-              try {
-                for (const r of ranges) {
-                  const got = await getActiveDays(access_token, account.id, r.since, r.until);
-                  state.active = rememberActiveDays(state.active, until, account.id, r.since, r.until, got);
-                  stateChanged = true;
-                }
-              } catch (activeErr) {
-                if (activeErr instanceof MetaThrottledError) {
-                  // Per-account limit: only this account sits out, the
-                  // others are still probed and synced.
-                  onThrottle(account.id, activeErr);
-                  continue;
-                }
-                probeOk = false;
-                console.warn(
-                  "[cron/refresh-ads-meta] active-day probe failed, backfilling every unprobed day",
-                  describeError(activeErr)
-                );
-                break;
-              }
             }
-
-            // Each account's own backfill: the days it delivered on and has
-            // not fetched, whatever rows other accounts left for them.
-            // Unknown days older than the asked window wait for a later run.
-            const queuedStale = new Set<string>();
-            for (const account of historyAccounts) {
-              const answer = answerOf(account.id);
-              settleUndelivered(view, account.id, answer, window, flagged);
-              const days = plannedDays(view, account.id, answer, window, flagged, {
-                includeUnknown: !probeOk,
-                cap: MAX_BACKFILL_PER_RUN,
-              });
-              plans.set(account.id, days);
-              for (const d of days) if (stale?.has(d)) queuedStale.add(d);
-            }
-            staleDaysQueued += queuedStale.size;
           }
 
           // Unreadable state would make every run look due: then only at night.
@@ -796,17 +750,74 @@ export async function GET(request: Request) {
             ? eachDay(addDaysIso(until, -MATURE_FROM), addDaysIso(until, -MATURE_TO))
             : [];
 
+          // Account by account in served order: learn what it delivered on,
+          // plan, fetch. Probing every account before any fetch could use a
+          // whole turn (DRE: 46 accounts vs a 15 s slice) without filling a
+          // single day.
+          let probeOk = true;
+          const queuedStale = new Set<string>();
           for (const account of historyAccounts) {
-            // Throttled in the probe: already recorded.
+            // Throttled earlier: already recorded.
             if (stopped.has(account.id)) continue;
             if (!open() || blockedBy()) break;
+            let backfill: string[] = [];
+            if (view && backfillOn) {
+              // A day an account hasn't fetched is either a hole or a day it
+              // delivered nothing on (history shorter than the window, an
+              // off-season month, a paused account). The latter used to be
+              // re-pulled on EVERY run, forever. Meta is asked which days had
+              // any delivery, and the answers are kept for good (sync-state):
+              // a run asks only what it doesn't know yet - the days since the
+              // account's last answer and at most PROBE_DAYS older ones
+              // (probeRanges), usually one request, however sparse its pending
+              // days. Asking a whole year per account every day used up the
+              // run's history time before a single day was filled, so the
+              // weeks a Meta outage left empty stayed empty. A failed probe
+              // (not a limit) -> the old behaviour from here on: unknown days
+              // are fetched, and no more probes this run.
+              if (probeOk) {
+                const ranges = probeRanges(
+                  pendingDays(view, account.id, window, flagged),
+                  answerOf(account.id),
+                  PROBE_DAYS
+                );
+                try {
+                  for (const r of ranges) {
+                    const got = await getActiveDays(access_token, account.id, r.since, r.until);
+                    state.active = rememberActiveDays(state.active, until, account.id, r.since, r.until, got);
+                    stateChanged = true;
+                  }
+                } catch (activeErr) {
+                  if (activeErr instanceof MetaThrottledError) {
+                    // Per-account limit: only this account sits out, the
+                    // others are still probed and synced.
+                    onThrottle(account.id, activeErr);
+                    continue;
+                  }
+                  probeOk = false;
+                  console.warn(
+                    "[cron/refresh-ads-meta] active-day probe failed, backfilling unprobed days",
+                    describeError(activeErr)
+                  );
+                }
+                settleUndelivered(view, account.id, answerOf(account.id), window, flagged);
+              }
+              // The account's own backfill: the days it delivered on and has
+              // not fetched, whatever rows other accounts left for them. Days
+              // it hasn't been asked about yet wait for a later run.
+              backfill = plannedDays(view, account.id, answerOf(account.id), window, flagged, {
+                includeUnknown: !probeOk,
+                cap: MAX_BACKFILL_PER_RUN,
+              });
+              for (const d of backfill) if (stale?.has(d)) queuedStale.add(d);
+            }
             const matureDue =
               matureDays.length > 0 && isDue(state.mature?.[account.id], MATURE_EVERY_MS);
             try {
               // The due mature days and the backfill, newest first, while the
               // budget lasts (the rest continues next tick).
               const historyDays = [
-                ...new Set([...(matureDue ? matureDays : []), ...(plans.get(account.id) ?? [])]),
+                ...new Set([...(matureDue ? matureDays : []), ...backfill]),
               ].filter((d) => !freshDays.includes(d));
               for (let i = 0; i < historyDays.length; i += CONCURRENCY) {
                 if (!open() || blockedBy()) break;
@@ -825,6 +836,7 @@ export async function GET(request: Request) {
               stateChanged = true;
             }
           }
+          staleDaysQueued += queuedStale.size;
         }
 
         if (progress) {
