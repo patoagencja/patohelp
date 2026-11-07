@@ -825,7 +825,7 @@ export default async function SettingsPage({
                     disabled={!digestAvailable}
                     className={CHECKBOX_CLASS}
                   />
-                  Wysyłaj co poniedziałek podsumowanie tygodnia
+                  Wysyłaj podsumowania e-mail: tygodniowe i miesięczne
                 </label>
                 <p className="text-xs text-muted-foreground">
                   E-mail „Twój tydzień w skrócie” w poniedziałek rano: najważniejsze
@@ -836,6 +836,18 @@ export default async function SettingsPage({
                     className="rounded-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Zobacz podgląd maila
+                  </a>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Do tego 1. dnia miesiąca mail o poprzednim miesiącu (np. „Twój
+                  październik w skrócie”): wydatki, kliknięcia, wizyty, najlepsza
+                  kampania i reklama, porównanie z miesiącem wcześniej i link do
+                  raportu.{" "}
+                  <a
+                    href={`/${params.clientSlug}/settings/monthly-digest-preview`}
+                    className="rounded-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    Zobacz podgląd maila miesięcznego
                   </a>
                 </p>
                 <textarea

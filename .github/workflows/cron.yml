@@ -22,7 +22,7 @@ on:
 
 # No concurrency group on purpose. With one, a tick that arrived while another
 # run was still going got QUEUED and then cancelled by the next tick - the
-# "All jobs were cancelled" failure alerts. timeout-minutes (15) is far below
+# "All jobs were cancelled" failure alerts. timeout-minutes (18 at most) is below
 # the 30-minute cadence, so runs cannot overlap in practice, and every endpoint
 # is idempotent even if they did.
 #
@@ -238,9 +238,10 @@ jobs:
   # sync can never starve them.
   ai:
     runs-on: ubuntu-latest
-    # 4 jobs x up to 180 s (curl -m 180) = 12 min + runner start-up; 10 cut
-    # season-pulse, the last one, whenever the others ran long.
-    timeout-minutes: 15
+    # 5 jobs x up to 180 s (curl -m 180) = 15 min + runner start-up; 10 cut
+    # season-pulse whenever the others ran long. Still well under the
+    # 30-minute cadence.
+    timeout-minutes: 18
     env:
       APP_URL: ${{ secrets.APP_URL || 'https://patohelp-two.vercel.app' }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -255,11 +256,14 @@ jobs:
       # summary is once per client per day. A miss is retried 30 minutes later,
       # so this warns instead of failing. No retry - it would double wall time.
       # weekly-digest self-gates to Monday 8-11 Warsaw and dedupes per ISO week,
-      # season-pulse to 7-10 Warsaw once a day in a client's season - every
-      # other tick is a cheap no-op for both (and neither uses AI).
-      - name: AI jobs (news, summary) + weekly digest - best effort
+      # season-pulse to 7-10 Warsaw once a day in a client's season,
+      # monthly-digest to days 1-3 of the month 8-20 Warsaw and dedupes per
+      # client and month - every other tick is a cheap no-op for all three
+      # (and none of them uses AI). monthly-digest goes last so it can never
+      # delay the daily season pulse.
+      - name: AI jobs (news, summary) + weekly/monthly digest - best effort
         run: |
-          for job in refresh-news generate-summary weekly-digest season-pulse; do
+          for job in refresh-news generate-summary weekly-digest season-pulse monthly-digest; do
             rm -f /tmp/body
             code=$(curl -sS -m 180 -o /tmp/body -w "%{http_code}" \
               -H "Authorization: Bearer $CRON_SECRET" \

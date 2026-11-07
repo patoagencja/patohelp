@@ -201,23 +201,25 @@ export async function loadWeeklyDigest(
  * don't render SVG images, and a broken-image icon in the header is worse
  * than the name alone.
  */
-function emailLogoUrl(value: string | null | undefined): string | null {
+export function emailLogoUrl(value: string | null | undefined): string | null {
   const url = safeLogoUrl(value);
   if (!url) return null;
   return /\.svg$/i.test(new URL(url).pathname) ? null : url;
 }
 // Table-based layout with inline styles: e-mail clients (Gmail, Outlook)
 // strip most <style> rules, so styling must live on the elements. Palette
-// matches the alert e-mail in lib/notify/send.ts (slate + indigo).
+// matches the alert e-mail in lib/notify/send.ts (slate + indigo). The
+// helpers are exported for the monthly digest (lib/notify/monthly-digest.ts),
+// so both e-mails look like one family.
 
-const esc = (s: string) =>
+export const esc = (s: string) =>
   s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-const FONT =
+export const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 const TONE: Record<Tone, { fg: string }> = {
@@ -242,11 +244,16 @@ const FACT_ACCENT: Record<string, string> = {
   revenue: "#10b981",
   orders: "#4f46e5",
   roas: "#f59e0b",
+  // Monthly digest tiles.
+  spend: "#818cf8",
+  ctr: "#10b981",
+  sales: "#10b981",
 };
 
 function arrowFor(text: string): string {
-  if (/więcej|drożej/.test(text)) return "▲";
-  if (/mniej|taniej/.test(text)) return "▼";
+  // "lepiej"/"słabiej": the monthly digest's CTR line.
+  if (/więcej|drożej|lepiej/.test(text)) return "▲";
+  if (/mniej|taniej|słabiej/.test(text)) return "▼";
   return "●";
 }
 
@@ -272,7 +279,7 @@ function factTile(f: StoryFact): string {
     </td>`;
 }
 
-function factsGrid(facts: StoryFact[]): string {
+export function factsGrid(facts: StoryFact[]): string {
   const rows: string[] = [];
   for (let i = 0; i < facts.length; i += 2) {
     const pair = facts.slice(i, i + 2);
@@ -286,7 +293,7 @@ function factsGrid(facts: StoryFact[]): string {
   return `<table class="grid" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:10px">${rows.join("")}</table>`;
 }
 
-function sectionTitle(text: string): string {
+export function sectionTitle(text: string): string {
   return `<div style="font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#64748b;margin:0 0 12px">${esc(text)}</div>`;
 }
 
