@@ -40,8 +40,8 @@ export default function DemoFullAlerty({
 
       <p className="max-w-3xl text-[13px] leading-relaxed text-ink-3">
         {en
-          ? "Every day we compare the last few days with the previous two weeks. Urgent issues, like a sudden spend spike, reach us right away."
-          : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}
+          ? "Every day we compare the last few days with the previous two weeks, and each day with the same weekday over the last 4 weeks. Urgent issues, like a sudden spend spike, reach us right away."
+          : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami, a każdy dzień także z tym samym dniem tygodnia z ostatnich 4 tygodni. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}
       </p>
     </>
   );

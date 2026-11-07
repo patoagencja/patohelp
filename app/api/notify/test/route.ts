@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { detectAnomalies } from "@/lib/alerts/anomalies";
+import { alertDetail, detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { getPacing } from "@/lib/alerts/pacing";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     ...anomalies.map((a) => ({
       key: a.id,
       title: a.title,
-      detail: a.description,
+      detail: alertDetail(a),
       scope: a.scopeLabel,
     })),
     ...pacing

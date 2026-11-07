@@ -4,6 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { rowsWithin, type AlertAdsWindow } from "@/lib/alerts/ads-window";
 import { detectEcomAnomalies } from "@/lib/alerts/ecom";
+import { readStreakSources } from "@/lib/alerts/streak-sources";
+import {
+  buildStreakAlert,
+  mergeStreak,
+  streakWindowStart,
+  type DayTotals,
+} from "@/lib/alerts/streaks";
 import { fetchAll, fetchAllByDateChunks } from "@/lib/supabase/fetch-all";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoneyPLN, formatPercent } from "@/lib/utils";
@@ -22,6 +29,23 @@ export interface Anomaly {
   changePct: number; // signed, e.g. +42.3
   title: string;
   description: string;
+  /**
+   * The card's "Dlaczego to ważne" / "Co z tym robimy", when the detector
+   * knows better than the card's per-metric copy (streak alerts: the hint
+   * comes from the other metrics on the same days).
+   */
+  why?: string;
+  action?: string;
+  /**
+   * Multi-day streak alerts (lib/alerts/streaks.ts). The id keeps the
+   * streak's first day, and notify-alerts sends one e-mail per streak.
+   */
+  streak?: { start: string; end: string; days: number };
+}
+
+/** What an e-mail / Telegram line says under the title: the numbers + the hint. */
+export function alertDetail(a: Anomaly): string {
+  return a.action ? `${a.description} ${a.action}` : a.description;
 }
 
 // Recent window (3 full days) vs a 14-day baseline before it. Today is excluded
@@ -52,10 +76,12 @@ const sev = (absPct: number): AnomalySeverity => (absPct >= 0.6 ? "high" : "medi
 /**
  * Change-based anomaly detection: compares the last 3 days against the prior
  * 14-day baseline (account-wide and per campaign) and flags sudden spikes /
- * drops in CPC, CTR, clicks, spend and GA4 sessions. Computed live from
- * ads_daily / ga4_daily — no extra table needed. Reusable by a future
- * notification cron (e.g. WhatsApp). The ads rows come from `shared`
- * (readAlertAdsWindow) when the caller runs both detectors.
+ * drops in CPC, CTR, clicks, spend and GA4 sessions. Next to them: streaks
+ * of days against the same weekday of the last 4 weeks (lib/alerts/streaks.ts),
+ * which replace the 3-day alert of the same metric. Computed live from
+ * ads_daily / ga4_daily (+ the shop's sales for shops) — no extra table
+ * needed. The ads rows come from `shared` (readAlertAdsWindow) when the
+ * caller runs both detectors.
  */
 export async function detectAnomalies(
   clientId: string,
@@ -71,6 +97,8 @@ export async function detectAnomalies(
   const recentEnd = fmtDate(subDays(today, 1)); // yesterday
   const baseStart = fmtDate(subDays(today, RECENT_DAYS + BASE_DAYS)); // today-17
   const baseEnd = fmtDate(subDays(today, RECENT_DAYS + 1)); // today-4
+  // The streaks read 5 weeks: the scanned week + four of the same weekdays.
+  const readStart = streakWindowStart(todayStr); // today-35
 
   const inRecent = (d: string) => d >= recentStart && d <= recentEnd;
   const inBase = (d: string) => d >= baseStart && d <= baseEnd;
@@ -83,14 +111,19 @@ export async function detectAnomalies(
     // best effort
     () => [] as Anomaly[]
   );
+  // Client type, season and (shops) sales for the streaks: same reasoning.
+  const streakSourcesPromise = readStreakSources(supabase, clientId, todayStr).catch((err) => {
+    console.warn(`[alerts/anomalies] streak sources for ${clientId} failed`, (err as Error)?.message);
+    return null;
+  });
 
   const [rows, ga4Rows] = await Promise.all([
     // A failed shared read just means reading our own window, as before.
     Promise.resolve(shared).catch(() => null).then(
       (window): Promise<Array<Record<string, unknown>>> | Array<Record<string, unknown>> =>
-        rowsWithin(window, baseStart, recentEnd) ??
-        // Two week-long chunks side by side (same rows, same order).
-        fetchAllByDateChunks<Record<string, unknown>>(baseStart, recentEnd, 7, (s, e) => (from, to) =>
+        rowsWithin(window, readStart, recentEnd) ??
+        // Week-long chunks side by side (same rows, same order).
+        fetchAllByDateChunks<Record<string, unknown>>(readStart, recentEnd, 7, (s, e) => (from, to) =>
           supabase
             .from("ads_daily")
             .select("campaign_id, campaign_name, date, spend_minor_units, clicks, impressions")
@@ -111,7 +144,7 @@ export async function detectAnomalies(
         .is("source_medium", null)
         .is("device_category", null)
         .is("page_path", null)
-        .gte("date", baseStart)
+        .gte("date", readStart)
         .lte("date", recentEnd)
         .order("date", { ascending: true })
         .order("id", { ascending: true })
@@ -126,11 +159,19 @@ export async function detectAnomalies(
     { name: string; recent: Agg; base: Agg }
   >();
 
+  // Account totals per day for the streaks: a day with rows is a known day,
+  // a day without any is a gap (never a zero).
+  const streakDays: Record<string, DayTotals> = {};
+
   for (const r of rows) {
     const date = r.date as string;
     const spend = Number(r.spend_minor_units);
     const clicks = Number(r.clicks);
     const impressions = Number(r.impressions);
+    const day = (streakDays[date] ??= {});
+    day.spend = (day.spend ?? 0) + (spend || 0);
+    day.clicks = (day.clicks ?? 0) + (clicks || 0);
+    day.impressions = (day.impressions ?? 0) + (impressions || 0);
     const bucket = inRecent(date) ? "recent" : inBase(date) ? "base" : null;
     if (!bucket) continue;
 
@@ -242,6 +283,8 @@ export async function detectAnomalies(
   for (const r of ga4Rows) {
     const d = r.date as string;
     const s = Number(r.sessions);
+    const day = (streakDays[d] ??= {});
+    day.sessions = (day.sessions ?? 0) + (s || 0);
     if (inRecent(d)) {
       ga4Recent += s;
       recentDays.add(d);
@@ -332,8 +375,38 @@ export async function detectAnomalies(
 
   anomalies.push(...(await ecomPromise));
 
+  // ---- Streaks against the same weekday ----
+  // One card per client. It replaces the 3-day alert of the same metric and
+  // inherits its urgency, so the client never reads both.
+  let out = anomalies;
+  const sources = await streakSourcesPromise;
+  if (sources && !sources.offSeason) {
+    for (const [date, extra] of Object.entries(sources.days)) {
+      streakDays[date] = { ...streakDays[date], ...extra };
+    }
+    const streak = buildStreakAlert({ today: todayStr, shop: sources.shop, days: streakDays });
+    if (streak) {
+      const merged = mergeStreak(anomalies, streak);
+      out = merged.alerts;
+      out.push({
+        id: streak.id,
+        severity: merged.severity ?? streak.severity,
+        scope: "client",
+        scopeLabel: streak.scopeLabel,
+        metric: streak.label,
+        direction: streak.direction,
+        changePct: streak.changePct,
+        title: streak.title,
+        description: streak.description,
+        why: streak.why,
+        action: streak.action,
+        streak: { start: streak.start, end: streak.end, days: streak.days },
+      });
+    }
+  }
+
   const rank = { critical: 0, high: 1, medium: 2 };
-  return anomalies
+  return out
     .sort(
       (a, b) =>
         rank[a.severity] - rank[b.severity] ||

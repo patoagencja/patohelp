@@ -251,7 +251,7 @@ export default async function AlertyPage({
       <p className="max-w-3xl text-[13px] leading-relaxed text-ink-3">
         {isAgency
           ? "Skoki wydatków trafiają natychmiast na e-mail i Telegram - nawet poza godzinami ciszy. Kanały i progi ustawisz w Ustawieniach."
-          : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}
+          : "Codziennie porównujemy ostatnie dni z poprzednimi dwoma tygodniami, a każdy dzień także z tym samym dniem tygodnia z ostatnich 4 tygodni. Pilne sprawy, np. nagły skok wydatków, trafiają do nas od razu."}
       </p>
     </div>
   );

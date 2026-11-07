@@ -33,7 +33,7 @@ const PER_CALL_CONCURRENCY = 4;
 const PER_REQUEST_CONCURRENCY = 12;
 /**
  * Slots background reads may hold at once. The header bell and the overview
- * start the alert scan (three weeks of every campaign) in the same request
+ * start the alert scan (five weeks of every campaign) in the same request
  * as the dashboard read; sharing one FIFO it could take all 12 slots first
  * and the page waited behind a widget that streams in later anyway.
  */

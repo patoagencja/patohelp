@@ -2,7 +2,8 @@ import { formatInTimeZone } from "date-fns-tz";
 import { NextResponse } from "next/server";
 
 import { isCronAuthorized } from "@/lib/integrations/cron-auth";
-import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
+import { alertDetail, detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
+import { STREAK_ID_PREFIX } from "@/lib/alerts/streaks";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { detectCreativeAlerts } from "@/lib/alerts/creative-tests";
 import { getPacing, type FlightMetric } from "@/lib/alerts/pacing";
@@ -24,7 +25,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Vercel Cron: detect anomalies + pacing shortfalls and notify each client's
 // configured recipients (email / WhatsApp), respecting their allowed hours and
-// deduplicating so each alert is sent at most once per day.
+// deduplicating so each alert is sent at most once per day (a streak alert
+// once per streak).
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
@@ -192,14 +194,39 @@ export async function GET(request: Request) {
         }
       }
 
+      // A streak goes out once, not every day it lasts. Its id keeps the
+      // streak's first day; "already told" = any streak e-mail claimed after
+      // that day (an e-mail on day X is about days before X, so one sent
+      // before the streak began was about an earlier one). The claim is
+      // carried to today, so a streak longer than the scanned week - whose
+      // first day then moves along with the scan - stays the same streak.
+      const announcedStreaks = new Set<string>();
+      for (const a of anomalies) {
+        if (!a.streak) continue;
+        const { data: prior } = await admin
+          .from("notifications_sent")
+          .select("id")
+          .eq("client_id", s.client_id)
+          .like("alert_key", `${STREAK_ID_PREFIX}%`)
+          .gt("sent_on", a.streak.start)
+          .limit(1);
+        if (!prior || prior.length === 0) continue;
+        announcedStreaks.add(a.id);
+        // A duplicate (already carried today) is fine; nothing else to do.
+        await admin
+          .from("notifications_sent")
+          .insert({ client_id: s.client_id, alert_key: a.id, sent_on: today });
+      }
+      const sendable = anomalies.filter((a) => !announcedStreaks.has(a.id));
+
       // Critical anomalies (e.g. a shop taking zero orders on normal traffic)
       // cost money every hour they go unnoticed - they ignore quiet hours.
-      for (const a of anomalies) {
+      for (const a of sendable) {
         if (a.severity !== "critical") continue;
         items.push({
           key: a.id,
           title: a.title,
-          detail: a.description,
+          detail: alertDetail(a),
           scope: a.scopeLabel,
           critical: true,
         });
@@ -207,13 +234,13 @@ export async function GET(request: Request) {
 
       // Regular anomalies + pacing only inside the allowed hours.
       if (inWindow) {
-        for (const a of anomalies) {
+        for (const a of sendable) {
           if (a.severity === "critical") continue; // already queued above
           if (s.min_severity === "high" && a.severity !== "high") continue;
           items.push({
             key: a.id,
             title: a.title,
-            detail: a.description,
+            detail: alertDetail(a),
             scope: a.scopeLabel,
           });
         }

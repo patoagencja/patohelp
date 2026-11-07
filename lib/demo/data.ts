@@ -1,6 +1,7 @@
 import { format, subDays } from "date-fns";
 
 import type { Anomaly } from "@/lib/alerts/anomalies";
+import { buildStreakAlert, STREAK_WINDOW_DAYS, type DayTotals } from "@/lib/alerts/streaks";
 import type {
   CampaignRow,
   CostTrendPoint,
@@ -37,6 +38,80 @@ function seeded(seed: number): () => number {
 }
 
 const DAYS = 30;
+
+const EN_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const enList = (items: string[]) =>
+  items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/**
+ * The weekday-streak card (lib/alerts/streaks.ts) on synthetic days of the
+ * demo shop: purchases from ads well below the usual for the last two days
+ * while spend, clicks and visits hold. It runs through the very function
+ * live clients get, so the demo shows the real wording, weekday forms and
+ * hint - whatever weekday "today" is.
+ */
+function demoStreakAlert(today: Date, en: boolean): Anomaly[] {
+  // The demo shop's week (lib/demo/ecom.ts): boxes are ordered Sunday to
+  // Tuesday, Friday and Saturday are quiet.
+  const week = [1.12, 1.08, 1.04, 1.0, 0.97, 0.9, 0.86]; // Sun..Sat
+  const days: Record<string, DayTotals> = {};
+  for (let i = 1; i <= STREAK_WINDOW_DAYS; i++) {
+    const date = subDays(today, i);
+    const w = week[date.getDay()];
+    // Yesterday deeper: the streak rules give ad purchases a newest-day
+    // allowance for late attribution.
+    const dip = i === 1 ? 0.53 : i === 2 ? 0.66 : 1;
+    days[format(date, "yyyy-MM-dd")] = {
+      spend: Math.round(160_000 * w),
+      clicks: Math.round(1_400 * w),
+      impressions: Math.round(98_000 * w),
+      sessions: Math.round(1_100 * w),
+      purchases: Math.round(90 * w * dip),
+    };
+  }
+  const s = buildStreakAlert({ today: format(today, "yyyy-MM-dd"), shop: true, days });
+  if (!s) return [];
+  const streak = { start: s.start, end: s.end, days: s.days };
+  if (!en) {
+    return [
+      {
+        id: s.id,
+        severity: s.severity,
+        scope: "client",
+        scopeLabel: s.scopeLabel,
+        metric: s.label,
+        direction: s.direction,
+        changePct: s.changePct,
+        title: s.title,
+        description: s.description,
+        why: s.why,
+        action: s.action,
+        streak,
+      },
+    ];
+  }
+  const dates = Array.from({ length: s.days }, (_, k) => subDays(today, s.days - k));
+  const names = dates.map((d) => EN_WEEKDAYS[d.getDay()]);
+  const actual = dates.reduce((a, d) => a + (days[format(d, "yyyy-MM-dd")].purchases ?? 0), 0);
+  // changePct = sum(actual) / sum(usual) - 1.
+  const usual = Math.round(actual / (1 + s.changePct / 100));
+  return [
+    {
+      id: s.id,
+      severity: s.severity,
+      scope: "client",
+      scopeLabel: "Whole account",
+      metric: "Purchases from ads",
+      direction: s.direction,
+      changePct: s.changePct,
+      title: `For ${s.days} days, purchases from ads have been ${Math.round(Math.abs(s.changePct))}% below a usual ${enList(names)}`,
+      description: `${enList(names)}: ${actual} purchases from ads, usually about ${usual} on these days.`,
+      why: "The ads bring fewer buyers - each purchase from ads gets more expensive. Not a one-off: each day was clearly below the same weekday over the previous 4 weeks.",
+      action: "Traffic is unchanged but purchases are down — let's check the website and the cart.",
+      streak,
+    },
+  ];
+}
 
 interface DemoDashboard {
   kpis: DashboardKpis;
@@ -328,6 +403,7 @@ export function getDemoDashboard(
   const alerts: Anomaly[] = [
     { id: "a1", severity: "critical", scope: "campaign", scopeLabel: en ? "PMAX | Veg shop · Google" : "PMAX | Sklep z warzywami · Google", metric: "spend", direction: "up", changePct: 128, title: en ? `Spend spike today: ${zl(pmaxToday)}` : `Skok wydatków dziś: ${zl(pmaxToday)}`, description: en ? "Campaign spend well above the daily average." : "Wydatki kampanii znacząco powyżej średniej dziennej." },
     { id: "a2", severity: "high", scope: "campaign", scopeLabel: en ? "REMARKETING | Shop · Meta" : "REMARKETING | Sklep · Meta", metric: "spend", direction: "up", changePct: 42, title: en ? `Elevated spend (7 days): ${zl(remarketingWeek)}` : `Podwyższone wydatki (7 dni): ${zl(remarketingWeek)}`, description: en ? "This week above the previous two weeks." : "Tydzień powyżej poprzednich dwóch tygodni." },
+    ...demoStreakAlert(today, en),
     { id: "a3", severity: "medium", scope: "client", scopeLabel: en ? "Whole profile" : "Cały profil", metric: "ctr", direction: "up", changePct: 11, title: en ? "CTR rising: +11% vs normal" : "Klikalność rośnie: +11% względem normy", description: en ? "Engagement higher than usual this week." : "Zaangażowanie w tym tygodniu wyższe niż zwykle." },
     { id: "a4", severity: "high", scope: "campaign", scopeLabel: en ? "SEARCH | Veg delivery · Google" : "SEARCH | Warzywa z dostawą · Google", metric: "cpc", direction: "up", changePct: 24, title: en ? "CPC up 24% (7 days)" : "CPC wyższe o 24% (7 dni)", description: en ? "More grocery shops bid on the same searches, which pushes the cost per click up." : "Więcej sklepów spożywczych licytuje te same wyszukiwania, co podbija koszt kliknięcia." },
     { id: "a5", severity: "medium", scope: "campaign", scopeLabel: en ? "SALES | Veg boxes · Meta" : "SPRZEDAŻ | Skrzynki warzyw · Meta", metric: "ctr", direction: "up", changePct: 18, title: en ? "CTR rising: +18%" : "Klikalność rośnie: +18%", description: en ? "The new customer unboxing video clearly beats the average." : "Nowy film klientki rozpakowującej skrzynkę działa wyraźnie lepiej niż średnia." },

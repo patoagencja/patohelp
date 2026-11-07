@@ -337,7 +337,14 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
   };
 
   const [headline, why, action] = copy[kind][en ? "en" : "pl"];
-  return { headline, happened, why, action };
+  // Streak alerts are already written for the client (title, why, and a
+  // hint picked from the other metrics on the same days): keep their words.
+  return {
+    headline: a.streak ? stripEmoji(a.title) : headline,
+    happened,
+    why: a.why ?? why,
+    action: a.action ?? action,
+  };
 }
 
 // 2026 pastel: severity = an icon tile (coral triangle / amber clock / grey
@@ -425,6 +432,11 @@ export function AlertCard({
             <span className="min-w-0 truncate" title={a.scopeLabel}>
               {where}
             </span>
+            {a.streak ? (
+              <span className="shrink-0">
+                · {en ? `${a.streak.days} days in a row` : `${a.streak.days} dni z rzędu`}
+              </span>
+            ) : null}
             {good ? (
               <span className="text-positive">· {en ? "good news" : "dobra wiadomość"}</span>
             ) : null}

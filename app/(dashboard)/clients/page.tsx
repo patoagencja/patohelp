@@ -188,11 +188,11 @@ export default async function ClientsPage({
         healthByClient.set(c.id as string, { down, expiring });
       });
       try {
-        // Default caps (as before), three weeks of rows per client: shared
+        // Default caps (as before), five weeks of rows per client: shared
         // per sync stamp so revisiting the picker doesn't rescan everyone.
         // Agency viewer verified above; service-role read of listed clients.
         const all = await syncCached("alerts-default-caps", c.id as string, [], async () => {
-          // One read of the three weeks both detectors look at.
+          // One read of the five weeks both detectors look at.
           const shared = readAlertAdsWindow(admin, c.id as string);
           const [spikes, anomalies] = await Promise.all([
             detectBudgetSpikes(c.id as string, admin, undefined, shared),

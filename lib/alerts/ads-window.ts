@@ -2,19 +2,24 @@ import { subDays } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { STREAK_WINDOW_DAYS } from "@/lib/alerts/streaks";
 import { fetchAllByDateChunks, type FetchLane } from "@/lib/supabase/fetch-all";
 
 // The budget-spike detector reads the last 22 days of every campaign, the
-// anomaly detector the 17 days before today - side by side, so an OLX-size
-// account fetched ~30 000 rows of which ~13 000 twice. Callers that run both
-// (getCurrentAlerts, the agency client picker) read the wider window once
-// and hand it to each; a detector without it reads its own window as before.
+// anomaly detector (with its weekday streaks) the 35 days before today -
+// side by side, an OLX-size account fetched the overlap twice. Callers that
+// run both (getCurrentAlerts, the agency client picker) read the wider
+// window once and hand it to each; a detector without it reads its own
+// window as before.
 
 const WARSAW_TZ = "Europe/Warsaw";
 const fmtDate = (d: Date) => formatInTimeZone(d, WARSAW_TZ, "yyyy-MM-dd");
 
-/** The budget detector's history, the widest window either detector reads. */
-const WINDOW_DAYS = 22;
+/**
+ * The widest window either detector reads: the streaks' scanned week plus
+ * four weeks of the same weekdays (the budget detector needs 22 days).
+ */
+const WINDOW_DAYS = Math.max(22, STREAK_WINDOW_DAYS);
 
 /** One ads_daily row with every column either detector uses. */
 export type AlertAdsRow = {

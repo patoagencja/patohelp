@@ -13,7 +13,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * (the spike detector needs the client's caps from notification_settings).
  * React `cache` dedupes it within one request, so the header bell's count,
  * the overview's status and the Alerty page share a single scan; the scan
- * itself (three weeks of every campaign's rows, read once for both
+ * itself (five weeks of every campaign's rows - the weekday streaks compare
+ * with the same weekday of the last four weeks - read once for both
  * detectors) is shared across requests until the next sync lands. The caps are read live and are part of the key,
  * so changing them in Ustawienia applies on the next render.
  *
@@ -45,7 +46,7 @@ export const getCurrentAlerts = cache(async (clientId: string): Promise<Anomaly[
     [budgetConfig.campaignCap, budgetConfig.accountCap, budgetConfig.multiplier],
     async () => {
       const db = createAdminClient();
-      // One read of the three weeks both detectors look at. The bell and the
+      // One read of the five weeks both detectors look at. The bell and the
       // overview's status stream in after the page, so the scan takes the
       // background lane: it never queues the dashboard's own reads.
       const shared = readAlertAdsWindow(db, clientId, "background");
