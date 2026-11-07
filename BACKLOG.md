@@ -13,7 +13,6 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 
 ## Do zrobienia
 
-- Strażnik sklepu (pomysł Daniela): alert, gdy coś się psuje po stronie klienta, zanim spadnie sprzedaż. 1) Strona nie odpowiada (sprawdzanie adresu strony klienta co kilka minut — najlepiej z Supabase pg_cron + pg_net, żeby nie zużywać limitu Vercela). 2) Nie spływają dane z Analytics (GA4 nagle ~0 wizyt/zdarzeń przy normalnym ruchu z reklam → tag albo strona padły). 3) Koszyk nie działa (dodania do koszyka są, a zakupów brak przez kilka godzin, gdy zwykle są; albo zamówienia ze sklepu przestały spływać). 4) Piksel Meta nie liczy (kliknięcia normalne, zakupy z reklam nagle 0). Pilne od razu mailem, z podpowiedzią co sprawdzić. Zbudować na mechanizmie alertów z „mądrzejszych alertów”.
 
 ## Pomysły (do wyboru)
 
@@ -25,6 +24,7 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 
 ## W toku (PR)
 
+- Strażnik sklepu: strona nie odpowiada (sprawdzanie z Supabase co 5 min) oraz Analytics / koszyk / piksel Meta przestały spływać.
 - „Dziś” — asystent e-commerce w telefonie: poranny skrót, na co uważać, co dziś robimy.
 - Meta: kompletność historii per konto (klienci z wieloma kontami, DRE).
 
