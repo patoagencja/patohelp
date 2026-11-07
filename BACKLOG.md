@@ -16,6 +16,7 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 - Miesięczne podsumowanie mailem: 1. dnia miesiąca klient dostaje maila „Twój październik w skrócie” (wydatki, kliknięcia, wizyty, najlepsza kampania i reklama, porównanie z poprzednim miesiącem) z linkiem do raportu w panelu. Teksty z gotowych szablonów, bez AI. Wysyłka jak przy tygodniowym mailu.
 - Panel jako aplikacja na telefonie: ikona na ekranie głównym („Dodaj do ekranu początkowego”), własna nazwa i kolor, szybki start bez paska przeglądarki (manifest PWA w Next.js, bez nowych bibliotek).
 - Testy kreacji: alerty (`lib/alerts/creative-tests.ts`) i krótkie werdykty przy reklamach (`lib/ab/stats.ts`) dalej brzmią „marketingowo” („Wyłącz X… 99% szans”). Przepisać prostym językiem, jak resztę strony.
+- Mądrzejsze alerty o anomaliach: dziś (`lib/alerts/anomalies.ts`) porównujemy średnią z 3 dni z 14 dniami przed nimi. Dodać wykrywanie serii: „od 2 dni zakupy są o 35% niższe niż zwykle w te dni tygodnia”. Wzorzec = ten sam dzień tygodnia z ostatnich 4 tygodni (żeby weekend nie udawał spadku). Sklepy: sprzedaż i zamówienia ze sklepu, zakupy z reklam, koszt zakupu, konwersja (zamówienia / wizyty). Klienci wizerunkowi: kliknięcia, wizyty, klikalność, koszt kliknięcia. Do każdego alertu prosta podpowiedź z danych, bez AI: ruch ten sam, a zakupów mniej → coś na stronie lub w koszyku; mniej ruchu → reklamy; mniejsze wydatki → budżet lub zatrzymana kampania. Pilne idą mailem jak dotychczasowe alerty, bez dubli z obecnymi.
 
 ## Pomysły (do wyboru)
 
