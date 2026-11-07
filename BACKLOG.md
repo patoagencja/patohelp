@@ -13,22 +13,26 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 
 ## Do zrobienia
 
-- Miesięczne podsumowanie mailem: 1. dnia miesiąca klient dostaje maila „Twój październik w skrócie” (wydatki, kliknięcia, wizyty, najlepsza kampania i reklama, porównanie z poprzednim miesiącem) z linkiem do raportu w panelu. Teksty z gotowych szablonów, bez AI. Wysyłka jak przy tygodniowym mailu.
-- Panel jako aplikacja na telefonie: ikona na ekranie głównym („Dodaj do ekranu początkowego”), własna nazwa i kolor, szybki start bez paska przeglądarki (manifest PWA w Next.js, bez nowych bibliotek).
-- Testy kreacji: alerty (`lib/alerts/creative-tests.ts`) i krótkie werdykty przy reklamach (`lib/ab/stats.ts`) dalej brzmią „marketingowo” („Wyłącz X… 99% szans”). Przepisać prostym językiem, jak resztę strony.
-- Mądrzejsze alerty o anomaliach: dziś (`lib/alerts/anomalies.ts`) porównujemy średnią z 3 dni z 14 dniami przed nimi. Dodać wykrywanie serii: „od 2 dni zakupy są o 35% niższe niż zwykle w te dni tygodnia”. Wzorzec = ten sam dzień tygodnia z ostatnich 4 tygodni (żeby weekend nie udawał spadku). Sklepy: sprzedaż i zamówienia ze sklepu, zakupy z reklam, koszt zakupu, konwersja (zamówienia / wizyty). Klienci wizerunkowi: kliknięcia, wizyty, klikalność, koszt kliknięcia. Do każdego alertu prosta podpowiedź z danych, bez AI: ruch ten sam, a zakupów mniej → coś na stronie lub w koszyku; mniej ruchu → reklamy; mniejsze wydatki → budżet lub zatrzymana kampania. Pilne idą mailem jak dotychczasowe alerty, bez dubli z obecnymi.
+- Strażnik sklepu (pomysł Daniela): alert, gdy coś się psuje po stronie klienta, zanim spadnie sprzedaż. 1) Strona nie odpowiada (sprawdzanie adresu strony klienta co kilka minut — najlepiej z Supabase pg_cron + pg_net, żeby nie zużywać limitu Vercela). 2) Nie spływają dane z Analytics (GA4 nagle ~0 wizyt/zdarzeń przy normalnym ruchu z reklam → tag albo strona padły). 3) Koszyk nie działa (dodania do koszyka są, a zakupów brak przez kilka godzin, gdy zwykle są; albo zamówienia ze sklepu przestały spływać). 4) Piksel Meta nie liczy (kliknięcia normalne, zakupy z reklam nagle 0). Pilne od razu mailem, z podpowiedzią co sprawdzić. Zbudować na mechanizmie alertów z „mądrzejszych alertów”.
 
 ## Pomysły (do wyboru)
 
 - „Co nowego od Twojej ostatniej wizyty”: kiedy klient wraca do panelu po kilku dniach, na górze Przeglądu krótki pasek: ile wydano i ile było kliknięć/wizyt od jego ostatniej wizyty, nowe rekordy, nowe i zamknięte alerty. Zapamiętywać datę ostatniej wizyty per użytkownik. Znika po kliknięciu „OK”.
 - „Zapytaj nas” przy każdym kafelku, wykresie i kampanii: klient wpisuje pytanie („czemu w środę spadło?”), a ono trafia mailem do opiekuna z agencji, z linkiem do tego miejsca w panelu i wybranym zakresem dat. W panelu agencji lista pytań z odpowiedzią „odpisaliśmy”.
 - „Gdzie przepalamy budżet”: na stronie Reklamy krótka lista kampanii i zestawów reklam, które w wybranym okresie wydały sporo, a dały wyraźnie gorszy wynik niż średnia klienta (drogie kliknięcie, niska klikalność), z prostym zdaniem „co z tym robimy”. Liczone z danych, które już są, bez AI. Dla klientów wizerunkowych tylko kliknięcia i ruch, bez sprzedaży.
-- Pobierz do Excela: przycisk przy tabelach (kampanie, reklamy, podstrony, produkty), który pobiera plik CSV z tym, co widać, w wybranym zakresie dat, z polskimi nagłówkami i kwotami w złotych.
 - (Większe, na kilka tygodni) Akceptacja nowych kreacji w panelu: agencja wrzuca projekty reklam, klient ogląda je w zakładce „Do akceptacji” i klika „Akceptuję” albo dopisuje uwagi. Pliki w Supabase Storage, powiadomienie mailem do agencji. Zrobić w kilku małych PR-ach.
-- Meta: dzień historii pobrany przez jedno konto liczy się jako pobrany dla całego klienta, więc pozostałe konta tego dnia już nie dociągają (ważne przy klientach z wieloma kontami, np. DRE). Śledzić kompletność dnia per konto.
 - Szybszy widok 30 dni dla dużych kont (OLX): użyć funkcji z migracji 0043 także dla zakresu 30 dni (`LONG_RANGE_DAYS`), jeśli 0043 jest już wgrana.
-- Prasówka (Newsy) nie generuje się rano: endpoint `refresh-news` przy każdym wywołaniu przekracza limit czasu. Skrócić albo podzielić jego pracę, żeby kończył się w czasie.
 
 ## W toku (PR)
 
+- Miesięczne podsumowanie mailem („Twój październik w skrócie”).
+- Testy kreacji prostym językiem (alerty i werdykty przy reklamach).
+- Mądrzejsze alerty: serie spadków na tle tego samego dnia tygodnia, z podpowiedzią co sprawdzić.
+- „Dziś” — asystent e-commerce w telefonie: poranny skrót, na co uważać, co dziś robimy.
+- Pobierz do Excela przy tabelach.
+- Meta: kompletność historii per konto (klienci z wieloma kontami, DRE).
+- Prasówka (Newsy) generuje się rano bez przekraczania czasu.
+
 ## Zrobione
+
+- Panel jako aplikacja na telefonie (ikona na ekranie głównym, „Zainstaluj aplikację” w menu).
