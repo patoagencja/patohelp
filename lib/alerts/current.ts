@@ -3,12 +3,14 @@ import { cache } from "react";
 import { readAlertAdsWindow } from "@/lib/alerts/ads-window";
 import { detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
+import { getSiteDownAlerts } from "@/lib/alerts/site-guard-read";
 import { getLastSyncAt } from "@/lib/dashboard/context";
 import { syncCached } from "@/lib/dashboard/sync-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Every alert a client currently has: budget spikes first, then the
+ * Every alert a client currently has: a website outage first (the site
+ * guard, migration 0045), then budget spikes, then the
  * change-based anomalies. Same chain the overview and the Alerty page use
  * (the spike detector needs the client's caps from notification_settings).
  * React `cache` dedupes it within one request, so the header bell's count,
@@ -40,7 +42,10 @@ export const getCurrentAlerts = cache(async (clientId: string): Promise<Anomaly[
         ? Number(notif.spike_multiplier)
         : 3,
   };
-  return syncCached(
+  // The website guard (Supabase checks the site every 5 min): a live
+  // one-row read, outside the sync cache - an outage doesn't wait for a sync.
+  const siteDown = getSiteDownAlerts(clientId);
+  const scanned = await syncCached(
     "alerts",
     clientId,
     [budgetConfig.campaignCap, budgetConfig.accountCap, budgetConfig.multiplier],
@@ -57,6 +62,7 @@ export const getCurrentAlerts = cache(async (clientId: string): Promise<Anomaly[
       return [...spikes, ...anomalies];
     }
   );
+  return [...(await siteDown), ...scanned];
 });
 
 /** What the header bell counts: alerts that need a look (Pilne + Ważne). */

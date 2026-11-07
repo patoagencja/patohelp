@@ -5,6 +5,7 @@ import { Globe, Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import type { SiteLine, SiteLineTone } from "@/lib/alerts/site-guard";
 import type { Confidence, LogoKind } from "@/lib/branding/parse";
 import { URL_PROBLEM_MESSAGE, WEBSITE_URL_MAX, parseWebsiteUrl } from "@/lib/branding/website";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
@@ -20,6 +21,13 @@ const KIND_LABEL: Record<LogoKind, string> = {
   icon: "Ikona",
   og: "Grafika og:image",
   favicon: "Favicon",
+};
+
+const SITE_GUARD_TONE: Record<SiteLineTone, { text: string; dot: string }> = {
+  ok: { text: "text-muted-foreground", dot: "bg-positive" },
+  down: { text: "font-medium text-negative", dot: "bg-negative" },
+  warn: { text: "text-warning", dot: "bg-warning" },
+  muted: { text: "text-muted-foreground", dot: "bg-muted-foreground" },
 };
 
 const CONFIDENCE: Record<Confidence, { label: string; className: string }> = {
@@ -40,6 +48,7 @@ export function BrandingWebsiteFetch({
   websiteAvailable,
   initialWebsiteUrl,
   websiteSuggestion,
+  siteGuard,
 }: {
   clientSlug: string;
   currentLogoUrl: string | null;
@@ -49,6 +58,8 @@ export function BrandingWebsiteFetch({
   initialWebsiteUrl: string | null;
   /** From the GA4 property name, shown only while the field is empty. */
   websiteSuggestion: string | null;
+  /** "Strona działa · sprawdzono 3 min temu" - the website guard (0045). */
+  siteGuard: SiteLine | null;
 }) {
   const [website, setWebsite] = useState(initialWebsiteUrl ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +168,15 @@ export function BrandingWebsiteFetch({
             </>
           )}
         </p>
+        {siteGuard ? (
+          <p className={cn("flex items-start gap-2 text-xs", SITE_GUARD_TONE[siteGuard.tone].text)}>
+            <span
+              aria-hidden
+              className={cn("mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full", SITE_GUARD_TONE[siteGuard.tone].dot)}
+            />
+            {siteGuard.text}
+          </p>
+        ) : null}
         {!trimmed && websiteSuggestion ? (
           <p className="text-xs text-muted-foreground">
             Podpowiedź z GA4:{" "}

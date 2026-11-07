@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type { SiteLine } from "@/lib/alerts/site-guard";
 import {
   BRAND_COLOR_PICKER_START,
   BRAND_COLOR_RE,
@@ -34,6 +35,7 @@ export function BrandingSettingsSection({
   websiteAvailable,
   initialWebsiteUrl,
   websiteSuggestion,
+  siteGuard,
 }: {
   clientSlug: string;
   clientName: string;
@@ -45,6 +47,8 @@ export function BrandingSettingsSection({
   websiteAvailable: boolean;
   initialWebsiteUrl: string | null;
   websiteSuggestion: string | null;
+  /** Website guard status line (migration 0045); null = nothing to show. */
+  siteGuard: SiteLine | null;
 }) {
   const [logoUrl, setLogoUrl] = useState(initialLogoUrl ?? "");
   const [color, setColor] = useState(initialBrandColor ?? "");
@@ -102,6 +106,7 @@ export function BrandingSettingsSection({
                 websiteAvailable={websiteAvailable}
                 initialWebsiteUrl={initialWebsiteUrl}
                 websiteSuggestion={websiteSuggestion}
+                siteGuard={siteGuard}
               />
               <form
                 className="flex flex-col gap-6"

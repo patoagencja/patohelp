@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getSiteGuardLine } from "@/lib/alerts/site-guard-read";
 import { getClientWebsite } from "@/lib/branding/website";
 import { getClientBranding } from "@/lib/dashboard/branding";
 import { getClientBySlug } from "@/lib/dashboard/context";
@@ -406,10 +407,15 @@ export default async function SettingsPage({
   }
 
   // Separate read so a missing 0031 migration only disables this section.
-  const [branding, brandedClient, website] = await Promise.all([
+  const websitePromise = getClientWebsite(createAdminClient(), access.clientId);
+  const [branding, brandedClient, website, siteGuard] = await Promise.all([
     getClientBranding(createAdminClient(), access.clientId),
     getClientBySlug(params.clientSlug),
-    getClientWebsite(createAdminClient(), access.clientId),
+    websitePromise,
+    // "Strona działa · sprawdzono 3 min temu" under the address (0045).
+    websitePromise
+      .then((w) => getSiteGuardLine(createAdminClient(), access.clientId, w.websiteUrl))
+      .catch(() => null),
   ]);
 
   return (
@@ -988,6 +994,7 @@ export default async function SettingsPage({
         websiteAvailable={website.available}
         initialWebsiteUrl={website.websiteUrl}
         websiteSuggestion={website.suggestion}
+        siteGuard={siteGuard}
       />
 
       <ShareOverviewSection clientId={access.clientId} clientSlug={params.clientSlug} />
