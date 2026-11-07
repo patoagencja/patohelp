@@ -163,9 +163,10 @@ export function splitRanges(
 
 /**
  * Rows in write chunks of at most `max`, cut only between days (one day is
- * split only when it alone holds more than `max` rows). A day counts as
- * present once any row of it exists, so a function killed between two
- * chunks that cut through a day left that day half-written for good.
+ * split only when it alone holds more than `max` rows). A function killed
+ * between two chunks that cut through a day left it half-written - for good
+ * while any row meant "present"; now (per-account progress records a range
+ * only once all of it is written) until the account's next fetch.
  */
 export function chunkByDay<T>(rows: readonly T[], dateOf: (row: T) => string, max: number): T[][] {
   const byDay = new Map<string, T[]>();
@@ -205,14 +206,19 @@ const PAGE = 1000;
  * one row per client, provider and day - a year is one request) instead of
  * paging through every campaign row: for OLX that was ~170 sequential round
  * trips, 20-40 s, before any syncing started. A database without the view
- * (or any error reading it) falls back to the raw rows.
+ * (or any error reading it) falls back to the raw rows. `ok` is false when
+ * even those could not be read (the dates are then partial): the history
+ * progress bootstrap must not take a failed read for "no rows".
+ *
+ * Only that bootstrap reads it now: which days are missing is per account
+ * (history-progress.ts) - a day with ANY row used to count as done for all.
  */
-export async function presentAdDates(
+export async function readPresentAdDates(
   admin: SupabaseClient,
   clientId: string,
   provider: string,
   fromDate: string
-): Promise<Set<string>> {
+): Promise<{ ok: boolean; dates: Set<string> }> {
   try {
     const present = new Set<string>();
     for (let offset = 0; ; offset += PAGE) {
@@ -226,7 +232,7 @@ export async function presentAdDates(
         .range(offset, offset + PAGE - 1);
       if (error) throw new Error(error.message);
       for (const r of data ?? []) present.add(String(r.date).slice(0, 10));
-      if (!data || data.length < PAGE) return present;
+      if (!data || data.length < PAGE) return { ok: true, dates: present };
     }
   } catch (err) {
     console.warn(
@@ -236,17 +242,22 @@ export async function presentAdDates(
   }
 
   const present = new Set<string>();
-  for (let offset = 0; ; offset += PAGE) {
-    const { data } = await admin
-      .from("ads_daily")
-      .select("date")
-      .eq("client_id", clientId)
-      .eq("provider", provider)
-      .gte("date", fromDate)
-      .order("date", { ascending: true })
-      .range(offset, offset + PAGE - 1);
-    for (const r of data ?? []) present.add(r.date as string);
-    if (!data || data.length < PAGE) break;
+  try {
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await admin
+        .from("ads_daily")
+        .select("date")
+        .eq("client_id", clientId)
+        .eq("provider", provider)
+        .gte("date", fromDate)
+        .order("date", { ascending: true })
+        .range(offset, offset + PAGE - 1);
+      if (error) return { ok: false, dates: present };
+      for (const r of data ?? []) present.add(r.date as string);
+      if (!data || data.length < PAGE) break;
+    }
+  } catch {
+    return { ok: false, dates: present };
   }
-  return present;
+  return { ok: true, dates: present };
 }

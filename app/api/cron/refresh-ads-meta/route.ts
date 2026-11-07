@@ -9,18 +9,35 @@ import {
   datesMissingRawKey,
   eachDay,
   patchRowsMissingRawKey,
+  startHistoryProgress,
 } from "@/lib/integrations/ads-daily-history";
 import {
   closeStaleRuns,
   deferredFirst,
   leastRecentFirst,
   newestAttemptByClient,
-  presentAdDates,
   stampsByClient,
 } from "@/lib/integrations/cron-runs";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { createFxConverter, normalizeCurrency } from "@/lib/integrations/fx";
+import {
+  clearRedo,
+  closableDays,
+  decodeProgress,
+  encodeProgress,
+  leastServedFirst,
+  markFetched,
+  markRedone,
+  markServed,
+  pendingDays,
+  plannedDays,
+  sameProgress,
+  settleUndelivered,
+  type FlaggedDays,
+  type HistoryProgress,
+  type HistoryWindow,
+} from "@/lib/integrations/history-progress";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import { hasClicksAllColumnStrict, metaClickColumns } from "@/lib/integrations/link-clicks";
 import {
@@ -33,7 +50,6 @@ import {
   type MetaCampaignInsight,
 } from "@/lib/integrations/meta-ads";
 import {
-  cachedActiveDays,
   isDue,
   readSyncState,
   readSyncStates,
@@ -124,6 +140,11 @@ interface MetaSyncState {
   purchaseScanCleanAt?: string;
   /** When this client last had the run's history turn. */
   historyTurnAt?: string;
+  /**
+   * Per account: days fetched or without delivery, flagged days re-pulled,
+   * whose history went last (lib/integrations/history-progress).
+   */
+  history?: HistoryProgress;
 }
 
 /** A started client's history step, run once every client has fresh days. */
@@ -150,6 +171,8 @@ function isNightlyWindow(now: Date): boolean {
  * (all), not link clicks). They are re-pulled like missing days so charts and
  * year-over-year compare link clicks with link clicks. Walks back a page at a
  * time from the newest stale row, so it reads a few pages, not the whole year.
+ * null when the first page can't be read: an unread scan must not look like
+ * "nothing stale left" (that clears the accounts' re-pull progress).
  */
 async function staleClickDates(
   admin: ReturnType<typeof createAdminClient>,
@@ -157,7 +180,7 @@ async function staleClickDates(
   fromDate: string,
   beforeDate: string,
   limit: number
-): Promise<Set<string>> {
+): Promise<Set<string> | null> {
   const stale = new Set<string>();
   let upper = beforeDate;
   for (let guard = 0; guard < 400 && stale.size < limit; guard += 1) {
@@ -171,7 +194,8 @@ async function staleClickDates(
       .lt("date", upper)
       .order("date", { ascending: false })
       .limit(1000);
-    if (error || !data || data.length === 0) break;
+    if (error) return guard === 0 ? null : stale;
+    if (!data || data.length === 0) break;
     for (const r of data) stale.add(r.date as string);
     // Every date of this page is in the set now; continue strictly before
     // the oldest one so each page yields at least one new day.
@@ -399,7 +423,10 @@ export async function GET(request: Request) {
       const state: MetaSyncState = { ...(stateRead.value ?? {}) };
       let stateChanged = false;
       const saveState = async () => {
-        if (!stateChanged) return;
+        // An unreadable state was replaced by an empty one above: writing it
+        // would wipe what is stored (history progress, delivery answers)
+        // over a read blip. The next run reads it again.
+        if (!stateChanged || !stateRead.ok) return;
         stateChanged = false;
         await writeSyncState(admin, clientId, STATE_KEY, state);
       };
@@ -435,6 +462,38 @@ export async function GET(request: Request) {
       let writtenForClient = 0;
       // account -> days it fetched (and, if they had rows, wrote).
       const doneDays = new Map<string, Set<string>>();
+
+      // Which days each account has fetched (or had no delivery on), kept
+      // across runs (lib/integrations/history-progress). History used to
+      // treat a day as done once ANY account had a row for it, so accounts
+      // a run's budget cut off before that day never fetched it. null = not
+      // known this run (no record yet, unreadable state): no backfill then.
+      let progress = stateRead.ok ? decodeProgress(state.history) : null;
+      // Set once history has its window; the flagged days once scanned.
+      let historyWindow: HistoryWindow | null = null;
+      let stale: Set<string> | null = null;
+      let noPurchase: Set<string> | null = null;
+      // Accounts whose history ran this run: they go last next run.
+      const served = new Set<string>();
+      /** This run's fetches into the record (idempotent); kept if it changed. */
+      const recordProgress = () => {
+        if (!progress) return;
+        for (const [accountId, days] of doneDays) {
+          // Today is still changing; yesterday from the fresh pass counts.
+          markFetched(progress, accountId, days, until);
+          if (stale) markRedone(progress, "clicks", accountId, days, stale);
+          if (noPurchase) markRedone(progress, "purchase", accountId, days, noPurchase);
+        }
+        markServed(progress, served);
+        const next = encodeProgress(progress, {
+          from: historyWindow?.from,
+          accounts: accounts.map((a) => a.id),
+        });
+        if (!sameProgress(next, state.history)) {
+          state.history = next;
+          stateChanged = true;
+        }
+      };
 
       /**
        * Fetch `days` of one account side by side and write every day that
@@ -575,7 +634,9 @@ export async function GET(request: Request) {
       };
       // Closed now with the fresh days' outcome (updated after history):
       // the next clients' fresh days come before anyone's history, and a
-      // row must not sit on "running" meanwhile.
+      // row must not sit on "running" meanwhile. Yesterday's fetches are
+      // recorded now too, in case the function dies before history.
+      recordProgress();
       await saveState();
       await recordOutcome();
       integrationsProcessed += 1;
@@ -589,10 +650,14 @@ export async function GET(request: Request) {
           state.historyTurnAt = new Date().toISOString();
           stateChanged = true;
         }
-        const historyAccounts = accounts.filter((a) => freshOk.has(a.id));
-        let backfill: string[] = [];
-        let stale = new Set<string>();
-        let noPurchase = new Set<string>();
+        // Least recently served first: with a fixed order one account's long
+        // backlog took every run's history time while the others waited.
+        const historyAccounts = leastServedFirst(
+          accounts.filter((a) => freshOk.has(a.id)),
+          progress?.order
+        );
+        // account -> its backfill this run, newest first.
+        const plans = new Map<string, string[]>();
         if (historyAccounts.length && open() && !blockedBy()) {
           // Keep a full year of history (clients compare year-over-year),
           // newest first - so a run that stops mid-backfill just means the
@@ -604,106 +669,127 @@ export async function GET(request: Request) {
             WARSAW_TZ,
             "yyyy-MM-dd"
           );
-          // Fill every day in the window we don't have yet (newest first).
-          // This covers both extending history backwards AND holes in the
-          // middle left by killed runs.
-          const present = await presentAdDates(admin, clientId, "meta_ads", windowStart);
-          // One-time history re-pull after migration 0034: days whose rows
-          // still carry clicks (all) count as missing, newest first, within
-          // the same per-run cap - a year converts over a few runs.
-          stale = withClicksAll
-            ? await staleClickDates(admin, clientId, windowStart, since, MAX_BACKFILL_PER_RUN)
-            : new Set<string>();
-
-          // Days synced before purchase values existed (or while the client
-          // was neither seasonal nor a shop) read 0 sales from ads - the
-          // previous season looked empty. Re-pulled once, newest first, like
-          // stale clicks.
-          if (
-            eligible &&
-            open() &&
-            isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)
-          ) {
-            const found = await datesMissingRawKey(
-              admin,
+          const window: HistoryWindow = { from: windowStart, to: backfillEnd };
+          historyWindow = window;
+          // First run with per-account progress: what is stored already
+          // counts for every account except the recent window (see
+          // startHistoryProgress). Not with an unreadable state: it could
+          // not be saved, and a later run would start over.
+          if (!progress && stateRead.ok) {
+            progress = await startHistoryProgress(admin, {
               clientId,
-              "meta_ads",
-              "purchase_value",
+              provider: "meta_ads",
               windowStart,
-              since,
-              MAX_BACKFILL_PER_RUN
-            );
-            if (found) {
-              noPurchase = found;
-              if (found.size === 0) {
-                state.purchaseScanCleanAt = new Date().toISOString();
-                stateChanged = true;
+              today: until,
+              accounts: accounts.map((a) => a.id),
+            });
+          }
+          const view = progress;
+
+          if (view && windowStart <= backfillEnd) {
+            // One-time history re-pull after migration 0034: days whose rows
+            // still carry clicks (all) are re-pulled by every account that
+            // delivered on them, newest first, within the same per-run cap -
+            // a year converts over a few runs.
+            stale = withClicksAll
+              ? await staleClickDates(admin, clientId, windowStart, since, MAX_BACKFILL_PER_RUN)
+              : null;
+
+            // Days synced before purchase values existed (or while the client
+            // was neither seasonal nor a shop) read 0 sales from ads - the
+            // previous season looked empty. Re-pulled once, newest first, like
+            // stale clicks.
+            if (
+              eligible &&
+              open() &&
+              isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)
+            ) {
+              const found = await datesMissingRawKey(
+                admin,
+                clientId,
+                "meta_ads",
+                "purchase_value",
+                windowStart,
+                since,
+                MAX_BACKFILL_PER_RUN
+              );
+              if (found) {
+                noPurchase = found;
+                if (found.size === 0) {
+                  state.purchaseScanCleanAt = new Date().toISOString();
+                  stateChanged = true;
+                }
               }
             }
-          }
+            const flagged: FlaggedDays[] = [];
+            if (stale) flagged.push({ kind: "clicks", days: stale });
+            if (noPurchase) flagged.push({ kind: "purchase", days: noPurchase });
+            const answerOf = (accountId: string) => state.active?.byAccount?.[accountId];
 
-          let candidates = windowStart <= backfillEnd
-            ? eachDay(windowStart, backfillEnd).filter(
-                (d) => !present.has(d) || stale.has(d) || noPurchase.has(d)
-              )
-            : [];
-
-          // A day with no rows is either a hole or a day with no delivery at
-          // all (history shorter than the window, an off-season month). The
-          // latter used to be re-pulled on EVERY run, forever. Meta is asked
-          // which days had any delivery, and the answers are kept for good
-          // (sync-state): a later run asks only about days never asked
-          // before. Only the newest PROBE_DAYS unknown days are asked about,
-          // one request per account: asking a whole year per account every
-          // day used up the run's history time before a single day was
-          // filled, so the weeks a Meta outage left empty stayed empty.
-          // Unknown (call failed) -> keep the old behaviour.
-          const unknown = candidates.filter((d) => !present.has(d));
-          if (unknown.length && open()) {
-            const asked = unknown.slice(-PROBE_DAYS);
-            const askFrom = asked[0];
-            const askTo = asked[asked.length - 1];
-            const active = new Set<string>();
+            // A day an account hasn't fetched is either a hole or a day it
+            // delivered nothing on (history shorter than the window, an
+            // off-season month, a paused account). The latter used to be
+            // re-pulled on EVERY run, forever. Meta is asked which days had
+            // any delivery, and the answers are kept for good (sync-state): a
+            // later run asks only about days never asked before. Only each
+            // account's newest PROBE_DAYS pending days are asked about, one
+            // request per account: asking a whole year per account every day
+            // used up the run's history time before a single day was filled,
+            // so the weeks a Meta outage left empty stayed empty. Unknown
+            // (call failed) -> keep the old behaviour.
             let probeOk = true;
             for (const account of historyAccounts) {
               // A token / app limit: recorded where it was hit.
               if (blockedBy()) break;
-              let days = cachedActiveDays(state.active, until, account.id, askFrom, askTo);
-              if (!days) {
-                // Probes are history work too. Past the budget the accounts
-                // not probed yet keep their unknown days out of this run;
-                // the answers already learned are kept for the next one.
-                if (!open()) break;
-                try {
-                  for (const r of unknownActiveRanges(state.active, account.id, askFrom, askTo)) {
-                    const got = await getActiveDays(access_token, account.id, r.since, r.until);
-                    state.active = rememberActiveDays(state.active, until, account.id, r.since, r.until, got);
-                    stateChanged = true;
-                  }
-                  days = cachedActiveDays(state.active, until, account.id, askFrom, askTo) ?? new Set<string>();
-                } catch (activeErr) {
-                  if (activeErr instanceof MetaThrottledError) {
-                    // Per-account limit: only this account sits out, the
-                    // others are still probed and synced.
-                    onThrottle(account.id, activeErr);
-                    continue;
-                  }
-                  probeOk = false;
-                  console.warn(
-                    "[cron/refresh-ads-meta] active-day probe failed, backfilling every missing day",
-                    describeError(activeErr)
-                  );
-                  break;
+              settleUndelivered(view, account.id, answerOf(account.id), window, flagged);
+              const pending = pendingDays(view, account.id, window, flagged);
+              if (!pending.length) continue;
+              const asked = pending.slice(-PROBE_DAYS);
+              const ranges = unknownActiveRanges(state.active, account.id, asked[0], asked[asked.length - 1]);
+              if (!ranges.length) continue;
+              // Probes are history work too. Past the budget the accounts
+              // not probed yet keep their unknown days out of this run; the
+              // answers already learned are kept for the next one.
+              if (!open()) break;
+              try {
+                for (const r of ranges) {
+                  const got = await getActiveDays(access_token, account.id, r.since, r.until);
+                  state.active = rememberActiveDays(state.active, until, account.id, r.since, r.until, got);
+                  stateChanged = true;
                 }
+              } catch (activeErr) {
+                if (activeErr instanceof MetaThrottledError) {
+                  // Per-account limit: only this account sits out, the
+                  // others are still probed and synced.
+                  onThrottle(account.id, activeErr);
+                  continue;
+                }
+                probeOk = false;
+                console.warn(
+                  "[cron/refresh-ads-meta] active-day probe failed, backfilling every unprobed day",
+                  describeError(activeErr)
+                );
+                break;
               }
-              days.forEach((d) => active.add(d));
             }
+
+            // Each account's own backfill: the days it delivered on and has
+            // not fetched, whatever rows other accounts left for them.
             // Unknown days older than the asked window wait for a later run.
-            if (probeOk) candidates = candidates.filter((d) => present.has(d) || active.has(d));
+            const queuedStale = new Set<string>();
+            for (const account of historyAccounts) {
+              const answer = answerOf(account.id);
+              settleUndelivered(view, account.id, answer, window, flagged);
+              const days = plannedDays(view, account.id, answer, window, flagged, {
+                includeUnknown: !probeOk,
+                cap: MAX_BACKFILL_PER_RUN,
+              });
+              plans.set(account.id, days);
+              for (const d of days) if (stale?.has(d)) queuedStale.add(d);
+            }
+            staleDaysQueued += queuedStale.size;
           }
 
-          backfill = candidates.reverse().slice(0, MAX_BACKFILL_PER_RUN);
-          staleDaysQueued += backfill.filter((d) => stale.has(d)).length;
           // Unreadable state would make every run look due: then only at night.
           const matureAllowed = eligible && (stateRead.ok || isNightlyWindow(now));
           const matureDays = matureAllowed
@@ -719,11 +805,12 @@ export async function GET(request: Request) {
             try {
               // The due mature days and the backfill, newest first, while the
               // budget lasts (the rest continues next tick).
-              const historyDays = [...new Set([...(matureDue ? matureDays : []), ...backfill])].filter(
-                (d) => !freshDays.includes(d)
-              );
+              const historyDays = [
+                ...new Set([...(matureDue ? matureDays : []), ...(plans.get(account.id) ?? [])]),
+              ].filter((d) => !freshDays.includes(d));
               for (let i = 0; i < historyDays.length; i += CONCURRENCY) {
                 if (!open() || blockedBy()) break;
+                served.add(account.id);
                 if (!(await runBatch(account, historyDays.slice(i, i + CONCURRENCY)))) break;
               }
             } catch (accErr) {
@@ -740,27 +827,34 @@ export async function GET(request: Request) {
           }
         }
 
-        // day -> accounts that fetched (and, if it had rows, wrote) it.
-        const doneBy = new Map<string, number>();
-        for (const done of doneDays.values()) {
-          for (const d of done) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
-        }
-
-        // Days every account re-pulled: leftover rows are campaigns Meta no
-        // longer reports for that day. Close them so the day stops counting
-        // as due (a day with an account error stays open for the next run).
-        const closable = (set: Set<string>) =>
-          backfill.filter((d) => set.has(d) && accounts.length > 0 && (doneBy.get(d) ?? 0) >= accounts.length);
-        if (withClicksAll && stale.size) await closeStaleClickRows(admin, clientId, closable(stale));
-        if (noPurchase.size) {
-          await patchRowsMissingRawKey(
-            admin,
-            clientId,
-            "meta_ads",
-            "purchase_value",
-            closable(noPurchase),
-            () => ({ purchases: 0, purchase_value: 0 })
-          );
+        if (progress) {
+          recordProgress();
+          // Flagged days every account has re-pulled - in this run or an
+          // earlier one - or delivered nothing on: leftover rows are
+          // campaigns Meta no longer reports for that day. Close them so the
+          // day stops counting as due. Counted within one run, DRE's 46
+          // accounts never all got there, and its first account re-pulled
+          // the same days for ever. An account that never re-pulled a day
+          // (broken access) keeps it open.
+          const accountIds = accounts.map((a) => a.id);
+          if (withClicksAll && stale?.size) {
+            await closeStaleClickRows(admin, clientId, closableDays(progress, "clicks", stale, accountIds));
+          }
+          if (noPurchase?.size) {
+            await patchRowsMissingRawKey(
+              admin,
+              clientId,
+              "meta_ads",
+              "purchase_value",
+              closableDays(progress, "purchase", noPurchase, accountIds),
+              () => ({ purchases: 0, purchase_value: 0 })
+            );
+          }
+          // Nothing flagged any more (or no purchase values wanted): the
+          // re-pull records are done with. A later flag starts afresh.
+          if (stale?.size === 0) clearRedo(progress, "clicks");
+          if (!eligible || noPurchase?.size === 0) clearRedo(progress, "purchase");
+          recordProgress();
         }
 
         await saveState();
@@ -774,9 +868,11 @@ export async function GET(request: Request) {
         history,
         fail: async (message) => {
           // The fresh days stand; the failed history step is a note on them.
-          // What it learned (the turn taken, probes, stamps) is kept too, or
-          // the same turn would come round again on every run.
+          // What it learned (the turn taken, probes, stamps, the days each
+          // account fetched) is kept too, or the same turn would come round
+          // again on every run.
           errors.add("historia", message);
+          recordProgress();
           await saveState();
           await recordOutcome();
         },

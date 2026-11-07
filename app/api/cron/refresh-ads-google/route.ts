@@ -9,6 +9,7 @@ import {
   datesMissingRawKey,
   eachDay,
   patchRowsMissingRawKey,
+  startHistoryProgress,
   toRanges,
 } from "@/lib/integrations/ads-daily-history";
 import {
@@ -16,13 +17,29 @@ import {
   deferredFirst,
   leastRecentFirst,
   newestAttemptByClient,
-  presentAdDates,
   splitRanges,
   stampsByClient,
 } from "@/lib/integrations/cron-runs";
 import { decrypt } from "@/lib/integrations/encryption";
 import { describeError } from "@/lib/integrations/errors";
 import { createFxConverter, normalizeCurrency } from "@/lib/integrations/fx";
+import {
+  clearRedo,
+  closableDays,
+  decodeProgress,
+  encodeProgress,
+  leastServedFirst,
+  markFetched,
+  markRedone,
+  markServed,
+  pendingDays,
+  plannedDays,
+  sameProgress,
+  settleUndelivered,
+  type FlaggedDays,
+  type HistoryProgress,
+  type HistoryWindow,
+} from "@/lib/integrations/history-progress";
 import { hasClicksAllColumn } from "@/lib/integrations/link-clicks";
 import { resolveSyncOutcome } from "@/lib/integrations/sync-status";
 import {
@@ -127,12 +144,17 @@ interface GoogleSyncState {
   /** Accounts the run deadline left without fresh days last run: first next. */
   deferred?: string[];
   /**
-   * account id -> days it delivered on (account level) that came back
-   * without a single campaign row when fetched: only since-REMOVED
-   * campaigns ran then. Past days don't change, so they are never asked
-   * again (pruned as they leave the window).
+   * Before per-account history progress: account id -> days it delivered
+   * on that came back without a campaign row (only since-REMOVED campaigns
+   * ran). Read once into `history` (a fetched day is done, rows or not),
+   * then dropped.
    */
   empty?: Record<string, string[]>;
+  /**
+   * Per account: days fetched or without delivery, flagged days re-pulled,
+   * whose history went last (lib/integrations/history-progress).
+   */
+  history?: HistoryProgress;
   /** account id -> when its D-14..D-2 re-pull last completed. */
   mature?: Record<string, string>;
   /** Last purchase_source scan that found nothing left to re-pull. */
@@ -165,8 +187,6 @@ interface AccountTrack {
   fetchedDays: Set<string>;
   /** Days written with purchase-only values. */
   purchaseDays: Set<string>;
-  /** Days with at least one campaign row from the API. */
-  daysWithRows: Set<string>;
 }
 
 export async function GET(request: Request) {
@@ -281,7 +301,10 @@ async function sync(request: Request) {
       // Saved as each account completes: a function killed later in the
       // run no longer throws away the probes and stamps already earned.
       const saveState = async () => {
-        if (!stateChanged) return;
+        // An unreadable state was replaced by an empty one above: writing it
+        // would wipe what is stored (history progress, delivery answers)
+        // over a read blip. The next run reads it again.
+        if (!stateChanged || !stateRead.ok) return;
         stateChanged = false;
         await writeSyncState(admin, clientId, STATE_KEY, state);
       };
@@ -303,12 +326,48 @@ async function sync(request: Request) {
       const trackOf = (accountId: string): AccountTrack => {
         let t = tracks.get(accountId);
         if (!t) {
-          t = { fetchedDays: new Set(), purchaseDays: new Set(), daysWithRows: new Set() };
+          t = { fetchedDays: new Set(), purchaseDays: new Set() };
           tracks.set(accountId, t);
         }
         return t;
       };
       let writtenForClient = 0;
+
+      // Which days each account has fetched (or had no delivery on), kept
+      // across runs (lib/integrations/history-progress). History used to
+      // treat a day as done once ANY account had a row for it, so an account
+      // the history stop cut off before that day never fetched it. null =
+      // not known this run (no record yet, unreadable state): no backfill.
+      let progress = stateRead.ok ? decodeProgress(state.history) : null;
+      // Set once history has its window; the flagged days once scanned.
+      let historyWindow: HistoryWindow | null = null;
+      let noSource: Set<string> | null = null;
+      // Accounts whose history ran this run: they go last next run.
+      const served = new Set<string>();
+      /** This run's fetches into the record (idempotent); kept if it changed. */
+      const recordProgress = () => {
+        if (!progress) return;
+        for (const [accountId, t] of tracks) {
+          // Today is still changing; yesterday from the fresh pass counts.
+          markFetched(progress, accountId, t.fetchedDays, until);
+          // Only days written with purchase-only values re-pull a flagged day.
+          if (noSource) markRedone(progress, "purchase", accountId, t.purchaseDays, noSource);
+        }
+        markServed(progress, served);
+        const next = encodeProgress(progress, {
+          from: historyWindow?.from,
+          accounts: accounts.map((a) => a.id),
+        });
+        if (!sameProgress(next, state.history)) {
+          state.history = next;
+          stateChanged = true;
+        }
+        // Read into the record at its start; a fetched day is done now.
+        if (state.empty) {
+          state.empty = undefined;
+          stateChanged = true;
+        }
+      };
 
       /**
        * Fetch one range of one account and write its rows at once. They
@@ -356,8 +415,6 @@ async function sync(request: Request) {
             describeError(purchasesRes.reason)
           );
         }
-        for (const m of metrics) track.daysWithRows.add(m.date);
-
         const currency =
           normalizeCurrency(metrics.find((m) => m.currency)?.currency) ??
           normalizeCurrency(account.currency);
@@ -387,8 +444,9 @@ async function sync(request: Request) {
         }
         // Chunked: a long range is thousands of rows, too big for one
         // PostgREST request. Cut between days, newest first: a function
-        // killed mid-range must not leave a half-written day, which would
-        // count as present and never be fetched again.
+        // killed mid-range must not leave a half-written day on the
+        // dashboard (the range is only recorded as fetched once it is all
+        // written, so the account fetches it again).
         for (const chunk of chunkByDay([...rows.values()], (r) => String(r.date), 1000)) {
           const { error } = await admin
             .from("ads_daily")
@@ -398,8 +456,10 @@ async function sync(request: Request) {
           writtenForClient += chunk.length;
         }
         if (purchases && currency) {
-          // Removed campaigns appear only here; keep them for closing.
+          // Removed campaigns appear only here; keep them for closing (the
+          // campaigns written above already carry their numbers).
           for (const p of purchases.values()) {
+            if (rows.has(`${p.campaign_id}|${p.date}`)) continue;
             const rate = await fx.rate(currency, p.date);
             if (rate != null) {
               purchaseByKey.set(`${p.campaign_id}|${p.date}`, {
@@ -451,6 +511,9 @@ async function sync(request: Request) {
         state.deferred = deferred.length ? deferred : undefined;
         stateChanged = true;
       }
+      // Yesterday's fetches are recorded now, in case the function dies
+      // before history.
+      recordProgress();
       await saveState();
       if (deferred.length) {
         console.warn(
@@ -501,21 +564,28 @@ async function sync(request: Request) {
           state.historyTurnAt = new Date().toISOString();
           stateChanged = true;
         }
-        // Days with no row at all. Most are days nothing ran (an off-season
-        // month, a Christmas pause) - re-fetching the whole window whenever
-        // one existed did that on every run, for ever. Only days the account
-        // actually delivered on are fetched (see `active` below).
-        let gapDays: string[] = [];
-        // Rows stored before purchase-only values existed (or while the client
-        // wasn't a shop / seasonal) carry every primary conversion as
-        // "purchase value": pulled again once, newest first.
-        let noSource = new Set<string>();
+        const window: HistoryWindow = { from: backfillStart, to: historyEnd };
         if (setupOpen) {
-          const present = await presentAdDates(admin, clientId, "google_ads", backfillStart);
-          gapDays = backfillStart <= historyEnd
-            ? eachDay(backfillStart, historyEnd).filter((d) => !present.has(d))
-            : [];
-          if (eligible && isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)) {
+          historyWindow = window;
+          // First run with per-account progress: what is stored already
+          // counts for every account except the recent window (see
+          // startHistoryProgress), plus the old "fetched, no rows" memory.
+          // Not with an unreadable state: it could not be saved.
+          if (!progress && stateRead.ok) {
+            progress = await startHistoryProgress(admin, {
+              clientId,
+              provider: "google_ads",
+              windowStart: backfillStart,
+              today: until,
+              accounts: accounts.map((a) => a.id),
+              known: state.empty,
+            });
+          }
+          // Rows stored before purchase-only values existed (or while the
+          // client wasn't a shop / seasonal) carry every primary conversion
+          // as "purchase value": pulled again once by every account, newest
+          // first.
+          if (progress && eligible && isDue(state.purchaseScanCleanAt, PURCHASE_SCAN_TTL_MS)) {
             const found = await datesMissingRawKey(
               admin,
               clientId,
@@ -534,26 +604,41 @@ async function sync(request: Request) {
             }
           }
         }
+        // Re-pulled by every account, delivery or not (as before): a video-
+        // only account's probe doesn't see REMOVED campaigns, and their
+        // purchase values come only with a re-pull.
+        const flagged: FlaggedDays[] = noSource
+          ? [{ kind: "purchase", days: noSource, ignoreDelivery: true }]
+          : [];
+        const answerOf = (accountId: string) => state.active?.byAccount?.[accountId];
 
-        for (const account of accounts) {
+        // Least recently served first: with a fixed order the first
+        // account's ranges could use the history time up on every run.
+        for (const account of leastServedFirst(accounts, progress?.order)) {
           if (!setupOpen || historyStopped()) break;
           if (!freshOk.has(account.id)) continue;
           const videoOnly = account.video_only === true;
           let matureDays: string[] = [];
-          // Gap days this account delivered on (account level) - for the
-          // "fetched empty" memory below.
-          let deliveredGaps = new Set<string>();
-          const knownEmpty = new Set(state.empty?.[account.id] ?? []);
 
-          const wantedDays = new Set<string>(noSource);
-          if (gapDays.length) {
-            let active = cachedActiveDays(state.active, until, account.id, gapDays[0], historyEnd);
-            if (!active) {
+          // The days this account delivered on and has not fetched, whatever
+          // rows other accounts left for them. Most days without a fetch are
+          // days it didn't run (an off-season month, a Christmas pause) -
+          // re-fetching the whole window whenever one existed did that on
+          // every run, for ever - so only delivered days are fetched.
+          const wantedDays = new Set<string>();
+          const view = progress;
+          if (view && backfillStart <= historyEnd) {
+            settleUndelivered(view, account.id, answerOf(account.id), window, flagged);
+            // Flagged days go out whatever the delivery: only the backfill
+            // needs the probe.
+            const pending = pendingDays(view, account.id, window);
+            let probeOk = true;
+            if (pending.length && !cachedActiveDays(state.active, until, account.id, pending[0], historyEnd)) {
               try {
-                active = await getDeliveryDays(
+                const active = await getDeliveryDays(
                   refresh_token,
                   account.id,
-                  gapDays[0],
+                  pending[0],
                   historyEnd,
                   videoOnly
                 );
@@ -561,22 +646,27 @@ async function sync(request: Request) {
                   state.active,
                   until,
                   account.id,
-                  gapDays[0],
+                  pending[0],
                   historyEnd,
                   active
                 );
                 stateChanged = true;
               } catch (probeErr) {
-                // Unknown: fetch the missing days (the old, costlier way).
+                // Unknown: fetch the pending days (the old, costlier way).
                 console.warn(
                   `[cron/refresh-ads-google] active-day probe failed for ${account.id}`,
                   describeError(probeErr)
                 );
-                active = new Set(gapDays);
+                probeOk = false;
               }
             }
-            deliveredGaps = new Set(gapDays.filter((d) => active.has(d)));
-            for (const d of deliveredGaps) if (!knownEmpty.has(d)) wantedDays.add(d);
+            const answer = answerOf(account.id);
+            settleUndelivered(view, account.id, answer, window, flagged);
+            // Ranges, not days, are the limit here (MAX_RANGES_PER_ACCOUNT).
+            plannedDays(view, account.id, answer, window, flagged, {
+              includeUnknown: !probeOk,
+              cap: Number.MAX_SAFE_INTEGER,
+            }).forEach((d) => wantedDays.add(d));
           }
           // Unreadable state would make every run look due: then only at night.
           // All clients; only the purchase-only query stays with seasonal
@@ -597,6 +687,7 @@ async function sync(request: Request) {
               // A probe or an earlier range may have used the room up.
               if (historyStopped()) break;
               historyRanges += 1;
+              served.add(account.id);
               await syncRange(account, range, true);
             }
           } catch (accErr) {
@@ -621,38 +712,57 @@ async function sync(request: Request) {
             state.mature = { ...(state.mature ?? {}), [account.id]: new Date().toISOString() };
             stateChanged = true;
           }
-          // Delivered (account level) yet no campaign row once fetched: only
-          // since-removed campaigns ran. Remember it, or the day stays a gap
-          // and is fetched again on every run.
-          const newlyEmpty = [...deliveredGaps].filter(
-            (d) => track.fetchedDays.has(d) && !track.daysWithRows.has(d) && !knownEmpty.has(d)
-          );
-          const kept = [...knownEmpty].filter((d) => d >= backfillStart);
-          if (newlyEmpty.length || kept.length !== knownEmpty.size) {
-            state.empty = { ...(state.empty ?? {}), [account.id]: [...kept, ...newlyEmpty].sort() };
-            stateChanged = true;
-          }
+          recordProgress();
           await saveState();
         }
 
-        // Days every account re-pulled with purchase-only values: rows still
-        // without a source belong to campaigns removed since (or to accounts
-        // no longer selected) - close them so the day stops counting as due.
-        // (An account whose segmented query failed leaves the day open.)
-        if (eligible && noSource.size && accounts.length) {
-          const doneBy = new Map<string, number>();
-          for (const t of tracks.values()) {
-            for (const d of t.purchaseDays) doneBy.set(d, (doneBy.get(d) ?? 0) + 1);
-          }
-          const closable = [...noSource].filter((d) => (doneBy.get(d) ?? 0) >= accounts.length);
-          await patchRowsMissingRawKey(admin, clientId, "google_ads", "purchase_source", closable, (row) => {
-            const p = purchaseByKey.get(`${row.campaign_id}|${row.date}`);
-            return {
-              purchases: p?.purchases ?? 0,
-              purchase_value: p?.value ?? 0,
-              purchase_source: "purchase",
+        if (progress) {
+          recordProgress();
+          if (eligible && noSource?.size) {
+            // Removed campaigns' purchase-only numbers come only from this
+            // run's purchase queries: their rows are patched now, before
+            // every account has re-pulled the day.
+            const removedDays = new Set<string>();
+            const removedCampaigns = new Set<string>();
+            for (const k of purchaseByKey.keys()) {
+              const [campaignId, date] = k.split("|");
+              if (!noSource.has(date)) continue;
+              removedDays.add(date);
+              removedCampaigns.add(campaignId);
+            }
+            const purchaseRow = (row: { campaign_id: string; date: string }) => {
+              const p = purchaseByKey.get(`${row.campaign_id}|${row.date}`);
+              return p ? { purchases: p.purchases, purchase_value: p.value, purchase_source: "purchase" } : null;
             };
-          });
+            await patchRowsMissingRawKey(
+              admin,
+              clientId,
+              "google_ads",
+              "purchase_source",
+              [...removedDays].sort(),
+              purchaseRow,
+              [...removedCampaigns]
+            );
+            // Days every account has re-pulled with purchase-only values, in
+            // this run or an earlier one: rows still without a source belong
+            // to campaigns removed since with no purchases (or to accounts no
+            // longer selected) - close them so the day stops counting as due.
+            // Counted within one run, accounts the history stop cut off kept
+            // the day open for ever. (An account whose segmented query failed
+            // leaves the day open.)
+            await patchRowsMissingRawKey(
+              admin,
+              clientId,
+              "google_ads",
+              "purchase_source",
+              closableDays(progress, "purchase", noSource, accounts.map((a) => a.id)),
+              (row) => purchaseRow(row) ?? { purchases: 0, purchase_value: 0, purchase_source: "purchase" }
+            );
+          }
+          // Nothing flagged any more (or no purchase values wanted): the
+          // re-pull record is done with. A later flag starts afresh.
+          if (!eligible || noSource?.size === 0) clearRedo(progress, "purchase");
+          recordProgress();
         }
 
         await saveState();
@@ -665,9 +775,11 @@ async function sync(request: Request) {
         history,
         fail: async (message) => {
           // The fresh days stand; the failed history step is a note on them.
-          // What it learned (the turn taken, probes, stamps) is kept too, or
-          // the same turn would come round again on every run.
+          // What it learned (the turn taken, probes, stamps, the days each
+          // account fetched) is kept too, or the same turn would come round
+          // again on every run.
           errors.add("historia", message);
+          recordProgress();
           await saveState();
           await recordOutcome();
         },
