@@ -29,11 +29,11 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 
 ## W toku (PR)
 
-- Strażnik sklepu: strona nie odpowiada (sprawdzanie z Supabase co 5 min) oraz Analytics / koszyk / piksel Meta przestały spływać.
-- Meta: kompletność historii per konto (klienci z wieloma kontami, DRE).
 
 ## Zrobione
 
+- Meta: kompletność historii per konto (klienci z wieloma kontami, DRE).
+- Strażnik sklepu: strona nie odpowiada (sprawdzanie z Supabase co 5 min) oraz Analytics / koszyk / piksel Meta przestały spływać.
 - „Dziś” — asystent e-commerce w telefonie: poranny skrót, na co uważać, co dziś robimy.
 - Mądrzejsze alerty: serie spadków na tle tego samego dnia tygodnia, z podpowiedzią co sprawdzić.
 - Miesięczne podsumowanie mailem („Twój październik w skrócie”).
