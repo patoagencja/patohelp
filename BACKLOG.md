@@ -25,12 +25,12 @@ modelu), bez nowych bibliotek, klient widzi tylko swoje dane i swoje wydatki.
 
 ## W toku (PR)
 
-- Mądrzejsze alerty: serie spadków na tle tego samego dnia tygodnia, z podpowiedzią co sprawdzić.
 - „Dziś” — asystent e-commerce w telefonie: poranny skrót, na co uważać, co dziś robimy.
 - Meta: kompletność historii per konto (klienci z wieloma kontami, DRE).
 
 ## Zrobione
 
+- Mądrzejsze alerty: serie spadków na tle tego samego dnia tygodnia, z podpowiedzią co sprawdzić.
 - Miesięczne podsumowanie mailem („Twój październik w skrócie”).
 - Pobierz do Excela przy tabelach.
 - Prasówka (Newsy) generuje się rano bez przekraczania czasu.
