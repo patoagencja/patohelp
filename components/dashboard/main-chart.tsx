@@ -292,17 +292,19 @@ const ddmm = (date: string) => {
 };
 
 // Compact axis labels so wide amounts ("140 000,00 zł") don't get clipped.
-function compact(v: number, money: boolean): string {
+// English keeps the demo's number style but not the Polish words ("tys.").
+function compact(v: number, money: boolean, lang: Lang = "pl"): string {
   const unit = money ? " zł" : "";
+  const [thousand, million] = lang === "en" ? ["k", "M"] : [" tys.", " mln"];
   const abs = Math.abs(v);
   // Cost per click and return on ads live around 0-10 zł: "1 zł" on every
   // gridline would hide the whole story.
   if (abs < 10 && v !== Math.round(v))
     return `${v.toLocaleString("pl-PL", { maximumFractionDigits: 2 })}${unit}`;
   if (abs >= 1_000_000)
-    return `${(v / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln${unit}`;
+    return `${(v / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })}${million}${unit}`;
   if (abs >= 1_000)
-    return `${(v / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: abs >= 10_000 ? 0 : 1 })} tys.${unit}`;
+    return `${(v / 1_000).toLocaleString("pl-PL", { maximumFractionDigits: abs >= 10_000 ? 0 : 1 })}${thousand}${unit}`;
   return `${Math.round(v)}${unit}`;
 }
 
@@ -579,7 +581,7 @@ export function MainChart({
   for (let v = 0; v <= yMax + yStep / 2; v += yStep) yTicks.push(v);
   const yLabelW = Math.max(
     28,
-    ...yTicks.map((v) => compact(v, isMoney).length * (compactW ? 6.4 : 7))
+    ...yTicks.map((v) => compact(v, isMoney, lang).length * (compactW ? 6.4 : 7))
   );
   const showToday = partialIdx >= 0 || !!fc;
   // Where "today" sits on the axis: the partial last day, or the first
@@ -898,7 +900,7 @@ export function MainChart({
                     textAnchor="end"
                     className="fill-[var(--ink-3)] font-mono text-[11px] tabular-nums"
                   >
-                    {compact(v, isMoney)}
+                    {compact(v, isMoney, lang)}
                   </text>
                 </g>
               ))}

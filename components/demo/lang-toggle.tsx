@@ -34,6 +34,12 @@ export function DemoLangNote() {
   );
 }
 
+/** The /demo bar's "sample data" chip, in the page's language (the layout can't read ?lang=). */
+export function DemoBadgeLabel() {
+  const sp = useSearchParams();
+  return <>{sp.get("lang") === "en" ? "Demo · sample data" : "Demo · dane przykładowe"}</>;
+}
+
 // PL / EN switch for the demo. Toggles the ?lang= param on the current path.
 // Shares the segmented-control recipe so the selected chip is raised above
 // the track in both themes (bg-card sat below bg-muted in dark mode).

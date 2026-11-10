@@ -1,4 +1,4 @@
-import { LangToggle } from "@/components/demo/lang-toggle";
+import { DemoBadgeLabel, LangToggle } from "@/components/demo/lang-toggle";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { StatusChip } from "@/components/ui/primitives";
@@ -26,7 +26,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
               badge made the one-pager look like a different product. */}
           <ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-7 min-w-0 max-w-[10rem]" />
           <StatusChip tone="amber" className="hidden min-h-9 text-[13px] sm:inline-flex">
-            Demo · dane przykładowe
+            <DemoBadgeLabel />
           </StatusChip>
           <span className="flex-1" />
           <LangToggle />
