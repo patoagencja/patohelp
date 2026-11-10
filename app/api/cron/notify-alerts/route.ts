@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 
 import { isCronAuthorized } from "@/lib/integrations/cron-auth";
 import { alertDetail, detectAnomalies, type Anomaly } from "@/lib/alerts/anomalies";
-import { STREAK_ID_PREFIX } from "@/lib/alerts/streaks";
+import { isSiteDownSymptom } from "@/lib/alerts/data-flow";
+import { getSiteDownAlerts } from "@/lib/alerts/site-guard-read";
+import { streakAnnouncedPrefix } from "@/lib/alerts/streaks";
 import { detectBudgetSpikes, type BudgetConfig } from "@/lib/alerts/budget";
 import { detectCreativeAlerts } from "@/lib/alerts/creative-tests";
 import { getPacing, type FlightMetric } from "@/lib/alerts/pacing";
@@ -111,7 +113,7 @@ export async function GET(request: Request) {
         multiplier: s.spike_multiplier && s.spike_multiplier > 0 ? s.spike_multiplier : 3,
       };
 
-      const [spikes, anomalies, pacing, creativeAlerts] = await Promise.all([
+      const [spikes, scanned, pacing, creativeAlerts, siteDown] = await Promise.all([
         detectBudgetSpikes(s.client_id, admin, budgetConfig),
         detectAnomalies(s.client_id, admin),
         getPacing(s.client_id),
@@ -127,7 +129,14 @@ export async function GET(request: Request) {
               return [];
             })
           : Promise.resolve([] as Anomaly[]),
+        // The website guard e-mails an outage itself (app/api/cron/site-guard);
+        // never throws.
+        getSiteDownAlerts(s.client_id),
       ]);
+      // While the site is down, "Analytics sees nobody" and "the shop stopped
+      // sending sales" are that outage: one Pilne e-mail, not three.
+      const anomalies =
+        siteDown.length > 0 ? scanned.filter((a) => !isSiteDownSymptom(a.id)) : scanned;
 
       const items: AlertItem[] = [];
 
@@ -195,19 +204,23 @@ export async function GET(request: Request) {
       }
 
       // A streak goes out once, not every day it lasts. Its id keeps the
-      // streak's first day; "already told" = any streak e-mail claimed after
-      // that day (an e-mail on day X is about days before X, so one sent
-      // before the streak began was about an earlier one). The claim is
-      // carried to today, so a streak longer than the scanned week - whose
-      // first day then moves along with the scan - stays the same streak.
+      // streak's first day; "already told" = an e-mail about a streak of the
+      // same metric claimed after that day (an e-mail on day X is about days
+      // before X, so one sent before the streak began was about an earlier
+      // one). The claim is carried to today, so a streak longer than the
+      // scanned week - whose first day then moves along with the scan - stays
+      // the same streak. Another metric's e-mail doesn't count: the card
+      // leads with the most important metric, and a Pilne halving of sales
+      // must not hide behind an earlier Ważne note about ad purchases.
       const announcedStreaks = new Set<string>();
       for (const a of anomalies) {
-        if (!a.streak) continue;
+        const prefix = a.streak ? streakAnnouncedPrefix(a.id) : null;
+        if (!a.streak || !prefix) continue;
         const { data: prior } = await admin
           .from("notifications_sent")
           .select("id")
           .eq("client_id", s.client_id)
-          .like("alert_key", `${STREAK_ID_PREFIX}%`)
+          .like("alert_key", `${prefix}%`)
           .gt("sent_on", a.streak.start)
           .limit(1);
         if (!prior || prior.length === 0) continue;

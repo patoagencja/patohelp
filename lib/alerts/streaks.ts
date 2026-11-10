@@ -126,6 +126,20 @@ export const MIN_DAILY_SALES = 50_000;
 /** Prefix of every streak alert id (= notifications_sent alert_key). */
 export const STREAK_ID_PREFIX = "streak-";
 
+/**
+ * "streak-sales-" from "streak-sales-2026-11-03": the alert_key prefix of
+ * every e-mail about a streak of the same metric (null: not a streak id).
+ * notify-alerts treats a streak as already told when such an e-mail went out
+ * after its first day - the first day moves along a streak longer than the
+ * scan, the metric does not. Matching any streak e-mail instead let a Ważne
+ * one about ad purchases swallow a later Pilne halving of the shop's sales
+ * (the card leads with the most important metric, so its id changes).
+ */
+export function streakAnnouncedPrefix(alertId: string): string | null {
+  const m = /^streak-([a-z]+)-\d{4}-\d{2}-\d{2}$/.exec(alertId);
+  return m && m[1] in METRICS ? `${STREAK_ID_PREFIX}${m[1]}-` : null;
+}
+
 // ---- dates ----------------------------------------------------------------
 
 /** "2026-11-07" + n days, UTC arithmetic (month and year ends included). */

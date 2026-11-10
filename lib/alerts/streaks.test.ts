@@ -10,6 +10,7 @@ import {
   judgeDay,
   mergeStreak,
   plPlural,
+  streakAnnouncedPrefix,
   streakSeverity,
   streakTitle,
   streakWindowStart,
@@ -533,5 +534,31 @@ describe("Polish wording", () => {
       alert.description,
       "We wtorek i środę: 10 000 zł sprzedaży, a zwykle w te dni ok. 20 000 zł."
     );
+  });
+});
+
+describe("one e-mail per streak", () => {
+  test("a streak is 'already told' only by an e-mail about the same metric", () => {
+    // notify-alerts looks for an earlier claim LIKE `<prefix>%` after the
+    // streak's first day: the first day moves on a long streak, the metric
+    // does not. A different metric's e-mail (purchases from ads, Ważne) must
+    // not swallow a later halving of the shop's own sales (Pilne).
+    assert.equal(streakAnnouncedPrefix("streak-sales-2026-11-03"), "streak-sales-");
+    assert.equal(streakAnnouncedPrefix("streak-purchases-2026-11-02"), "streak-purchases-");
+    const sales = streakAnnouncedPrefix("streak-sales-2026-11-03")!;
+    assert.equal("streak-purchases-2026-11-02".startsWith(sales), false);
+    // Metrics whose names share a start never match each other.
+    assert.equal("streak-ctr-2026-11-03".startsWith(streakAnnouncedPrefix("streak-cr-2026-11-03")!), false);
+    assert.equal("streak-cpa-2026-11-03".startsWith(streakAnnouncedPrefix("streak-cpc-2026-11-03")!), false);
+    // The ids buildStreakAlert makes all have one.
+    const engagement = buildStreakAlert({
+      today: THURSDAY,
+      shop: false,
+      days: window(THURSDAY, (_date, ago) => ({ clicks: ago <= 2 ? 100 : 300, impressions: 30_000, spend: 60_000 })),
+    });
+    assert.ok(engagement);
+    assert.equal(streakAnnouncedPrefix(engagement.id), `streak-${engagement.metric}-`);
+    // Not a streak id: no prefix.
+    assert.equal(streakAnnouncedPrefix("client-clicks-down"), null);
   });
 });
