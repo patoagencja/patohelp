@@ -83,7 +83,7 @@ export default function DemoFullOverview({
       <h1 className="sr-only">Przegląd - {CLIENT}</h1>
 
       {/* "Prezentuj" opens on these story slides (hidden otherwise). */}
-      <PresentStory kpis={d.kpis} story={story} planRows={planRows} work={demoAgencyWork(today).work.entries} />
+      <PresentStory kpis={d.kpis} story={story} planRows={planRows} work={demoAgencyWork(today).work.entries} periodLabel={d.rangeLabel} />
 
       <OverviewSummary
         story={story}

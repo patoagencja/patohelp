@@ -62,15 +62,26 @@ export function PresentStory({
   story,
   planRows,
   work = [],
+  periodLabel,
 }: {
   kpis: DashboardKpis;
   story: Story;
   planRows: PlanRow[];
+  /**
+   * The range the numbers cover ("Ostatnie 30 dni"). The first slide used to
+   * say "listopad w jednym zdaniu" over 30 days of spend, next to a plan
+   * slide where November's budget had used a third of that.
+   */
+  periodLabel?: string;
   /** "Co dla Ciebie zrobiliśmy" log (newest first). */
   work?: AgencyWorkEntry[];
 }) {
   const now = new Date();
   const month = formatInTimeZone(now, "Europe/Warsaw", "LLLL", { locale: pl });
+  const period =
+    !periodLabel || /^bieżący miesiąc$/i.test(periodLabel)
+      ? month
+      : periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1);
   const today = formatInTimeZone(now, "Europe/Warsaw", "yyyy-MM-dd");
   const [y, m, day] = today.split("-").map(Number);
   const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -124,9 +135,9 @@ export function PresentStory({
   return (
     <>
       {/* 1 - the period in one sentence */}
-      <section aria-label={`${month} w jednym zdaniu`} className={SLIDE}>
+      <section aria-label={`${period} w jednym zdaniu`} className={SLIDE}>
         <p className={cn(KICK, RISE)} style={d(0.1)}>
-          {month} w jednym zdaniu
+          {period} w jednym zdaniu
         </p>
         <div className="flex flex-wrap items-end gap-x-[clamp(1.5rem,3vw,3.5rem)] gap-y-6">
           {spend > 0 ? (
@@ -421,10 +432,12 @@ function PlanRings({
           />
         ))}
       </g>
-      <text x="130" y="134" textAnchor="middle" className="fill-foreground text-[34px] font-light tracking-[-0.04em]">
-        {day} / {days}
+      {/* Sized to the inner ring's hole (r 58 - 11 = 47): "10 / 30" at 34px
+          ran into the third ring. */}
+      <text x="130" y="134" textAnchor="middle" className="fill-foreground text-[30px] font-light tracking-[-0.04em]">
+        {day}/{days}
       </text>
-      <text x="130" y="154" textAnchor="middle" className="fill-ink-3 font-mono text-[9px] tracking-[.16em]">
+      <text x="130" y="152" textAnchor="middle" className="fill-ink-3 font-mono text-[8px] tracking-[.1em]">
         DZIEŃ MIESIĄCA
       </text>
     </svg>

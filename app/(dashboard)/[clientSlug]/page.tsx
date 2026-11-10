@@ -187,7 +187,7 @@ export default async function OverviewPage({
       <h1 className="sr-only">Przegląd - {client.name}</h1>
 
       {/* "Prezentuj" opens on these story slides (hidden otherwise). */}
-      <PresentStory kpis={data.kpis} story={story} planRows={planRows} work={agencyWork?.entries} />
+      <PresentStory kpis={data.kpis} story={story} planRows={planRows} work={agencyWork?.entries} periodLabel={data.rangeLabel} />
 
       {/* Seasonal clients only (one cached read for the rest): streams in. */}
       <SectionBoundary name="overview/season">

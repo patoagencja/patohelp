@@ -139,6 +139,12 @@ function clearSlides() {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** Bottom of what the audience sees: the fixed footer (progress, prev/next) covers the rest. */
+function visibleBottom(): number {
+  const bar = document.querySelector("[data-present-footer]");
+  return window.innerHeight - (bar ? bar.getBoundingClientRect().height : 0);
+}
+
 function atPageBottom(): boolean {
   const root = document.documentElement;
   return window.innerHeight + window.scrollY >= root.scrollHeight - 4;
@@ -287,15 +293,20 @@ export function PresentationMode({
       if (current) {
         const rect = current.getBoundingClientRect();
         // A section taller than the screen (long table) is paged through
-        // first, otherwise half of it would never be shown.
-        if (dir === 1 && rect.bottom > window.innerHeight + 8 && !atPageBottom()) {
+        // first, otherwise half of it would never be shown. Only as far as
+        // its hidden rest needs: a whole page for a few hidden pixels (every
+        // stacked slide on a phone) scrolled the slide away and left the
+        // audience looking at the dimmed next one.
+        // A sliver under the footer's fade still reads; don't page for it.
+        const bottom = visibleBottom();
+        if (dir === 1 && rect.bottom > bottom + 48 && !atPageBottom()) {
           const next = slides[base + 1];
           const nextTop = next ? next.getBoundingClientRect().top : Infinity;
-          if (nextTop > window.innerHeight) {
+          if (nextTop > bottom) {
             navRef.current = { index: base, until: Date.now() + 900 };
             setMoves((m) => m + 1);
             window.scrollBy({
-              top: Math.min(window.innerHeight * 0.8, nextTop - 32),
+              top: Math.min(window.innerHeight * 0.8, nextTop - 32, rect.bottom - bottom + 16),
               behavior: scrollBehavior(),
             });
             return;
@@ -458,6 +469,7 @@ export function PresentationMode({
             <div
               role="toolbar"
               aria-label="Sterowanie prezentacją"
+              data-present-footer
               className="fixed inset-x-0 bottom-0 z-[60] bg-gradient-to-t from-black/70 via-black/35 to-transparent pt-10 text-foreground print:hidden"
             >
               <div className="mx-auto flex max-w-[120rem] items-center gap-2 px-4 pb-4 sm:gap-[clamp(1rem,2vw,2.5rem)] sm:px-[clamp(1.5rem,5vw,6rem)] sm:pb-[clamp(1rem,5vh,3.5rem)]">
