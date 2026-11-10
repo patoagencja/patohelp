@@ -433,6 +433,11 @@ export default async function SettingsPage({
         error={searchParams.error}
         saved={searchParams.saved}
         fixed={searchParams.fixed}
+        awaitingSelection={PROVIDERS.filter((p) => {
+          const ids = byProvider.get(p.key)?.account_ids;
+          const list = Array.isArray(ids) ? (ids as Account[]) : [];
+          return list.length > 0 && !list.some((a) => a.selected);
+        }).map((p) => p.key)}
       />
 
       <div className="space-y-4">

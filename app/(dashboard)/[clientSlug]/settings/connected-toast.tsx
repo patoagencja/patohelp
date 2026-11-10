@@ -35,6 +35,7 @@ export function ConnectedToast({
   error,
   saved,
   fixed,
+  awaitingSelection,
 }: {
   clientSlug: string;
   connected?: string;
@@ -42,6 +43,8 @@ export function ConnectedToast({
   saved?: string;
   /** Other clients' connections repaired with the same new token. */
   fixed?: string;
+  /** Ad providers connected with accounts listed but none ticked yet. */
+  awaitingSelection?: string[];
 }) {
   const fired = useRef(false);
   const router = useRouter();
@@ -66,9 +69,17 @@ export function ConnectedToast({
     const fixedNote =
       Number.isFinite(fixedCount) && fixedCount > 0 ? fixedOthersLabel(fixedCount) : null;
 
+    // A first connect lists the accounts with none ticked: the next step is
+    // picking them, and a sync now could only record "Brak wybranych kont"
+    // as a failed run (a red health banner a minute after connecting).
+    const awaitsPick = Boolean(connected && awaitingSelection?.includes(connected));
+
     if (connected) {
       toast.success(`Połączono z ${PROVIDER_LABELS[connected] ?? connected}`, {
-        description: fixedNote ?? undefined,
+        description: awaitsPick
+          ? "Teraz zaznacz konta reklamowe tego klienta i kliknij „Zapisz wybór kont” - wtedy pobierzemy dane."
+          : (fixedNote ?? undefined),
+        duration: awaitsPick ? 10_000 : undefined,
       });
     } else if (error === "meta_token_invalid") {
       toast.error(
@@ -175,7 +186,7 @@ export function ConnectedToast({
     }
 
     if (
-      connected ||
+      (connected && !awaitsPick) ||
       (saved && (FRESH_CREDENTIALS.has(saved) || saved in PROVIDER_LABELS))
     ) {
       toast.loading("Pobieram dane po połączeniu…", { id: "post-connect-sync" });
@@ -199,7 +210,7 @@ export function ConnectedToast({
           router.refresh();
         });
     }
-  }, [clientSlug, connected, error, saved, fixed, router]);
+  }, [clientSlug, connected, error, saved, fixed, awaitingSelection, router]);
 
   return null;
 }
