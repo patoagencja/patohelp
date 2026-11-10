@@ -107,6 +107,9 @@ export default async function ClientDashboardLayout({
       isEcommerce={isEcommerce}
       isSeasonal={isSeasonal}
       isAgency={isAgency}
+      // "Dziś" is in the nav for shops only; on a direct link everyone else
+      // still gets its name in the phone header instead of a blank.
+      unlistedPages={isEcommerce ? undefined : [{ href: `${base}/dzis`, label: "Dziś" }]}
       festive={snowing}
       brand={
         <ClientBrandMark

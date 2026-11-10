@@ -375,8 +375,12 @@ export function computeSeasonView(
   };
 }
 
-/** Last shop push or CSV upload marker; null before migration 0038 / no key. */
-export async function shopPushStamp(clientId: string): Promise<string | null> {
+/**
+ * Last shop push or CSV upload marker; null before migration 0038 / no key.
+ * Request-cached: "Dziś" keys three cached loaders on it (the shop's days,
+ * yesterday's best, the season view) - one read per render, not three.
+ */
+export const shopPushStamp = cache(async (clientId: string): Promise<string | null> => {
   const { data, error } = await createAdminClient()
     .from("shop_ingest_keys")
     .select("last_used_at")
@@ -384,7 +388,7 @@ export async function shopPushStamp(clientId: string): Promise<string | null> {
     .maybeSingle();
   if (error || !data) return null;
   return (data as { last_used_at: string | null }).last_used_at;
-}
+});
 
 const todayWarsaw = () => formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
 
