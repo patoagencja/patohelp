@@ -115,8 +115,10 @@ export async function sendLoginLink(raw: unknown): Promise<LoginLinkResult> {
 
   const base = baseUrl();
   let generated = await admin.auth.admin.generateLink({ type: "magiclink", email });
-  // A first-time teammate has no account yet: an invite link creates it
-  // (the callback accepts both and provisions @patoagencja.com as member).
+  // A first-time teammate (or an invited client whose invitation e-mail
+  // never went out) has no account yet: an invite link creates it (the
+  // callback accepts both, provisions @patoagencja.com as member and maps a
+  // client invitation to its seat).
   if (generated.error && /not.?found|no user/i.test(generated.error.message)) {
     generated = await admin.auth.admin.generateLink({ type: "invite", email });
   }
