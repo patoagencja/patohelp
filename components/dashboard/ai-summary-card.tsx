@@ -1,3 +1,6 @@
+import { formatInTimeZone } from "date-fns-tz";
+import { enGB } from "date-fns/locale";
+
 import { Card } from "@/components/ui/card";
 
 import type { AiSummary } from "@/lib/dashboard/overview";
@@ -34,7 +37,10 @@ export function AiSummaryCard({
               </p>
               <p className="mt-3 font-mono text-[11px] tracking-[0.04em] text-ink-3">
                 {en ? "Generated" : "Wygenerowano"}{" "}
-                {formatDateWarsaw(summary.generatedAt, "d MMM yyyy, HH:mm")}
+                {/* formatDateWarsaw is Polish ("10 lis"); English needs its own locale. */}
+                {en
+                  ? formatInTimeZone(summary.generatedAt, "Europe/Warsaw", "d MMM yyyy, HH:mm", { locale: enGB })
+                  : formatDateWarsaw(summary.generatedAt, "d MMM yyyy, HH:mm")}
                 {/* Its own fixed 7-day window, not the range picked above -
                     say which days, or its numbers look like they contradict
                     the cards. */}

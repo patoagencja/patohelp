@@ -1,4 +1,4 @@
-import { LangToggle } from "@/components/demo/lang-toggle";
+import { DemoLangNote, LangToggle } from "@/components/demo/lang-toggle";
 import { AppShell } from "@/components/dashboard/app-shell";
 import { LiveStamp } from "@/components/dashboard/auto-refresh";
 import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
@@ -76,6 +76,7 @@ export default function DemoFullLayout({
           <GuidedTour isAgency={false} overviewPath={BASE} />
         </>
       }
+      banner={<DemoLangNote />}
       mainClassName="space-y-8 px-4 pb-32 pt-6 sm:px-6 md:pb-12 md:pt-8"
     >
       {children}
