@@ -2,13 +2,14 @@ import type { EmailOtpType, User } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { escapeLikePattern, isAgencyEmail } from "@/lib/agency/domains";
-import { isLoginAllowed } from "@/lib/auth/login-policy";
+import { isLoginAllowed, isSessionAllowed } from "@/lib/auth/login-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-// Admin invites (settings → "Dostęp do panelu") can't use PKCE, so their
-// e-mail template must link here with ?token_hash=...&type=invite instead of
-// ?code=. Only the e-mail login types we actually send are accepted.
+// Admin invites (settings → "Dostęp do panelu") can't use PKCE: our own
+// invitation e-mail links here with ?token_hash=...&type=invite (Supabase's
+// fallback one only after its template was edited to do the same). Only the
+// e-mail login types we actually send are accepted.
 const OTP_TYPES: EmailOtpType[] = ["invite", "magiclink", "email"];
 
 /**
@@ -47,20 +48,32 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth`);
   }
 
-  // Agency only for now (lib/auth/login-policy.ts): a link obtained some
-  // other way (Supabase's own API, an old invite) must not open a session.
-  if (!isLoginAllowed(user.email)) {
-    await supabase.auth.signOut();
-    return NextResponse.redirect(`${origin}/login?error=domain`);
-  }
+  const domainAllowed = isLoginAllowed(user.email);
 
   // Both branches below grant data access by e-mail address, so only on a
   // verified one (magic link sets email_confirmed_at; another provider might not).
   if (user.email && user.email_confirmed_at) {
     if (isAgencyEmail(user.email)) {
-      await provisionAgencyMember(user.id, user.email);
+      // Agency teammates only while their domain is allowed at all.
+      if (domainAllowed) await provisionAgencyMember(user.id, user.email);
     } else {
+      // An invited client user: the seat is mapped here, on first login.
       await applyPendingInvitation(user.id, user.email);
+    }
+  }
+
+  // Agency domains, or a client user the agency invited (seat + verified
+  // address - lib/auth/login-policy.ts). Anyone else - a link obtained some
+  // other way (Supabase's own API, a cancelled invitation) - gets no session.
+  if (!domainAllowed) {
+    const { data: profile } = await createAdminClient()
+      .from("users")
+      .select("role, client_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!isSessionAllowed(user, profile)) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(`${origin}/login?error=domain`);
     }
   }
 

@@ -3,22 +3,58 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
+import { escapeLikePattern } from "@/lib/agency/domains";
 import { buildLoginEmail } from "@/lib/auth/login-email";
-import { isLoginAllowed } from "@/lib/auth/login-policy";
+import { isLoginAllowed, mayRequestLoginLink } from "@/lib/auth/login-policy";
 import { sendEmail } from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginLinkResult = { ok: true } | { ok: false; error: string };
 
+const NO_ACCESS_MESSAGE =
+  "Ten adres nie ma jeszcze dostępu do panelu. Poproś swojego opiekuna w Pato o zaproszenie - albo wpisz adres, na który przyszło zaproszenie.";
+
 // Per-instance throttle. Who can be mailed at all is limited to the allowed
-// domains (our own mailboxes), so this only keeps a double click or a
+// domains and invited addresses, so this only keeps a double click or a
 // script from flooding them; Supabase's own e-mail limit is not in play
 // when the app sends the mail itself.
 const lastSentTo = new Map<string, number>();
 const sentFrom = new Map<string, { count: number; since: number }>();
+const lookupsFrom = new Map<string, { count: number; since: number }>();
 const EMAIL_COOLDOWN_MS = 45_000;
 const IP_PER_HOUR = 20;
+const LOOKUPS_PER_HOUR = 30;
+
+function lookupThrottled(ip: string): boolean {
+  const now = Date.now();
+  const w = lookupsFrom.get(ip);
+  if (w && now - w.since < 3_600_000) {
+    if (w.count >= LOOKUPS_PER_HOUR) return true;
+    lookupsFrom.set(ip, { count: w.count + 1, since: w.since });
+    return false;
+  }
+  lookupsFrom.set(ip, { count: 1, since: now });
+  return false;
+}
+
+/**
+ * Did the agency invite this address ("Dostęp do panelu")? A pending client
+ * invitation, or an account that already holds a client seat. Case-insensitive
+ * lookups (hand-written rows may not be lowercased), exact match in
+ * mayRequestLoginLink. A failed read counts as "no" - fail closed.
+ */
+async function isInvitedAddress(admin: ReturnType<typeof createAdminClient>, email: string): Promise<boolean> {
+  const pattern = escapeLikePattern(email);
+  const [invites, profiles] = await Promise.all([
+    admin.from("client_invitations").select("email, role").ilike("email", pattern),
+    admin.from("users").select("email, role, client_id").ilike("email", pattern),
+  ]);
+  return mayRequestLoginLink(email, {
+    invitations: invites.error ? [] : invites.data,
+    profiles: profiles.error ? [] : profiles.data,
+  });
+}
 
 function throttled(email: string, ip: string): boolean {
   const now = Date.now();
@@ -46,8 +82,8 @@ function baseUrl(): string {
 }
 
 /**
- * Send the login link. Server-side so the "agency only for now" rule
- * (lib/auth/login-policy.ts) holds before any e-mail leaves, and so the
+ * Send the login link. Server-side so the "agency domains or invited
+ * addresses" rule (lib/auth/login-policy.ts) holds before any e-mail leaves, and so the
  * e-mail is ours (lib/auth/login-email.ts), not Supabase's plain default.
  * The link verifies a token hash (no PKCE), so it also works when opened
  * on another device than the one that asked for it.
@@ -57,17 +93,27 @@ export async function sendLoginLink(raw: unknown): Promise<LoginLinkResult> {
   if (!parsed.success) return { ok: false, error: "Ten adres e-mail wygląda na niepoprawny - sprawdź literówki." };
   const email = parsed.data;
 
+  const ip = (headers().get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const admin = createAdminClient();
+
+  // Outside the agency domains only an address the agency invited gets a
+  // link (lib/auth/login-policy.ts) - client users log in with their own
+  // company e-mail. The lookup is capped per IP so the form can't be used
+  // to sweep addresses.
   if (!isLoginAllowed(email)) {
-    return { ok: false, error: "Panel jest na razie dostępny tylko dla zespołu Pato (adresy @patoagencja.com)." };
+    if (lookupThrottled(ip)) {
+      return { ok: false, error: "Za dużo prób z rzędu. Spróbuj ponownie za kilka minut." };
+    }
+    if (!(await isInvitedAddress(admin, email))) {
+      return { ok: false, error: NO_ACCESS_MESSAGE };
+    }
   }
 
-  const ip = (headers().get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
   if (throttled(email, ip)) {
     return { ok: false, error: "Link został już wysłany przed chwilą. Sprawdź skrzynkę (także Spam) albo spróbuj za minutę." };
   }
 
   const base = baseUrl();
-  const admin = createAdminClient();
   let generated = await admin.auth.admin.generateLink({ type: "magiclink", email });
   // A first-time teammate has no account yet: an invite link creates it
   // (the callback accepts both and provisions @patoagencja.com as member).

@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { escapeLikePattern, isAgencyEmail } from "@/lib/agency/domains";
+import { buildLoginEmail } from "@/lib/auth/login-email";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
+import { sendEmail } from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const CLIENT_SLUG = z.string().min(1).max(64);
@@ -129,7 +131,20 @@ export async function inviteClientUser(formData: FormData) {
     }
   }
 
-  const unassigned = users.filter((u) => u.client_id === null).map((u) => u.id);
+  // Only an account whose address is verified gets the seat right away. An
+  // unverified one may have been registered by someone else with this
+  // e-mail (Supabase's public sign-up); /auth/callback maps the invitation
+  // to it once the mailbox owner clicks an e-mail link.
+  const unassigned = (
+    await Promise.all(
+      users
+        .filter((u) => u.client_id === null)
+        .map(async (u) => {
+          const { data } = await admin.auth.admin.getUserById(u.id);
+          return data?.user?.email_confirmed_at ? u.id : null;
+        })
+    )
+  ).filter((id): id is string => id !== null);
   if (unassigned.length > 0) {
     // Re-assert role + null client in the WHERE so a concurrent change (e.g.
     // promotion to agency, assignment elsewhere) can't be overwritten.
@@ -149,14 +164,56 @@ export async function inviteClientUser(formData: FormData) {
 
   // Only for addresses with no account yet: Supabase rejects invites to
   // existing users, and those people can just use the normal login link.
-  const redirectTo = appOrigin();
-  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-    email,
-    redirectTo ? { redirectTo: `${redirectTo}/auth/callback` } : undefined
-  );
+  const mailed = await sendInvitation(admin, email, access.clientId);
   // The invitation row is already saved, so a mail failure (rate limit, SMTP)
-  // only changes the hint - the person can still log in via /login.
-  back(access.clientSlug, inviteError ? "saved=access_mail_failed" : "saved=access_invited");
+  // only changes the hint - the person can still log in via /login (invited
+  // addresses get a login link there, lib/auth/login-policy.ts).
+  back(access.clientSlug, mailed ? "saved=access_invited" : "saved=access_mail_failed");
+}
+
+/**
+ * The invitation e-mail. Our own (Resend), like the login link: Polish, and
+ * its link verifies a token hash at /auth/callback. Supabase's invite e-mail
+ * is English and its default link returns the session in the URL fragment,
+ * which /auth/callback can't read - it only works after its template was
+ * edited in the Supabase dashboard, so it is just the fallback without
+ * Resend.
+ */
+async function sendInvitation(
+  admin: ReturnType<typeof createAdminClient>,
+  email: string,
+  clientId: string
+): Promise<boolean> {
+  const base = appOrigin();
+  if (base && process.env.RESEND_API_KEY && process.env.NOTIFY_FROM_EMAIL) {
+    const generated = await admin.auth.admin.generateLink({ type: "invite", email });
+    const hashed = generated.data?.properties?.hashed_token;
+    if (generated.error || !hashed) {
+      console.error("[access] invite link failed", generated.error?.message);
+      return false;
+    }
+    const { data: client } = await admin
+      .from("clients")
+      .select("name")
+      .eq("id", clientId)
+      .maybeSingle();
+    const mail = buildLoginEmail({
+      link: `${base}/auth/callback?token_hash=${encodeURIComponent(hashed)}&type=invite`,
+      email,
+      invite: {
+        clientName: (client?.name as string | undefined) ?? "Twojej firmy",
+        loginUrl: `${base}/login`,
+      },
+    });
+    const sent = await sendEmail([email], mail.subject, mail.html, mail.text);
+    if (!sent.ok) console.error("[access] invite e-mail failed", sent.error);
+    return sent.ok;
+  }
+  const { error } = await admin.auth.admin.inviteUserByEmail(
+    email,
+    base ? { redirectTo: `${base}/auth/callback` } : undefined
+  );
+  return !error;
 }
 
 /**

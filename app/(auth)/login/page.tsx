@@ -24,7 +24,8 @@ import { useZenMode, ZenControls, ZenScene } from "./zen-mode";
 // Errors the auth callback and the middleware send back here (?error=).
 const URL_ERRORS: Record<string, string> = {
   auth: "Ten link już nie działa (był użyty albo minęła godzina). Wyślij sobie nowy.",
-  domain: "Panel jest na razie dostępny tylko dla zespołu Pato (adresy @patoagencja.com).",
+  domain:
+    "Ten adres nie ma dostępu do panelu. Poproś swojego opiekuna w Pato o zaproszenie - albo zaloguj się adresem, na który przyszło zaproszenie.",
 };
 
 const BENEFITS = [

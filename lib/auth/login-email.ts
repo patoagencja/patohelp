@@ -9,19 +9,33 @@ export function buildLoginEmail({
   link,
   email,
   minutesValid = 60,
+  invite,
 }: {
   link: string;
   email: string;
   minutesValid?: number;
+  /** The agency's invitation ("Dostęp do panelu") instead of a requested link. */
+  invite?: { clientName: string; loginUrl: string };
 }): { subject: string; html: string; text: string } {
   const href = esc(link);
   const valid = minutesValid >= 60 && minutesValid % 60 === 0 ? `${minutesValid / 60} godz.` : `${minutesValid} min`;
-  const subject = "Twój link do panelu Kaleido";
+  const subject = invite
+    ? `Zaproszenie do panelu Kaleido - ${invite.clientName}`
+    : "Twój link do panelu Kaleido";
+  const heading = invite ? "Masz dostęp do swojego panelu" : "Zaloguj się jednym kliknięciem";
+  const intro = invite
+    ? `Zespół Pato zaprosił adres <b style="color:#16171a">${esc(email)}</b> do panelu ${esc(invite.clientName)}: wyniki reklam i strony w jednym miejscu. Bez hasła - wystarczy kliknąć.`
+    : `Ktoś (mamy nadzieję, że Ty) poprosił o link do panelu dla adresu <b style="color:#16171a">${esc(email)}</b>. Bez hasła - wystarczy kliknąć.`;
+  // An invitation is often opened days later, after the link has expired:
+  // say where a fresh one comes from (the login page lets invited addresses in).
+  const later = invite
+    ? `Link wygasł? Wejdź na ${invite.loginUrl}, wpisz ten adres e-mail i kliknij link, który przyjdzie.`
+    : null;
   const text = [
-    "Zaloguj się do panelu Kaleido:",
+    invite ? `Zespół Pato zaprosił Cię do panelu ${invite.clientName} w Kaleido:` : "Zaloguj się do panelu Kaleido:",
     link,
     "",
-    `Link działa ${valid} i tylko raz. Jeśli to nie Ty prosiłeś o logowanie, zignoruj tę wiadomość - bez kliknięcia nikt nie wejdzie na Twoje konto.`,
+    `Link działa ${valid} i tylko raz.${later ? ` ${later}` : ""} Jeśli to nie Ty prosiłeś o logowanie, zignoruj tę wiadomość - bez kliknięcia nikt nie wejdzie na Twoje konto.`,
     "",
     "Kaleido · patoagencja",
   ].join("\n");
@@ -50,8 +64,8 @@ export function buildLoginEmail({
         </tr>
         <tr>
           <td style="padding:34px 32px 8px">
-            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.4px;color:#16171a">Zaloguj się jednym kliknięciem</h1>
-            <p style="margin:0;font-size:15px;line-height:1.6;color:#4a4b50">Ktoś (mamy nadzieję, że Ty) poprosił o link do panelu dla adresu <b style="color:#16171a">${esc(email)}</b>. Bez hasła - wystarczy kliknąć.</p>
+            <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.4px;color:#16171a">${heading}</h1>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#4a4b50">${intro}</p>
           </td>
         </tr>
         <tr>
@@ -67,7 +81,7 @@ export function buildLoginEmail({
           <td style="padding:18px 32px 6px">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f8f1;border-radius:16px">
               <tr><td style="padding:14px 18px;font-size:13px;line-height:1.55;color:#4a4b50">
-                Link działa <b style="color:#16171a">${esc(valid)}</b> i&nbsp;tylko raz. Możesz go otworzyć na telefonie albo komputerze.
+                Link działa <b style="color:#16171a">${esc(valid)}</b> i&nbsp;tylko raz. Możesz go otworzyć na telefonie albo komputerze.${later ? `<br>${esc(later)}` : ""}
               </td></tr>
             </table>
           </td>

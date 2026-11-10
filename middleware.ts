@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { isLoginAllowed } from "@/lib/auth/login-policy";
+import { isLoginAllowed, isSessionAllowed } from "@/lib/auth/login-policy";
 
 // Public paths that must stay reachable without a session. /r and /s are
 // token-gated share pages (report deck / board overview) - the page itself
@@ -73,9 +73,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Sessions of addresses outside the allowed domains (agency only for
-  // now) end here - including ones opened before the rule existed.
+  // Sessions outside the allowed domains end here - including ones opened
+  // before the rule existed - unless the agency invited this person: a
+  // client user with a seat and a verified address (lib/auth/login-policy.ts).
+  // Only those outside the domains pay the extra read (their own users row,
+  // readable under RLS).
   if (user && !isLoginAllowed(user.email) && !isPublicPath(request.nextUrl.pathname)) {
+    const { data: profile, error } = await supabase
+      .from("users")
+      .select("role, client_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    // A failed read is not a verdict: the request goes on and RLS still
+    // decides what it can see. Signing a client out over a hiccup is worse.
+    if (error || isSessionAllowed(user, profile)) return response;
     await supabase.auth.signOut();
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";

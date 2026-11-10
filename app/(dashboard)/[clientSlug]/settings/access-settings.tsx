@@ -67,7 +67,7 @@ export async function AccessSettingsSection({
     (i) => !userEmails.has(i.email.toLowerCase())
   );
 
-  // inviteUserByEmail creates the account before the person ever clicks the
+  // The invitation creates the account before the person ever clicks the
   // link, so "has a row" doesn't mean "has logged in" - show the difference.
   const lastSignIn = new Map<string, string | null>();
   await Promise.all(
@@ -88,11 +88,11 @@ export async function AccessSettingsSection({
       <Card className="max-w-2xl">
         <CardContent className="flex flex-col gap-5 pt-6">
           {allowedLoginDomains() !== "*" ? (
-            <p className="rounded-[16px] bg-warning-soft px-4 py-3 text-sm text-foreground">
-              Logowanie jest na razie otwarte tylko dla adresów{" "}
-              {(allowedLoginDomains() as string[]).map((d) => `@${d}`).join(", ")}. Zaproszeni
-              klienci zalogują się, gdy na Vercelu ustawisz <code className="rounded bg-muted px-1">LOGIN_ALLOWED_DOMAINS</code>{" "}
-              na <code className="rounded bg-muted px-1">*</code> (albo dopiszesz ich domenę).
+            <p className="rounded-[16px] bg-chip px-4 py-3 text-sm text-ink-2">
+              Zalogować się mogą adresy{" "}
+              {(allowedLoginDomains() as string[]).map((d) => `@${d}`).join(", ")} oraz osoby
+              zaproszone tutaj - dowolną domeną, na stronie logowania swoim adresem. Nikt inny
+              nie dostanie linku do logowania.
             </p>
           ) : null}
           {invitesRes.error ? (
