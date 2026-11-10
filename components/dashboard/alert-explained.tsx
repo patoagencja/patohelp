@@ -341,11 +341,14 @@ export function explainAlert(a: Anomaly, lang: Lang = "pl"): Explained {
   // Streak alerts are already written for the client (title, why, and a
   // hint picked from the other metrics on the same days), and so are the
   // same-day data-flow guards (what broke, what to check): keep their words.
+  // Every line, not just the headline: the data-flow and streak texts group
+  // thousands with plain spaces, so "1 240 kliknięć" broke as "1 / 240" on
+  // a phone in the description under it.
   return {
-    headline: a.streak || a.intraday ? stripEmoji(a.title) : headline,
-    happened,
-    why: a.why ?? why,
-    action: a.action ?? action,
+    headline: keepNumbersTogether(a.streak || a.intraday ? stripEmoji(a.title) : headline),
+    happened: keepNumbersTogether(happened),
+    why: keepNumbersTogether(a.why ?? why),
+    action: keepNumbersTogether(a.action ?? action),
   };
 }
 
@@ -375,6 +378,17 @@ function whereOf(a: Anomaly, lang: Lang): { tag: string | null; where: string } 
     return { tag: m ? m[1] : lang === "en" ? "Campaign" : "Kampania", where: label };
   }
   return { tag: m ? m[1] : null, where: label };
+}
+
+/**
+ * The label over `action`. The same-day data-flow guards say what to check
+ * on the shop's side ("Sprawdź płatności..."), not what the agency does:
+ * under "Co z tym robimy" their imperative read like a slip.
+ */
+export function actionLabel(a: Anomaly, lang: Lang, short = false): string {
+  if (a.intraday) return lang === "en" ? "What to check" : "Co sprawdzić";
+  if (lang === "en") return "What we're doing";
+  return short ? "Co robimy" : "Co z tym robimy";
 }
 
 /** "5 396 zł" must not wrap as "5 / 396 zł" on a phone. */
@@ -445,7 +459,7 @@ export function AlertCard({
             ) : null}
           </p>
           <h3 className="mt-1.5 break-words text-[17px] font-semibold leading-snug tracking-[-0.01em]">
-            {keepNumbersTogether(x.headline)}
+            {x.headline}
           </h3>
           <p className="mt-1 text-[15px] leading-relaxed text-ink-2 tabular-nums [text-wrap:pretty]">
             {x.happened}
@@ -468,7 +482,7 @@ export function AlertCard({
             <dd className="mt-1.5 text-sm leading-relaxed">{x.why}</dd>
           </div>
           <div className="rounded-[18px] bg-chip px-4 py-3.5">
-            <dt className="kick text-[11px]">{en ? "What we're doing" : "Co z tym robimy"}</dt>
+            <dt className="kick text-[11px]">{actionLabel(a, lang)}</dt>
             <dd className="mt-1.5 text-sm leading-relaxed">{x.action}</dd>
           </div>
         </dl>

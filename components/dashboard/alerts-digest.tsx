@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 
-import { explainAlert } from "@/components/dashboard/alert-explained";
+import { actionLabel, explainAlert } from "@/components/dashboard/alert-explained";
 import { Ping, type PingTone } from "@/components/ui/primitives";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 
@@ -24,14 +24,12 @@ const COPY = {
   pl: {
     title: "Najważniejsze alerty",
     intro: "Rzeczy, którym się przyglądamy - przy każdej piszemy, co z tym robimy.",
-    doing: "Co robimy:",
     all: "Wszystkie alerty",
     empty: "Wszystko w normie - wyniki zgodne z ostatnimi 2 tygodniami.",
   },
   en: {
     title: "Top alerts",
     intro: "Things we're keeping an eye on - each says what we're doing about it.",
-    doing: "What we're doing:",
     all: "All alerts",
     empty: "All clear - results are in line with the last 2 weeks.",
   },
@@ -99,7 +97,7 @@ export function AlertsDigest({
                   </span>
                   <span className="mt-0.5 block truncate text-[13px] text-ink-3">{a.scopeLabel}</span>
                   <span className="mt-1.5 block text-[13px] leading-snug text-ink-2">
-                    <span className="font-medium text-foreground">{t.doing}</span> {x.action}
+                    <span className="font-medium text-foreground">{actionLabel(a, lang, true)}:</span> {x.action}
                   </span>
                 </span>
                 <span className="shrink-0 rounded-full bg-chip px-3 py-1 text-xs font-medium text-ink-2">
