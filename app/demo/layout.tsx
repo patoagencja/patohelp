@@ -1,9 +1,9 @@
-import { Sparkles } from "lucide-react";
-
 import { LangToggle } from "@/components/demo/lang-toggle";
+import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { StatusChip } from "@/components/ui/primitives";
 import { Sky } from "@/components/ui/sky";
+import { DEMO_BRANDING } from "@/lib/demo/branding";
 
 // Minimal chrome for the public one-pager demo: a top bar only, no sidebar.
 export const metadata = {
@@ -22,11 +22,9 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
           data-chrome-header
           className="glass glass-blur pointer-events-auto flex min-h-[62px] items-center gap-3 rounded-full py-[7px] pl-4 pr-2 md:min-h-16"
         >
-          <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-anchor text-anchor-foreground">
-            <Sparkles className="h-4 w-4" aria-hidden />
-            <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-anchor-dot ring-2 ring-background" />
-          </span>
-          <span className="truncate font-semibold tracking-[-0.02em]">lokalnepomidorki</span>
+          {/* The client's own logo, as on /demo-full - a generic sparkle
+              badge made the one-pager look like a different product. */}
+          <ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-7 min-w-0 max-w-[10rem]" />
           <StatusChip tone="amber" className="hidden min-h-9 text-[13px] sm:inline-flex">
             Demo · dane przykładowe
           </StatusChip>

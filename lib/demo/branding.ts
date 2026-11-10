@@ -5,12 +5,16 @@ import type { ClientBranding } from "@/lib/dashboard/branding";
 // external host (and so it bypasses the https-only check on purpose - that
 // check guards values coming from the DB, this one is ours). The colours are
 // part of the logo artwork, i.e. data, not UI tokens.
-// Mid-grey wordmark text so the same file reads on the light and dark sidebar.
+// The wordmark switches with the theme: an <img> SVG's prefers-color-scheme
+// follows the page's used color-scheme (globals.css sets `color-scheme: dark`
+// on .dark), so the dark header gets light text. One mid-grey for both left
+// "lokalne" at ~1.7:1 on the dark glass - all but invisible.
 const DEMO_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 48">
+<style>.w{fill:#64748b}.r{fill:#e8442e}@media (prefers-color-scheme:dark){.w{fill:#e2e8f0}.r{fill:#ff6b57}}</style>
 <circle cx="22" cy="27" r="17" fill="#e8442e"/>
 <circle cx="16" cy="22" r="4" fill="#ffffff" fill-opacity=".35"/>
 <path d="M22 11c-3-5-9-6-12-4 4 0 7 2 9 5-4-1-8 0-10 3 4-1 9-1 13 0 4-1 9-1 13 0-2-3-6-4-10-3 2-3 5-5 9-5-3-2-9-1-12 4z" fill="#2f9e44"/>
-<text x="46" y="32" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="800" fill="#64748b" letter-spacing="-.4">lokalne<tspan fill="#e8442e">pomidorki</tspan></text>
+<text class="w" x="46" y="32" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="800" letter-spacing="-.4">lokalne<tspan class="r">pomidorki</tspan></text>
 </svg>`;
 
 export const DEMO_BRANDING: ClientBranding = {
