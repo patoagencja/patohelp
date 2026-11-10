@@ -57,6 +57,17 @@ function change(kpi: Kpi, minBase: number): number | null {
   return Math.round(kpi.deltaPercent);
 }
 
+/**
+ * "47 015 vs 41 175" under the big %, but only when those two totals give
+ * that %: with today still partial the % is per finished day (above), and
+ * the raw totals said +14% under a "+16%" a viewer can check by hand.
+ */
+function totalsLine(kpi: Kpi): string {
+  const raw = kpi.previous > 0 ? Math.round((kpi.value / kpi.previous - 1) * 100) : null;
+  const same = raw !== null && kpi.deltaPercent !== null && raw === Math.round(kpi.deltaPercent);
+  return same ? `${group(kpi.value)} vs ${group(kpi.previous)}` : group(kpi.value);
+}
+
 export function PresentStory({
   kpis,
   story,
@@ -103,7 +114,7 @@ export function PresentStory({
       pct: change(kpis.clicks, 50),
       now: clicks,
       prev: kpis.clicks.previous,
-      line: `${group(clicks)} vs ${group(kpis.clicks.previous)}`,
+      line: totalsLine(kpis.clicks),
       lowerIsBetter: false,
       tone: "lime" as const,
     },
@@ -113,7 +124,7 @@ export function PresentStory({
       pct: change(kpis.sessions, 50),
       now: sessions,
       prev: kpis.sessions.previous,
-      line: `${group(sessions)} vs ${group(kpis.sessions.previous)}`,
+      line: totalsLine(kpis.sessions),
       lowerIsBetter: false,
       tone: "mint" as const,
     },
