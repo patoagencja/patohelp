@@ -1,11 +1,20 @@
 // Who may log in at all. The agency's own domains (LOGIN_ALLOWED_DOMAINS,
 // comma separated, default @patoagencja.com; "*" lets every account in), plus
-// - whatever their domain - the client users the agency invited in
+// - once CLIENT_LOGIN_ENABLED is on - the client users the agency invited in
 // "Dostęp do panelu". Sign-up is NOT open: an address with no invitation and
 // no client seat gets neither a login link nor a session.
 // Import-free: the middleware (edge) and the unit tests both use it.
 
 const DEFAULT_DOMAINS = ["patoagencja.com"];
+
+/**
+ * Invited client users may log in only once this is switched on
+ * (CLIENT_LOGIN_ENABLED=1 in Vercel). Off by default: until the panel is
+ * sold, nobody outside the agency's mailboxes gets in, invited or not.
+ */
+export function clientLoginEnabled(raw: string | undefined = process.env.CLIENT_LOGIN_ENABLED): boolean {
+  return ["1", "true", "on", "yes"].includes((raw ?? "").trim().toLowerCase());
+}
 
 export function allowedLoginDomains(raw: string | undefined = process.env.LOGIN_ALLOWED_DOMAINS): string[] | "*" {
   const value = (raw ?? "").trim();
@@ -73,9 +82,11 @@ export function hasClientInvitation(rows: InvitationLike[] | null | undefined, e
 export function mayRequestLoginLink(
   email: string,
   access: { invitations?: InvitationLike[] | null; profiles?: (PanelProfile & { email?: string | null })[] | null },
-  raw?: string
+  raw?: string,
+  clientLoginRaw?: string
 ): boolean {
   if (isLoginAllowed(email, raw)) return true;
+  if (!clientLoginEnabled(clientLoginRaw)) return false;
   if (hasClientInvitation(access.invitations, email)) return true;
   const normalized = email.trim().toLowerCase();
   return (access.profiles ?? []).some(
@@ -92,8 +103,10 @@ export function mayRequestLoginLink(
 export function isSessionAllowed(
   user: { email?: string | null; email_confirmed_at?: string | null },
   profile: PanelProfile | null | undefined,
-  raw?: string
+  raw?: string,
+  clientLoginRaw?: string
 ): boolean {
   if (isLoginAllowed(user.email, raw)) return true;
+  if (!clientLoginEnabled(clientLoginRaw)) return false;
   return Boolean(user.email_confirmed_at) && hasClientSeat(profile);
 }

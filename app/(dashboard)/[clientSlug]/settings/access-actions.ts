@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { escapeLikePattern, isAgencyEmail } from "@/lib/agency/domains";
 import { buildLoginEmail } from "@/lib/auth/login-email";
+import { clientLoginEnabled } from "@/lib/auth/login-policy";
 import { requireAgencyClientAccess } from "@/lib/integrations/guard";
 import { sendEmail } from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -83,6 +84,9 @@ export async function inviteClientUser(formData: FormData) {
 
   const { email, sendEmail } = parsed.data;
   if (isAgencyEmail(email)) back(access.clientSlug, "error=access_agency");
+  // An invitation e-mail whose link can't open the panel only confuses the
+  // client: no inviting while client logins are switched off.
+  if (!clientLoginEnabled()) back(access.clientSlug, "error=access_login_off");
 
   const admin = createAdminClient();
   const pattern = escapeLikePattern(email);

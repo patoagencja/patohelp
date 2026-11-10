@@ -89,6 +89,10 @@ export function ConnectedToast({
       toast.error("Wklej token, zanim zapiszesz.");
     } else if (error === "access_email") {
       toast.error("Ten adres e-mail wygląda na niepoprawny - sprawdź literówki.");
+    } else if (error === "access_login_off") {
+      toast.error(
+        "Logowanie klientów jest na razie wyłączone - do panelu wchodzą tylko adresy @patoagencja.com."
+      );
     } else if (error === "access_agency") {
       toast.error(
         "To konto agencji - jego dostępu nie zmienia się w ustawieniach klienta."

@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   allowedLoginDomains,
+  clientLoginEnabled,
   hasClientInvitation,
   hasClientSeat,
   isLoginAllowed,
@@ -54,7 +55,7 @@ test("login link: agency domains or invited addresses, no open sign-up", () => {
   assert.equal(mayRequestLoginLink("stranger@gmail.com", none, ""), false);
   // Pending invitation (first login).
   assert.equal(
-    mayRequestLoginLink("jan@dre.pl", { invitations: [{ email: "jan@dre.pl", role: "client" }] }, ""),
+    mayRequestLoginLink("jan@dre.pl", { invitations: [{ email: "jan@dre.pl", role: "client" }] }, "", "1"),
     true
   );
   // Accepted: the account holds a seat.
@@ -62,7 +63,8 @@ test("login link: agency domains or invited addresses, no open sign-up", () => {
     mayRequestLoginLink(
       "jan@dre.pl",
       { profiles: [{ email: "jan@dre.pl", role: "client", client_id: "c1" }] },
-      ""
+      "",
+      "1"
     ),
     true
   );
@@ -90,7 +92,7 @@ test("session: agency domains, or a verified client user with a seat", () => {
   const seat = { role: "client", client_id: "c1" };
   const verified = { email: "jan@dre.pl", email_confirmed_at: "2026-11-01T10:00:00Z" };
   assert.equal(isSessionAllowed({ email: "daniel@patoagencja.com" }, null, ""), true);
-  assert.equal(isSessionAllowed(verified, seat, ""), true);
+  assert.equal(isSessionAllowed(verified, seat, "", "1"), true);
   // Unverified address: the seat may sit on an account someone else
   // registered with that e-mail - no session until the link is clicked.
   assert.equal(isSessionAllowed({ email: "jan@dre.pl", email_confirmed_at: null }, seat, ""), false);
@@ -102,4 +104,20 @@ test("session: agency domains, or a verified client user with a seat", () => {
     isSessionAllowed(verified, { role: "admin", client_id: null }, "patoagencja.com,dre.pl"),
     true
   );
+});
+
+test("client logins stay off until CLIENT_LOGIN_ENABLED is on - agency mailboxes only", () => {
+  assert.equal(clientLoginEnabled(undefined), false);
+  assert.equal(clientLoginEnabled(""), false);
+  assert.equal(clientLoginEnabled("0"), false);
+  assert.equal(clientLoginEnabled("1"), true);
+  assert.equal(clientLoginEnabled(" TRUE "), true);
+  const invited = { invitations: [{ email: "jan@dre.pl", role: "client" }] };
+  const seat = { role: "client", client_id: "c1" };
+  const verified = { email: "jan@dre.pl", email_confirmed_at: "2026-11-01T10:00:00Z" };
+  assert.equal(mayRequestLoginLink("jan@dre.pl", invited, "", ""), false);
+  assert.equal(isSessionAllowed(verified, seat, "", ""), false);
+  // The agency itself is never affected by the switch.
+  assert.equal(mayRequestLoginLink("daniel@patoagencja.com", {}, "", ""), true);
+  assert.equal(isSessionAllowed({ email: "daniel@patoagencja.com" }, null, "", ""), true);
 });

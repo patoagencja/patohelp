@@ -5,13 +5,14 @@ import { z } from "zod";
 
 import { escapeLikePattern } from "@/lib/agency/domains";
 import { buildLoginEmail } from "@/lib/auth/login-email";
-import { isLoginAllowed, mayRequestLoginLink } from "@/lib/auth/login-policy";
+import { clientLoginEnabled, isLoginAllowed, mayRequestLoginLink } from "@/lib/auth/login-policy";
 import { sendEmail } from "@/lib/notify/send";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginLinkResult = { ok: true } | { ok: false; error: string };
 
+const AGENCY_ONLY_MESSAGE = "Panel jest na razie dostępny tylko dla zespołu Pato (adresy @patoagencja.com).";
 const NO_ACCESS_MESSAGE =
   "Ten adres nie ma jeszcze dostępu do panelu. Poproś swojego opiekuna w Pato o zaproszenie - albo wpisz adres, na który przyszło zaproszenie.";
 
@@ -101,6 +102,7 @@ export async function sendLoginLink(raw: unknown): Promise<LoginLinkResult> {
   // company e-mail. The lookup is capped per IP so the form can't be used
   // to sweep addresses.
   if (!isLoginAllowed(email)) {
+    if (!clientLoginEnabled()) return { ok: false, error: AGENCY_ONLY_MESSAGE };
     if (lookupThrottled(ip)) {
       return { ok: false, error: "Za dużo prób z rzędu. Spróbuj ponownie za kilka minut." };
     }
