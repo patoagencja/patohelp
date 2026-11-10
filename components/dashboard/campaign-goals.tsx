@@ -14,7 +14,7 @@ import {
   type GoalTile,
   type GoalTileStatus,
 } from "@/lib/dashboard/campaign-goals";
-import { distinctAdsetName } from "@/lib/dashboard/goal-names";
+import { daysLeftText, distinctAdsetName } from "@/lib/dashboard/goal-names";
 import type { FlightMetric, PacingFlight } from "@/lib/alerts/pacing";
 import { dayMonthPL, plPlural } from "@/lib/dashboard/story";
 import { cn, formatNumberPL } from "@/lib/utils";
@@ -220,7 +220,7 @@ function PacingCard({
         <div className="-mb-2 mt-auto flex min-h-11 items-center justify-between gap-3 border-t border-line pt-2 text-[13px] text-ink-3 tabular-nums">
           <span>
             {running && tile && tile.daysRemaining > 0
-              ? `zostało ${tile.daysRemaining} ${plPlural(tile.daysRemaining, "dzień", "dni", "dni")}`
+              ? daysLeftText(tile.daysRemaining)
               : ""}
           </span>
           {isAgency ? (

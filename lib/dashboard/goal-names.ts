@@ -29,3 +29,16 @@ export function distinctAdsetName(adset: string, campaign: string): string {
   const rest = adset.slice(a[shared - 1].end).replace(/^[\s|/]+/, "").trim();
   return rest || adset;
 }
+
+/**
+ * "został 1 dzień", "zostały 2 dni", "zostało 5 dni" - the verb agrees with
+ * the number ("zostało 1 dzień" read on every goal's last day).
+ */
+export function daysLeftText(days: number): string {
+  const n = Math.abs(Math.round(days));
+  const last = n % 10;
+  const lastTwo = n % 100;
+  if (n === 1) return `został ${days} dzień`;
+  if (last >= 2 && last <= 4 && !(lastTwo >= 12 && lastTwo <= 14)) return `zostały ${days} dni`;
+  return `zostało ${days} dni`;
+}

@@ -8,7 +8,7 @@ import type { AbAd, AbView } from "@/lib/ab/types";
 import type { Anomaly } from "@/lib/alerts/anomalies";
 import { GOAL_STATUS_WORDS, type GoalTile } from "@/lib/dashboard/campaign-goals";
 import { guessFormat, type CreativeFormat } from "@/lib/dashboard/creatives";
-import { distinctAdsetName } from "@/lib/dashboard/goal-names";
+import { daysLeftText, distinctAdsetName } from "@/lib/dashboard/goal-names";
 import type { SeasonBudget } from "@/lib/season/budget";
 import { compactPln } from "@/lib/season/format";
 import {
@@ -104,12 +104,7 @@ export function goalActions(goals: readonly GoalTile[], base: string): TodayActi
         source: "goal" as const,
         tag: GOAL_TAG,
         title: name,
-        detail: `${METRIC_LABEL[g.metric]} do ${shortDate(g.endDate)}${pace}, zostało ${g.daysRemaining} ${plural(
-          g.daysRemaining,
-          "dzień",
-          "dni",
-          "dni"
-        )}.`,
+        detail: `${METRIC_LABEL[g.metric]} do ${shortDate(g.endDate)}${pace}, ${daysLeftText(g.daysRemaining)}.`,
         figure: {
           value: `${Math.round(g.realizedPct * 100)}%`,
           caption: `celu · plan na dziś ${Math.round(g.expectedPct * 100)}%`,

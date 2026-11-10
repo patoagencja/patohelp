@@ -5,8 +5,7 @@ import { CountUp } from "@/components/ui/count-up";
 import { Ping, type PingTone } from "@/components/ui/primitives";
 import type { FlightMetric } from "@/lib/alerts/pacing";
 import { GOAL_STATUS_WORDS, type GoalTile, type GoalTileStatus } from "@/lib/dashboard/campaign-goals";
-import { distinctAdsetName } from "@/lib/dashboard/goal-names";
-import { plPlural } from "@/lib/dashboard/story";
+import { daysLeftText, distinctAdsetName } from "@/lib/dashboard/goal-names";
 import { cn } from "@/lib/utils";
 
 /**
@@ -167,7 +166,7 @@ function Tile({ g, href, index }: { g: GoalTile; href: string; index: number }) 
   const unit = g.metric === "spend" ? " zł" : "";
 
   const right = running
-    ? `zostało ${g.daysRemaining} ${plPlural(g.daysRemaining, "dzień", "dni", "dni")}`
+    ? daysLeftText(g.daysRemaining)
     : `koniec ${shortDate(g.endDate)}`;
   const overBy = Math.round((g.realizedPct - 1) * 100);
   const footer =
