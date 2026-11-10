@@ -768,6 +768,20 @@ export function incidentId(guard: FlowGuard, at: string): string {
   return `flow-${guard}-${at.slice(0, 16).replace(/[-:T]/g, "")}`;
 }
 
+/**
+ * Guards whose incident is simply what a website outage looks like from
+ * here: the ads keep clicking while Analytics sees nobody, and a shop whose
+ * server is down stops pushing its sales. While the website guard
+ * (lib/alerts/site-guard.ts) reports the site down, these would be a second
+ * and third Pilne card - and e-mail - about the same outage.
+ */
+const SITE_DOWN_SYMPTOMS: readonly FlowGuard[] = ["ga4", "shop-feed"];
+
+/** Whether an alert id is a data-flow incident an outage explains. */
+export function isSiteDownSymptom(alertId: string): boolean {
+  return SITE_DOWN_SYMPTOMS.some((g) => alertId.startsWith(`flow-${g}-`));
+}
+
 /** One guard's track after this check's verdict. */
 export function advanceGuard(
   guard: FlowGuard,

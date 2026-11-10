@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  CloudOff,
   Info,
   TriangleAlert,
   type LucideIcon,
@@ -584,28 +585,54 @@ export function AlertsAllClear({ lang = "pl" }: { lang?: Lang }) {
   );
 }
 
+/** The scan could not run: say so instead of a calm "all good". */
+function AlertsUnavailable({ lang = "pl" }: { lang?: Lang }) {
+  const en = lang === "en";
+  return (
+    <section className="glass flex flex-col items-center gap-3.5 rounded-glass px-7 py-16 text-center animate-rise [--d:.2s] sm:py-[72px]">
+      <span aria-hidden className="grid h-[72px] w-[72px] place-items-center rounded-full bg-chip text-ink-2">
+        <CloudOff className="h-8 w-8" strokeWidth={2.2} />
+      </span>
+      <h2 className="mt-1 text-[26px] font-medium tracking-[-0.03em]">
+        {en ? "Couldn't check right now" : "Nie udało się teraz sprawdzić"}
+      </h2>
+      <p className="max-w-[26rem] text-[15px] leading-relaxed text-ink-2 [text-wrap:pretty]">
+        {en
+          ? "The alert check didn't finish this time. Refresh the page in a moment - urgent problems still reach us by e-mail."
+          : "Sprawdzanie alertów tym razem się nie udało. Odśwież stronę za chwilę - pilne sprawy i tak trafiają do nas e-mailem."}
+      </p>
+    </section>
+  );
+}
+
 /**
  * The whole Alerty board for the real and the demo page: header (kicker +
  * summary chip, title, lead, severity filter) and the groups - or the calm
- * all-clear card. Rendered as a fragment of top-level page children (one
+ * all-clear card. `alerts` null = the scan failed: a "couldn't check" card,
+ * never "all clear". Rendered as a fragment of top-level page children (one
  * presentation slide each).
  */
-export function AlertsBoard({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?: Lang }) {
+export function AlertsBoard({ alerts: list, lang = "pl" }: { alerts: Anomaly[] | null; lang?: Lang }) {
   const en = lang === "en";
+  const alerts = list ?? [];
   const urgent = alerts.some((a) => a.severity === "critical");
   const attention = alerts.some((a) => a.severity === "high");
-  const tone: PingTone = urgent ? "coral" : attention ? "amber" : "live";
+  const tone: PingTone = list === null ? "muted" : urgent ? "coral" : attention ? "amber" : "live";
 
   const header = (
     <header className="min-w-0 max-w-2xl pt-2 md:pt-6">
       <div className="flex flex-wrap items-center gap-3 animate-rise [--d:.05s]">
         <span className="kick">{en ? "Checked every day" : "Sprawdzamy codziennie"}</span>
         <StatusChip tone={tone}>
-          {alerts.length === 0
+          {list === null
             ? en
-              ? "All clear"
-              : "Wszystko w normie"
-            : alertsHeadline(alerts, lang).replace(/\.$/, "")}
+              ? "Not checked"
+              : "Nie sprawdzono"
+            : alerts.length === 0
+              ? en
+                ? "All clear"
+                : "Wszystko w normie"
+              : alertsHeadline(alerts, lang).replace(/\.$/, "")}
         </StatusChip>
       </div>
       <h1 className="mt-5 text-[2.75rem] font-light leading-[0.95] tracking-[-0.05em] animate-rise [--d:.12s] sm:text-[3.75rem]">
@@ -618,6 +645,15 @@ export function AlertsBoard({ alerts, lang = "pl" }: { alerts: Anomaly[]; lang?:
       </p>
     </header>
   );
+
+  if (list === null) {
+    return (
+      <>
+        {header}
+        <AlertsUnavailable lang={lang} />
+      </>
+    );
+  }
 
   if (alerts.length === 0) {
     return (

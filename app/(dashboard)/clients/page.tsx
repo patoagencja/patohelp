@@ -28,6 +28,8 @@ import { Pill } from "@/components/ui/pill";
 import { readAlertAdsWindow } from "@/lib/alerts/ads-window";
 import { detectAnomalies } from "@/lib/alerts/anomalies";
 import { detectBudgetSpikes } from "@/lib/alerts/budget";
+import { isSiteDownSymptom } from "@/lib/alerts/data-flow";
+import { getSiteDownAlerts } from "@/lib/alerts/site-guard-read";
 import {
   AD_PROVIDERS,
   getExpiringTokens,
@@ -187,24 +189,35 @@ export default async function ClientsPage({
       ]).then(([down, expiring]) => {
         healthByClient.set(c.id as string, { down, expiring });
       });
+      // A website outage is the most critical thing a client can have: it
+      // counts here as on the client's own bell (one live read, never throws).
+      const downPromise = getSiteDownAlerts(c.id as string);
+      // Default caps (as before), five weeks of rows per client: shared
+      // per sync stamp so revisiting the picker doesn't rescan everyone.
+      // Agency viewer verified above; service-role read of listed clients.
+      const scanPromise = syncCached("alerts-default-caps", c.id as string, [], async () => {
+        // One read of the five weeks both detectors look at.
+        const shared = readAlertAdsWindow(admin, c.id as string);
+        const [spikes, anomalies] = await Promise.all([
+          detectBudgetSpikes(c.id as string, admin, undefined, shared),
+          detectAnomalies(c.id as string, admin, shared),
+        ]);
+        return [...spikes, ...anomalies];
+      });
+      // Handled below; this only stops Node flagging it while the outage read runs.
+      scanPromise.catch(() => {});
+      const siteIsDown = (await downPromise).length > 0;
+      let critical = 0;
       try {
-        // Default caps (as before), five weeks of rows per client: shared
-        // per sync stamp so revisiting the picker doesn't rescan everyone.
-        // Agency viewer verified above; service-role read of listed clients.
-        const all = await syncCached("alerts-default-caps", c.id as string, [], async () => {
-          // One read of the five weeks both detectors look at.
-          const shared = readAlertAdsWindow(admin, c.id as string);
-          const [spikes, anomalies] = await Promise.all([
-            detectBudgetSpikes(c.id as string, admin, undefined, shared),
-            detectAnomalies(c.id as string, admin, shared),
-          ]);
-          return [...spikes, ...anomalies];
-        });
-        const critical = all.filter((a) => a.severity === "critical").length;
-        alertCounts.set(c.id as string, critical);
+        // The outage's own symptoms (Analytics sees nobody, the shop's feed
+        // stopped) are not counted twice.
+        critical = (await scanPromise).filter(
+          (a) => a.severity === "critical" && !(siteIsDown && isSiteDownSymptom(a.id))
+        ).length;
       } catch {
-        alertCounts.set(c.id as string, 0);
+        critical = 0;
       }
+      alertCounts.set(c.id as string, critical + (siteIsDown ? 1 : 0));
       await healthPromise;
     })
   );

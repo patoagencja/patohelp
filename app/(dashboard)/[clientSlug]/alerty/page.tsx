@@ -196,7 +196,9 @@ export default async function AlertyPage({
   // The goal form's dropdowns (60 days of campaigns and ad sets - tens of
   // thousands of rows on OLX) no longer hold the page: they stream in below.
   const [alerts, pacing, viewer] = await Promise.all([
-    getCurrentAlerts(client.id),
+    // A scan that could say nothing at all (it already keeps whatever any
+    // source found) shows "couldn't check" - the goals below still render.
+    getCurrentAlerts(client.id).catch(() => null),
     getPacing(client.id),
     viewerPromise,
   ]);

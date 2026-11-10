@@ -417,8 +417,15 @@ export async function detectAnomalies(
 
   // ---- Same-day data-flow incidents ----
   // Not tied to the season: a broken tag or cart matters whenever the ads
-  // run. Unknown client type reads as engagement: no sales words.
-  for (const f of currentFlowAlerts(await flowStatePromise, sources?.shop ?? false)) {
+  // run. Unknown client type reads as engagement: no sales words. A stored
+  // state this code can't word costs only these cards, not the whole scan.
+  let flowAlerts: ReturnType<typeof currentFlowAlerts> = [];
+  try {
+    flowAlerts = currentFlowAlerts(await flowStatePromise, sources?.shop ?? false);
+  } catch (err) {
+    console.warn(`[alerts/anomalies] data-flow incidents for ${clientId} unreadable`, (err as Error)?.message);
+  }
+  for (const f of flowAlerts) {
     out.push({
       id: f.id,
       severity: f.severity,

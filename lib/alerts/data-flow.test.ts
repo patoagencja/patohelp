@@ -13,6 +13,7 @@ import {
   dayShare,
   flowSince,
   incidentId,
+  isSiteDownSymptom,
   judgeCheckout,
   judgeFeed,
   judgeGa4,
@@ -941,5 +942,19 @@ describe("Polish plurals", () => {
       "zakupów",
       "zakupów",
     ]);
+  });
+});
+
+describe("next to a website outage", () => {
+  test("the GA4 and shop-feed incidents are what an outage looks like; the cart and pixel ones are not", () => {
+    const id = (g: (typeof FLOW_GUARDS)[number]) => incidentId(g, at(THURSDAY, "14:25"));
+    assert.equal(isSiteDownSymptom(id("ga4")), true);
+    assert.equal(isSiteDownSymptom(id("shop-feed")), true);
+    assert.equal(isSiteDownSymptom(id("checkout")), false);
+    assert.equal(isSiteDownSymptom(id("meta-pixel")), false);
+    // Other alerts are never touched.
+    assert.equal(isSiteDownSymptom("client-sessions-down"), false);
+    assert.equal(isSiteDownSymptom("streak-sessions-2026-11-03"), false);
+    assert.equal(isSiteDownSymptom("site-down-2026-11-05T13:25"), false);
   });
 });
