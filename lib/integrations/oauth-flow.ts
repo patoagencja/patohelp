@@ -22,27 +22,40 @@ export function oauthReturnTo(state: string | null): OAuthReturnTo {
   return state?.endsWith(RETURN_TO_CLIENTS) ? "clients" : "settings";
 }
 
-/** Where a callback lands after a flow, with the propagation count. */
-export function oauthDoneUrl(
-  origin: string,
-  opts: {
-    returnTo: OAuthReturnTo;
-    slug: string | null;
-    provider: IntegrationProvider;
-    ok: boolean;
-    fixed?: number;
-  }
-): string {
-  const fixed = opts.fixed ? `&fixed=${opts.fixed}` : "";
-  if (opts.returnTo === "clients") {
-    return opts.ok
-      ? `${origin}/clients?reconnected=${opts.provider}${fixed}#polaczenia`
-      : `${origin}/clients?conn_error=${opts.provider}#polaczenia`;
-  }
-  const base = `${origin}/${opts.slug ?? "dre"}/settings`;
-  return opts.ok
-    ? `${base}?connected=${opts.provider}${fixed}`
-    : `${base}?error=${opts.provider}`;
+// Pure, unit-tested there; re-exported for the callbacks.
+export { oauthDoneUrl } from "@/lib/integrations/oauth-errors";
+
+/**
+ * The slug of the client a flow was started for, when the provider came
+ * back WITHOUT a code (consent cancelled, Workspace block, provider error).
+ * The state is checked and consumed exactly as on success - it names the
+ * client, so the agency lands on that client's settings with the reason,
+ * never on another client's. null when the state doesn't hold.
+ */
+export async function abandonedFlowSlug(
+  admin: SupabaseClient,
+  state: string | null,
+  provider: IntegrationProvider,
+  currentUserId: string | null
+): Promise<string | null> {
+  if (!state || !currentUserId) return null;
+  const consumed = await consumeOAuthState(admin, state, provider, currentUserId);
+  return consumed ? getClientSlug(admin, consumed.clientId) : null;
+}
+
+/** Whether the client already has this integration (a reconnect, not a first connect). */
+export async function hasIntegration(
+  admin: SupabaseClient,
+  clientId: string,
+  provider: IntegrationProvider
+): Promise<boolean> {
+  const { data } = await admin
+    .from("integrations")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("provider", provider)
+    .maybeSingle();
+  return Boolean(data);
 }
 
 /**

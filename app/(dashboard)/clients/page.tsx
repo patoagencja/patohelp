@@ -108,6 +108,7 @@ export default async function ClientsPage({
     reconnected?: string;
     fixed?: string;
     conn_error?: string;
+    conn_reason?: string;
   };
 }) {
   const supabase = createClient();
@@ -383,6 +384,7 @@ export default async function ClientsPage({
           reconnected={searchParams.reconnected}
           fixed={searchParams.fixed}
           connError={searchParams.conn_error}
+          connReason={searchParams.conn_reason}
         />
 
         <section aria-labelledby="klienci-title" className="space-y-4">

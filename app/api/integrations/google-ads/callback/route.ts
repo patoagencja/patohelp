@@ -11,8 +11,14 @@ import {
   type GoogleOAuthCredentials,
 } from "@/lib/integrations/google-identity";
 import {
+  oauthFailureReason,
+  type OAuthFailureReason,
+} from "@/lib/integrations/oauth-errors";
+import {
+  abandonedFlowSlug,
   consumeOAuthState,
   getClientSlug,
+  hasIntegration,
   oauthDoneUrl,
   oauthReturnTo,
   upsertIntegration,
@@ -38,14 +44,10 @@ export async function GET(request: Request) {
   const oauthError = searchParams.get("error");
   const returnTo = oauthReturnTo(state);
 
-  const fail = (slug: string | null) =>
+  const fail = (slug: string | null, reason?: OAuthFailureReason) =>
     NextResponse.redirect(
-      oauthDoneUrl(origin, { returnTo, slug, provider: "google_ads", ok: false })
+      oauthDoneUrl(origin, { returnTo, slug, provider: "google_ads", ok: false, reason })
     );
-
-  if (oauthError || !code || !state) {
-    return fail(null);
-  }
 
   const agency = await requireAgencyUser();
   if (!agency.ok) {
@@ -53,9 +55,20 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // No code: cancelled consent, or a Workspace admin blocking the app
+  // ("Ta aplikacja jest zablokowana"). Back to the client the state names.
+  if (oauthError || !code || !state) {
+    const slug = await abandonedFlowSlug(admin, state, "google_ads", agency.user.id);
+    const reason =
+      oauthFailureReason(oauthError, searchParams.get("error_subtype")) ??
+      (state ? "provider" : "state");
+    return fail(slug, reason);
+  }
+
   const consumed = await consumeOAuthState(admin, state, "google_ads", agency.user.id);
   if (!consumed) {
-    return fail(null);
+    return fail(null, "state");
   }
 
   const slug = await getClientSlug(admin, consumed.clientId);
@@ -65,6 +78,16 @@ export async function GET(request: Request) {
     const providers = googleProvidersForScope("google_ads", scope);
     const previousTokens = await readStoredTokens(admin, consumed.clientId, providers);
     const accounts = await listAccessibleCustomers(refresh_token);
+
+    // First connect with a login that reaches no Ads account: "Połączono ·
+    // wybrano 0 z 0" and nothing ever syncs. Say so instead.
+    if (
+      accounts.length === 0 &&
+      returnTo === "settings" &&
+      !(await hasIntegration(admin, consumed.clientId, "google_ads"))
+    ) {
+      return fail(slug, "no_access");
+    }
 
     const credentials: GoogleOAuthCredentials = {
       refresh_token,

@@ -10,8 +10,14 @@ import {
 } from "@/lib/integrations/google-identity";
 import { requireAgencyUser } from "@/lib/integrations/guard";
 import {
+  oauthFailureReason,
+  type OAuthFailureReason,
+} from "@/lib/integrations/oauth-errors";
+import {
+  abandonedFlowSlug,
   consumeOAuthState,
   getClientSlug,
+  hasIntegration,
   oauthDoneUrl,
   oauthReturnTo,
   upsertIntegration,
@@ -35,14 +41,10 @@ export async function GET(request: Request) {
   const oauthError = searchParams.get("error");
   const returnTo = oauthReturnTo(state);
 
-  const fail = (slug: string | null) =>
+  const fail = (slug: string | null, reason?: OAuthFailureReason) =>
     NextResponse.redirect(
-      oauthDoneUrl(origin, { returnTo, slug, provider: "ga4", ok: false })
+      oauthDoneUrl(origin, { returnTo, slug, provider: "ga4", ok: false, reason })
     );
-
-  if (oauthError || !code || !state) {
-    return fail(null);
-  }
 
   // Agency only: a reconnect here may also rewrite other clients' credentials.
   const agency = await requireAgencyUser();
@@ -51,9 +53,22 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // No code: cancelled consent, or Google refused it - a Workspace account
+  // whose admin doesn't trust the app ("Ta aplikacja jest zablokowana")
+  // comes back as access_denied / admin_policy_enforced. Back to the right
+  // client (the state names it) with a reason the toast can explain.
+  if (oauthError || !code || !state) {
+    const slug = await abandonedFlowSlug(admin, state, "ga4", agency.user.id);
+    const reason =
+      oauthFailureReason(oauthError, searchParams.get("error_subtype")) ??
+      (state ? "provider" : "state");
+    return fail(slug, reason);
+  }
+
   const consumed = await consumeOAuthState(admin, state, "ga4", agency.user.id);
   if (!consumed) {
-    return fail(null);
+    return fail(null, "state");
   }
 
   const slug = await getClientSlug(admin, consumed.clientId);
@@ -64,6 +79,18 @@ export async function GET(request: Request) {
     const providers = googleProvidersForScope("ga4", scope);
     const previousTokens = await readStoredTokens(admin, consumed.clientId, providers);
     const properties = await listAccessibleProperties(refresh_token);
+
+    // A first connect with a Google account that reaches no GA4 property:
+    // storing it showed "Połączono" with nothing to pick or sync, and took
+    // the "Połącz GA4" button away. Say what is wrong instead.
+    if (
+      properties.length === 0 &&
+      returnTo === "settings" &&
+      !(await hasIntegration(admin, consumed.clientId, "ga4"))
+    ) {
+      return fail(slug, "no_access");
+    }
+
     const credentials: GoogleOAuthCredentials = {
       refresh_token,
       account_email,
@@ -108,7 +135,7 @@ export async function GET(request: Request) {
       mode: "repair",
     }).catch(() => ({ fixed: [], noAccess: 0 }));
 
-    if (autoProperty || properties.length === 0 || returnTo === "clients") {
+    if (autoProperty || properties.length === 0 || returnTo === "clients" || !slug) {
       return NextResponse.redirect(
         oauthDoneUrl(origin, {
           returnTo,
@@ -121,7 +148,7 @@ export async function GET(request: Request) {
     }
 
     // Multiple properties - let the admin choose which one to track.
-    return NextResponse.redirect(`${origin}/${slug ?? "dre"}/settings/ga4-select`);
+    return NextResponse.redirect(`${origin}/${encodeURIComponent(slug)}/settings/ga4-select`);
   } catch (err) {
     console.error("[ga4/callback] flow failed", err);
     return fail(slug);

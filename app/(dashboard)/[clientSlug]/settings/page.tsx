@@ -84,6 +84,11 @@ const PROVIDERS: Array<{
   },
 ];
 
+// Google shows "Ta aplikacja jest zablokowana" on its own page and often
+// never comes back to our callback, so the fix is spelled out up front too.
+const GOOGLE_BLOCKED_HINT =
+  "Google pokazuje „Ta aplikacja jest zablokowana”? To konto Google Workspace, którego administrator nie ufa naszej aplikacji: admin.google.com → Bezpieczeństwo → Dostęp do danych i kontrola dostępu → Ustawienia interfejsu API → Zarządzaj dostępem aplikacji innych firm → oznacz aplikację jako zaufaną.";
+
 // Server Action: disconnect an integration.
 async function disconnectIntegration(formData: FormData) {
   "use server";
@@ -598,13 +603,18 @@ export default async function SettingsPage({
                       </div>
                     </>
                   ) : (
-                    <Button asChild className="w-fit">
-                      <a
-                        href={`/api/integrations/${provider.routeSlug}/connect?client=${params.clientSlug}`}
-                      >
-                        Połącz {provider.label}
-                      </a>
-                    </Button>
+                    <>
+                      <Button asChild className="w-fit">
+                        <a
+                          href={`/api/integrations/${provider.routeSlug}/connect?client=${encodeURIComponent(params.clientSlug)}`}
+                        >
+                          Połącz {provider.label}
+                        </a>
+                      </Button>
+                      {provider.key === "google_ads" ? (
+                        <p className="text-xs text-muted-foreground">{GOOGLE_BLOCKED_HINT}</p>
+                      ) : null}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -702,20 +712,25 @@ export default async function SettingsPage({
                       </div>
                     </>
                   ) : (
-                    <div className="flex flex-wrap gap-2">
-                      <Button asChild className="w-fit">
-                        <a
-                          href={`/api/integrations/ga4/connect?client=${params.clientSlug}`}
-                        >
-                          Połącz GA4
-                        </a>
-                      </Button>
-                      <Button asChild variant="outline" className="w-fit">
-                        <Link href={`/${params.clientSlug}/settings/ga4-service-account`}>
-                          Połącz przez konto usługi (nie wygasa)
-                        </Link>
-                      </Button>
-                    </div>
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        <Button asChild className="w-fit">
+                          <a
+                            href={`/api/integrations/ga4/connect?client=${encodeURIComponent(params.clientSlug)}`}
+                          >
+                            Połącz GA4
+                          </a>
+                        </Button>
+                        <Button asChild variant="outline" className="w-fit">
+                          <Link href={`/${params.clientSlug}/settings/ga4-service-account`}>
+                            Połącz przez konto usługi (nie wygasa)
+                          </Link>
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {GOOGLE_BLOCKED_HINT} Konto usługi działa bez logowania Google.
+                      </p>
+                    </>
                   )}
                 </CardContent>
               </Card>

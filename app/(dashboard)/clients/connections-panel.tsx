@@ -12,6 +12,7 @@ import {
 } from "@/lib/dashboard/integration-health";
 import { isMetaSessionInvalidated } from "@/lib/integrations/errors";
 import { fixedOthersLabel } from "@/lib/integrations/fixed-label";
+import { oauthFailureMessage } from "@/lib/integrations/oauth-errors";
 import {
   googleOAuthClientInfo,
   googleOAuthClientsShared,
@@ -190,12 +191,15 @@ export function ConnectionsPanel({
   reconnected,
   fixed,
   connError,
+  connReason,
 }: {
   clients: ConnectionsPanelClient[];
   nothingSelected?: UnselectedIntegration[];
   reconnected?: string;
   fixed?: string;
   connError?: string;
+  /** Why the flow failed (lib/integrations/oauth-errors.ts). */
+  connReason?: string;
 }) {
   const broken: Record<Provider, Broken[]> = { meta_ads: [], google_ads: [], ga4: [] };
   // "0 selected" has its own block below; its failed runs ("Brak wybranych
@@ -222,6 +226,8 @@ export function ConnectionsPanel({
   );
   const totalBroken = broken.meta_ads.length + broken.google_ads.length + broken.ga4.length;
   const googleClient = googleOAuthClientInfo().find((c) => c.clientId);
+
+  const connFailure = connError ? oauthFailureMessage(connError, connReason) : null;
 
   const fixedCount = Number(fixed);
   const resultLabel =
@@ -255,14 +261,19 @@ export function ConnectionsPanel({
           </span>
         </p>
       ) : null}
-      {connError ? (
-        <p
+      {connFailure ? (
+        <div
           role="alert"
           className="flex items-start gap-2 rounded-[18px] bg-warning-soft px-4 py-3 text-sm text-foreground"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
-          Nie udało się połączyć {LABEL[connError as Provider] ?? connError}. Spróbuj ponownie.
-        </p>
+          <div className="min-w-0 space-y-1">
+            <p className="font-medium">{connFailure.title}</p>
+            {connFailure.description ? (
+              <p className="break-words text-ink-2">{connFailure.description}</p>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">

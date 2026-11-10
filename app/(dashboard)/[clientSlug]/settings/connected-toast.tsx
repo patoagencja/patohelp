@@ -6,11 +6,13 @@ import { toast } from "sonner";
 
 import { SYNC_CHECK_EVENT } from "@/components/dashboard/auto-refresh";
 import { fixedOthersLabel } from "@/lib/integrations/fixed-label";
+import { oauthFailureMessage } from "@/lib/integrations/oauth-errors";
 
 const PROVIDER_LABELS: Record<string, string> = {
   meta_ads: "Meta Ads",
   google_ads: "Google Ads",
   ga4: "Google Analytics 4",
+  tiktok_ads: "TikTok Ads",
 };
 
 /** Saves that put fresh credentials in place - data should follow at once.
@@ -54,7 +56,7 @@ export function ConnectedToast({
     // Drop the one-shot params so a reload doesn't repeat the toast and sync.
     if (connected || error || saved) {
       const url = new URL(window.location.href);
-      for (const k of ["connected", "error", "saved", "fixed", "rows", "msg"]) url.searchParams.delete(k);
+      for (const k of ["connected", "error", "saved", "fixed", "rows", "msg", "reason"]) url.searchParams.delete(k);
       window.history.replaceState(window.history.state, "", url);
     }
 
@@ -111,9 +113,15 @@ export function ConnectedToast({
     } else if (error === "season_failed") {
       toast.error("Nie udało się zapisać typu i sezonu. Spróbuj ponownie.");
     } else if (error) {
-      toast.error(
-        `Nie udało się połączyć z ${PROVIDER_LABELS[error] ?? error}. Spróbuj ponownie.`
-      );
+      // OAuth callbacks: ?error=<provider>&reason=<denied|blocked|...>. A
+      // Workspace block needs an admin, not a retry - the long how-to stays
+      // up until dismissed.
+      const message = oauthFailureMessage(error, params.get("reason"));
+      toast.error(message.title, {
+        description: message.description,
+        duration: message.description ? Infinity : undefined,
+        closeButton: Boolean(message.description),
+      });
     } else if (saved === "meta_token") {
       toast.success("Meta połączona tokenem, który nie wygasa - koniec rozłączeń.", {
         description: fixedNote ?? undefined,

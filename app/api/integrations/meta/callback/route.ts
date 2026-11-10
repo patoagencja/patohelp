@@ -8,8 +8,14 @@ import {
   listAdAccounts,
 } from "@/lib/integrations/meta-ads";
 import {
+  oauthFailureReason,
+  type OAuthFailureReason,
+} from "@/lib/integrations/oauth-errors";
+import {
+  abandonedFlowSlug,
   consumeOAuthState,
   getClientSlug,
+  hasIntegration,
   oauthDoneUrl,
   oauthReturnTo,
   upsertIntegration,
@@ -33,14 +39,10 @@ export async function GET(request: Request) {
   const oauthError = searchParams.get("error");
   const returnTo = oauthReturnTo(state);
 
-  const fail = (slug: string | null) =>
+  const fail = (slug: string | null, reason?: OAuthFailureReason) =>
     NextResponse.redirect(
-      oauthDoneUrl(origin, { returnTo, slug, provider: "meta_ads", ok: false })
+      oauthDoneUrl(origin, { returnTo, slug, provider: "meta_ads", ok: false, reason })
     );
-
-  if (oauthError || !code || !state) {
-    return fail(null);
-  }
 
   // The user must still be the one who started the flow - and agency staff,
   // since a reconnect here may rewrite other clients' credentials too.
@@ -50,9 +52,20 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // No code: "Anuluj" on Facebook's dialog (error=access_denied,
+  // error_reason=user_denied). Back to the client the state names.
+  if (oauthError || !code || !state) {
+    const slug = await abandonedFlowSlug(admin, state, "meta_ads", agency.user.id);
+    const reason =
+      oauthFailureReason(oauthError, searchParams.get("error_reason")) ??
+      (state ? "provider" : "state");
+    return fail(slug, reason);
+  }
+
   const consumed = await consumeOAuthState(admin, state, "meta_ads", agency.user.id);
   if (!consumed) {
-    return fail(null);
+    return fail(null, "state");
   }
 
   const slug = await getClientSlug(admin, consumed.clientId);
@@ -63,6 +76,16 @@ export async function GET(request: Request) {
       code
     );
     const accounts = await listAdAccounts(access_token);
+
+    // First connect with a login that reaches no ad account (none ticked on
+    // Facebook's dialog, or no access yet): "0 z 0" and nothing ever syncs.
+    if (
+      accounts.length === 0 &&
+      returnTo === "settings" &&
+      !(await hasIntegration(admin, consumed.clientId, "meta_ads"))
+    ) {
+      return fail(slug, "no_access");
+    }
     // Which login this is; best-effort, the connection works without it.
     const identity = await getMetaIdentity(access_token).catch(() => null);
 
