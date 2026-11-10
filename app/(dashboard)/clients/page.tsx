@@ -38,6 +38,7 @@ import {
   type ExpiringToken,
   type ProviderHealth,
 } from "@/lib/dashboard/integration-health";
+import { clientSlugProblem, normalizeClientSlug } from "@/lib/clients/slug";
 import { getSpendByClientOnDate } from "@/lib/dashboard/ads-totals";
 import { syncCached } from "@/lib/dashboard/sync-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -77,27 +78,38 @@ async function addClient(formData: FormData) {
     .single();
   if (!profile || (profile.role as UserRole) !== "admin") return;
 
-  const name = String(formData.get("name") ?? "").trim();
-  // Tolerate pasting a URL: strip protocol/www/path and the domain suffix so
-  // "https://www.olx.pl" becomes "olx", not "https-www-olx-pl".
-  const slug = String(formData.get("slug") ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/^www\./, "")
-    .split("/")[0]
-    .split(".")[0]
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (!name || !slug) return;
+  const name = String(formData.get("name") ?? "").trim().slice(0, 120);
+  // Tolerate pasting a URL ("https://www.olx.pl" -> "olx") and Polish
+  // letters ("Łódź" -> "lodz", not "d"); an empty slug falls back to the name.
+  const typed = String(formData.get("slug") ?? "");
+  const slug = normalizeClientSlug(typed.trim() ? typed : name);
+  if (!name) redirect("/clients?error=client_name#dodaj-klienta");
+  const problem = clientSlugProblem(slug);
+  if (problem) redirect(`/clients?error=client_slug_${problem}#dodaj-klienta`);
 
   const admin = createAdminClient();
   const { error } = await admin.from("clients").insert({ name, slug });
   if (error) {
-    redirect(`/clients?error=${encodeURIComponent(error.message)}`);
+    // 23505: the slug is the clients' unique key - someone already has it.
+    console.error("[clients] add failed", error.code, error.message);
+    redirect(
+      `/clients?error=${error.code === "23505" ? "client_slug_taken" : "client_failed"}#dodaj-klienta`
+    );
   }
   redirect(`/${slug}/settings`);
 }
+
+// "Dodaj klienta" errors (?error=). Codes only: the raw database message
+// used to be shown, in English, and any text in the URL was echoed.
+const ADD_CLIENT_ERRORS: Record<string, string> = {
+  client_name: "Podaj nazwę klienta.",
+  client_slug_empty:
+    "Adres (slug) musi zawierać litery lub cyfry, np. „dre” albo „okna-lodz”.",
+  client_slug_reserved:
+    "Ten adres jest zajęty przez sam panel (np. „clients”, „login”) - wybierz inny.",
+  client_slug_taken: "Klient z takim adresem już istnieje - wybierz inny slug.",
+  client_failed: "Nie udało się dodać klienta. Spróbuj ponownie.",
+};
 
 export default async function ClientsPage({
   searchParams,
@@ -496,7 +508,7 @@ export default async function ClientsPage({
         </section>
 
         {isAdmin ? (
-          <section aria-labelledby="dodaj-klienta-title" className="space-y-4">
+          <section id="dodaj-klienta" aria-labelledby="dodaj-klienta-title" className="scroll-mt-28 space-y-4">
             <div className="px-1">
               <p className="kick">Tylko admin</p>
               <h2 id="dodaj-klienta-title" className="mt-2 text-[22px] font-medium tracking-[-0.03em]">
@@ -507,7 +519,9 @@ export default async function ClientsPage({
               </p>
             </div>
             {searchParams.error ? (
-              <p className="text-sm text-destructive">{searchParams.error}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {ADD_CLIENT_ERRORS[searchParams.error] ?? ADD_CLIENT_ERRORS.client_failed}
+              </p>
             ) : null}
             <form
               action={addClient}
