@@ -1,6 +1,6 @@
 
 import type { DemographicsData } from "@/lib/dashboard/demographics";
-import { formatCompactPL } from "@/lib/dashboard/story";
+import { compactListFormatter } from "@/lib/dashboard/story";
 
 import { outOfTen, ShareBars, type ShareRow } from "./share-bars";
 
@@ -87,7 +87,8 @@ export function Audience({ data }: { data: DemographicsData }) {
 
   const sourceNote = (src: "meta" | "ga4" | null) =>
     src === "meta" ? "osoby, do których dotarły reklamy" : "osoby odwiedzające stronę";
-  const unit = (n: number) => formatCompactPL(n);
+  // One number format per list (compactListFormatter).
+  const unitOf = (rows: ShareRow[]) => compactListFormatter(rows.map((r) => r.value));
 
   return (
     <section className="space-y-4">
@@ -113,7 +114,7 @@ export function Audience({ data }: { data: DemographicsData }) {
                 : null
             }
             rows={ageRows}
-            unit={unit}
+            unit={unitOf(ageRows)}
             keepOrder
           />
         ) : null}
@@ -129,7 +130,7 @@ export function Audience({ data }: { data: DemographicsData }) {
                 : null
             }
             rows={genderRows}
-            unit={unit}
+            unit={unitOf(genderRows)}
           />
         ) : null}
         {geoRows.length ? (
@@ -141,7 +142,7 @@ export function Audience({ data }: { data: DemographicsData }) {
               .map((r) => r.label)
               .join(", ")}.`}
             rows={geoRows}
-            unit={unit}
+            unit={unitOf(geoRows)}
           />
         ) : null}
       </div>

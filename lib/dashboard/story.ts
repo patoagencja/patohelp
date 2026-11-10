@@ -77,6 +77,14 @@ export function formatCompactPL(n: number): string {
   return n >= 100_000 ? COMPACT.format(n) : formatNumberPL(n);
 }
 
+/**
+ * formatCompactPL for a list read together: once any value is compact, all
+ * are ("58 339" in the row under "197 tys." looked like another unit).
+ */
+export function compactListFormatter(values: number[]): (n: number) => string {
+  return values.some((v) => v >= 100_000) ? (n) => COMPACT.format(n) : formatNumberPL;
+}
+
 /** Noun form to use after a formatted number ("tys."/"mln" take genitive). */
 function nounFor(n: number, one: string, few: string, many: string): string {
   return n >= 100_000 ? many : plPlural(n, one, few, many);
