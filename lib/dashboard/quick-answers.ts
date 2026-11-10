@@ -39,9 +39,12 @@ function planAnswer(rows: PlanRow[]): QuickAnswer | null {
   if (judged.length === 0) return null;
   const lines = judged.map((r) => {
     const name = r.label.replace(/\s*-\s*cel$/, "");
+    // The marker is each row's own plan for today (the budget counts today,
+    // goals count finished days), so "przy 33% miesiąca" and "przy 30%
+    // miesiąca" sat in one answer. Name it as the plan, like the card does.
     const where =
-      r.marker !== null ? ` przy ${Math.round(r.marker)}% miesiąca` : "";
-    return `${name}: ${Math.round(r.pct)}%${where} (${r.value}) - ${r.short ?? STATUS_WORDS[r.tone]}`;
+      r.marker !== null ? `, plan na dziś ok. ${Math.round(r.marker)}%` : "";
+    return `${name}: ${Math.round(r.pct)}% (${r.value}${where}) - ${r.short ?? STATUS_WORDS[r.tone]}`;
   });
   // "Most behind" = the widest gap between where we are and the plan tick,
   // not whichever row happens to come first.

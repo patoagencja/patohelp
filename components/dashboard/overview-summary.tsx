@@ -84,7 +84,7 @@ export function AlertLine({ alerts, href }: { alerts: Anomaly[]; href: string })
         <span className="font-medium text-foreground">{top.title}</span>
         <span className="text-muted-foreground"> · {top.scopeLabel}</span>
         {more > 0 ? (
-          <span className="text-muted-foreground"> · i jeszcze {more}</span>
+          <span className="text-muted-foreground"> · i jeszcze{"\u00a0"}{more}</span>
         ) : null}
       </span>
       <span className="flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-card px-3.5 text-[13px] font-medium text-foreground shadow-sm transition-colors group-hover:bg-anchor group-hover:text-anchor-foreground">
