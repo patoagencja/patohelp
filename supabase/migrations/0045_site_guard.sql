@@ -186,6 +186,13 @@ begin
   if not found or s.url is distinct from p_url then
     return;
   end if;
+  -- No answer at all (pg_net lost the request, or our own network failed
+  -- that round): nothing was learned about the site. Moving
+  -- last_checked_at would keep showing "sprawdzono 3 min temu" while the
+  -- checks have silently stopped. (401/403/429 have a status: they count.)
+  if p_ok is null and p_http_status is null then
+    return;
+  end if;
 
   s.last_checked_at := p_checked_at;
   s.last_ok := p_ok;
