@@ -393,7 +393,14 @@ export function actionLabel(a: Anomaly, lang: Lang, short = false): string {
 
 /** "5 396 zł" must not wrap as "5 / 396 zł" on a phone. */
 function keepNumbersTogether(s: string): string {
-  return s.replace(/(\d) (?=\d{3}\b)/g, "$1\u00a0").replace(/(\d) (zł|%)/g, "$1\u00a0$2");
+  return (
+    s
+      .replace(/(\d) (?=\d{3}\b)/g, "$1\u00a0")
+      .replace(/(\d) (zł|%)/g, "$1\u00a0$2")
+      // Polish typesetting: a one-letter word never ends a line ("(o" left
+      // alone at the end of a line above "11%)").
+      .replace(/(^|[\s(„])([aiouwzAIOUWZ]) /g, "$1$2\u00a0")
+  );
 }
 
 /**
