@@ -32,6 +32,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+/**
+ * No client is claimed after this much of maxDuration. A claim is taken
+ * before the slow read and released only by this function, so a client
+ * claimed and then cut off by the platform's limit kept its claim - "już
+ * wysłane" - and never got the month's e-mail. The rest go out on the next
+ * tick (30 min later, same day).
+ */
+const CLIENT_START_BUDGET_MS = 75_000;
+
 interface DigestSettings {
   client_id: string;
   emails: string[] | null;
@@ -49,6 +58,7 @@ interface ClientRow {
 const looksLikeEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -126,6 +136,10 @@ export async function GET(request: Request) {
     // 1st on every day of the window (DigestMonth.claimDate), so the 2nd and
     // 3rd see the claim of the 1st.
     const claim = !force && !dry;
+    if (claim && Date.now() - startedAt > CLIENT_START_BUDGET_MS) {
+      skipped.push(`${client.slug}: brak czasu w tym wywołaniu - wyślemy przy następnym`);
+      continue;
+    }
     if (claim) {
       const { error } = await admin
         .from("notifications_sent")
