@@ -294,16 +294,17 @@ export function demoEngagementGoals(today = todayWarsaw()): EngagementGoal[] {
     }
     return m;
   };
-  // Daily bases in scale with the demo trend (lib/demo/data.ts: ~1 220
-  // visits and ~1 540 clicks a day) so the goal bars and the hero agree.
-  const sessions = series(1420, 1);
-  const clicks = series(1650, 2);
-  const conversions = series(41, 3);
+  // Daily bases in scale with the demo shop's days (lib/demo/ecom.ts, which
+  // lib/demo/data.ts reads: ~4 500 visits and ~1 600 clicks a day) so the
+  // goal bars and the hero agree.
+  const sessions = series(4700, 1);
+  const clicks = series(1700, 2);
+  const conversions = series(40, 3);
   const round = (n: number, step: number) => Math.max(step, Math.round(n / step) * step);
 
   const goals = [
-    computeGoal("sessions", round(1420 * dim * 0.96, 500), sessions, today),
-    computeGoal("clicks", round(1650 * dim * 1.1, 500), clicks, today),
+    computeGoal("sessions", round(4700 * dim * 0.96, 500), sessions, today),
+    computeGoal("clicks", round(1700 * dim * 1.1, 500), clicks, today),
   ];
   const convSoFar = Array.from({ length: completeDays }, (_, i) =>
     conversions.get(addDays(monthStart, i)) ?? 0
@@ -311,7 +312,7 @@ export function demoEngagementGoals(today = todayWarsaw()): EngagementGoal[] {
   goals.push(
     computeGoal(
       "conversions",
-      completeDays >= 3 ? round(convSoFar * 0.85, 10) : round(41 * dim, 50),
+      completeDays >= 3 ? round(convSoFar * 0.85, 10) : round(40 * dim, 50),
       conversions,
       today
     )

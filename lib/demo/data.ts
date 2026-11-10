@@ -1,7 +1,8 @@
 import { format, subDays } from "date-fns";
-import { getTimezoneOffset } from "date-fns-tz";
+import { formatInTimeZone, getTimezoneOffset } from "date-fns-tz";
 
 import type { Anomaly } from "@/lib/alerts/anomalies";
+import { DEMO_PREV_CHANGE, demoPrevTotal } from "@/lib/dashboard/chart-events";
 import { buildFlowAlert, clockLabel, localClock, type FlowAlert, type FlowIncident } from "@/lib/alerts/data-flow";
 import { buildStreakAlert, STREAK_WINDOW_DAYS, type DayTotals } from "@/lib/alerts/streaks";
 import type {
@@ -17,6 +18,14 @@ import type { WebsiteData } from "@/lib/dashboard/ga4-metrics";
 import type { DailyScore } from "@/lib/dashboard/score";
 import type { CreativeItem } from "@/components/dashboard/creatives-table";
 import type { CreativeRow } from "@/components/dashboard/top-creatives";
+import {
+  DEMO_DEVICE_SHARES,
+  DEMO_ENGAGEMENT_RATE,
+  demoMonthSpend,
+  demoTopPages,
+  getDemoShopDays,
+} from "@/lib/demo/ecom";
+import { addDays } from "@/lib/ecom/insights";
 import type { AdProvider } from "@/lib/types";
 import { formatPlnWhole } from "@/lib/utils";
 
@@ -124,6 +133,10 @@ function demoStreakAlert(today: Date, en: boolean): Anomaly[] {
  */
 function demoFlowAlerts(now: Date, en: boolean): Anomaly[] {
   const offset = Math.round(getTimezoneOffset("Europe/Warsaw", now) / 60_000);
+  // Today's orders so far, as "Dziś" and Sprzedaż count them - a fixed 23
+  // here sat next to "Dziś do tej pory ... z 32 zamówień".
+  const todayStr = formatInTimeZone(now, "Europe/Warsaw", "yyyy-MM-dd");
+  const shopOrders = getDemoShopDays(todayStr, todayStr, todayStr)[0]?.transactions ?? 0;
   const ago = (min: number) => new Date(now.getTime() - min * 60_000).toISOString();
   const local = (iso: string) => localClock(iso, offset);
   const fromHour = Math.max(0, local(now.toISOString()).hour - 3);
@@ -161,7 +174,7 @@ function demoFlowAlerts(now: Date, en: boolean): Anomaly[] {
       usualClicks: 1_180,
       purchases: 0,
       expected: 9.3,
-      shopPurchases: 23,
+      shopPurchases: shopOrders,
       source: "shop",
     }),
     incident("shop-feed", 40, "high", { guard: "shop-feed", lastPushAt, ageMin: 260, usualGapMin: 60 }),
@@ -192,7 +205,7 @@ function demoFlowAlerts(now: Date, en: boolean): Anomaly[] {
       scopeLabel: "Sales tracking · Meta",
       metric: "Meta pixel",
       title: "Meta pixel isn't counting purchases",
-      description: "Meta shows no purchase from ads today, although the ads brought 1,240 clicks — as many as usual by this time. With this traffic Meta usually counts about 9 purchases by now, and the shop has 23 orders today.",
+      description: `Meta shows no purchase from ads today, although the ads brought 1,240 clicks — as many as usual by this time. With this traffic Meta usually counts about 9 purchases by now, and the shop has ${shopOrders} orders today.`,
       why: "Meta learns from purchases — without them, sales campaigns don't know whom to look for and get weaker and pricier every hour.",
       action: "Check the Meta pixel / Conversions API — the shop sells, but Meta doesn't see purchases.",
       label: "today",
@@ -249,66 +262,47 @@ export function getDemoDashboard(
 ): DemoDashboard {
   const en = lang === "en";
   const rand = seeded(20260729);
+  // The shop's calendar day, like the Sprzedaż demo (and the live data).
+  const todayStr = formatInTimeZone(today, "Europe/Warsaw", "yyyy-MM-dd");
 
-  // --- 30-day trend with a gentle upward drift and weekend dips -------------
-  const trend: TrendPoint[] = [];
-  for (let i = 0; i < DAYS; i++) {
-    const date = subDays(today, DAYS - 1 - i);
-    const dow = date.getDay();
-    const weekend = dow === 0 || dow === 6 ? 0.78 : 1;
-    const drift = 1 + (i / (DAYS - 1)) * 0.28;
-    const noise = 0.9 + rand() * 0.2;
-    const spend = Math.round(135000 * drift * weekend * noise); // grosze/day
-    const clicks = Math.round((spend / 100 / 0.95) * (0.95 + rand() * 0.1));
-    const impressions = Math.round(clicks / (0.019 + rand() * 0.004));
-    const sessions = Math.round(clicks * (0.72 + rand() * 0.12));
-    const conversions = Math.round(clicks * (0.028 + rand() * 0.01));
-    trend.push({
-      date: format(date, "yyyy-MM-dd"),
-      spendMinorUnits: spend,
-      sessions,
-      clicks,
-      impressions,
-      conversions,
-      revenueMinorUnits: 0,
-      transactions: 0,
-    });
-  }
+  // --- 30-day trend: the shop's own days (lib/demo/ecom.ts) -----------------
+  // Spend, clicks and visits are the Sprzedaż demo's numbers for the same
+  // days, so no page of the demo can show another total for the same range.
+  // Today is partial, as in the live data. Impressions are set after the
+  // campaigns (below), from their click-through rates.
+  const shopDays = getDemoShopDays(addDays(todayStr, -(DAYS - 1)), todayStr, todayStr);
+  const trend: TrendPoint[] = shopDays.map((v) => ({
+    date: v.date,
+    spendMinorUnits: v.spend,
+    sessions: v.sessions,
+    clicks: v.clicks,
+    impressions: 0,
+    conversions: v.conversions,
+    revenueMinorUnits: 0,
+    transactions: 0,
+  }));
 
   const sum = (f: (p: TrendPoint) => number) => trend.reduce((a, p) => a + f(p), 0);
-
-  const mkKpi = (value: number, previous: number): Kpi => ({
-    value,
-    previous,
-    deltaPercent: previous > 0 ? ((value - previous) / previous) * 100 : null,
-  });
 
   const curSpend = sum((p) => p.spendMinorUnits);
   const curClicks = sum((p) => p.clicks);
   const curSessions = sum((p) => p.sessions);
-  const curImpr = sum((p) => p.impressions);
   const curConv = sum((p) => p.conversions);
-  const ctrVal = (curClicks / curImpr) * 100;
-  const cpcVal = Math.round(curSpend / curClicks);
-
-  const kpis: DashboardKpis = {
-    spendMinorUnits: mkKpi(curSpend, Math.round(curSpend * 0.9)),
-    clicks: mkKpi(curClicks, Math.round(curClicks * 0.86)),
-    sessions: mkKpi(curSessions, Math.round(curSessions * 0.83)),
-    ctr: mkKpi(Number(ctrVal.toFixed(2)), Number((ctrVal * 0.94).toFixed(2))),
-    // Derived from the previous spend and clicks above, so the tile agrees
-    // with the chart's dashed previous-period line (buildDemoChartExtras).
-    cpcMinorUnits: mkKpi(cpcVal, Math.round((curSpend * 0.9) / (curClicks * 0.86))),
-    conversions: mkKpi(curConv, Math.round(curConv * 0.88)),
+  const platformSpend = {
+    meta_ads: shopDays.reduce((a, v) => a + v.metaSpend, 0),
+    google_ads: shopDays.reduce((a, v) => a + v.googleSpend, 0),
   };
 
   // --- Campaigns (Meta + Google) --------------------------------------------
   // lokalnepomidorki's own campaigns: the Meta ones are the ones whose ads
   // "Testy kreacji" (lib/demo/ab.ts) compares, with about the same split of
   // the budget; Google covers search, the shop feed and a farm video.
+  // Weights split each platform's spend (the shop's own Meta / Google days),
+  // so Reklamy's platform split is Sprzedaż's. No two weights are equal
+  // within a platform: three campaigns at the same "3 072 zł" looked made up.
   const campaignDefs: Array<{
     id: string;
-    provider: AdProvider;
+    provider: "meta_ads" | "google_ads";
     namePl: string;
     nameEn: string;
     weight: number;
@@ -321,23 +315,40 @@ export function getDemoDashboard(
     { id: "d-m2", provider: "meta_ads", namePl: "SPRZEDAŻ | Pomidory i przetwory", nameEn: "SALES | Tomatoes & preserves", weight: 0.19, ctr: 1.7, status: "active", reasonPl: null, reasonEn: null },
     { id: "d-m3", provider: "meta_ads", namePl: "SPRZEDAŻ | Dostawa jutro", nameEn: "SALES | Next-day delivery", weight: 0.07, ctr: 1.8, status: "active", reasonPl: null, reasonEn: null },
     { id: "d-m4", provider: "meta_ads", namePl: "REMARKETING | Sklep", nameEn: "REMARKETING | Shop", weight: 0.08, ctr: 2.4, status: "attention", reasonPl: "Rosnący koszt kliknięcia", reasonEn: "Rising cost per click" },
-    { id: "d-g1", provider: "google_ads", namePl: "SEARCH | Marka lokalnepomidorki", nameEn: "SEARCH | Brand lokalnepomidorki", weight: 0.07, ctr: 8.5, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-g1", provider: "google_ads", namePl: "SEARCH | Marka lokalnepomidorki", nameEn: "SEARCH | Brand lokalnepomidorki", weight: 0.08, ctr: 8.5, status: "active", reasonPl: null, reasonEn: null },
     { id: "d-g2", provider: "google_ads", namePl: "SEARCH | Warzywa z dostawą", nameEn: "SEARCH | Veg delivery", weight: 0.15, ctr: 4.5, status: "active", reasonPl: null, reasonEn: null },
     { id: "d-g3", provider: "google_ads", namePl: "PMAX | Sklep z warzywami", nameEn: "PMAX | Veg shop", weight: 0.13, ctr: 1.8, status: "attention", reasonPl: "Wydatki powyżej normy", reasonEn: "Spend above normal" },
-    { id: "d-g4", provider: "google_ads", namePl: "YT | Wideo z gospodarstwa", nameEn: "YT | Farm video", weight: 0.07, ctr: 1.1, status: "active", reasonPl: null, reasonEn: null },
+    { id: "d-g4", provider: "google_ads", namePl: "YT | Wideo z gospodarstwa", nameEn: "YT | Farm video", weight: 0.06, ctr: 1.1, status: "active", reasonPl: null, reasonEn: null },
   ];
+
+  /** Split `total` by `weights`, rounding so the parts add up exactly. */
+  const split = (total: number, weights: number[]) => {
+    const wSum = weights.reduce((a, v) => a + v, 0) || 1;
+    const parts = weights.map((w) => Math.round((total * w) / wSum));
+    const top = weights.indexOf(Math.max(...weights));
+    parts[top] += total - parts.reduce((a, v) => a + v, 0);
+    return parts;
+  };
+  const spends = new Array<number>(campaignDefs.length).fill(0);
+  for (const provider of ["meta_ads", "google_ads"] as const) {
+    const idx = campaignDefs.flatMap((c, i) => (c.provider === provider ? [i] : []));
+    split(platformSpend[provider], idx.map((i) => campaignDefs[i].weight)).forEach((v, k) => {
+      spends[idx[k]] = v;
+    });
+  }
 
   // Google clicks cost about twice Meta's (search intent), like real
   // accounts; raw shares are normalised so all campaigns still add up to the
   // KPI total. The cost trend below is built around the same averages.
-  const PLATFORM_CPC = { meta_ads: 0.72, google_ads: 1.55, tiktok_ads: 1 } as const;
-  const rawShares = campaignDefs.map(
-    (c) => (c.weight * (0.9 + rand() * 0.2)) / (PLATFORM_CPC[c.provider] ?? 1)
+  const PLATFORM_CPC = { meta_ads: 0.72, google_ads: 1.55 } as const;
+  const clicksBy = split(
+    curClicks,
+    campaignDefs.map((c, i) => (spends[i] * (0.9 + rand() * 0.2)) / PLATFORM_CPC[c.provider])
   );
-  const rawTotal = rawShares.reduce((a, v) => a + v, 0) || 1;
+  const convBy = split(curConv, spends);
   const campaigns: CampaignRow[] = campaignDefs.map((c, idx) => {
-    const spend = Math.round(curSpend * c.weight);
-    const clicks = Math.round((curClicks * rawShares[idx]) / rawTotal);
+    const spend = spends[idx];
+    const clicks = clicksBy[idx];
     const impressions = Math.round((clicks / c.ctr) * 100);
     const cpc = clicks > 0 ? Math.round(spend / clicks) : null;
     const spark = Array.from({ length: 7 }, (_, i) =>
@@ -352,12 +363,72 @@ export function getDemoDashboard(
       impressions,
       ctr: c.ctr,
       cpcMinorUnits: cpc,
-      conversions: Math.round(curConv * c.weight),
+      conversions: convBy[idx],
       status: c.status,
       statusReason: en ? c.reasonEn : c.reasonPl,
       spark: idx % 4 === 3 ? spark.map((v, i) => Math.round(v * (1.1 - i * 0.05))) : spark,
     };
   });
+
+  // Daily impressions add up to the campaigns' (clicks / their CTR), so the
+  // CTR tile is the table's weighted CTR; a gentle wobble keeps its
+  // sparkline from being a flat line.
+  const curImpr = campaigns.reduce((a, c) => a + c.impressions, 0);
+  split(
+    curImpr,
+    trend.map((p, i) => p.clicks * (1 + 0.06 * Math.sin(i * 1.3) + 0.03 * Math.cos(i * 0.7)))
+  ).forEach((v, i) => {
+    trend[i].impressions = v;
+  });
+
+  const ctrVal = curImpr > 0 ? (curClicks / curImpr) * 100 : 0;
+  const cpcVal = curClicks > 0 ? Math.round(curSpend / curClicks) : 0;
+
+  // Today is partial, so the % compares finished days only, per day - the
+  // live tiles' rule (metrics.ts kpiRate / kpiRatio) and the chart's. The
+  // previous totals are the ones buildDemoChartExtras draws as the dashed
+  // line (demoPrevTotal), so tile and chart say the same "+11%".
+  const done = trend.slice(0, -1);
+  const doneSum = (f: (p: TrendPoint) => number) => done.reduce((a, p) => a + f(p), 0);
+  const prev = {
+    spend: demoPrevTotal(trend, (p) => p.spendMinorUnits, DEMO_PREV_CHANGE.spend),
+    clicks: demoPrevTotal(trend, (p) => p.clicks, DEMO_PREV_CHANGE.clicks),
+    sessions: demoPrevTotal(trend, (p) => p.sessions, DEMO_PREV_CHANGE.sessions),
+    impressions: demoPrevTotal(trend, (p) => p.impressions, DEMO_PREV_CHANGE.impressions),
+    conversions: demoPrevTotal(trend, (p) => p.conversions, DEMO_PREV_CHANGE.conversions),
+  };
+  const rateKpi = (value: number, previous: number, pick: (p: TrendPoint) => number): Kpi => {
+    const prevRate = previous / trend.length;
+    return {
+      value,
+      previous,
+      deltaPercent: done.length > 0 && prevRate > 0 ? ((doneSum(pick) / done.length) / prevRate - 1) * 100 : null,
+    };
+  };
+  const ratioKpi = (value: number, previous: number, doneValue: number): Kpi => ({
+    value,
+    previous,
+    deltaPercent: previous > 0 ? ((doneValue - previous) / previous) * 100 : null,
+  });
+  const doneClicks = doneSum((p) => p.clicks);
+  const doneImpr = doneSum((p) => p.impressions);
+
+  const kpis: DashboardKpis = {
+    spendMinorUnits: rateKpi(curSpend, prev.spend, (p) => p.spendMinorUnits),
+    clicks: rateKpi(curClicks, prev.clicks, (p) => p.clicks),
+    sessions: rateKpi(curSessions, prev.sessions, (p) => p.sessions),
+    ctr: ratioKpi(
+      Number(ctrVal.toFixed(2)),
+      prev.impressions > 0 ? Number(((prev.clicks / prev.impressions) * 100).toFixed(2)) : 0,
+      doneImpr > 0 ? (doneClicks / doneImpr) * 100 : 0
+    ),
+    cpcMinorUnits: ratioKpi(
+      cpcVal,
+      prev.clicks > 0 ? Math.round(prev.spend / prev.clicks) : 0,
+      doneClicks > 0 ? doneSum((p) => p.spendMinorUnits) / doneClicks : 0
+    ),
+    conversions: rateKpi(curConv, prev.conversions, (p) => p.conversions),
+  };
 
   // --- Puls (3 rings) --------------------------------------------------------
   const score: DailyScore = {
@@ -388,33 +459,46 @@ export function getDemoDashboard(
   // pulling the same way there: the free-delivery image and the tomato
   // close-up lag here on clicks and there on purchases; the unboxing video
   // holds attention best here and sells best there.
-  const creativeDefs: Array<[string, string, number, number, number, number]> = [
-    ["Skrzynka tygodnia - wideo 15 s", "Weekly box - 15s video", 184050, 2.6, 34, 11],
-    ["Co jest w skrzynce? - karuzela", "What's in the box? - carousel", 152300, 2.5, 36, 22],
-    ["Lokalne pomidory - grafika marki", "Local tomatoes - brand image", 141200, 0.9, 49, 33],
-    ["Opinie klientów - grafika", "Customer reviews - image", 118900, 3.2, 39, 44],
-    ["Rozpakowanie skrzynki - film klientki", "Box unboxing - customer video", 104500, 2.3, 32, 55],
-    ["Darmowa dostawa od 150 zł - grafika", "Free delivery over 150 zł - image", 96700, 1.3, 46, 66],
-    ["Pomidory malinowe z bliska - wideo 10 s", "Raspberry tomatoes close-up - 10s video", 81200, 1.2, 44, 77],
-    ["Prosto z krzaka - grafika", "Straight from the vine - image", 72400, 2.4, 34, 88],
-    ["Kapusta do kiszenia - karuzela", "Pickling cabbage - carousel", 61300, 2.0, 41, 99],
-    ["Passata jak u babci - wideo 20 s", "Grandma's passata - 20s video", 54900, 2.7, 30, 12],
+  // [pl, en, relative spend, CTR %, relative cost per click]. The ads split
+  // the Meta campaigns' spend and clicks above, so Kreacje's "Twoja średnia"
+  // cost per click is the Meta one on Reklamy (it used to say 0,38 zł next to
+  // Meta's 0,73 zł, with ten ads adding up to 10 tys. zł of a 25 tys. zł
+  // Meta spend). No thumbnails: random stock photos had nothing to do with a
+  // veg shop, and the same ads have none on "Testy kreacji" either.
+  const creativeDefs: Array<[string, string, number, number, number]> = [
+    ["Skrzynka tygodnia - wideo 15 s", "Weekly box - 15s video", 184050, 2.6, 34],
+    ["Co jest w skrzynce? - karuzela", "What's in the box? - carousel", 152300, 2.5, 36],
+    ["Lokalne pomidory - grafika marki", "Local tomatoes - brand image", 141200, 0.9, 49],
+    ["Opinie klientów - grafika", "Customer reviews - image", 118900, 3.2, 39],
+    ["Rozpakowanie skrzynki - film klientki", "Box unboxing - customer video", 104500, 2.3, 32],
+    ["Darmowa dostawa od 150 zł - grafika", "Free delivery over 150 zł - image", 96700, 1.3, 46],
+    ["Pomidory malinowe z bliska - wideo 10 s", "Raspberry tomatoes close-up - 10s video", 81200, 1.2, 44],
+    ["Prosto z krzaka - grafika", "Straight from the vine - image", 72400, 2.4, 34],
+    ["Kapusta do kiszenia - karuzela", "Pickling cabbage - carousel", 61300, 2.0, 41],
+    ["Passata jak u babci - wideo 20 s", "Grandma's passata - 20s video", 54900, 2.7, 30],
   ];
+  const metaRows = campaigns.filter((c) => c.provider === "meta_ads");
+  const adSpend = split(
+    metaRows.reduce((a, c) => a + c.spendMinorUnits, 0),
+    creativeDefs.map((c) => c[2])
+  );
+  const adClicks = split(
+    metaRows.reduce((a, c) => a + c.clicks, 0),
+    creativeDefs.map((c) => c[2] / c[4])
+  );
   const creativesFull: CreativeItem[] = creativeDefs.map((c, i) => {
-    const spend = c[2];
+    const spend = adSpend[i];
+    const clicks = adClicks[i];
     const ctr = c[3];
-    const cpc = c[4];
-    const clicks = Math.round(spend / cpc);
-    const impressions = Math.round((clicks / ctr) * 100);
     return {
       adId: `demo-ad${i + 1}`,
       name: en ? c[1] : c[0],
-      thumbnailUrl: `https://picsum.photos/seed/${c[5]}/600/600`,
+      thumbnailUrl: null,
       spend,
-      impressions,
+      impressions: Math.round((clicks / ctr) * 100),
       clicks,
       ctr,
-      cpc,
+      cpc: clicks > 0 ? Math.round(spend / clicks) : null,
     };
   });
   const creatives: CreativeRow[] = creativesFull.slice(0, 5).map((c) => ({
@@ -451,31 +535,35 @@ export function getDemoDashboard(
   };
 
   // --- Website (GA4) --------------------------------------------------------
+  // The shop's 30 days, read the way Sprzedaż reads them: the same devices,
+  // pages and engagement rate (lib/demo/ecom.ts). Visits from ads stay below
+  // the ad clicks they come from; the rest splits like the shop's channels.
   const S = curSessions;
+  const paid = Math.min(Math.round(curClicks * 0.88), S);
+  const [organic, direct, social, other] = split(S - paid, [0.19, 0.1, 0.06, 0.04]);
+  const users = Math.round(S * 0.74);
   const website: WebsiteData = {
     hasData: true,
-    // Demo is an engagement client: sessions only, no revenue per channel.
+    // Sessions only here; sales per channel live on Sprzedaż.
     sources: [
-      { category: "Paid", sessions: Math.round(S * 0.4), revenueMinorUnits: 0, transactions: 0 },
-      { category: "Organic", sessions: Math.round(S * 0.3), revenueMinorUnits: 0, transactions: 0 },
-      { category: "Direct", sessions: Math.round(S * 0.14), revenueMinorUnits: 0, transactions: 0 },
-      { category: "Social", sessions: Math.round(S * 0.1), revenueMinorUnits: 0, transactions: 0 },
-      { category: "Referral/Inne", sessions: Math.round(S * 0.06), revenueMinorUnits: 0, transactions: 0 },
+      { category: "Paid", sessions: paid, revenueMinorUnits: 0, transactions: 0 },
+      { category: "Organic", sessions: organic, revenueMinorUnits: 0, transactions: 0 },
+      { category: "Direct", sessions: direct, revenueMinorUnits: 0, transactions: 0 },
+      { category: "Social", sessions: social, revenueMinorUnits: 0, transactions: 0 },
+      { category: "Referral/Inne", sessions: other, revenueMinorUnits: 0, transactions: 0 },
     ],
     devices: [
-      { device: "mobile", sessions: Math.round(S * 0.66) },
-      { device: "desktop", sessions: Math.round(S * 0.29) },
-      { device: "tablet", sessions: Math.round(S * 0.05) },
+      { device: "mobile", sessions: Math.round(S * DEMO_DEVICE_SHARES.mobile) },
+      { device: "desktop", sessions: Math.round(S * DEMO_DEVICE_SHARES.desktop) },
+      { device: "tablet", sessions: Math.round(S * DEMO_DEVICE_SHARES.tablet) },
     ],
-    topPages: [
-      { path: "/", views: Math.round(S * 0.9), engagementRate: 61 },
-      { path: "/skrzynki-warzyw", views: Math.round(S * 0.62), engagementRate: 68 },
-      { path: "/pomidory", views: Math.round(S * 0.28), engagementRate: 72 },
-      { path: "/dostawa", views: Math.round(S * 0.21), engagementRate: 55 },
-      { path: "/przepisy/passata-domowa", views: Math.round(S * 0.18), engagementRate: 74 },
-    ],
-    engagement: { engagementRate: 62, bounceRate: 38, avgDailySessions: Math.round(S / DAYS) },
-    newVsReturning: { newUsers: Math.round(S * 0.62), returningUsers: Math.round(S * 0.38) },
+    topPages: demoTopPages(S),
+    engagement: {
+      engagementRate: DEMO_ENGAGEMENT_RATE,
+      bounceRate: 100 - DEMO_ENGAGEMENT_RATE,
+      avgDailySessions: Math.round(S / DAYS),
+    },
+    newVsReturning: { newUsers: Math.round(users * 0.62), returningUsers: Math.round(users * 0.38) },
     sessionsTrend: trend.map((p) => ({ date: p.date, sessions: p.sessions })),
   };
 
@@ -504,8 +592,10 @@ export function getDemoDashboard(
   // showing 3. The amounts come from the campaign rows above, so an alert
   // can't name a spend its own campaign never had.
   const campaignOf = (id: string) => campaigns.find((c) => c.campaignId === id);
-  const zl = (minor: number) =>
-    en ? `${Math.round(minor / 100).toLocaleString("en-GB")} zł` : formatPlnWhole(minor);
+  // One format in both languages: every other amount on the English demo
+  // ("43 885 zł", "1 841 zł") keeps the Polish grouping, so "1,059 zł" in
+  // an alert read as a different kind of number.
+  const zl = formatPlnWhole;
   // PMAX started 22 days ago (the chart's "Start kampanii" marker), so its
   // window spend covers 23 days; today runs at +128% of that average.
   const pmaxSpend = campaignOf("d-g3")?.spendMinorUnits ?? 0;
@@ -525,14 +615,16 @@ export function getDemoDashboard(
   ];
 
   // --- Budget ---------------------------------------------------------------
-  const dayOfMonth = today.getDate();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const budgetMinor = 5000000;
+  const dayOfMonth = Number(todayStr.slice(8, 10));
+  const [yy, mm] = todayStr.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
   // Month-to-date spend from the same trend the KPI cards and chart use (the
   // real card sums ads_daily the same way); an invented figure didn't match
-  // the chart's own daily spend for this month. Pace stays "ok": the demo
-  // trend runs ~48k zł/month against this 50k zł budget.
-  const monthStart = format(today, "yyyy-MM-01");
+  // the chart's own daily spend for this month. The budget is the shop's
+  // planned month rounded to 5 000 zł, so pace stays "ok" in any month (a
+  // fixed 50 000 zł ran out before December's end).
+  const budgetMinor = Math.max(500_000, Math.round(demoMonthSpend(todayStr) / 500_000) * 500_000);
+  const monthStart = `${todayStr.slice(0, 7)}-01`;
   const spentMinor = trend
     .filter((p) => p.date >= monthStart)
     .reduce((a, p) => a + p.spendMinorUnits, 0);
@@ -546,7 +638,7 @@ export function getDemoDashboard(
     monthPercent: (dayOfMonth / daysInMonth) * 100,
     pace: "ok",
     paceLabel: en ? "Spend on track with the budget" : "Wydatki w tempie zgodnym z budżetem",
-    month: format(today, "yyyy-MM-01"),
+    month: monthStart,
   };
 
   // --- AI summary -----------------------------------------------------------

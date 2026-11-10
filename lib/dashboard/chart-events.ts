@@ -396,6 +396,27 @@ export function buildChartMarkers({
     .map((m, i) => ({ date: m.date, number: i + 1, events: m.events }));
 }
 
+/** The demo's change vs the previous period, per metric (+11% spend...). */
+export const DEMO_PREV_CHANGE = {
+  spend: 0.111,
+  clicks: 0.163,
+  sessions: 0.2,
+  impressions: 0.053,
+  conversions: 0.137,
+} as const;
+
+/**
+ * The previous period's total for one demo series, so that the change reads
+ * `change` the way the tiles and the chart measure it: per day over the
+ * finished days (the demo's last day is today, partial - lib/demo/data.ts).
+ * A plain "total x ratio" read 2 points higher once today was partial.
+ */
+export function demoPrevTotal(trend: TrendPoint[], pick: (p: TrendPoint) => number, change: number): number {
+  const done = trend.length > 1 ? trend.slice(0, -1) : trend;
+  const perDay = done.reduce((a, p) => a + pick(p), 0) / Math.max(1, done.length);
+  return Math.round((perDay * trend.length) / (1 + change));
+}
+
 /**
  * Plausible previous-period trend + annotations for the public demo pages,
  * shaped to agree with the demo KPI deltas (lib/demo/data.ts).
@@ -414,18 +435,18 @@ export function buildDemoChartExtras(
   // Older period ran flatter (no upward drift), hence the index ramp.
   const shape = trend.map((_, i) => wobble(i) * (1 - (i / Math.max(1, n - 1)) * 0.12));
   const shapeSum = shape.reduce((a, v) => a + v, 0) || 1;
-  // Each series totals exactly `ratio` x the current total - the same ratios
-  // the demo KPI tiles use as "previous" (lib/demo/data.ts) - so the chart's
-  // "o X% więcej niż wcześniej" can't contradict the tile above it.
-  const series = (pick: (p: TrendPoint) => number, ratio: number) => {
-    const total = trend.reduce((a, p) => a + pick(p), 0) * ratio;
+  // Each series totals exactly the previous total the demo KPI tiles use
+  // (demoPrevTotal, also read by lib/demo/data.ts), so the chart's "o X%
+  // więcej niż wcześniej" can't contradict the tile above it.
+  const series = (pick: (p: TrendPoint) => number, change: number) => {
+    const total = demoPrevTotal(trend, pick, change);
     return shape.map((s) => Math.round((total * s) / shapeSum));
   };
-  const spend = series((p) => p.spendMinorUnits, 0.9);
-  const sessions = series((p) => p.sessions, 0.83);
-  const clicks = series((p) => p.clicks, 0.86);
-  const impressions = series((p) => p.impressions, 0.95);
-  const conversions = series((p) => p.conversions, 0.88);
+  const spend = series((p) => p.spendMinorUnits, DEMO_PREV_CHANGE.spend);
+  const sessions = series((p) => p.sessions, DEMO_PREV_CHANGE.sessions);
+  const clicks = series((p) => p.clicks, DEMO_PREV_CHANGE.clicks);
+  const impressions = series((p) => p.impressions, DEMO_PREV_CHANGE.impressions);
+  const conversions = series((p) => p.conversions, DEMO_PREV_CHANGE.conversions);
   const prevTrend: TrendPoint[] = trend.map((_, i) => ({
     date: fmt(addDays(prevStart, i)),
     spendMinorUnits: spend[i],

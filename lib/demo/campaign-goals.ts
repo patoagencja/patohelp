@@ -2,6 +2,7 @@ import { format, subDays, addDays } from "date-fns";
 
 import { computePacing, type FlightDef, type PacingFlight } from "@/lib/alerts/pacing";
 import { buildGoalTiles, type GoalTile } from "@/lib/dashboard/campaign-goals";
+import { getDemoDashboard } from "@/lib/demo/data";
 
 /**
  * Sample campaign goals for /demo-full: one per tile verdict (on plan, behind,
@@ -90,7 +91,8 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
         adsetName: null,
         provider: "google_ads",
         metric: "spend",
-        target: 550000, // 5 500 zł in grosze
+        // Placeholder: set from the PMAX campaign's spend below.
+        target: 550000,
       },
       // The launch budget, met before its end date because the campaign
       // overspends - the same story as the demo's "Skok wydatków dziś" alert
@@ -102,6 +104,14 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
       paceTo: 1.35,
     },
   ];
+
+  // The PMAX launch budget is the whole campaign, which started inside the
+  // demo's 30 days: its spend must be the campaign row's (it read 5 674 zł
+  // here and 5 705 zł in the table). The target sits ~3% under it.
+  const pmaxSpend =
+    getDemoDashboard("pl", today).campaigns.find((c) => c.campaignId === "d-g3")?.spendMinorUnits ?? 0;
+  const pmaxGoal = goals.find((g) => g.def.id === "demo-goal-4");
+  if (pmaxGoal && pmaxSpend > 0) pmaxGoal.def.target = Math.round(pmaxSpend / 1.03 / 10_000) * 10_000;
 
   return goals.map((g) => {
     const start = subDays(today, g.startAgo);
@@ -119,6 +129,17 @@ export function demoCampaignFlights(today = new Date()): PacingFlight[] {
         format(addDays(start, i), "yyyy-MM-dd"),
         Math.round(perDay * pace * (0.85 + rand() * 0.3) * partial)
       );
+    }
+    if (g.def.id === "demo-goal-4" && pmaxSpend > 0) {
+      // Same days, scaled to add up to the campaign's spend exactly.
+      const raw = Array.from(byDate.values()).reduce((a, v) => a + v, 0) || 1;
+      let left = pmaxSpend;
+      const keys = Array.from(byDate.keys());
+      keys.forEach((k, i) => {
+        const v = i === keys.length - 1 ? left : Math.round(((byDate.get(k) ?? 0) * pmaxSpend) / raw);
+        byDate.set(k, v);
+        left -= v;
+      });
     }
     return computePacing(
       { ...g.def, startDate: format(start, "yyyy-MM-dd"), endDate: format(end, "yyyy-MM-dd") },

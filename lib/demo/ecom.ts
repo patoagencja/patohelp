@@ -718,15 +718,11 @@ export function getDemoEcom(
   // Website widgets in the real app read a fixed last-30-days window.
   const w30Start = addDays(today, -29);
   const sessions30 = sum(w30Start, today, (v) => v.sessions);
-  const topPages = TOP_PAGES.map((p) => ({
-    path: p.path,
-    views: Math.round(sessions30 * p.share * 1.6),
-    engagementRate: p.engagementRate,
-  }));
+  const topPages = demoTopPages(sessions30);
   const devices = [
-    { device: "mobile", sessions: Math.round(sessions30 * 0.71) },
-    { device: "desktop", sessions: Math.round(sessions30 * 0.25) },
-    { device: "tablet", sessions: Math.round(sessions30 * 0.04) },
+    { device: "mobile", sessions: Math.round(sessions30 * DEMO_DEVICE_SHARES.mobile) },
+    { device: "desktop", sessions: Math.round(sessions30 * DEMO_DEVICE_SHARES.desktop) },
+    { device: "tablet", sessions: Math.round(sessions30 * DEMO_DEVICE_SHARES.tablet) },
   ];
 
   return {
@@ -745,10 +741,70 @@ export function getDemoEcom(
     products,
     topPages,
     devices,
-    engagementRate: 58,
+    engagementRate: DEMO_ENGAGEMENT_RATE,
     analysis: demoAnalysis(dayLabelPl(addDays(blackFriday(Number(today.slice(0, 4))), -21))),
     analysisGeneratedAt: lastDailyRun(today),
   };
+}
+
+/** One day of the shop's ads and site, as the other demo pages read it. */
+export interface DemoShopDay {
+  date: string;
+  spend: number; // grosze
+  metaSpend: number;
+  googleSpend: number;
+  clicks: number;
+  sessions: number;
+  conversions: number;
+  transactions: number;
+  revenue: number; // grosze
+}
+
+/**
+ * The shop's days from `start` to `end` (today partial, nothing after it):
+ * the single source the overview, Reklamy and Strona www demos build on, so
+ * their spend and visits are the very numbers Sprzedaż shows for the same
+ * days. Two separate generators had Przegląd at 43 885 zł / 36 586 visits
+ * next to Sprzedaż's 54 040 zł / 134 517 visits for the same 30 days.
+ */
+export function getDemoShopDays(start: string, end: string, today = todayWarsaw()): DemoShopDay[] {
+  const out: DemoShopDay[] = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    const v = dayData(d, today);
+    if (!v) continue;
+    out.push({
+      date: d,
+      spend: v.spend,
+      metaSpend: v.metaSpend,
+      googleSpend: v.googleSpend,
+      clicks: v.clicks,
+      sessions: v.sessions,
+      conversions: v.conversions,
+      transactions: v.transactions,
+      revenue: v.revenue,
+    });
+  }
+  return out;
+}
+
+/** The whole month's ad spend as planned (future days at their full model value). */
+export function demoMonthSpend(today = todayWarsaw()): number {
+  const start = monthStartOf(today);
+  const end = monthEndOf(today);
+  return sumRange(start, end, addDays(end, 1), (v) => v.spend).total;
+}
+
+/** Strona www snapshot shares, shared with getDemoEcom's devices and pages. */
+export const DEMO_DEVICE_SHARES = { mobile: 0.71, desktop: 0.25, tablet: 0.04 } as const;
+export const DEMO_ENGAGEMENT_RATE = 58;
+
+/** The last-30-days page views, the same rows Sprzedaż and Strona www show. */
+export function demoTopPages(sessions30: number): Array<{ path: string; views: number; engagementRate: number }> {
+  return TOP_PAGES.map((p) => ({
+    path: p.path,
+    views: Math.round(sessions30 * p.share * 1.6),
+    engagementRate: p.engagementRate,
+  }));
 }
 
 /**

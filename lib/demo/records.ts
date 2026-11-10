@@ -6,8 +6,8 @@ import type { RecordItem } from "@/lib/dashboard/records";
  * Hand-written records for the public demo. Written in the exact shape and
  * tone computeRecords() produces, with dates relative to today so the demo
  * never shows a stale "milestone". The engagement numbers must stay in scale
- * with the demo trend in data.ts (~1 500 clicks, ~1 200 visits, ~73 tys.
- * impressions a day): "1 mln wyświetleń w roku" next to "2,2 mln w 30 dni"
+ * with the demo shop's days that data.ts reads from ecom.ts (~1 600 clicks,
+ * ~4 500 visits, ~75 tys. impressions a day, a click ~1,15 zł): "1 mln wyświetleń w roku" next to "2,2 mln w 30 dni"
  * is exactly the contradiction a board member spots first.
  */
 export function getDemoRecords(
@@ -58,15 +58,15 @@ export function getDemoRecords(
     {
       id: "week-sessions",
       icon: "trophy",
-      title: "Rekordowy tydzień: 9412 wizyt na stronie",
+      title: "Rekordowy tydzień: 33 870 wizyt na stronie",
       detail:
-        "Miniony tydzień przyniósł najwięcej wizyt na stronie w jednym tygodniu od początku danych w panelu. Poprzedni rekord: 8873 wizyty (teraz o 6% więcej).",
+        "Miniony tydzień przyniósł najwięcej wizyt na stronie w jednym tygodniu od początku danych w panelu. Poprzedni rekord: 31 950 wizyt (teraz o 6% więcej).",
       achievedOn: day(2),
     },
     {
       id: "month-clicks",
       icon: "trending",
-      title: "Najlepszy miesiąc od marca: 44 960 kliknięć w reklamy",
+      title: "Najlepszy miesiąc od marca: 48 210 kliknięć w reklamy",
       detail:
         "Więcej kliknięć w reklamy niż w każdym z 6 poprzednich miesięcy z danymi.",
       achievedOn: day(4),
@@ -74,9 +74,9 @@ export function getDemoRecords(
     {
       id: "cpc-90d",
       icon: "sparkles",
-      title: "Najtańsze kliknięcie od 90 dni: 0,86 zł",
+      title: "Najtańsze kliknięcie od 90 dni: 1,01 zł",
       detail:
-        "Średni koszt kliknięcia z ostatnich 7 dni (12 480 kliknięć) jest najniższy spośród wszystkich 7-dniowych okresów z ostatnich 90 dni i o 12% niższy niż średnia z tego czasu.",
+        "Średni koszt kliknięcia z ostatnich 7 dni (11 240 kliknięć) jest najniższy spośród wszystkich 7-dniowych okresów z ostatnich 90 dni i o 12% niższy niż średnia z tego czasu.",
       achievedOn: day(1),
     },
     {
