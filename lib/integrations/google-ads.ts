@@ -7,6 +7,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { GoogleAdsApi } from "google-ads-api";
 
 import { googleScopesFor } from "@/lib/integrations/google-identity";
+import { candidateLoginIds, managerLoginsOf } from "@/lib/integrations/google-logins";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -35,10 +36,28 @@ function apiClient(): GoogleAdsApi {
 // clients can sit under different managers, we try the account itself first,
 // then the agency's configured MCC - the first that Google accepts wins.
 function candidateLogins(customerId: string): string[] {
-  const list = [customerId];
-  const envMcc = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
-  if (envMcc && envMcc !== customerId) list.push(envMcc);
-  return list;
+  // A client account found under a manager (listAccessibleCustomers) records
+  // that manager; it reaches the account even when it is not the env MCC.
+  return candidateLoginIds(
+    customerId,
+    managerLogins.get(customerId),
+    process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+  );
+}
+
+/** Client account id -> the manager (MCC) it was listed under. */
+const managerLogins = new Map<string, string>();
+
+const digitsOnly = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+/**
+ * Teach the query helpers which manager reaches which stored account (the
+ * `login_customer_id` saved with each account at connect time). Callers
+ * that read an integration's account_ids call this before querying; it is
+ * a fact about the accounts, so a shared map across requests is fine.
+ */
+export function rememberManagerLogins(accounts: unknown): void {
+  for (const [id, login] of managerLoginsOf(accounts)) managerLogins.set(id, login);
 }
 
 /**
@@ -114,6 +133,10 @@ export interface GoogleAdsAccount {
   name: string;
   currency: string;
   timezone: string;
+  /** A manager (MCC) account: it has no campaigns of its own. */
+  manager?: boolean;
+  /** For an account listed under a manager: the manager to log in as. */
+  login_customer_id?: string;
 }
 
 export interface GoogleCampaignMetric {
@@ -215,7 +238,18 @@ export async function listAccessibleCustomerIds(
   return resource_names.map((r) => r.split("/")[1]).filter(Boolean);
 }
 
-/** All customer accounts the refresh token can reach, with basic metadata. */
+// An agency MCC can hold hundreds of client accounts; the picker lists them
+// all, but within reason.
+const MAX_MANAGED_ACCOUNTS = 500;
+
+/**
+ * All customer accounts the refresh token can reach, with basic metadata.
+ * Google lists only DIRECT access: logged in through the agency's manager
+ * (MCC) - the usual setup for a new client - the picker used to show just
+ * the MCC, which has no campaigns of its own, and never the client's
+ * account under it. A manager's enabled client accounts are listed too,
+ * each with the manager to log in as.
+ */
 export async function listAccessibleCustomers(
   refreshToken: string
 ): Promise<GoogleAdsAccount[]> {
@@ -223,6 +257,7 @@ export async function listAccessibleCustomers(
   const { resource_names } = await client.listAccessibleCustomers(refreshToken);
 
   const accounts: GoogleAdsAccount[] = [];
+  const managers: string[] = [];
 
   for (const resourceName of resource_names) {
     const customerId = resourceName.split("/")[1];
@@ -231,15 +266,18 @@ export async function listAccessibleCustomers(
         client,
         refreshToken,
         customerId,
-        "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone FROM customer LIMIT 1"
+        "SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone, customer.manager FROM customer LIMIT 1"
       );
       const c = (rows[0] as { customer?: Record<string, unknown> })?.customer;
+      const manager = c?.manager === true;
+      if (manager) managers.push(customerId);
 
       accounts.push({
         id: customerId,
         name: String(c?.descriptive_name ?? customerId),
         currency: String(c?.currency_code ?? ""),
         timezone: String(c?.time_zone ?? ""),
+        ...(manager ? { manager: true } : {}),
       });
     } catch (err) {
       // A customer we can't query (e.g. cancelled) shouldn't drop the rest.
@@ -247,6 +285,36 @@ export async function listAccessibleCustomers(
       accounts.push({ id: customerId, name: customerId, currency: "", timezone: "" });
     }
   }
+
+  const known = new Set(accounts.map((a) => a.id));
+  for (const managerId of managers) {
+    if (known.size >= MAX_MANAGED_ACCOUNTS) break;
+    try {
+      const rows = await queryWithFallback(
+        client,
+        refreshToken,
+        managerId,
+        "SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code, customer_client.time_zone FROM customer_client WHERE customer_client.level >= 1 AND customer_client.manager = FALSE AND customer_client.status = 'ENABLED'"
+      );
+      for (const row of rows) {
+        const c = (row as { customer_client?: Record<string, unknown> }).customer_client;
+        const id = digitsOnly(c?.id);
+        if (!id || known.has(id) || known.size >= MAX_MANAGED_ACCOUNTS) continue;
+        known.add(id);
+        accounts.push({
+          id,
+          name: String(c?.descriptive_name || id),
+          currency: String(c?.currency_code ?? ""),
+          timezone: String(c?.time_zone ?? ""),
+          login_customer_id: managerId,
+        });
+      }
+    } catch (err) {
+      // The manager itself stays listed; only its sub-accounts are missing.
+      console.error("[google-ads] failed to list manager's accounts", managerId, err);
+    }
+  }
+  rememberManagerLogins(accounts);
 
   return accounts;
 }

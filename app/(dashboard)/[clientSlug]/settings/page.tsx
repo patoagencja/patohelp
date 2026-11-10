@@ -56,6 +56,8 @@ interface Account {
   unlisted?: boolean;
   /** Part of the last non-empty selection - lets "Przywróć" undo a clear. */
   was_selected?: boolean;
+  /** Google Ads manager (MCC): no campaigns of its own. */
+  manager?: boolean;
 }
 
 const PROVIDERS: Array<{
@@ -546,6 +548,11 @@ export default async function SettingsPage({
                               {account.unlisted ? (
                                 <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-foreground">
                                   brak dostępu z obecnym tokenem
+                                </span>
+                              ) : null}
+                              {account.manager ? (
+                                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                  konto menedżera - bez własnych kampanii
                                 </span>
                               ) : null}
                               <span className="ml-auto shrink-0 text-xs text-muted-foreground">

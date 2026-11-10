@@ -4,7 +4,11 @@ import { formatInTimeZone } from "date-fns-tz";
 import { decrypt } from "@/lib/integrations/encryption";
 import { createFxConverter, normalizeCurrency, type FxConverter } from "@/lib/integrations/fx";
 import { describeError } from "@/lib/integrations/errors";
-import { getAdGroupMetrics, getCampaignAdGroupList } from "@/lib/integrations/google-ads";
+import {
+  getAdGroupMetrics,
+  getCampaignAdGroupList,
+  rememberManagerLogins,
+} from "@/lib/integrations/google-ads";
 import { hasClicksAllColumnStrict, intOrZero } from "@/lib/integrations/link-clicks";
 import { extractConversions, getAdsetInsights, getCampaignAdsetList } from "@/lib/integrations/meta-ads";
 import type { createAdminClient } from "@/lib/supabase/admin";
@@ -355,6 +359,7 @@ export async function syncAdsetsForClient(
   for (const integration of integrations ?? []) {
     if (shouldStop()) break;
     const only = opts.accountIds?.length ? new Set(opts.accountIds.map(String)) : null;
+    if (integration.provider === "google_ads") rememberManagerLogins(integration.account_ids);
     const accounts = ((integration.account_ids ?? []) as StoredAccount[]).filter(
       (a) => a.selected === true && (!only || only.has(String(a.id)))
     );
@@ -462,6 +467,7 @@ export async function listCampaignAdsets(
   if (!creds.refresh_token) return { adsets: [], errors: ["Brak tokenu Google."] };
   // The campaign lives in one of the client's accounts (DRE has three):
   // ask each selected one, the others just return nothing.
+  rememberManagerLogins(integration.account_ids);
   const accounts = ((integration.account_ids ?? []) as StoredAccount[]).filter((a) => a.selected === true);
   const settled = await Promise.allSettled(
     accounts.map((a) =>

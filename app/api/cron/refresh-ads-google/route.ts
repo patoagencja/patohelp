@@ -58,6 +58,7 @@ import {
   getDeliveryDays,
   getPurchaseMetrics,
   GoogleAdsTimeoutError,
+  rememberManagerLogins,
   syncImpressionShareSnapshot,
   syncSearchTermsSnapshot,
   withQueryTimeout,
@@ -316,6 +317,8 @@ async function sync(request: Request) {
         await writeSyncState(admin, clientId, STATE_KEY, state);
       };
 
+      // Accounts listed under a manager (MCC) log in as that manager.
+      rememberManagerLogins(integration.account_ids);
       // Only accounts explicitly selected for this client; the ones the
       // deadline left out last run go first.
       const accounts = deferredFirst(

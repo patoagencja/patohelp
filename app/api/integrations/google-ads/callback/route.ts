@@ -106,6 +106,10 @@ export async function GET(request: Request) {
         name: a.name,
         currency: a.currency,
         timezone: a.timezone,
+        // Manager accounts have no campaigns; client accounts under one
+        // remember which manager reaches them (lib/integrations/google-ads.ts).
+        ...(a.manager ? { manager: true } : {}),
+        ...(a.login_customer_id ? { login_customer_id: a.login_customer_id } : {}),
       }))
     );
 
