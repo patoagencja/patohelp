@@ -1051,6 +1051,8 @@ function checkoutAlert(inc: FlowIncident, f: CheckoutFacts): FlowAlert {
     };
   }
   const nobody = allDay ? "Dziś jeszcze nikt nie kupił" : `${lead} nikt nie kupił`;
+  // The verb agrees with the count it precedes: "były 34 dodania", "było 12 dodań".
+  const were = plPlural(f.carts, "było", "były", "było");
   const action: Record<Exclude<CheckoutHint, "tracking">, string> = {
     payment: `Sprawdź płatności — klienci przechodzą do kasy, ale nikt nie płaci ${forHours}.`,
     cart: `Sprawdź koszyk — ludzie dodają produkty do koszyka, ale nikt nie przechodzi do kasy ${forHours}.`,
@@ -1064,7 +1066,7 @@ function checkoutAlert(inc: FlowIncident, f: CheckoutFacts): FlowAlert {
     scopeLabel: "Sklep",
     changePct: -100,
     title: "Koszyk lub płatności mogą nie działać",
-    description: `${nobody}, choć było ${carts}${checkouts}. Przy takim ruchu zwykle byłoby już ok. ${expected}.`,
+    description: `${nobody}, choć ${were} ${carts}${checkouts}. Przy takim ruchu zwykle byłoby już ok. ${expected}.`,
     why: "Ludzie chcą kupić, ale coś ich zatrzymuje — każda godzina bez zakupów to utracona sprzedaż.",
     action: action[f.hint],
     since: inc.since,

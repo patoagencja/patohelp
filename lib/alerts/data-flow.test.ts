@@ -587,16 +587,20 @@ describe("checkout guard", () => {
     const base = { guard: "checkout" as const, fromHour: 11, hours: 3, carts: 34, checkouts: 12, expected: 7.4, orders: null };
     const pay = buildFlowAlert(inc({ ...base, hint: "payment" }), true, OFFSET)!;
     assert.equal(pay.title, "Koszyk lub płatności mogą nie działać");
-    assert.equal(pay.description, "Od 11:00 nikt nie kupił, choć było 34 dodania do koszyka i 12 przejść do kasy. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
+    // The verb agrees with the number: "były 34 dodania", "było 12 dodań".
+    assert.equal(pay.description, "Od 11:00 nikt nie kupił, choć były 34 dodania do koszyka i 12 przejść do kasy. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
     assert.equal(pay.action, "Sprawdź płatności — klienci przechodzą do kasy, ale nikt nie płaci od 3 godzin.");
     assert.equal(pay.sinceLabel, "od 11:00");
 
     const both = buildFlowAlert(inc({ ...base, hint: "both", checkouts: 0, carts: 3 }), true, OFFSET)!;
-    assert.equal(both.description, "Od 11:00 nikt nie kupił, choć było 3 dodania do koszyka. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
+    assert.equal(both.description, "Od 11:00 nikt nie kupił, choć były 3 dodania do koszyka. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
     assert.equal(both.action, "Sprawdź płatności i koszyk — ludzie dodają do koszyka, ale nikt nie kupuje od 3 godzin.");
 
+    const many = buildFlowAlert(inc({ ...base, hint: "both", checkouts: 0, carts: 12 }), true, OFFSET)!;
+    assert.equal(many.description, "Od 11:00 nikt nie kupił, choć było 12 dodań do koszyka. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
+
     const cart = buildFlowAlert(inc({ ...base, hint: "cart", checkouts: 0, fromHour: 0, hours: 15 }), true, OFFSET)!;
-    assert.equal(cart.description, "Dziś jeszcze nikt nie kupił, choć było 34 dodania do koszyka. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
+    assert.equal(cart.description, "Dziś jeszcze nikt nie kupił, choć były 34 dodania do koszyka. Przy takim ruchu zwykle byłoby już ok. 7 zakupów.");
     assert.equal(cart.action, "Sprawdź koszyk — ludzie dodają produkty do koszyka, ale nikt nie przechodzi do kasy od rana.");
     assert.equal(cart.sinceLabel, "dziś");
 
