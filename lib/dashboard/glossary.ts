@@ -197,10 +197,12 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
   },
   aov: {
-    name: "Średnia wartość zamówienia",
+    // The Sprzedaż tiles and "Nowi czy stali klienci" say "Średni koszyk";
+    // the glossary named it differently, so it couldn't be found there.
+    name: "Średni koszyk",
     short: "AOV",
     explain:
-      "Ile średnio wydaje klient w jednym zamówieniu. 250 zł = przeciętny koszyk jest wart 250 zł.",
+      "Średnia wartość zamówienia: ile średnio wydaje klient w jednym zamówieniu. 250 zł = przeciętny koszyk jest wart 250 zł.",
     goodWhen: "higher",
     en: {
       name: "Average order value",
@@ -221,10 +223,12 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryEntry> = {
     },
   },
   poas: {
-    name: "Zysk z reklam",
+    // Same name and words as the Sprzedaż profit card (ecom/plain.tsx),
+    // which shows POAS in złoty ("1,86 zł marży"), not as "1×".
+    name: "Zysk z każdej złotówki reklam",
     short: "POAS",
     explain:
-      "Ile złotych zysku (po odjęciu kosztu towaru) przyniosła każda 1 zł wydana na reklamy. Powyżej 1× reklamy na siebie zarabiają.",
+      "Ile złotych marży (sprzedaż bez VAT minus koszt towaru) przynosi każda 1 zł wydana na reklamy. Powyżej 1 zł reklamy na siebie zarabiają: 1,40 zł = po opłaceniu reklamy zostaje 40 gr.",
     goodWhen: "higher",
     en: {
       name: "Profit on ad spend",

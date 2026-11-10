@@ -64,10 +64,9 @@ export const ECOM_TERMS = {
     explain: GLOSSARY.roas.explain,
   },
   poas: {
-    name: "Zysk z każdej złotówki reklam",
+    name: GLOSSARY.poas.name,
     tag: "POAS",
-    explain:
-      "Ile złotych marży (sprzedaż bez VAT minus koszt towaru) przynosi każda 1 zł wydana na reklamy. Powyżej 1 zł reklamy na siebie zarabiają: 1,40 zł = po opłaceniu reklamy zostaje 40 gr.",
+    explain: GLOSSARY.poas.explain,
   },
   breakEven: {
     name: "Próg opłacalności",
@@ -76,7 +75,7 @@ export const ECOM_TERMS = {
       "Najniższy zwrot z reklam, przy którym przy Twojej marży reklamy jeszcze się opłacają. Próg 3,10 zł = każda 1 zł na reklamy musi przynieść min. 3,10 zł sprzedaży, żeby wyjść na zero.",
   },
   aov: {
-    name: "Średni koszyk",
+    name: GLOSSARY.aov.name,
     tag: "AOV",
     explain: GLOSSARY.aov.explain,
   },
