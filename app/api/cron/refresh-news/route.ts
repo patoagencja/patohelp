@@ -93,7 +93,12 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       items_inserted: 0,
-      note: plan.reason === "busy" ? "being researched by another call" : "all categories done today",
+      note:
+        plan.reason === "busy"
+          ? "being researched by another call"
+          : plan.reason === "capped"
+            ? "news_runs missing (migration 0044): no automatic research after the morning hours"
+            : "all categories done today",
       ...counts,
       remaining: remainingAfter(NEWS_CATEGORIES, plan, []).length,
     });

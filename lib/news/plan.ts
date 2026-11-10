@@ -49,6 +49,18 @@ export const MIN_RESEARCH_MS = 60_000;
 /** Scheduler cadence; ties between categories rotate once per tick. */
 export const TICK_MS = 30 * 60_000;
 
+/**
+ * Without news_runs (migration 0044 not run) there are no claims and no
+ * attempts cap, and a category that keeps coming back empty was researched
+ * on every tick until midnight. Then the automatic research keeps to the
+ * morning hours that fit the same daily budget - every category
+ * MAX_ATTEMPTS_PER_DAY times, one call per tick - and stops after them.
+ */
+export function unmigratedLastHour(categoryCount: number): number {
+  const ticks = Math.max(1, categoryCount) * MAX_ATTEMPTS_PER_DAY;
+  return NEWS_START_HOUR_PL + Math.ceil((ticks * TICK_MS) / 3_600_000) - 1;
+}
+
 export type NewsRunStatus = "running" | "done" | "failed";
 
 /** A news_runs row of today (one per category). */
@@ -79,8 +91,9 @@ export type NewsPlan =
   | { kind: "before-start" }
   | ({ kind: "research"; targets: NewsTarget[] } & NewsPlanCounts)
   /** Nothing to start: every category is done or given up ("complete"), or
-   *  the rest is being researched by another call right now ("busy"). */
-  | ({ kind: "idle"; reason: "complete" | "busy" } & NewsPlanCounts);
+   *  the rest is being researched by another call right now ("busy"), or -
+   *  without news_runs - the day's research hours are over ("capped"). */
+  | ({ kind: "idle"; reason: "complete" | "busy" | "capped" } & NewsPlanCounts);
 
 export interface NewsPlanInput {
   categories: readonly string[];
@@ -154,6 +167,16 @@ export function planNewsTick(input: NewsPlanInput): NewsPlan {
 
   if (open.length === 0) {
     return { kind: "idle", reason: counts.running.length ? "busy" : "complete", ...counts };
+  }
+  // Not migrated: past the morning window the rest waits for tomorrow (the
+  // button and ?force=1 still research).
+  if (runs === null && !only && !input.force && input.hourPl > unmigratedLastHour(categories.length)) {
+    return {
+      kind: "idle",
+      reason: "capped",
+      ...counts,
+      given_up: [...counts.given_up, ...open.map((o) => o.target.category)],
+    };
   }
 
   // Never tried first, then the fewest tries; ties start at the rotation.

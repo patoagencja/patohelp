@@ -162,6 +162,34 @@ test("without news_runs (not migrated): one category per call, rotating so none 
   assert.deepEqual(targets(plan({ runs: null, withItems: new Set(["meta", "google", "tiktok"]) })), ["ai"]);
 });
 
+test("without news_runs a category that never fills is not paid for all day", () => {
+  // Production ran without migration 0044 ("migrated": false): no claims,
+  // no attempts cap. A category that keeps coming back empty was then
+  // researched on every 30-minute tick from 06:00 to midnight (36 calls).
+  const withItems = new Set<string>();
+  let paid = 0;
+  for (let tick = 0; tick < 36; tick += 1) {
+    const hourPl = 6 + Math.floor(tick / 2);
+    const p = plan({ runs: null, withItems, hourPl, rotation: tick });
+    for (const t of targets(p)) {
+      paid += 1;
+      if (t !== "tiktok") withItems.add(t); // tiktok never finds anything fresh
+    }
+  }
+  // The same daily budget the claims enforce once migrated: each category
+  // twice, in total.
+  assert.ok(paid <= CATS.length * MAX_ATTEMPTS_PER_DAY, `paid ${paid} research calls`);
+  // ... and every category still got its turn in the morning.
+  assert.deepEqual([...withItems].sort(), ["ai", "google", "meta"]);
+  const late = plan({ runs: null, withItems, hourPl: 15 });
+  assert.equal(late.kind, "idle");
+  // The button (a category by name) and ?force=1 still research.
+  assert.deepEqual(targets(plan({ runs: null, withItems, hourPl: 15, only: "tiktok", force: true })), ["tiktok"]);
+  assert.deepEqual(targets(plan({ runs: null, withItems, hourPl: 15, force: true })), ["tiktok"]);
+  // Migrated: the claims cap it, not the clock.
+  assert.equal(plan({ runs: [], hourPl: 15 }).kind, "research");
+});
+
 test("the research deadline leaves time to save before maxDuration (300 s) and stays under curl's 310 s", () => {
   assert.equal(researchBudgetMs(0), RESEARCH_DEADLINE_MS);
   assert.equal(researchBudgetMs(2_000), RESEARCH_DEADLINE_MS - 2_000);
