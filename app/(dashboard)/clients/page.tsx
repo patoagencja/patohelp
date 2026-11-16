@@ -323,82 +323,8 @@ export default async function ClientsPage({
           description="Każdy klient ma własny panel, raporty i alerty - wybierz, żeby do niego wejść."
         />
 
-        <Suspense fallback={<AgencyTodoSkeleton />}>
-          <AgencyTodoSection todo={todo} clientSlugs={clientSlugs} />
-        </Suspense>
-
-        {/* Summary strip across all clients */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="p-[22px]">
-            <p className="kick">Klienci</p>
-            <p className="mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums">{clientList.length}</p>
-          </Card>
-          <Card className="p-[22px]">
-            <p className="kick">Wydatki wczoraj · łącznie</p>
-            <p className="mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums">
-              {formatMoneyPLN(totalYesterday)}
-            </p>
-          </Card>
-          <Card className="p-[22px]">
-            <p className="kick flex items-center gap-2">
-              <span
-                aria-hidden
-                className={cn(
-                  "h-2 w-2 rounded-full ring-[3px]",
-                  totalAlerts > 0 ? "bg-negative ring-negative-soft" : "bg-lime ring-lime-soft"
-                )}
-              />
-              Krytyczne alerty
-            </p>
-            <p
-              className={cn(
-                "mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums",
-                totalAlerts > 0 && "text-negative"
-              )}
-            >
-              {totalAlerts}
-            </p>
-          </Card>
-          <Card className="p-[22px]">
-            <p className="kick flex items-center gap-2">
-              <span
-                aria-hidden
-                className={cn(
-                  "h-2 w-2 rounded-full ring-[3px]",
-                  totalBroken > 0 ? "bg-warning-fill ring-warning-soft" : "bg-lime ring-lime-soft"
-                )}
-              />
-              Połączenia
-            </p>
-            <p
-              className={cn(
-                "mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums",
-                totalBroken > 0 && "text-warning"
-              )}
-            >
-              {totalBroken > 0 ? `${totalBroken} do naprawy` : "Wszystkie działają"}
-            </p>
-            {totalExpiring > 0 ? (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Tokeny wygasające w ciągu 14 dni: {totalExpiring}
-              </p>
-            ) : null}
-          </Card>
-        </div>
-
-        <ConnectionsPanel
-          clients={clientList.map((c) => ({
-            slug: c.slug as string,
-            name: c.name as string,
-            down: healthByClient.get(c.id as string)?.down ?? [],
-          }))}
-          nothingSelected={nothingSelected}
-          reconnected={searchParams.reconnected}
-          fixed={searchParams.fixed}
-          connError={searchParams.conn_error}
-          connReason={searchParams.conn_reason}
-        />
-
+        {/* Clients first: this page is where the agency picks one; the
+            to-do list, totals and connections are second. */}
         <section aria-labelledby="klienci-title" className="space-y-4">
           <div className="px-1">
             <p className="kick">Twoi klienci</p>
@@ -506,6 +432,83 @@ export default async function ClientsPage({
           </div>
           <BrandingFillButton />
         </section>
+
+        <Suspense fallback={<AgencyTodoSkeleton />}>
+          <AgencyTodoSection todo={todo} clientSlugs={clientSlugs} />
+        </Suspense>
+
+        {/* Summary strip across all clients */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="p-[22px]">
+            <p className="kick">Klienci</p>
+            <p className="mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums">{clientList.length}</p>
+          </Card>
+          <Card className="p-[22px]">
+            <p className="kick">Wydatki wczoraj · łącznie</p>
+            <p className="mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums">
+              {formatMoneyPLN(totalYesterday)}
+            </p>
+          </Card>
+          <Card className="p-[22px]">
+            <p className="kick flex items-center gap-2">
+              <span
+                aria-hidden
+                className={cn(
+                  "h-2 w-2 rounded-full ring-[3px]",
+                  totalAlerts > 0 ? "bg-negative ring-negative-soft" : "bg-lime ring-lime-soft"
+                )}
+              />
+              Krytyczne alerty
+            </p>
+            <p
+              className={cn(
+                "mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums",
+                totalAlerts > 0 && "text-negative"
+              )}
+            >
+              {totalAlerts}
+            </p>
+          </Card>
+          <Card className="p-[22px]">
+            <p className="kick flex items-center gap-2">
+              <span
+                aria-hidden
+                className={cn(
+                  "h-2 w-2 rounded-full ring-[3px]",
+                  totalBroken > 0 ? "bg-warning-fill ring-warning-soft" : "bg-lime ring-lime-soft"
+                )}
+              />
+              Połączenia
+            </p>
+            <p
+              className={cn(
+                "mt-3 text-[2.5rem] font-light leading-none tracking-[-0.05em] tabular-nums",
+                totalBroken > 0 && "text-warning"
+              )}
+            >
+              {totalBroken > 0 ? `${totalBroken} do naprawy` : "Wszystkie działają"}
+            </p>
+            {totalExpiring > 0 ? (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Tokeny wygasające w ciągu 14 dni: {totalExpiring}
+              </p>
+            ) : null}
+          </Card>
+        </div>
+
+        <ConnectionsPanel
+          clients={clientList.map((c) => ({
+            slug: c.slug as string,
+            name: c.name as string,
+            down: healthByClient.get(c.id as string)?.down ?? [],
+          }))}
+          nothingSelected={nothingSelected}
+          reconnected={searchParams.reconnected}
+          fixed={searchParams.fixed}
+          connError={searchParams.conn_error}
+          connReason={searchParams.conn_reason}
+        />
+
 
         {isAdmin ? (
           <section id="dodaj-klienta" aria-labelledby="dodaj-klienta-title" className="scroll-mt-28 space-y-4">
