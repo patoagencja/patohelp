@@ -100,15 +100,10 @@ export async function detectAnomalies(
   const todayStr = fmtDate(new Date());
   const today = new Date(`${todayStr}T00:00:00`);
 
-  const recentStart = fmtDate(subDays(today, RECENT_DAYS)); // today-3
+  // The checks look at today-17 .. yesterday (scanChangeAnomalies); the
+  // streaks read 5 weeks: the scanned week + four of the same weekdays.
   const recentEnd = fmtDate(subDays(today, 1)); // yesterday
-  const baseStart = fmtDate(subDays(today, RECENT_DAYS + BASE_DAYS)); // today-17
-  const baseEnd = fmtDate(subDays(today, RECENT_DAYS + 1)); // today-4
-  // The streaks read 5 weeks: the scanned week + four of the same weekdays.
   const readStart = streakWindowStart(todayStr); // today-35
-
-  const inRecent = (d: string) => d >= recentStart && d <= recentEnd;
-  const inBase = (d: string) => d >= baseStart && d <= baseEnd;
 
   // Sales-side checks (broken checkout etc.). Separate query so a missing
   // revenue column can never take down the ad/traffic checks below. Started
@@ -161,6 +156,101 @@ export async function detectAnomalies(
         .range(from, to)
     ),
   ]);
+
+  // The 3-days-vs-14 checks (pure, shared with the demo) and the account
+  // totals per day the streaks read.
+  const { anomalies, streakDays } = scanChangeAnomalies(rows, ga4Rows, todayStr);
+
+  anomalies.push(...(await ecomPromise));
+
+  // ---- Streaks against the same weekday ----
+  // One card per client. It replaces the 3-day alert of the same metric and
+  // inherits its urgency, so the client never reads both.
+  let out = anomalies;
+  const sources = await streakSourcesPromise;
+  if (sources && !sources.offSeason) {
+    for (const [date, extra] of Object.entries(sources.days)) {
+      streakDays[date] = { ...streakDays[date], ...extra };
+    }
+    const streak = buildStreakAlert({ today: todayStr, shop: sources.shop, days: streakDays });
+    if (streak) {
+      const merged = mergeStreak(anomalies, streak);
+      out = merged.alerts;
+      out.push({
+        id: streak.id,
+        severity: merged.severity ?? streak.severity,
+        scope: "client",
+        scopeLabel: streak.scopeLabel,
+        metric: streak.label,
+        direction: streak.direction,
+        changePct: streak.changePct,
+        title: streak.title,
+        description: streak.description,
+        why: streak.why,
+        action: streak.action,
+        streak: { start: streak.start, end: streak.end, days: streak.days },
+      });
+    }
+  }
+
+  // ---- Same-day data-flow incidents ----
+  // Not tied to the season: a broken tag or cart matters whenever the ads
+  // run. Unknown client type reads as engagement: no sales words. A stored
+  // state this code can't word costs only these cards, not the whole scan.
+  let flowAlerts: ReturnType<typeof currentFlowAlerts> = [];
+  try {
+    flowAlerts = currentFlowAlerts(await flowStatePromise, sources?.shop ?? false);
+  } catch (err) {
+    console.warn(`[alerts/anomalies] data-flow incidents for ${clientId} unreadable`, (err as Error)?.message);
+  }
+  for (const f of flowAlerts) {
+    out.push({
+      id: f.id,
+      severity: f.severity,
+      scope: "client",
+      scopeLabel: f.scopeLabel,
+      metric: f.label,
+      direction: "down",
+      changePct: f.changePct,
+      title: f.title,
+      description: f.description,
+      why: f.why,
+      action: f.action,
+      intraday: { since: f.since, label: f.sinceLabel },
+    });
+  }
+
+  const rank = { critical: 0, high: 1, medium: 2 };
+  return out
+    .sort(
+      (a, b) =>
+        rank[a.severity] - rank[b.severity] ||
+        Math.abs(b.changePct) - Math.abs(a.changePct)
+    )
+    .slice(0, 25);
+}
+
+/**
+ * The change checks on rows already read: the last 3 full days against the
+ * 14 before (account-wide and per campaign) for CPC, CTR, clicks, spend and
+ * GA4 sessions, plus the account totals per day for the streaks. Pure - the
+ * public demo (lib/demo/alerts.ts) runs its own days through it, so its
+ * alerts follow the very rules and words live clients get.
+ * `rows`: ads_daily-shaped (campaign_id, campaign_name, date,
+ * spend_minor_units, clicks, impressions); `ga4Rows`: date, sessions.
+ */
+export function scanChangeAnomalies(
+  rows: Array<Record<string, unknown>>,
+  ga4Rows: Array<Record<string, unknown>>,
+  todayStr: string
+): { anomalies: Anomaly[]; streakDays: Record<string, DayTotals> } {
+  const today = new Date(`${todayStr}T00:00:00`);
+  const recentStart = fmtDate(subDays(today, RECENT_DAYS));
+  const recentEnd = fmtDate(subDays(today, 1));
+  const baseStart = fmtDate(subDays(today, RECENT_DAYS + BASE_DAYS));
+  const baseEnd = fmtDate(subDays(today, RECENT_DAYS + 1));
+  const inRecent = (d: string) => d >= recentStart && d <= recentEnd;
+  const inBase = (d: string) => d >= baseStart && d <= baseEnd;
 
   const clientRecent = empty();
   const clientBase = empty();
@@ -383,71 +473,5 @@ export async function detectAnomalies(
     }
   }
 
-  anomalies.push(...(await ecomPromise));
-
-  // ---- Streaks against the same weekday ----
-  // One card per client. It replaces the 3-day alert of the same metric and
-  // inherits its urgency, so the client never reads both.
-  let out = anomalies;
-  const sources = await streakSourcesPromise;
-  if (sources && !sources.offSeason) {
-    for (const [date, extra] of Object.entries(sources.days)) {
-      streakDays[date] = { ...streakDays[date], ...extra };
-    }
-    const streak = buildStreakAlert({ today: todayStr, shop: sources.shop, days: streakDays });
-    if (streak) {
-      const merged = mergeStreak(anomalies, streak);
-      out = merged.alerts;
-      out.push({
-        id: streak.id,
-        severity: merged.severity ?? streak.severity,
-        scope: "client",
-        scopeLabel: streak.scopeLabel,
-        metric: streak.label,
-        direction: streak.direction,
-        changePct: streak.changePct,
-        title: streak.title,
-        description: streak.description,
-        why: streak.why,
-        action: streak.action,
-        streak: { start: streak.start, end: streak.end, days: streak.days },
-      });
-    }
-  }
-
-  // ---- Same-day data-flow incidents ----
-  // Not tied to the season: a broken tag or cart matters whenever the ads
-  // run. Unknown client type reads as engagement: no sales words. A stored
-  // state this code can't word costs only these cards, not the whole scan.
-  let flowAlerts: ReturnType<typeof currentFlowAlerts> = [];
-  try {
-    flowAlerts = currentFlowAlerts(await flowStatePromise, sources?.shop ?? false);
-  } catch (err) {
-    console.warn(`[alerts/anomalies] data-flow incidents for ${clientId} unreadable`, (err as Error)?.message);
-  }
-  for (const f of flowAlerts) {
-    out.push({
-      id: f.id,
-      severity: f.severity,
-      scope: "client",
-      scopeLabel: f.scopeLabel,
-      metric: f.label,
-      direction: "down",
-      changePct: f.changePct,
-      title: f.title,
-      description: f.description,
-      why: f.why,
-      action: f.action,
-      intraday: { since: f.since, label: f.sinceLabel },
-    });
-  }
-
-  const rank = { critical: 0, high: 1, medium: 2 };
-  return out
-    .sort(
-      (a, b) =>
-        rank[a.severity] - rank[b.severity] ||
-        Math.abs(b.changePct) - Math.abs(a.changePct)
-    )
-    .slice(0, 25);
+  return { anomalies, streakDays };
 }

@@ -744,7 +744,7 @@ function kpi(value: number, previous: number): Kpi {
  * per-day rate; value/previous stay the real totals. `cmp` is null for a
  * range that is only today (nothing finished to compare yet).
  */
-function kpiRate(
+export function kpiRate(
   value: number,
   previous: number,
   cmp: { value: number; days: number; prevDays: number } | null
@@ -759,7 +759,7 @@ function kpiRate(
 }
 
 /** Ratio KPIs (CTR, CPC, ROAS, AOV): the % compares finished days only. */
-function kpiRatio(value: number, previous: number, cmpValue: number | null): Kpi {
+export function kpiRatio(value: number, previous: number, cmpValue: number | null): Kpi {
   if (cmpValue === null) return kpi(value, previous);
   return {
     value,

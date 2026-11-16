@@ -46,13 +46,15 @@ export interface DailyScore {
   rings: ScoreRing[]; // 3 dials for the card (Whoop/Apple style)
 }
 
-interface DayMetrics {
+/** One complete day's account totals (ads + GA4 sessions). */
+export interface ScoreDay {
   date: string;
   spend: number;
   clicks: number;
   impressions: number;
   sessions: number;
 }
+type DayMetrics = ScoreDay;
 
 const avg = (n: number[]) => (n.length ? n.reduce((a, b) => a + b, 0) / n.length : 0);
 
@@ -194,7 +196,14 @@ async function computeDailyScore(
   }
   for (const r of ga4Rows) get(r.date).sessions += Number(r.sessions) || 0;
 
-  const days = [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
+  return scoreFromDays([...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1)));
+}
+
+/**
+ * The score of a run of complete days, oldest first (up to yesterday).
+ * Pure - the public demo scores its own days with it (lib/demo/data.ts).
+ */
+export function scoreFromDays(days: ScoreDay[]): DailyScore | null {
   if (days.length < WINDOW + 3) return null;
 
   // Latest day with activity (avoid scoring an empty "today").

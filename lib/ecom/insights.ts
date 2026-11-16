@@ -1,6 +1,7 @@
 import { formatInTimeZone } from "date-fns-tz";
 
 import { getAdsDayTotals } from "@/lib/dashboard/ads-totals";
+import { channelOf, type ChannelKey } from "@/lib/ecom/channel";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 
@@ -606,15 +607,7 @@ export async function getSeasonPlan(
 
 // ---- channel efficiency (GA4 last-click revenue vs platform spend) ----
 
-export type ChannelKey =
-  | "meta"
-  | "google_ads"
-  | "tiktok"
-  | "organic_search"
-  | "social_organic"
-  | "direct"
-  | "email"
-  | "other";
+export { channelOf, type ChannelKey };
 
 export const CHANNEL_LABEL: Record<ChannelKey, string> = {
   meta: "Meta Ads",
@@ -626,31 +619,6 @@ export const CHANNEL_LABEL: Record<ChannelKey, string> = {
   email: "E-mail / newsletter",
   other: "Pozostałe",
 };
-
-const PAID_MEDIUM = /(cpc|ppc|paid|cpm|cpv|cpa|ads|display|retargeting|remarketing)/;
-
-export function channelOf(sourceMedium: string): ChannelKey {
-  const sm = sourceMedium.toLowerCase();
-  const [source = "", medium = ""] = sm.split("/").map((s) => s.trim());
-  const paid = PAID_MEDIUM.test(medium);
-
-  if (/(facebook|instagram|^fb$|^ig$|meta|^an$|messenger)/.test(source)) {
-    return paid ? "meta" : "social_organic";
-  }
-  if (source.includes("tiktok")) return paid ? "tiktok" : "social_organic";
-  if (/(google|youtube)/.test(source) && (paid || medium === "pmax")) {
-    return "google_ads";
-  }
-  if (medium === "organic") return "organic_search";
-  if (source === "(direct)") return "direct";
-  if (/(email|newsletter|mail)/.test(medium) || /(klaviyo|mailchimp|getresponse|freshmail|newsletter)/.test(source)) {
-    return "email";
-  }
-  if (/(social|linkedin|pinterest|twitter|x\.com|youtube)/.test(sm)) {
-    return "social_organic";
-  }
-  return "other";
-}
 
 export interface ChannelRow {
   channel: ChannelKey;

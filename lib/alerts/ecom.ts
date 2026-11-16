@@ -12,11 +12,12 @@ const BASE_DAYS = 28;
 /** Need real order volume before calling anything "broken". */
 const MIN_BASE_DAILY_ORDERS = 3;
 
-interface Day {
+export interface EcomDay {
   sessions: number;
   transactions: number;
   revenue: number;
 }
+type Day = EcomDay;
 
 const pctLabel = (ratio: number) =>
   `${ratio > 0 ? "+" : ""}${Math.round(ratio * 100)}%`;
@@ -35,11 +36,10 @@ export async function detectEcomAnomalies(
   clientId: string,
   supabase: SupabaseClient
 ): Promise<Anomaly[]> {
-  const today = new Date(`${fmtDate(new Date())}T00:00:00`);
+  const todayStr = fmtDate(new Date());
+  const today = new Date(`${todayStr}T00:00:00`);
   const yesterday = fmtDate(subDays(today, 1));
-  const dayBefore = fmtDate(subDays(today, 2));
   const baseStart = fmtDate(subDays(today, 1 + BASE_DAYS));
-  const baseEnd = fmtDate(subDays(today, 2));
 
   const { data, error } = await supabase
     .from("ga4_daily")
@@ -61,6 +61,20 @@ export async function detectEcomAnomalies(
     d.revenue += Number(r.revenue_minor_units ?? 0);
     days.set(r.date as string, d);
   }
+  return ecomAnomaliesFromDays(days, todayStr);
+}
+
+/**
+ * The sales checks on days already read (GA4 daily totals per date; a date
+ * missing = not synced). Pure - the public demo runs its own days through
+ * it (lib/demo/alerts.ts).
+ */
+export function ecomAnomaliesFromDays(days: ReadonlyMap<string, EcomDay>, todayStr: string): Anomaly[] {
+  const today = new Date(`${todayStr}T00:00:00`);
+  const yesterday = fmtDate(subDays(today, 1));
+  const dayBefore = fmtDate(subDays(today, 2));
+  const baseStart = fmtDate(subDays(today, 1 + BASE_DAYS));
+  const baseEnd = fmtDate(subDays(today, 2));
 
   // Baseline: the 28 days before yesterday (dayBefore included), days with data.
   let bSessions = 0;
