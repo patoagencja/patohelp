@@ -31,7 +31,6 @@ const clicksWord = (n: number) => plPlural(n, "kliknięcie", "kliknięcia", "kli
  * The "Sezon" page for clients who earn in one window a year. It answers,
  * in this order: where are we in the season, are we ahead of last season at
  * the same point, where will it end, which markets and products carry it.
- * Shared by the real page and the demo (/demo-full/sezon).
  *
  * Terms (one name per thing across the page): "Sprzedaż sklepu" = the shop's
  * own panel; "Sprzedaż z reklam (wg Meta i Google)" = what the platforms

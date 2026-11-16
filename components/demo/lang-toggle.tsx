@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * /demo-full pages written in both languages. The rest (Dziś, Sprzedaż,
- * Testy kreacji, Słowniczek, Sezon) are Polish only.
+ * Testy kreacji, Słowniczek) are Polish only.
  */
 const EN_PAGES = ["/demo-full", "/demo-full/reklamy", "/demo-full/kreacje", "/demo-full/witryna", "/demo-full/alerty", "/demo-full/newsy"];
 
