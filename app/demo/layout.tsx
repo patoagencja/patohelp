@@ -3,6 +3,7 @@ import { ClientBrandMark } from "@/components/dashboard/client-brand-mark";
 import { ThemeToggle } from "@/components/dashboard/theme-toggle";
 import { StatusChip } from "@/components/ui/primitives";
 import { Sky } from "@/components/ui/sky";
+import { DEMO_BRAND } from "@/lib/demo/brand";
 import { DEMO_BRANDING } from "@/lib/demo/branding";
 
 // Minimal chrome for the public one-pager demo: a top bar only, no sidebar.
@@ -24,7 +25,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
         >
           {/* The client's own logo, as on /demo-full - a generic sparkle
               badge made the one-pager look like a different product. */}
-          <ClientBrandMark name="lokalnepomidorki" logoUrl={DEMO_BRANDING.logoUrl} className="h-7 min-w-0 max-w-[10rem]" />
+          <ClientBrandMark name={DEMO_BRAND} logoUrl={DEMO_BRANDING.logoUrl} className="h-7 min-w-0 max-w-[10rem]" />
           <StatusChip tone="amber" className="hidden min-h-9 text-[13px] sm:inline-flex">
             <DemoBadgeLabel />
           </StatusChip>

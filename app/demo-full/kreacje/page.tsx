@@ -6,6 +6,7 @@ import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
 import { Pill } from "@/components/ui/pill";
 import type { CreativeItem } from "@/lib/dashboard/creatives";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { getDemoSource } from "@/lib/demo/profile/store";
 
 export const dynamic = "force-dynamic";
 
@@ -91,14 +92,14 @@ function withDiagnostics(c: CreativeItem): CreativeItem {
   };
 }
 
-export default function DemoFullKreacje({
+export default async function DemoFullKreacje({
   searchParams,
 }: {
   searchParams: { lang?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
-  const d = getDemoDashboard(lang);
+  const d = getDemoDashboard(await getDemoSource(), lang);
   const creatives = d.creativesFull.map(withDiagnostics);
   return (
     <>

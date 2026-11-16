@@ -15,7 +15,6 @@ import { LineChart } from "lucide-react";
 
 import {
   buildChartMarkers,
-  buildDemoChartExtras,
   type ChartEvent,
   type ChartMarker,
 } from "@/lib/dashboard/chart-events";
@@ -343,7 +342,6 @@ export function MainChart({
   yoy,
   label,
   lang = "pl",
-  demo = false,
   metric: metricProp,
   hidePicker = false,
   hideCompare = false,
@@ -361,8 +359,6 @@ export function MainChart({
   yoy?: EngagementYoY | null;
   label?: string;
   lang?: Lang;
-  /** Public demo pages: synthesize comparison + annotations from `trend`. */
-  demo?: boolean;
   /**
    * Controlled metric: the parent picks what is drawn (the overview's KPI
    * tiles act as the chart's tabs). Omit to use the built-in picker.
@@ -416,11 +412,7 @@ export function MainChart({
     return () => ro.disconnect();
   }, []);
 
-  const demoExtras = useMemo(
-    () => (demo ? buildDemoChartExtras(rawTrend, lang) : null),
-    [demo, rawTrend, lang]
-  );
-  const prevRaw = prevTrend ?? demoExtras?.prevTrend ?? NO_POINTS;
+  const prevRaw = prevTrend ?? NO_POINTS;
   // A brand-new client has a 30-day axis with 27 empty days and a spike at
   // the end - which reads as explosive growth. With no history to compare
   // against, start the axis on the first day that has any data instead.
@@ -432,7 +424,7 @@ export function MainChart({
     [rawTrend, trimFrom]
   );
   const prev = prevRaw;
-  const auto = autoEvents ?? demoExtras?.autoEvents ?? NO_EVENTS;
+  const auto = autoEvents ?? NO_EVENTS;
 
   const n = trend.length;
   const rangeStart = trend[0]?.date ?? "";

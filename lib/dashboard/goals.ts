@@ -176,7 +176,7 @@ export async function getMonthTotals(
   };
 }
 
-// ---- pacing maths (pure, shared with the demo) ----
+// ---- pacing maths (pure) ----
 
 export function computeGoal(
   metric: GoalMetric,
@@ -272,50 +272,4 @@ export async function getEngagementGoals(
     ads: metrics.some((m) => m !== "sessions"),
   });
   return metrics.map((m) => computeGoal(m, goals.get(m)!, series[m], today));
-}
-
-// ---- demo ----
-
-/**
- * Plausible goals for the public demo, run through the same maths: one goal
- * ahead, one behind, one already achieved (when the month is old enough).
- */
-export function demoEngagementGoals(today = todayWarsaw()): EngagementGoal[] {
-  const monthStart = monthStartOf(today);
-  const dim = daysInMonthOf(today);
-  const completeDays = Number(today.slice(8, 10)) - 1;
-  // Deterministic wiggle so the demo looks alive but never changes on reload.
-  const series = (base: number, seed: number) => {
-    const m = new Map<string, number>();
-    for (let i = -(RECENT_DAYS + 1); i <= completeDays; i++) {
-      const d = addDays(monthStart, i);
-      const wiggle = 1 + 0.12 * Math.sin((i + seed) * 1.7) + 0.06 * Math.cos(i * 0.9);
-      m.set(d, Math.round(base * wiggle * (i === completeDays ? 0.4 : 1)));
-    }
-    return m;
-  };
-  // Daily bases in scale with the demo shop's days (lib/demo/ecom.ts, which
-  // lib/demo/data.ts reads: ~4 500 visits and ~1 600 clicks a day) so the
-  // goal bars and the hero agree.
-  const sessions = series(4700, 1);
-  const clicks = series(1700, 2);
-  const conversions = series(40, 3);
-  const round = (n: number, step: number) => Math.max(step, Math.round(n / step) * step);
-
-  const goals = [
-    computeGoal("sessions", round(4700 * dim * 0.96, 500), sessions, today),
-    computeGoal("clicks", round(1700 * dim * 1.1, 500), clicks, today),
-  ];
-  const convSoFar = Array.from({ length: completeDays }, (_, i) =>
-    conversions.get(addDays(monthStart, i)) ?? 0
-  ).reduce((a, b) => a + b, 0);
-  goals.push(
-    computeGoal(
-      "conversions",
-      completeDays >= 3 ? round(convSoFar * 0.85, 10) : round(40 * dim, 50),
-      conversions,
-      today
-    )
-  );
-  return goals;
 }

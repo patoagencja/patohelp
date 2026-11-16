@@ -1,155 +1,141 @@
-import { format, subDays, addDays } from "date-fns";
-
-import { computePacing, type FlightDef, type PacingFlight } from "@/lib/alerts/pacing";
+import { computePacing, type FlightDef, type FlightMetric, type PacingFlight } from "@/lib/alerts/pacing";
 import { buildGoalTiles, type GoalTile } from "@/lib/dashboard/campaign-goals";
-import { getDemoDashboard } from "@/lib/demo/data";
+import { addDaysIso } from "@/lib/demo/profile/anonymize";
+import type { DemoCampaign, DemoSource } from "@/lib/demo/source";
 
 /**
- * Sample campaign goals for /demo-full: one per tile verdict (on plan, behind,
- * at risk, reached) and one ad set / ad group goal of each provider, so the
- * goal tiles and the Alerty goal cards show every state. Deterministic.
+ * Sample campaign goals for /demo-full: one per tile verdict (on plan,
+ * behind, at risk, budget used up) and one ad set / ad group goal of each
+ * platform. What each goal delivered is its campaign's own days in the demo
+ * source (an ad set's share of them), so a goal can't claim clicks its
+ * campaign never had; the targets are set against that delivery so each
+ * goal lands in its state, then rounded like a person would write them.
  */
 
-function seeded(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 2 ** 32;
-  };
-}
-
 interface DemoGoal {
-  def: Omit<FlightDef, "startDate" | "endDate">;
+  id: string;
+  campaign: DemoCampaign | undefined;
+  adset: { id: string; name: string; share: number } | null;
+  metric: FlightMetric;
   /** Days since the start (today = startAgo) and until the end. */
   startAgo: number;
   endIn: number;
-  /** Delivery per day as a share of the linear plan, start -> today. */
-  paceFrom: number;
-  paceTo: number;
+  /** Target as a multiple of the linear plan the delivery so far implies. */
+  vsPlan: number;
+  /** Spend goals: target as a share of what was already spent. */
+  vsRealized?: number;
 }
 
-export function demoCampaignFlights(today = new Date()): PacingFlight[] {
-  const rand = seeded(20261006);
-  const todayStr = format(today, "yyyy-MM-dd");
+const pick = (src: DemoSource, provider: DemoCampaign["provider"], types: string[], skip: Set<string>) =>
+  types
+    .map((t) => src.campaigns.find((c) => c.provider === provider && c.type === t && !skip.has(c.id)))
+    .find((c) => c !== undefined) ??
+  src.campaigns.find((c) => c.provider === provider && !skip.has(c.id));
+
+/** Three significant digits: "12 300 kliknięć", "41 800 zł". */
+function nice(v: number, metric: FlightMetric): number {
+  if (metric === "spend") return Math.max(100_00, Math.round(v / 100_00) * 100_00);
+  const mag = 10 ** Math.max(0, Math.floor(Math.log10(Math.max(1, v))) - 2);
+  return Math.max(mag, Math.round(v / mag) * mag);
+}
+
+const metricOf = (metric: FlightMetric, a: { spend: number; clicks: number; impressions: number; conversions: number }) =>
+  metric === "spend" ? a.spend : metric === "impressions" ? a.impressions : metric === "conversions" ? a.conversions : a.clicks;
+
+export function demoCampaignFlights(src: DemoSource): PacingFlight[] {
+  const today = src.today;
+  const used = new Set<string>();
+  const take = (c: DemoCampaign | undefined) => {
+    if (c) used.add(c.id);
+    return c;
+  };
   const goals: DemoGoal[] = [
     {
-      def: {
-        id: "demo-goal-1",
-        campaignId: "d-m2",
-        campaignName: "SPRZEDAŻ | Skrzynki warzyw",
-        adsetId: null,
-        adsetName: null,
-        provider: "meta_ads",
-        metric: "clicks",
-        target: 12000,
-      },
+      id: "demo-goal-1",
+      campaign: take(pick(src, "meta_ads", ["PROSPECTING"], used)),
+      adset: null,
+      metric: "clicks",
       startAgo: 13,
       endIn: 14,
-      paceFrom: 0.92,
-      paceTo: 1.12,
+      vsPlan: 1,
     },
     {
-      def: {
-        id: "demo-goal-2",
-        campaignId: "d-m4",
-        campaignName: "REMARKETING | Sklep",
-        adsetId: "d-m4-as1",
-        adsetName: "Odwiedzili sklep 14 dni",
-        provider: "meta_ads",
-        metric: "impressions",
-        target: 400000,
-      },
+      id: "demo-goal-2",
+      campaign: take(pick(src, "meta_ads", ["RETARGETING", "CATALOG"], used)),
+      adset: { id: "demo-adset-rmk", name: "Odwiedzili sklep 14 dni", share: 0.6 },
+      metric: "impressions",
       startAgo: 18,
       endIn: 6,
-      paceFrom: 0.75,
-      paceTo: 0.55,
+      vsPlan: 1.45,
     },
     {
-      def: {
-        id: "demo-goal-3",
-        campaignId: "d-g2",
-        campaignName: "SEARCH | Warzywa z dostawą",
-        adsetId: "d-g2-ag1",
-        adsetName: "Skrzynki warzyw",
-        provider: "google_ads",
-        metric: "clicks",
-        target: 500,
-      },
+      id: "demo-goal-3",
+      // A product Search campaign, not the brand one (the biggest Search is
+      // named "Marka"); else the shopping feed.
+      campaign: take(
+        src.campaigns.filter((c) => c.provider === "google_ads" && c.type === "SEARCH" && !used.has(c.id))[1] ??
+          pick(src, "google_ads", ["SHOPPING", "SEARCH"], used)
+      ),
+      adset: { id: "demo-adgroup-tv", name: "Telewizory 55-65 cali", share: 0.45 },
+      metric: "clicks",
       startAgo: 9,
       endIn: 11,
-      // Plan counts finished days only (computePacing), so "behind" needs a
-      // pace clearly under 90% of plan.
-      paceFrom: 0.9,
-      paceTo: 0.65,
+      vsPlan: 1.22,
     },
     {
-      def: {
-        id: "demo-goal-4",
-        campaignId: "d-g3",
-        campaignName: "PMAX | Sklep z warzywami",
-        adsetId: null,
-        adsetName: null,
-        provider: "google_ads",
-        metric: "spend",
-        // Placeholder: set from the PMAX campaign's spend below.
-        target: 550000,
-      },
-      // The launch budget, met before its end date because the campaign
-      // overspends - the same story as the demo's "Skok wydatków dziś" alert
-      // on this campaign. It used to have ended two days ago, next to that
-      // alert about spend today.
+      id: "demo-goal-4",
+      campaign: take(pick(src, "google_ads", ["PMAX"], used)),
+      adset: null,
+      metric: "spend",
       startAgo: 22,
       endIn: 3,
-      paceFrom: 1.0,
-      paceTo: 1.35,
+      vsPlan: 1,
+      // A launch budget met before its end date: "budżet wykorzystany".
+      vsRealized: 0.97,
     },
   ];
 
-  // The PMAX launch budget is the whole campaign, which started inside the
-  // demo's 30 days: its spend must be the campaign row's (it read 5 674 zł
-  // here and 5 705 zł in the table). The target sits ~3% under it.
-  const pmaxSpend =
-    getDemoDashboard("pl", today).campaigns.find((c) => c.campaignId === "d-g3")?.spendMinorUnits ?? 0;
-  const pmaxGoal = goals.find((g) => g.def.id === "demo-goal-4");
-  if (pmaxGoal && pmaxSpend > 0) pmaxGoal.def.target = Math.round(pmaxSpend / 1.03 / 10_000) * 10_000;
-
-  return goals.map((g) => {
-    const start = subDays(today, g.startAgo);
-    const end = addDays(today, g.endIn);
+  const out: PacingFlight[] = [];
+  for (const g of goals) {
+    const c = g.campaign;
+    if (!c) continue;
+    const start = addDaysIso(today, -g.startAgo);
+    if (start < src.campaignStart) continue;
+    const end = addDaysIso(today, g.endIn);
     const totalDays = g.startAgo + g.endIn + 1;
-    const perDay = g.def.target / totalDays;
-    const days = Math.min(g.startAgo + 1, totalDays);
+    const share = g.adset?.share ?? 1;
     const byDate = new Map<string, number>();
-    for (let i = 0; i < days; i++) {
-      const t = days > 1 ? i / (days - 1) : 0;
-      const pace = g.paceFrom + (g.paceTo - g.paceFrom) * t;
-      // Today is a partial day in the live data too.
-      const partial = i === g.startAgo ? 0.45 : 1;
-      byDate.set(
-        format(addDays(start, i), "yyyy-MM-dd"),
-        Math.round(perDay * pace * (0.85 + rand() * 0.3) * partial)
-      );
+    let done = 0;
+    let realized = 0;
+    for (let i = 0; i <= g.startAgo; i++) {
+      const d = addDaysIso(start, i);
+      const a = src.campaignDay(c.id, d);
+      const v = a ? Math.round(metricOf(g.metric, a) * share) : 0;
+      byDate.set(d, v);
+      realized += v;
+      if (d < today) done += v;
     }
-    if (g.def.id === "demo-goal-4" && pmaxSpend > 0) {
-      // Same days, scaled to add up to the campaign's spend exactly.
-      const raw = Array.from(byDate.values()).reduce((a, v) => a + v, 0) || 1;
-      let left = pmaxSpend;
-      const keys = Array.from(byDate.keys());
-      keys.forEach((k, i) => {
-        const v = i === keys.length - 1 ? left : Math.round(((byDate.get(k) ?? 0) * pmaxSpend) / raw);
-        byDate.set(k, v);
-        left -= v;
-      });
-    }
-    return computePacing(
-      { ...g.def, startDate: format(start, "yyyy-MM-dd"), endDate: format(end, "yyyy-MM-dd") },
-      byDate,
-      todayStr
-    );
-  });
+    if (done <= 0) continue;
+    const plan = (done / g.startAgo) * totalDays;
+    const target = nice(g.vsRealized ? realized * g.vsRealized : plan * g.vsPlan, g.metric);
+    const def: FlightDef = {
+      id: g.id,
+      campaignId: c.id,
+      campaignName: c.namePl,
+      adsetId: g.adset?.id ?? null,
+      adsetName: g.adset?.name ?? null,
+      provider: c.provider,
+      metric: g.metric,
+      target,
+      startDate: start,
+      endDate: end,
+    };
+    out.push(computePacing(def, byDate, today));
+  }
+  return out;
 }
 
 /** The demo's goal tiles, on the same "today" as its flights. */
-export function demoGoalTiles(today = new Date()): GoalTile[] {
-  return buildGoalTiles(demoCampaignFlights(today), format(today, "yyyy-MM-dd"));
+export function demoGoalTiles(src: DemoSource): GoalTile[] {
+  return buildGoalTiles(demoCampaignFlights(src), src.today);
 }

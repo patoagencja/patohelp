@@ -33,7 +33,6 @@ import type {
   AgencyWorkCategory,
   AgencyWorkEntry,
 } from "@/lib/dashboard/overview";
-import { demoAgencyWork as demoWork } from "@/lib/demo/agency-work";
 import { cn } from "@/lib/utils";
 
 // "Co dla Ciebie zrobiliśmy": the client sees the work behind the numbers
@@ -302,20 +301,13 @@ export function AgencyActivity({
   autoEvents?: ChartEvent[];
   isAgency: boolean;
   clientSlug: string;
-  /** Public demo pages: render six synthetic entries, no editing. */
+  /** Public demo pages (entries from lib/demo/agency-work.ts): no editing. */
   demo?: boolean;
   /** Header control on the right, e.g. the agency's "Dodaj działanie". */
   action?: React.ReactNode;
 }) {
-  const demoData = useMemo(
-    () =>
-      demo
-        ? demoWork(formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd"))
-        : null,
-    [demo]
-  );
-  const work = demoData?.work ?? workProp;
-  const autoEvents = demoData?.autoEvents ?? autoProp ?? [];
+  const work = workProp;
+  const autoEvents = autoProp ?? [];
   const canEdit = isAgency && !demo;
   const [showAll, setShowAll] = useState(false);
 

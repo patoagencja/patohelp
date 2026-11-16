@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatInTimeZone } from "date-fns-tz";
 
 import { getAdsDayTotals } from "@/lib/dashboard/ads-totals";
-import type { TrendPoint } from "@/lib/dashboard/metrics";
 import { syncCached } from "@/lib/dashboard/sync-cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -206,28 +205,4 @@ async function readEngagementYoY(
   }
   const today = formatInTimeZone(new Date(), "Europe/Warsaw", "yyyy-MM-dd");
   return { ...buildEngagementYoY(start, end, ads, ga4), endsToday: end === today };
-}
-
-/**
- * Demo pages only: a plausible last year from the demo trend (about 18% lower,
- * with deterministic noise so it isn't a scaled copy of this year).
- */
-export function demoEngagementYoY(trend: TrendPoint[]): EngagementYoY | null {
-  const start = trend[0]?.date;
-  const end = trend[trend.length - 1]?.date;
-  if (!start || !end) return null;
-  const ads = new Map<string, AdsDay>();
-  const ga4 = new Map<string, number>();
-  trend.forEach((p, i) => {
-    const noise = 0.82 * (1 + 0.07 * Math.sin(i * 2.3) + 0.04 * Math.cos(i * 0.9));
-    const date = addDays(p.date, -YOY_SHIFT_DAYS);
-    ads.set(date, {
-      spend: Math.round(p.spendMinorUnits * noise * 0.95),
-      clicks: Math.round(p.clicks * noise),
-      impressions: Math.round(p.impressions * noise * 1.05),
-      conversions: Math.round(p.conversions * noise),
-    });
-    ga4.set(date, Math.round(p.sessions * noise));
-  });
-  return buildEngagementYoY(start, end, ads, ga4);
 }

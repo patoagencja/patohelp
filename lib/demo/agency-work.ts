@@ -1,16 +1,15 @@
 import type { ChartEvent } from "@/lib/dashboard/chart-events";
 import type { AgencyWork, AgencyWorkCategory, AgencyWorkEntry } from "@/lib/dashboard/overview";
+import { addDaysIso } from "@/lib/demo/profile/anonymize";
 
-// Shared by the demo's "Co dla Ciebie zrobiliśmy" card (client component) and
-// the presentation story deck (server component), so it lives outside the
-// "use client" module. yyyy-MM-dd strings are Warsaw days: UTC maths only.
-const DAY_MS = 86_400_000;
-const shift = (s: string, n: number) =>
-  new Date(new Date(`${s}T00:00:00Z`).getTime() + n * DAY_MS).toISOString().slice(0, 10);
+// "Co dla Ciebie zrobiliśmy" on the demo, shared by the overview card and the
+// presentation story deck. The automatic entries are the campaign starts,
+// pauses and budget changes the chart marks (lib/demo/dashboard.ts,
+// demoCampaignEvents) - passed in, so the two can't disagree. The hand-written
+// ones describe agency work, not the shop's numbers.
 
-/** Six plausible entries for the public demo, dated relative to `today`. */
-export function demoAgencyWork(today: string): { work: AgencyWork; autoEvents: ChartEvent[] } {
-  const d = (n: number) => shift(today, -n);
+/** Four plausible entries for the demo shop, dated relative to `today`. */
+export function demoAgencyWork(today: string, autoEvents: ChartEvent[]): { work: AgencyWork; autoEvents: ChartEvent[] } {
   const entry = (
     id: string,
     days: number,
@@ -19,7 +18,7 @@ export function demoAgencyWork(today: string): { work: AgencyWork; autoEvents: C
     description: string | null = null
   ): AgencyWorkEntry => ({
     id,
-    date: d(days),
+    date: addDaysIso(today, -days),
     category,
     title,
     description,
@@ -28,54 +27,32 @@ export function demoAgencyWork(today: string): { work: AgencyWork; autoEvents: C
   return {
     work: {
       today,
-      since: d(29),
+      since: addDaysIso(today, -29),
       entries: [
         entry(
           "demo-1",
           1,
           "kreacja",
-          "Przygotowaliśmy 4 nowe reklamy na jesień",
-          "Grafiki z sezonowymi pomidorami i 2 krótkie wideo do kampanii na Facebooku i Instagramie."
+          "Przygotowaliśmy nowe reklamy na Black Friday",
+          "Wideo z rozpakowaniem telewizora i karuzele z ratami 0% na duże AGD, na Facebooka i Instagrama."
         ),
         entry(
           "demo-2",
           3,
           "optymalizacja",
-          "Wykluczyliśmy 38 nietrafionych fraz w Google Ads",
-          "Reklamy nie wyświetlają się już na zapytania typu „nasiona pomidorów” - budżet idzie na właściwych klientów."
+          "Wykluczyliśmy nietrafione frazy w Google Ads",
+          "Reklamy nie wyświetlają się już na zapytania typu „naprawa pralki” czy „instrukcja obsługi telewizora” - budżet idzie na osoby, które chcą kupić."
         ),
         entry(
           "demo-3",
           9,
           "strona",
-          "Przyspieszyliśmy stronę główną",
-          "Czas ładowania na telefonie spadł z 3,8 s do 2,1 s."
+          "Dodaliśmy na kartach produktów termin dostawy przed Świętami",
+          "Klient od razu widzi, czy sprzęt dotrze przed Wigilią, razem z informacją o wniesieniu i montażu."
         ),
-        entry(
-          "demo-4",
-          16,
-          "raport",
-          "Raport miesięczny z rekomendacjami na październik"
-        ),
+        entry("demo-4", 16, "raport", "Raport miesięczny z planem na Black Friday i grudzień"),
       ],
     },
-    autoEvents: [
-      {
-        id: "demo-auto-1",
-        // Same days and % as the demo chart's markers (buildDemoChartExtras:
-        // 25% / 55% into a 30-day trend) - the two used to disagree.
-        date: d(13),
-        kind: "budget_up",
-        text: "Zwiększono budżet: SPRZEDAŻ | Skrzynki warzyw (Meta, +60%)",
-        weight: 1,
-      },
-      {
-        id: "demo-auto-2",
-        date: d(22),
-        kind: "start",
-        text: "Start kampanii: PMAX | Sklep z warzywami (Google)",
-        weight: 1,
-      },
-    ],
+    autoEvents,
   };
 }

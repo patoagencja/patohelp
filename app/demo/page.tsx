@@ -10,6 +10,7 @@ import { TopCreatives } from "@/components/dashboard/top-creatives";
 import { Devices } from "@/components/dashboard/website/devices";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { getDemoSource } from "@/lib/demo/profile/store";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +18,14 @@ async function noop() {
   "use server";
 }
 
-export default function DemoOnePager({
+export default async function DemoOnePager({
   searchParams,
 }: {
   searchParams: { lang?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
-  const d = getDemoDashboard(lang);
+  const d = getDemoDashboard(await getDemoSource(), lang);
 
   return (
     <>
@@ -41,11 +42,17 @@ export default function DemoOnePager({
       </div>
 
       <TickerBar campaigns={d.campaigns} />
-      <DailyScoreCard data={d.score} lang={lang} />
-      {/* `demo` synthesizes the previous period the KPI tiles below compare
-          against; without it the chart said "no previous data" right above
-          tiles showing +11%. */}
-      <MainChart trend={d.trend} events={[]} label={d.rangeLabel} lang={lang} demo />
+      {d.score ? <DailyScoreCard data={d.score} lang={lang} /> : null}
+      {/* The 30 days before as the dashed line, the campaign changes as
+          markers - the same days the tiles below compare against. */}
+      <MainChart
+        trend={d.trend}
+        prevTrend={d.prevTrend}
+        events={[]}
+        autoEvents={d.autoEvents}
+        label={d.rangeLabel}
+        lang={lang}
+      />
       <KpiCards kpis={d.kpis} trend={d.trend} lang={lang} />
       <BudgetProgress
         budget={d.budget}

@@ -11,59 +11,57 @@ import { AdsSectionTabs } from "@/components/dashboard/section-tabs";
 import { Pill } from "@/components/ui/pill";
 import type { SearchTermRow } from "@/lib/dashboard/search-terms";
 import { summarizeImpressionShare } from "@/lib/dashboard/impression-share";
+import { DEMO_SEARCH_TERMS } from "@/lib/demo/brand";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { getDemoSource } from "@/lib/demo/profile/store";
+import { splitExact, type DemoSource } from "@/lib/demo/source";
 
 export const dynamic = "force-dynamic";
 
-// Demo search terms for lokalnepomidorki, the online vegetable shop:
-// [phrase, impressions, clicks, cost in grosze]. A subset of the two Search
-// campaigns' clicks and cost in the table; "dostawa" leads the topics.
-const DEMO_SEARCH_TERMS: SearchTermRow[] = (
-  [
-    ["dostawa warzyw", 9840, 612, 104_040],
-    ["skrzynka warzywna", 7320, 418, 79_420],
-    ["warzywa od rolnika warszawa", 3110, 287, 51_660],
-    ["pomidory malinowe sklep internetowy", 4580, 254, 38_100],
-    ["dostawa warzyw cena", 6900, 241, 40_970],
-    ["ekologiczne warzywa dostawa", 3870, 196, 37_240],
-    ["pomidory na przetwory 10 kg", 2240, 171, 22_230],
-    ["skrzynka warzywna abonament", 2950, 158, 30_020],
-    ["warzywa online kraków", 3420, 142, 25_560],
-    ["lokalne pomidory", 1980, 131, 9_170],
-    ["kapusta do kiszenia", 2610, 119, 14_280],
-    ["warzywa sezonowe dostawa jutro", 2130, 104, 19_760],
-    ["passata domowa", 1760, 88, 10_560],
-    ["owoce i warzywa dostawa", 1540, 81, 15_390],
-    ["warzywa promocja", 2890, 76, 9_880],
-    ["pomidory koktajlowe kolorowe", 940, 63, 8_190],
-    ["dostawa warzyw opinie", 1210, 57, 10_830],
-    ["ziemniaki 15 kg dostawa", 1330, 52, 7_800],
-    ["warzywniak online", 880, 49, 9_310],
-    ["warzywa bez chemii", 1090, 41, 6_970],
-  ] as const
-).map(([term, impressions, clicks, costMinorUnits]) => ({
-  term,
-  impressions,
-  clicks,
-  costMinorUnits,
-  conversions: 0,
-}));
+type Dashboard = ReturnType<typeof getDemoDashboard>;
 
-// Google's raw shares for the demo's two Search campaigns (impression share,
-// lost to budget, lost to rank). Impressions, clicks and cost come from the
-// same campaign rows as the table below, so the card can't name a campaign
-// or a spend the table doesn't have.
-const DEMO_SEARCH_SHARES: Record<string, [number, number, number]> = {
-  "d-g2": [0.62, 0.28, 0.1],
-  "d-g1": [0.93, 0, 0.07],
-};
+/** The Search campaigns of the table (else the Google ones, which match search terms too). */
+function searchCampaigns(src: DemoSource, d: Dashboard) {
+  const ids = new Set(src.campaigns.filter((c) => c.type === "SEARCH").map((c) => c.id));
+  const rows = d.campaigns.filter((c) => ids.has(c.campaignId));
+  return rows.length ? rows : d.campaigns.filter((c) => c.provider === "google_ads").slice(0, 2);
+}
 
-function demoImpressionShare(d: ReturnType<typeof getDemoDashboard>) {
+/**
+ * What customers searched for: the shop's phrases (lib/demo/brand.ts)
+ * sharing part of the Search campaigns' clicks and cost - a report never
+ * holds every term, so it can't reach the campaigns' totals.
+ */
+function demoSearchTerms(src: DemoSource, d: Dashboard): SearchTermRow[] {
+  const rows = searchCampaigns(src, d);
+  const clicks = Math.round(rows.reduce((a, c) => a + c.clicks, 0) * 0.62);
+  const cost = Math.round(rows.reduce((a, c) => a + c.spendMinorUnits, 0) * 0.58);
+  const byClicks = splitExact(clicks, DEMO_SEARCH_TERMS.map((t) => t[1]));
+  const byCost = splitExact(cost, DEMO_SEARCH_TERMS.map((t, i) => byClicks[i] * t[3]));
+  return DEMO_SEARCH_TERMS.map(([term, , ctr], i) => ({
+    term,
+    impressions: Math.round(byClicks[i] / ctr),
+    clicks: byClicks[i],
+    costMinorUnits: byCost[i],
+    conversions: 0,
+  })).filter((t) => t.clicks > 0);
+}
+
+// Google's raw shares for the Search campaigns, by rank (impression share,
+// lost to budget, lost to rank). Impressions, clicks and cost are the
+// campaign rows of the table, so the card can't name a spend they don't have.
+const SEARCH_SHARES: Array<[number, number, number]> = [
+  [0.91, 0, 0.09],
+  [0.58, 0.31, 0.11],
+  [0.66, 0.18, 0.16],
+];
+
+function demoImpressionShare(src: DemoSource, d: Dashboard) {
   return summarizeImpressionShare(
-    d.campaigns
-      .filter((c) => DEMO_SEARCH_SHARES[c.campaignId])
-      .map((c) => {
-        const [is, budget, rank] = DEMO_SEARCH_SHARES[c.campaignId];
+    searchCampaigns(src, d)
+      .slice(0, SEARCH_SHARES.length)
+      .map((c, i) => {
+        const [is, budget, rank] = SEARCH_SHARES[i];
         return {
           customerId: "demo",
           campaignId: c.campaignId,
@@ -80,14 +78,15 @@ function demoImpressionShare(d: ReturnType<typeof getDemoDashboard>) {
   );
 }
 
-export default function DemoFullReklamy({
+export default async function DemoFullReklamy({
   searchParams,
 }: {
   searchParams: { lang?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
-  const d = getDemoDashboard(lang);
+  const src = await getDemoSource();
+  const d = getDemoDashboard(src, lang);
   // The demo's one fixed period is its 30-day trend.
   const exportScope = {
     client: "demo",
@@ -96,8 +95,7 @@ export default function DemoFullReklamy({
   };
 
   // Same skeleton as the real Reklamy tab: header + tabs -> 4 numbers ->
-  // one chart -> one table -> one "Pokaż szczegóły". The ads teaser that
-  // used to close the page lives one tab over, on Kreacje.
+  // one chart -> one table -> one "Pokaż szczegóły".
   return (
     <>
       <AdsPageHeader
@@ -148,8 +146,8 @@ export default function DemoFullReklamy({
         }
       >
         <PlatformSplit split={d.platformSplit} lang={lang} />
-        <SearchTerms terms={DEMO_SEARCH_TERMS} lang={lang} />
-        <ImpressionShare data={demoImpressionShare(d)} lang={lang} />
+        <SearchTerms terms={demoSearchTerms(src, d)} lang={lang} />
+        <ImpressionShare data={demoImpressionShare(src, d)} lang={lang} />
         <CampaignPositions
           campaigns={d.campaigns}
           lang={lang}

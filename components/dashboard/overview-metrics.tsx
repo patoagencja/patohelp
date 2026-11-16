@@ -232,7 +232,6 @@ export function OverviewMetrics({
   events,
   autoEvents,
   yoy,
-  demo = false,
   aside,
   forecast = false,
   afterTiles,
@@ -246,7 +245,6 @@ export function OverviewMetrics({
   events: ClientEvent[];
   autoEvents?: ChartEvent[];
   yoy?: EngagementYoY | null;
-  demo?: boolean;
   /** Shown to the right of the chart on desktop, under it on phones. */
   aside?: React.ReactNode;
   /** 7-day arithmetic projection on the chart (see MainChart). */
@@ -310,7 +308,6 @@ export function OverviewMetrics({
             autoEvents={autoEvents}
             yoy={yoy}
             label={periodLabel}
-            demo={demo}
             metric={metric}
             hidePicker={Boolean(metric)}
             hideCompare

@@ -9,59 +9,52 @@ import { TopPages } from "@/components/dashboard/website/top-pages";
 import { TrafficSources } from "@/components/dashboard/website/traffic-sources";
 import { PageHeader } from "@/components/ui/page-header";
 import { buildActivityHeatmap } from "@/lib/dashboard/activity";
+import { DEMO_AGE_SHARES, DEMO_FEMALE_SHARE, DEMO_REGION_SHARES } from "@/lib/demo/brand";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { addDaysIso } from "@/lib/demo/profile/anonymize";
+import { getDemoSource } from "@/lib/demo/profile/store";
+import type { DemoSource } from "@/lib/demo/source";
 
 // Demo day x hour sessions (Monday-first, 4-week sums): evening peaks on
-// weekdays, a flatter midday weekend and the classic Sunday-evening bump.
-// The days follow the shop's week (lib/demo/ecom.ts: boxes are ordered
-// Sunday to Tuesday, Friday and Saturday are quiet) - the heatmap used to
-// crown Tuesday and Wednesday next to an AI analysis praising Sundays and
-// Mondays - and the grid adds up to the last four weeks of visits.
+// weekdays, a flatter midday weekend. The days' weights are the demo's own
+// last four weeks by weekday, and the grid adds up to their visits.
 const DEMO_WEEKDAY = [6, 3, 2, 1, 1, 2, 5, 11, 16, 19, 20, 21, 22, 21, 20, 21, 24, 29, 36, 44, 48, 45, 33, 16];
 const DEMO_WEEKEND = [9, 5, 3, 2, 1, 1, 3, 6, 11, 17, 22, 25, 26, 25, 23, 22, 23, 25, 28, 31, 32, 28, 20, 12];
-const DEMO_DAY_WEIGHT = [1.08, 1.04, 1.0, 0.97, 0.9, 0.86, 1.12]; // Mon..Sun
 
-function demoActivity(fourWeekSessions: number): number[][] {
-  const shape = DEMO_DAY_WEIGHT.map((k, d) =>
-    (d < 5 ? DEMO_WEEKDAY : DEMO_WEEKEND).map(
-      (v, h) => v * k * (d === 6 && h >= 19 && h <= 22 ? 1.4 : 1) * (1 + (((d * 7 + h * 3) % 5) - 2) * 0.02)
-    )
-  );
-  const total = shape.flat().reduce((a, v) => a + v, 0) || 1;
-  return shape.map((row) => row.map((v) => Math.round((v * fourWeekSessions) / total)));
+function demoActivity(src: DemoSource): number[][] {
+  // The last 28 complete days, by weekday (Monday first).
+  const byDay = new Array<number>(7).fill(0);
+  for (let i = 1; i <= 28; i++) {
+    const d = src.day(addDaysIso(src.today, -i));
+    if (!d) continue;
+    byDay[(new Date(`${d.date}T12:00:00Z`).getUTCDay() + 6) % 7] += d.sessions;
+  }
+  return byDay.map((sessions, d) => {
+    const shape = (d < 5 ? DEMO_WEEKDAY : DEMO_WEEKEND).map((v, h) => v * (1 + (((d * 7 + h * 3) % 5) - 2) * 0.02));
+    const sum = shape.reduce((a, v) => a + v, 0) || 1;
+    return shape.map((v) => Math.round((v * sessions) / sum));
+  });
 }
-
-// Meta audience shares (age, gender) and the regions visits come from.
-const AGE_SHARES: Array<[string, number]> = [
-  ["18-24", 0.085], ["25-34", 0.287], ["35-44", 0.257], ["45-54", 0.188], ["55-64", 0.118], ["65+", 0.065],
-];
-const GEO_SHARES: Array<[string, number]> = [
-  ["Masovian Voivodeship", 0.25],
-  ["Silesian Voivodeship", 0.15],
-  ["Lesser Poland Voivodeship", 0.118],
-  ["Greater Poland Voivodeship", 0.107],
-  ["Lower Silesian Voivodeship", 0.086],
-  ["Pomeranian Voivodeship", 0.068],
-];
 
 export const dynamic = "force-dynamic";
 
-export default function DemoFullWitryna({
+export default async function DemoFullWitryna({
   searchParams,
 }: {
   searchParams: { lang?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
-  const d = getDemoDashboard(lang);
+  const src = await getDemoSource();
+  const d = getDemoDashboard(src, lang);
   const w = d.website;
   const totalSessions = w.sessionsTrend.reduce((a, p) => a + p.sessions, 0);
-  // The last 28 complete days (today is partial), like the live snapshot.
-  const fourWeeks = w.sessionsTrend.slice(-29, -1).reduce((a, p) => a + p.sessions, 0);
   // People reached on Meta: its impressions over a typical ~2.4 frequency.
   const metaReach = Math.round(
     d.campaigns.filter((c) => c.provider === "meta_ads").reduce((a, c) => a + c.impressions, 0) / 2.4
   );
+  // Visits by region: the Polish share of the shop's traffic, by voivodeship.
+  const plShare = src.countries.find((c) => c.country === "PL")?.revenueShare ?? 1;
   // Fragment on purpose: the demo layout's <main> holds the sections
   // directly, so each one is a presentation-mode slide.
   return (
@@ -111,19 +104,19 @@ export default function DemoFullWitryna({
           <NewVsReturning data={w.newVsReturning} lang={lang} />
         </div>
         <SessionsTrend trend={w.sessionsTrend} lang={lang} />
-        {en ? null : <ActivityHeatmap data={buildActivityHeatmap(demoActivity(fourWeeks))} />}
+        {en ? null : <ActivityHeatmap data={buildActivityHeatmap(demoActivity(src))} />}
         {en ? null : (
           <Audience
             data={{
               hasData: true,
               ageSource: "meta",
               genderSource: "meta",
-              age: AGE_SHARES.map(([bucket, share]) => ({ bucket, value: Math.round(metaReach * share) })),
+              age: DEMO_AGE_SHARES.map(([bucket, share]) => ({ bucket, value: Math.round(metaReach * share) })),
               gender: [
-                { bucket: "female", value: Math.round(metaReach * 0.57) },
-                { bucket: "male", value: Math.round(metaReach * 0.43) },
+                { bucket: "female", value: Math.round(metaReach * DEMO_FEMALE_SHARE) },
+                { bucket: "male", value: Math.round(metaReach * (1 - DEMO_FEMALE_SHARE)) },
               ],
-              geo: GEO_SHARES.map(([bucket, share]) => ({ bucket, value: Math.round(totalSessions * share) })),
+              geo: DEMO_REGION_SHARES.map(([bucket, share]) => ({ bucket, value: Math.round(totalSessions * plShare * share) })),
             }}
           />
         )}

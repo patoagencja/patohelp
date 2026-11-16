@@ -16,22 +16,25 @@ import { TopPages } from "@/components/dashboard/website/top-pages";
 import { PageHeader } from "@/components/ui/page-header";
 import { normalizeRange, parseCustomRange } from "@/lib/dashboard/ranges";
 import { getDemoEcom, getDemoNewVsReturning } from "@/lib/demo/ecom";
+import { getDemoSource } from "@/lib/demo/profile/store";
 
 // Public e-commerce showcase: the same widgets as
-// app/(dashboard)/[clientSlug]/sprzedaz, fed by synthetic data so the
-// "Sprzedaż" tab can be shown to prospects without a live shop behind it.
+// app/(dashboard)/[clientSlug]/sprzedaz, fed by the demo source (a real
+// shop's anonymized weeks, or the synthetic shop) so the "Sprzedaż" tab can
+// be shown to prospects without a live client behind it.
 export const dynamic = "force-dynamic";
 
 const DEMO_SLUG = "demo-full";
 
-export default function DemoSprzedazPage({
+export default async function DemoSprzedazPage({
   searchParams,
 }: {
   searchParams: { range?: string; from?: string; to?: string };
 }) {
   const range = normalizeRange(searchParams.range);
   const custom = parseCustomRange(searchParams.from, searchParams.to);
-  const d = getDemoEcom(range, custom);
+  const src = await getDemoSource();
+  const d = getDemoEcom(src, range, custom);
   const totalSessions = d.trend.reduce((a, p) => a + p.sessions, 0);
 
   // Same order as the real page: header, numbers, chart, plan, products,
@@ -77,7 +80,7 @@ export default function DemoSprzedazPage({
           isAgency={false}
         />
         <ChannelEfficiency data={d.channels} settings={d.settings} />
-        <NewVsReturning data={getDemoNewVsReturning(d.today)} />
+        <NewVsReturning data={getDemoNewVsReturning(src)} />
         {/* grid-cols-1 (= minmax(0,1fr)) so wide content can't stretch the
             track past a phone screen; min-w-0 lets cards shrink in it. */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">

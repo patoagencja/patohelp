@@ -9,10 +9,11 @@ import {
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getDemoDashboard } from "@/lib/demo/data";
+import { getDemoSource } from "@/lib/demo/profile/store";
 
 export const dynamic = "force-dynamic";
 
-export default function DemoFullNewsy({
+export default async function DemoFullNewsy({
   searchParams,
 }: {
   searchParams: { lang?: string; cat?: string };
@@ -20,7 +21,7 @@ export default function DemoFullNewsy({
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
   const filter = parseNewsFilter(searchParams.cat);
-  const d = getDemoDashboard(lang);
+  const d = getDemoDashboard(await getDemoSource(), lang);
   const items = d.news
     .map((n, i) => ({ id: String(i), ...n }))
     .filter((n) => filter === "all" || n.category === filter);

@@ -1,7 +1,8 @@
 import { AlertsBoard } from "@/components/dashboard/alert-explained";
 import { CampaignGoals } from "@/components/dashboard/campaign-goals";
+import { getDemoAlerts } from "@/lib/demo/alerts";
 import { demoCampaignFlights } from "@/lib/demo/campaign-goals";
-import { getDemoDashboard } from "@/lib/demo/data";
+import { getDemoSource } from "@/lib/demo/profile/store";
 
 export const dynamic = "force-dynamic";
 
@@ -11,25 +12,25 @@ async function noop() {
 
 // Alerty board (2026 pastel): header + severity filter, one glass card per
 // alert. Every top-level child is a presentation slide.
-export default function DemoFullAlerty({
+export default async function DemoFullAlerty({
   searchParams,
 }: {
   searchParams: { lang?: string };
 }) {
   const lang = searchParams.lang === "en" ? "en" : "pl";
   const en = lang === "en";
-  const d = getDemoDashboard(lang);
+  const src = await getDemoSource();
 
   return (
     <>
-      <AlertsBoard alerts={d.alerts} lang={lang} />
+      <AlertsBoard alerts={getDemoAlerts(src, lang)} lang={lang} />
 
       {/* The goal cards are the detail view the overview's goal tiles link
           to; a second row of tiles here showed the same goals twice. Polish
           only, like the live goals section. */}
       {en ? null : (
         <CampaignGoals
-          pacing={demoCampaignFlights()}
+          pacing={demoCampaignFlights(src)}
           isAgency={false}
           clientSlug="demo-full"
           campaignOptions={[]}
