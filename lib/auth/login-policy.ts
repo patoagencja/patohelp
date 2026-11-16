@@ -26,6 +26,24 @@ export function allowedLoginDomains(raw: string | undefined = process.env.LOGIN_
   return list.length ? list : DEFAULT_DOMAINS;
 }
 
+/**
+ * Accounts behind a "link z hasłem" (lib/auth/share-link.ts) live on this
+ * subdomain: never an agency domain (those match exactly), never a real
+ * mailbox, so no e-mail login can reach them - only the link's password.
+ */
+export const SHARE_EMAIL_DOMAIN = "link.patoagencja.com";
+
+export function isShareViewerEmail(email: string | null | undefined): boolean {
+  return (email ?? "").trim().toLowerCase().endsWith(`@${SHARE_EMAIL_DOMAIN}`);
+}
+
+/** The client a link account was made for (auth app_metadata, service-role only). */
+export function shareClientIdOf(user: { app_metadata?: unknown } | null | undefined): string | null {
+  const meta = user?.app_metadata as { share?: { client_id?: unknown } } | null | undefined;
+  const id = meta?.share?.client_id;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
 /** The domain rule alone (agency domains, or everyone with "*"). */
 export function isLoginAllowed(email: string | null | undefined, raw?: string): boolean {
   const domains = allowedLoginDomains(raw);
@@ -86,6 +104,8 @@ export function mayRequestLoginLink(
   clientLoginRaw?: string
 ): boolean {
   if (isLoginAllowed(email, raw)) return true;
+  // Link accounts open only through their password page.
+  if (isShareViewerEmail(email)) return false;
   if (!clientLoginEnabled(clientLoginRaw)) return false;
   if (hasClientInvitation(access.invitations, email)) return true;
   const normalized = email.trim().toLowerCase();
@@ -101,12 +121,19 @@ export function mayRequestLoginLink(
  * the person holds that mailbox (migration 0041).
  */
 export function isSessionAllowed(
-  user: { email?: string | null; email_confirmed_at?: string | null },
+  user: { email?: string | null; email_confirmed_at?: string | null; app_metadata?: unknown },
   profile: PanelProfile | null | undefined,
   raw?: string,
   clientLoginRaw?: string
 ): boolean {
   if (isLoginAllowed(user.email, raw)) return true;
+  // A password link's account (independent of CLIENT_LOGIN_ENABLED - the
+  // agency made that link on purpose): only while it still holds the seat
+  // of the one client the link was made for.
+  if (isShareViewerEmail(user.email)) {
+    const linkClient = shareClientIdOf(user);
+    return linkClient !== null && hasClientSeat(profile) && profile?.client_id === linkClient;
+  }
   if (!clientLoginEnabled(clientLoginRaw)) return false;
   return Boolean(user.email_confirmed_at) && hasClientSeat(profile);
 }

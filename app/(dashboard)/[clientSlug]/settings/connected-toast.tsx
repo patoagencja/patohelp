@@ -89,6 +89,8 @@ export function ConnectedToast({
       toast.error("Wklej token, zanim zapiszesz.");
     } else if (error === "access_email") {
       toast.error("Ten adres e-mail wygląda na niepoprawny - sprawdź literówki.");
+    } else if (error === "share_failed") {
+      toast.error("Nie udało się wyłączyć linku. Odśwież stronę i spróbuj ponownie.");
     } else if (error === "access_login_off") {
       toast.error(
         "Logowanie klientów jest na razie wyłączone - do panelu wchodzą tylko adresy @patoagencja.com."
@@ -164,6 +166,8 @@ export function ConnectedToast({
       toast.success("Zapisano budżet sezonu");
     } else if (saved === "notifications") {
       toast.success("Zapisano ustawienia powiadomień");
+    } else if (saved === "share_revoked") {
+      toast.success("Link wyłączony - już nikogo nie wpuści.");
     } else if (saved?.startsWith("access")) {
       const loginUrl = `${window.location.origin}/login`;
       if (saved === "access_invited") {

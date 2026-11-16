@@ -1,7 +1,12 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { clientLoginEnabled, isLoginAllowed, isSessionAllowed } from "@/lib/auth/login-policy";
+import {
+  clientLoginEnabled,
+  isLoginAllowed,
+  isSessionAllowed,
+  isShareViewerEmail,
+} from "@/lib/auth/login-policy";
 
 // Public paths that must stay reachable without a session. /r and /s are
 // token-gated share pages (report deck / board overview) - the page itself
@@ -16,6 +21,8 @@ const PUBLIC_PATHS = [
   "/terms",
   "/r",
   "/s",
+  // Password link for a client's panel: the page checks token + password.
+  "/k",
   "/demo",
   "/demo-full",
   "/manifest.webmanifest",
@@ -79,8 +86,9 @@ export async function middleware(request: NextRequest) {
   // Only those outside the domains pay the extra read (their own users row,
   // readable under RLS).
   if (user && !isLoginAllowed(user.email) && !isPublicPath(request.nextUrl.pathname)) {
-    // Client logins switched off (the default): agency mailboxes only, no read.
-    if (clientLoginEnabled()) {
+    // Client logins switched off (the default): agency mailboxes and the
+    // agency's password links only - nobody else pays a read.
+    if (clientLoginEnabled() || isShareViewerEmail(user.email)) {
       const { data: profile, error } = await supabase
         .from("users")
         .select("role, client_id")

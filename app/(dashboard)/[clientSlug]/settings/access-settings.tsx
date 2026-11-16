@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { allowedLoginDomains } from "@/lib/auth/login-policy";
+import { allowedLoginDomains, clientLoginEnabled, isShareViewerEmail } from "@/lib/auth/login-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateWarsaw } from "@/lib/utils";
 
@@ -10,6 +10,8 @@ import {
   removeClientUserAccess,
 } from "./access-actions";
 import { AccessRemoveButton } from "./access-remove-button";
+import { revokeShareLink } from "./share-link-actions";
+import { ShareLinkCreator } from "./share-link-creator";
 import { CHECKBOX_CLASS } from "./form-styles";
 import { SettingsHeading } from "./settings-heading";
 
@@ -59,7 +61,10 @@ export async function AccessSettingsSection({
       .order("created_at", { ascending: true }),
   ]);
 
-  const users = (usersRes.data ?? []) as AccessUserRow[];
+  const allUsers = (usersRes.data ?? []) as AccessUserRow[];
+  // Password-link accounts get their own list below, not the people list.
+  const links = allUsers.filter((u) => isShareViewerEmail(u.email));
+  const users = allUsers.filter((u) => !isShareViewerEmail(u.email));
   const userEmails = new Set(users.map((u) => u.email.toLowerCase()));
   // An invitation whose person already shows up above is just the mapping
   // record, not something still waiting.
@@ -71,7 +76,7 @@ export async function AccessSettingsSection({
   // link, so "has a row" doesn't mean "has logged in" - show the difference.
   const lastSignIn = new Map<string, string | null>();
   await Promise.all(
-    users.slice(0, SIGN_IN_LOOKUP_LIMIT).map(async (u) => {
+    [...users, ...links].slice(0, SIGN_IN_LOOKUP_LIMIT).map(async (u) => {
       const { data } = await admin.auth.admin.getUserById(u.id);
       if (data?.user) lastSignIn.set(u.id, data.user.last_sign_in_at ?? null);
     })
@@ -89,10 +94,9 @@ export async function AccessSettingsSection({
         <CardContent className="flex flex-col gap-5 pt-6">
           {allowedLoginDomains() !== "*" ? (
             <p className="rounded-[16px] bg-chip px-4 py-3 text-sm text-ink-2">
-              Zalogować się mogą adresy{" "}
-              {(allowedLoginDomains() as string[]).map((d) => `@${d}`).join(", ")} oraz osoby
-              zaproszone tutaj - dowolną domeną, na stronie logowania swoim adresem. Nikt inny
-              nie dostanie linku do logowania.
+              {clientLoginEnabled()
+                ? `Zalogować się mogą adresy ${(allowedLoginDomains() as string[]).map((d) => `@${d}`).join(", ")} oraz osoby zaproszone tutaj - dowolną domeną, na stronie logowania swoim adresem. Nikt inny nie dostanie linku do logowania.`
+                : `Logowanie e-mailem mają na razie tylko adresy ${(allowedLoginDomains() as string[]).map((d) => `@${d}`).join(", ")} - zaproszenia zadziałają po włączeniu CLIENT_LOGIN_ENABLED. Klientowi daj „Link z hasłem” poniżej.`}
             </p>
           ) : null}
           {invitesRes.error ? (
@@ -194,6 +198,45 @@ export async function AccessSettingsSection({
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl">
+        <CardContent className="flex flex-col gap-4 pt-6">
+          <div>
+            <p className="text-[15px] font-medium">Link z hasłem</p>
+            <p className="mt-1 text-sm text-ink-2">
+              Jeden adres i hasło dla klienta - bez logowania e-mailem. Otwiera tylko ten
+              panel. Wyłączony link przestaje działać od razu, także na otwartych urządzeniach.
+            </p>
+          </div>
+          <ShareLinkCreator clientSlug={clientSlug} />
+          {links.length > 0 ? (
+            <ul className="flex flex-col divide-y divide-line rounded-[20px] bg-chip">
+              {links.map((u) => {
+                const signedIn = lastSignIn.get(u.id);
+                return (
+                  <li key={u.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3">
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-sm font-medium">
+                        Link z {formatDateWarsaw(u.created_at, "d MMM yyyy, HH:mm")}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {signedIn
+                          ? `ostatnio otwarty ${formatDateWarsaw(signedIn, "d MMM yyyy, HH:mm")}`
+                          : "jeszcze nieotwarty"}
+                      </span>
+                    </div>
+                    <form action={revokeShareLink}>
+                      <input type="hidden" name="client" value={clientSlug} />
+                      <input type="hidden" name="user_id" value={u.id} />
+                      <AccessRemoveButton label="Wyłącz link" />
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </CardContent>
       </Card>
     </div>

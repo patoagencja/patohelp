@@ -15,6 +15,7 @@ export const RESERVED_SLUGS = new Set([
   "privacy",
   "r",
   "s",
+  "k",
   "terms",
   "icon",
   "apple-icon",

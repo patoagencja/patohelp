@@ -20,6 +20,7 @@ import { PresentationMode } from "@/components/dashboard/presentation-mode";
 import { RefreshButton } from "@/components/dashboard/refresh-button";
 import { Snowfall } from "@/components/dashboard/season/festive";
 import { Toaster } from "@/components/ui/toaster";
+import { isShareViewerEmail } from "@/lib/auth/login-policy";
 import { clientAccentStyle } from "@/lib/dashboard/branding";
 import {
   getClientBySlug,
@@ -189,7 +190,8 @@ export default async function ClientDashboardLayout({
       menu={
         <HeaderMenu
           overviewPath={base}
-          email={user?.email}
+          // A password link's account has a made-up address: nothing to show.
+          email={isShareViewerEmail(user?.email) ? null : user?.email}
           signOut={signOut}
           isEcommerce={isEcommerce}
           isSeasonal={isSeasonal}
