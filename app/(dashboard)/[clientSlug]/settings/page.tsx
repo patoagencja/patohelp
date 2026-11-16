@@ -30,6 +30,7 @@ import { AccessSettingsSection } from "./access-settings";
 import { BrandingSettingsSection } from "./branding-settings";
 import { ConnectedToast } from "./connected-toast";
 import { ConnectionStability } from "./connection-stability";
+import { DemoSettingsSection } from "./demo-settings";
 import { EcomSettingsSection } from "./ecom-settings";
 import { GoalsSettingsSection } from "./goals-settings";
 import { CHECKBOX_CLASS } from "./form-styles";
@@ -391,6 +392,7 @@ export default async function SettingsPage({
     .maybeSingle();
   const isEcommerce =
     (ct as { client_type?: string } | null)?.client_type === "ecommerce";
+  const showDemo = isEcommerce && access.role === "admin";
 
   // GA4 auth mode (OAuth refresh token vs never-expiring service account)
   // lives inside the encrypted credentials - service-role read, agency page.
@@ -462,6 +464,7 @@ export default async function SettingsPage({
             { id: "wyglad", label: "Wygląd panelu" },
             { id: "udostepnianie", label: "Link dla zarządu" },
             { id: "dostep", label: "Dostęp" },
+            ...(showDemo ? [{ id: "demo", label: "Demo" }] : []),
           ]}
         />
       </div>
@@ -1027,6 +1030,9 @@ export default async function SettingsPage({
       <ShareOverviewSection clientId={access.clientId} clientSlug={params.clientSlug} />
 
       <AccessSettingsSection clientId={access.clientId} clientSlug={access.clientSlug} />
+
+      {/* The public demo can show a shop's numbers (anonymized): admins only. */}
+      {showDemo ? <DemoSettingsSection clientId={access.clientId} clientSlug={params.clientSlug} /> : null}
     </div>
   );
 }
