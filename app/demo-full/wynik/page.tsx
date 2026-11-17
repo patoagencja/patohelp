@@ -2,7 +2,7 @@ import { DailyNetPageView } from "@/components/dashboard/daily-net/daily-net-pag
 import {
   buildDailyNetView,
   datesBetween,
-  type DayInputs,
+  mergeDayInputs,
   parseCompareMode,
   readWindows,
   resolveNetRange,
@@ -50,19 +50,17 @@ export default async function DemoWynikPage({
   const windows = readWindows(range);
   const manual = sampleManualCosts(src, windows);
 
-  const days: DayInputs = {};
+  const revenue: Record<string, number> = {};
+  const api: Record<string, { meta: number; google: number }> = {};
   for (const w of windows) {
     for (const date of datesBetween(w.start, w.end)) {
       const d = src.day(date);
       if (!d) continue;
-      days[date] = { revenue: d.hasSales ? d.revenue : null, api: { meta: d.meta.spend, google: d.google.spend } };
+      if (d.hasSales) revenue[date] = d.revenue;
+      api[date] = { meta: d.meta.spend, google: d.google.spend };
     }
   }
-  for (const [key, v] of Object.entries(manual)) {
-    const [date, channel] = key.split("|") as [string, "pinterest" | "bing"];
-    const day = (days[date] ??= {});
-    (day.manual ??= {})[channel] = v;
-  }
+  const days = mergeDayInputs(revenue, api, manual);
 
   const view = buildDailyNetView(range, mode, today, days, yearsOf(range).map(blackFridayOf));
   const rangeValues = Object.fromEntries(

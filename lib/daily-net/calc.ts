@@ -201,6 +201,30 @@ export function mergeDaySpend(day: DayInput | undefined): DaySpend {
   return out;
 }
 
+/**
+ * The three sources as one input per day: shop revenue by date, integration
+ * spend by date and channel, hand entries keyed "date|channel" (the grid's
+ * cell key, lib/daily-net/paste cellKey). Unknown hand channels are dropped.
+ */
+export function mergeDayInputs(
+  revenue: Readonly<Record<string, number>>,
+  api: Readonly<Record<string, Partial<Record<ApiChannel, number>>>>,
+  manual: Readonly<Record<string, number>>
+): DayInputs {
+  const days: DayInputs = {};
+  const day = (date: string) => (days[date] ??= {});
+  for (const [date, v] of Object.entries(revenue)) day(date).revenue = v;
+  for (const [date, v] of Object.entries(api)) day(date).api = { ...v };
+  for (const [key, v] of Object.entries(manual)) {
+    const bar = key.indexOf("|");
+    const channel = key.slice(bar + 1);
+    if (bar < 0 || !isManualChannel(channel)) continue;
+    const d = day(key.slice(0, bar));
+    (d.manual ??= {})[channel] = v;
+  }
+  return days;
+}
+
 // --------------------------------------------------------------------- rows
 
 /** One day of one year: revenue, merged ad costs, what is left. */

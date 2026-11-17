@@ -12,9 +12,8 @@ import {
   buildDailyNetView,
   type CompareMode,
   type DailyNetView,
-  type DayInputs,
   MANUAL_CHANNELS,
-  type ManualChannel,
+  mergeDayInputs,
   type NetRange,
   PROVIDER_CHANNEL,
   readWindows,
@@ -134,26 +133,6 @@ export async function getManualCosts(clientId: string, windows: Window[]): Promi
     }
   }
   return { available: true, values };
-}
-
-/** Merges the three sources into one input per day. Pure. */
-export function mergeDayInputs(
-  revenue: Record<string, number>,
-  api: Record<string, Partial<Record<ApiChannel, number>>>,
-  manual: Record<string, number>
-): DayInputs {
-  const days: DayInputs = {};
-  const day = (date: string) => (days[date] ??= {});
-  for (const [date, v] of Object.entries(revenue)) day(date).revenue = v;
-  for (const [date, v] of Object.entries(api)) day(date).api = { ...v };
-  for (const [key, v] of Object.entries(manual)) {
-    const bar = key.indexOf("|");
-    const date = key.slice(0, bar);
-    const channel = key.slice(bar + 1) as ManualChannel;
-    const d = day(date);
-    (d.manual ??= {})[channel] = v;
-  }
-  return days;
 }
 
 export interface DailyNetData extends DailyNetView {

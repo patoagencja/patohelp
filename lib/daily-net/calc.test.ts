@@ -9,6 +9,7 @@ import {
   cumulativeNet,
   datesBetween,
   type DayInputs,
+  mergeDayInputs,
   mergeDaySpend,
   momentOf,
   netChange,
@@ -241,4 +242,17 @@ test("read windows cover both comparison modes", () => {
   assert.deepEqual(ly, { start: "2025-10-01", end: "2025-12-25" });
   assert.equal(y2.start <= "2024-10-01", true);
   assert.equal(y2.end >= alignedDate("2026-12-24", "weekday", 2), true);
+});
+
+test("the three sources merge into one input per day", () => {
+  const days = mergeDayInputs(
+    { "2026-11-27": 3000_00 },
+    { "2026-11-27": { meta: 300_00, tiktok: 20_00 }, "2026-11-28": { google: 5_00 } },
+    { "2026-11-27|tiktok": 999_00, "2026-11-28|bing": 7_00, "2026-11-28|unknown": 1_00 }
+  );
+  assert.deepEqual(days, {
+    "2026-11-27": { revenue: 3000_00, api: { meta: 300_00, tiktok: 20_00 }, manual: { tiktok: 999_00 } },
+    "2026-11-28": { api: { google: 5_00 }, manual: { bing: 7_00 } },
+  });
+  assert.equal(mergeDaySpend(days["2026-11-27"]).total, 320_00);
 });
