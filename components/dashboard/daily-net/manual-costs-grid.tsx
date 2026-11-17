@@ -96,8 +96,10 @@ export function ManualCostsGrid({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, clearOnSig]);
 
-  const amount = (key: string) => parseAmount(text(key), "zl") ?? 0;
-  const colTotals = CHANNELS.map((c) => dates.reduce((a, d) => a + amount(cellKey(d, c)), 0));
+  // What counts: a TikTok entry on a day the integration covers doesn't (the table above ignores it too).
+  const amount = (date: string, channel: string) =>
+    channel === "tiktok" && tiktokApi.has(date) ? 0 : parseAmount(text(cellKey(date, channel)), "zl") ?? 0;
+  const colTotals = CHANNELS.map((c) => dates.reduce((a, d) => a + amount(d, c), 0));
 
   function setCell(key: string, value: string) {
     setEdits((prev) => ({ ...prev, [key]: value }));
@@ -214,7 +216,7 @@ export function ManualCostsGrid({
           </thead>
           <tbody>
             {dates.map((date, r) => {
-              const rowTotal = CHANNELS.reduce((a, c) => a + amount(cellKey(date, c)), 0);
+              const rowTotal = CHANNELS.reduce((a, c) => a + amount(date, c), 0);
               return (
                 <tr key={date} className="[&>td]:border-b [&>td]:border-line [&>th]:border-b [&>th]:border-line">
                   <th scope="row" className="sticky left-0 z-[1] whitespace-nowrap bg-card px-3 py-1.5 text-left font-normal shadow-[1px_0_0_var(--line)]">
