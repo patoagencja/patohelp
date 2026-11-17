@@ -17,6 +17,7 @@ import {
 } from "@/components/dashboard/ecom/top-products";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { SectionBoundary } from "@/components/dashboard/section-boundary";
+import { SalesSectionTabs } from "@/components/dashboard/section-tabs";
 import { SeasonOverviewCard } from "@/components/dashboard/season/season-overview-card";
 import { Devices } from "@/components/dashboard/website/devices";
 import { SNAPSHOT_30D_NOTE } from "@/components/dashboard/website/share-bars";
@@ -174,18 +175,22 @@ export default async function SprzedazPage({
   // chart, plan, products, details. Everything else sits behind one click.
   return (
     <div className="min-w-0 space-y-8 p-4 sm:p-6">
-      <PageHeader
-        eyebrow={<span className="kick">Sklep · {data.rangeLabel}</span>}
-        title="Sprzedaż"
-        description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
-        actions={
-          <DateRangePicker
-            value={range}
-            customFrom={custom?.start}
-            customTo={custom?.end}
-          />
-        }
-      />
+      <div className="space-y-5">
+        {/* Sprzedaż | Wynik dzień po dniu, as Reklamy has Kampanie | Kreacje. */}
+        <SalesSectionTabs base={`/${params.clientSlug}`} active="sprzedaz" />
+        <PageHeader
+          eyebrow={<span className="kick">Sklep · {data.rangeLabel}</span>}
+          title="Sprzedaż"
+          description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
+          actions={
+            <DateRangePicker
+              value={range}
+              customFrom={custom?.start}
+              customTo={custom?.end}
+            />
+          }
+        />
+      </div>
 
       {/* Seasonal shops: the season page holds the shop's own sales and the
           ad platforms' - a shop without GA4 revenue would otherwise meet an

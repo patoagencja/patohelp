@@ -63,7 +63,11 @@ export function MobileNav({
   const overflow = mainItems.slice(4);
   const moreItems = groups.find((g) => g.id === "more")?.items ?? [];
   const sheetSections: { label?: string; items: NavItem[] }[] = [
-    { label: "Reklamy", items: mainItems.flatMap((i) => i.children ?? []) },
+    // Sub-pages under their place's name (Sprzedaż: Wynik dzień po dniu;
+    // Reklamy: Kreacje, Testy kreacji).
+    ...mainItems
+      .filter((i) => i.children?.length)
+      .map((i) => ({ label: i.label, items: i.children ?? [] })),
     { items: [...overflow, ...moreItems] },
     ...groups
       .filter((g) => g.id === "agency")

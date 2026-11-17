@@ -40,11 +40,14 @@ export function MarketsPageView({
   showRevenue,
   base,
   eyebrowExtra,
+  resultHref,
 }: {
   view: SeasonView;
   showRevenue: boolean;
   base: string;
   eyebrowExtra?: string;
+  /** Shops: the switch's "Wynik" tab. */
+  resultHref?: string;
 }) {
   const running = view.state.phase === "in";
   const shop = showRevenue ? view.shop : null;
@@ -104,7 +107,7 @@ export function MarketsPageView({
 
   const header = (lead: string) => (
     <div className="space-y-5">
-      <SeasonTabs base={base} active="rynki" />
+      <SeasonTabs base={base} active="rynki" resultHref={resultHref} />
       <PageHeader
         eyebrow={<span className="kick">{`${seasonLabel} · rynki${eyebrowExtra ?? ""}`}</span>}
         title="Rynki"

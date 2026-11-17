@@ -43,10 +43,13 @@ export function SeasonPageView({
   isAgency,
   eyebrowExtra,
   tabsBase,
+  resultHref,
 }: {
   view: SeasonView;
   /** "/elfi/sezon": shows the Sezon | Budżet | Rynki switch. */
   tabsBase?: string;
+  /** Shops: the switch's "Wynik" tab (the season day by day, under Sprzedaż). */
+  resultHref?: string;
   /** Shop clients: sales and returns. Others see clicks and cost only. */
   showRevenue: boolean;
   isAgency: boolean;
@@ -300,7 +303,7 @@ export function SeasonPageView({
   return (
     <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
       <div className="relative space-y-5">
-        {tabsBase ? <SeasonTabs base={tabsBase} active="sezon" /> : null}
+        {tabsBase ? <SeasonTabs base={tabsBase} active="sezon" resultHref={resultHref} /> : null}
         <PageHeader
           className="relative"
           eyebrow={

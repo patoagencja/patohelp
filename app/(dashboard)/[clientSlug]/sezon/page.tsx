@@ -42,6 +42,7 @@ export default async function SeasonPage({ params }: { params: { clientSlug: str
       showRevenue={client.clientType === "ecommerce"}
       isAgency={viewer.isAgency}
       tabsBase={`/${params.clientSlug}/sezon`}
+      resultHref={client.clientType === "ecommerce" ? `/${params.clientSlug}/wynik?range=season` : undefined}
     />
   );
 }

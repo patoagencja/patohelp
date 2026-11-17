@@ -17,6 +17,7 @@ export default async function SeasonMarketsPage({ params }: { params: { clientSl
       view={view}
       showRevenue={client.clientType === "ecommerce"}
       base={`/${params.clientSlug}/sezon`}
+      resultHref={client.clientType === "ecommerce" ? `/${params.clientSlug}/wynik?range=season` : undefined}
     />
   );
 }

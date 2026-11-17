@@ -10,6 +10,7 @@ import { SalesOverview } from "@/components/dashboard/ecom/sales-overview";
 import { SeasonPlanner } from "@/components/dashboard/ecom/season-planner";
 import { TopProducts } from "@/components/dashboard/ecom/top-products";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { SalesSectionTabs } from "@/components/dashboard/section-tabs";
 import { Devices } from "@/components/dashboard/website/devices";
 import { SNAPSHOT_30D_NOTE } from "@/components/dashboard/website/share-bars";
 import { TopPages } from "@/components/dashboard/website/top-pages";
@@ -41,14 +42,17 @@ export default async function DemoSprzedazPage({
   // then everything else behind one "Pokaż szczegóły".
   return (
     <div className="min-w-0 space-y-8">
-      <PageHeader
-        eyebrow={<span className="kick">Sklep · {d.rangeLabel}</span>}
-        title="Sprzedaż"
-        description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
-        actions={
-          <DateRangePicker value={range} customFrom={custom?.start} customTo={custom?.end} />
-        }
-      />
+      <div className="space-y-5">
+        <SalesSectionTabs base="/demo-full" active="sprzedaz" />
+        <PageHeader
+          eyebrow={<span className="kick">Sklep · {d.rangeLabel}</span>}
+          title="Sprzedaż"
+          description="Ile sprzedał Twój sklep i czy reklamy się opłacają."
+          actions={
+            <DateRangePicker value={range} customFrom={custom?.start} customTo={custom?.end} />
+          }
+        />
+      </div>
 
       <EcommerceKpis
         data={d.ecommerce}

@@ -23,6 +23,7 @@ export default async function SeasonBudgetPage({ params }: { params: { clientSlu
       base={`/${params.clientSlug}/sezon`}
       isAgency={viewer.isAgency}
       settingsHref={`/${params.clientSlug}/settings#sezon`}
+      resultHref={client.clientType === "ecommerce" ? `/${params.clientSlug}/wynik?range=season` : undefined}
     />
   );
 }

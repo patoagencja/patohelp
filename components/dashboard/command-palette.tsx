@@ -32,6 +32,7 @@ import {
   Search,
   Settings,
   ShoppingBag,
+  TableProperties,
   Sunrise,
   SunMoon,
 } from "lucide-react";
@@ -96,8 +97,9 @@ const RECENT_MAX = 3;
 
 // Tabs whose pages ignore ?range= - picking a range there lands on the
 // overview instead of silently doing nothing. Sezon is framed by the season
-// window itself (lib/season), not by a date range; Dziś by today.
-const NO_RANGE_TABS = new Set(["alerty", "newsy", "settings", "sezon", "dzis"]);
+// window itself (lib/season), not by a date range; Dziś by today; Wynik
+// by its own season / month picks.
+const NO_RANGE_TABS = new Set(["alerty", "newsy", "settings", "sezon", "dzis", "wynik"]);
 
 // One output char per input char keeps match indices valid for highlighting
 // the original (accented) label. "ł" has no Unicode decomposition, hence the
@@ -346,7 +348,10 @@ export function CommandPalette({
         ? [{ path: "sezon", label: "Sezon", icon: CalendarRange, keywords: "season sezonowy swieta boze narodzenie wigilia mikolajki black friday poprzedni sezon porownanie rok do roku prognoza" }]
         : []),
       ...(isEcommerce
-        ? [{ path: "sprzedaz", label: "Sprzedaż", icon: ShoppingBag, keywords: "sales sklep zamowienia przychod" }]
+        ? [
+            { path: "sprzedaz", label: "Sprzedaż", icon: ShoppingBag, keywords: "sales sklep zamowienia przychod" },
+            { path: "wynik", label: "Wynik dzień po dniu", icon: TableProperties, keywords: "wynik zostaje po reklamach przychod minus reklamy arkusz all in all sum rok do roku pinterest bing x chatgpt koszty reczne marza dzien po dniu" },
+          ]
         : []),
       { path: "reklamy", label: "Reklamy", icon: Megaphone, keywords: "ads kampanie meta google facebook instagram koszt klikniecia cpc klikalnosc ctr wydatki frazy wyszukiwania" },
       { path: "kreacje", label: "Kreacje", icon: ImageIcon, keywords: "creatives grafiki wideo filmy obrazki najlepsze reklamy" },

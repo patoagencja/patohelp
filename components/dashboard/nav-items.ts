@@ -13,6 +13,7 @@ import {
   Settings,
   ShoppingBag,
   Sunrise,
+  TableProperties,
   type LucideIcon,
 } from "lucide-react";
 
@@ -60,7 +61,8 @@ export const HELP_EVENT = "pato:help";
  *                      its first four, so the last main places drop into
  *                      the "Więcej" sheet (mobile-nav.tsx)
  *
- * Kreacje lives inside Reklamy; Alerty, Newsy and Słowniczek are under
+ * Kreacje lives inside Reklamy, "Wynik dzień po dniu" inside Sprzedaż;
+ * Alerty, Newsy and Słowniczek are under
  * "Więcej" (alerts are also one tap away via the header bell); agency tools
  * are a separate group at the bottom. Routes are unchanged.
  */
@@ -94,7 +96,17 @@ export function buildNav({
     // client opens first, so it must keep a phone tab slot over the pages
     // after it (a seasonal shop: Dziś · Przegląd · Sezon · Sprzedaż).
     ...(isSeasonal ? [{ href: `${base}/sezon`, label: "Sezon", icon: CalendarRange }] : []),
-    ...(isEcommerce ? [{ href: `${base}/sprzedaz`, label: "Sprzedaż", icon: ShoppingBag }] : []),
+    ...(isEcommerce
+      ? [
+          {
+            href: `${base}/sprzedaz`,
+            label: "Sprzedaż",
+            icon: ShoppingBag,
+            // Revenue minus every ad channel per day: the sheet shops kept by hand.
+            children: [{ href: `${base}/wynik`, label: "Wynik dzień po dniu", short: "Wynik", icon: TableProperties }],
+          },
+        ]
+      : []),
     {
       href: `${base}/reklamy`,
       label: "Reklamy",

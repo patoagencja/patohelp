@@ -42,6 +42,7 @@ export function BudgetPageView({
   isAgency,
   settingsHref,
   eyebrowExtra,
+  resultHref,
 }: {
   /** null = no budget set (or before the season). */
   budget: SeasonBudget | null;
@@ -51,10 +52,12 @@ export function BudgetPageView({
   isAgency: boolean;
   settingsHref?: string;
   eyebrowExtra?: string;
+  /** Shops: the switch's "Wynik" tab. */
+  resultHref?: string;
 }) {
   const header = (lead: string) => (
     <div className="space-y-5">
-      <SeasonTabs base={base} active="budzet" />
+      <SeasonTabs base={base} active="budzet" resultHref={resultHref} />
       <PageHeader
         eyebrow={<span className="kick">{`${seasonLabel} · budżet${eyebrowExtra ?? ""}`}</span>}
         title="Budżet sezonu"
