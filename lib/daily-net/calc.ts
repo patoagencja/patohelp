@@ -547,6 +547,44 @@ export function resolveNetRange(input: {
   };
 }
 
+// -------------------------------------------------------------- the view
+
+export interface DailyNetView {
+  /** The table: range start .. range end (today included, as partial). */
+  rows: NetRow[];
+  /** The chart: range start .. axis end (the rest of the season / month). */
+  chart: CumulativePoint[];
+  comparison: NetComparison;
+  change: ReturnType<typeof totalChange>;
+  showY2: boolean;
+}
+
+/** Everything the page shows, from the merged day inputs. Shared by the live page and the demo. */
+export function buildDailyNetView(
+  range: Pick<NetRange, "start" | "end" | "axisEnd">,
+  mode: CompareMode,
+  today: string,
+  days: DayInputs,
+  blackFridays: readonly string[]
+): DailyNetView {
+  const axis = buildRows(datesBetween(range.start, range.axisEnd), today, mode, days, blackFridays);
+  const rows = axis.filter((r) => r.date <= range.end);
+  return {
+    rows,
+    chart: cumulativeNet(axis, today),
+    comparison: compareRows(rows),
+    change: totalChange(rows),
+    showY2: showTwoYearsBack(rows),
+  };
+}
+
+/** Years whose Black Friday the view may need (two years back to the axis end). */
+export function yearsOf(range: Pick<NetRange, "start" | "axisEnd">): number[] {
+  const from = Number(range.start.slice(0, 4)) - 2;
+  const to = Number(range.axisEnd.slice(0, 4));
+  return Array.from({ length: to - from + 1 }, (_, i) => from + i);
+}
+
 /** The windows the page reads: this range (with its axis), a year back, two years back. */
 export function readWindows(range: Pick<NetRange, "start" | "axisEnd">): Array<{ start: string; end: string }> {
   const span = (years: number) => {
