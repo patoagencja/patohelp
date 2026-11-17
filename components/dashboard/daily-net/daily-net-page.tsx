@@ -14,7 +14,7 @@ import {
   type NetRange,
 } from "@/lib/daily-net/calc";
 import type { ManualChange } from "@/lib/daily-net/paste";
-import { formatPlnWhole } from "@/lib/utils";
+import { cn, formatPlnWhole } from "@/lib/utils";
 
 import { ManualCostsGrid, type ManualSaveResult } from "./manual-costs-grid";
 import { NetCumulativeChart } from "./net-chart";
@@ -47,6 +47,7 @@ export function DailyNetPageView({
   exportClient,
   save,
   readOnlyNote,
+  padded = true,
 }: {
   view: DailyNetView;
   range: NetRange;
@@ -64,6 +65,8 @@ export function DailyNetPageView({
   /** Bulk save of the hand-entered costs; absent = read-only. */
   save?: (payload: { client: string; changes: ManualChange[] }) => Promise<ManualSaveResult>;
   readOnlyNote?: string;
+  /** False where the layout pads the page (the demo). */
+  padded?: boolean;
 }) {
   const path = `${base}/wynik`;
   const { rows, comparison: cmp } = view;
@@ -91,7 +94,7 @@ export function DailyNetPageView({
   const lyLabel = seasonLabel && range.preset === "season" ? seasonLabel.ly : "Rok temu";
 
   return (
-    <div className="min-w-0 space-y-8 px-4 py-6 sm:px-6 md:py-8">
+    <div className={cn("min-w-0 space-y-8", padded && "px-4 py-6 sm:px-6 md:py-8")}>
       <div className="space-y-5">
         <SalesSectionTabs base={base} active="wynik" />
         <PageHeader
