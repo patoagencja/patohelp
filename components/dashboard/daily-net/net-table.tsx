@@ -27,13 +27,23 @@ const MOMENT_LABEL: Record<Exclude<DayMoment, null>, string> = {
   "cyber-monday": "Cyber Monday",
   "black-week": "Black Week",
 };
+// Phones: the pinned date column must stay narrow.
+const MOMENT_SHORT: Record<Exclude<DayMoment, null>, string> = {
+  "black-friday": "BF",
+  "cyber-monday": "CM",
+  "black-week": "BW",
+};
 
 const NO_SALES = "brak sprzedaży z tego dnia - sprawdź import ze sklepu";
 const NOT_YET = "sklep nie przesłał jeszcze dzisiejszej sprzedaży";
 
 const money = (v: number | null) => (v === null ? "-" : formatPlnWhole(v));
-const pct = (r: number | null) =>
-  r === null ? "-" : `${r > 0 ? "+" : r < 0 ? "-" : ""}${Math.round(Math.abs(r) * 100)}%`;
+/** "+12%" / "-3%"; a change that rounds to 0% reads "0%", not "-0%". */
+const pct = (r: number | null) => {
+  if (r === null) return "-";
+  const n = Math.round(Math.abs(r) * 100);
+  return n === 0 ? "0%" : `${r > 0 ? "+" : "-"}${n}%`;
+};
 const tone = (v: number | null) => (v === null || v === 0 ? "text-ink-3" : v > 0 ? "text-positive" : "text-negative");
 
 /** "Pinterest 120 zł · Bing 40 zł" for the "Pozostałe" tooltip. */
@@ -140,34 +150,38 @@ export function NetTable({
             ? "„Rok temu” to ten sam dzień tygodnia rok wcześniej (364 dni wstecz) - piątek z piątkiem, Black Friday z Black Friday."
             : "„Rok temu” to ta sama data rok wcześniej - jak w Waszym arkuszu."
         }
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <nav aria-label="Porównuj z" className={segmentedTrack} data-print-hide>
-              <span className="px-2.5 text-xs text-ink-3">porównuj z:</span>
-              {(
-                [
-                  ["date", "tą samą datą"],
-                  ["weekday", "tym samym dniem tygodnia"],
-                ] as const
-              ).map(([key, label]) => (
-                <Link
-                  key={key}
-                  href={compareHrefs[key]}
-                  scroll={false}
-                  aria-current={mode === key ? "true" : undefined}
-                  className={segmentedItem(mode === key, "min-h-10 text-[13px]")}
-                >
-                  {label}
-                </Link>
-              ))}
-            </nav>
-            <CsvDownloadButton columns={csvColumns} rows={csvRows} fileName={csvFileName(exportScope, "wynik-dzien-po-dniu")} />
-          </div>
-        }
+        actions={<CsvDownloadButton columns={csvColumns} rows={csvRows} fileName={csvFileName(exportScope, "wynik-dzien-po-dniu")} />}
       />
+      {/* Its own row, not the header's actions: there the two long labels
+          widened the page past a phone screen. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5" data-print-hide>
+        <span className="text-xs text-ink-3" aria-hidden>
+          porównuj z:
+        </span>
+        <nav aria-label="Porównuj z" className={segmentedTrack}>
+          {(
+            [
+              ["date", "tą samą datą"],
+              ["weekday", "tym samym dniem tygodnia"],
+            ] as const
+          ).map(([key, label]) => (
+            <Link
+              key={key}
+              href={compareHrefs[key]}
+              scroll={false}
+              aria-current={mode === key ? "true" : undefined}
+              className={segmentedItem(mode === key, "min-h-10 text-[13px]")}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       <Card className="overflow-hidden bg-card p-0">
-        <div className="max-h-[75vh] overflow-auto overscroll-x-contain">
+        {/* Phones scroll the page itself (only sideways in here); larger
+            screens keep the header and the totals in view while scrolling. */}
+        <div className="overflow-auto overscroll-x-contain sm:max-h-[75vh]">
           <table className="w-full min-w-[68rem] border-separate border-spacing-0 text-sm tabular-nums">
             <caption className="sr-only">Wynik dzień po dniu: przychód, reklamy i to, co zostaje, na tle zeszłego roku</caption>
             <thead className="sticky top-0 z-[2] bg-card text-xs text-ink-3">
@@ -203,8 +217,14 @@ export function NetTable({
                     <th scope="row" className={cn(stickyCell(r), r.emphasis ? "font-semibold" : "font-normal")}>
                       <span className="text-ink-3">{weekdayPl(r.date)}</span> {dayDot(r.date)}
                       {r.moment ? (
-                        <span className="ml-2 rounded-full bg-anchor px-2 py-0.5 text-[10.5px] font-medium not-italic text-anchor-foreground">
-                          {MOMENT_LABEL[r.moment]}
+                        <span
+                          className="ml-2 rounded-full bg-anchor px-2 py-0.5 text-[10.5px] font-medium not-italic text-anchor-foreground"
+                          title={MOMENT_LABEL[r.moment]}
+                        >
+                          <span className="sm:hidden" aria-hidden>
+                            {MOMENT_SHORT[r.moment]}
+                          </span>
+                          <span className="max-sm:sr-only">{MOMENT_LABEL[r.moment]}</span>
                         </span>
                       ) : null}
                       {r.partial ? <span className="ml-2 text-[11px] font-normal text-ink-3">dziś, niepełny</span> : null}
@@ -252,9 +272,9 @@ export function NetTable({
                 );
               })}
             </tbody>
-            <tfoot className="font-semibold">
+            <tfoot className="sticky bottom-0 z-[2] bg-card font-semibold [&_td]:border-t [&_td]:border-line [&_th]:border-t [&_th]:border-line">
               <tr>
-                <th scope="row" className={cn(stickyCell(), "py-3")}>
+                <th scope="row" className={cn(stickyCell(), "z-[3] py-3")}>
                   Razem
                   {rows.some((r) => r.partial) ? <span className="block text-[11px] font-normal text-ink-3">bez dzisiaj</span> : null}
                 </th>

@@ -258,9 +258,9 @@ export function ManualCostsGrid({
               );
             })}
           </tbody>
-          <tfoot className="font-semibold">
+          <tfoot className="sticky bottom-0 z-[2] bg-card font-semibold [&_td]:border-t [&_td]:border-line [&_th]:border-t [&_th]:border-line">
             <tr>
-              <th scope="row" className="sticky left-0 z-[1] bg-card px-3 py-2.5 text-left shadow-[1px_0_0_var(--line)]">
+              <th scope="row" className="sticky left-0 z-[3] bg-card px-3 py-2.5 text-left shadow-[1px_0_0_var(--line)]">
                 Razem
               </th>
               {colTotals.map((v, i) => (
