@@ -54,6 +54,22 @@ export function SectionTabs({
 }
 
 /**
+ * The Sprzedaż place's tabs: the sales overview and "Wynik dzień po dniu"
+ * (revenue minus every ad channel, day by day). Shops only, like the place.
+ */
+export function SalesSectionTabs({ base, active }: { base: string; active: "sprzedaz" | "wynik" }) {
+  return (
+    <SectionTabs
+      label="Widok sprzedaży"
+      tabs={[
+        { href: `${base}/sprzedaz`, label: "Sprzedaż", active: active === "sprzedaz" },
+        { href: `${base}/wynik`, label: "Wynik dzień po dniu", active: active === "wynik" },
+      ]}
+    />
+  );
+}
+
+/**
  * The Reklamy place's tabs. `query` is appended to every link so the demo's
  * ?lang=en (or the chosen date range) survives switching tabs. "Testy
  * kreacji" judges ads by purchases and sales, so only shops and seasonal
